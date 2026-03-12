@@ -1,55 +1,79 @@
-# End-to-End_News_Collector-Summarizer
+# 📰 NEWSROOM — Thai News Aggregator
 
-Seminar Project
+ระบบดึงข่าวอัตโนมัติจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
 
-## Pipeline Overview
+---
 
-Ingest (RSS/API/Scrape) → Normalize → Dedup → Store Raw → Preprocess → Store Features → Classify (multi-label + confidence) → (Low confidence → LLM route) → Summarize (extractive/abstractive) → Index/Serve
+## 🗂️ โครงสร้างไฟล์
 
-Raw store: เก็บ HTML/JSON ดิบ + metadata ดิบ  
-Clean store: เก็บ text ที่ clean แล้ว + structured fields  
-Derived store: embedding, tokens, labels, summaries, index
+```
+project/
+├── news_scraper.py   # ดึงข่าวจากแต่ละสำนัก
+├── server.py         # Flask API + WebSocket
+├── index.html        # หน้าเว็บ
+├── README.md
+└── .gitignore
+```
 
-## (1) Data Collection
+---
 
-ลำดับ: RSS/API ก่อน → ถ้าไม่มี/ข้อมูลไม่ครบค่อย scrape fallback  
-ทำ normalize ให้เหลือ schema กลาง  
-ทำ dedup ทันที (content_hash / url hash)  
-เก็บ raw เสมอ (debug ง่าย + reprocess ได้)  
-Output: record ที่มี text (หรือ raw_html ที่ยังต้อง extract)
+## ✅ ความต้องการของระบบ
 
-## (2) Data Pre-processing
+- Python **3.10** ขึ้นไป
+- Google Chrome หรือ Chromium (สำหรับ Playwright)
 
-ทำเป็น “pure function” มากที่สุด: รับ text → คืน clean_text + tokens + embedding  
-language detect (ถ้ามีหลายภาษา)  
-clean HTML artifacts, boilerplate removal  
-ตัดคำ/tokenize (ไทยใช้ tokenizer ที่เหมาะ)  
-สร้าง embedding เก็บใน vector store หรือ table แยก  
-Output: เติม features + text(cleaned)
+---
 
-## (3) News Classification (Multi-label + LLM delegation)
+## 📦 ติดตั้ง Dependencies
 
-หัวใจคือ “confidence gating”:  
-โมเดลหลัก (เช่น BiLSTM/Transformer) ทำนาย multi-label + probs  
-กำหนดเกณฑ์ เช่น
-- max_prob < 0.55 หรือ
-- entropy สูง หรือ
-- labels ขัดกันตามกฎ
+```bash
+pip install requests beautifulsoup4 playwright flask flask-cors flask-socketio eventlet
+```
 
-→ ส่งเข้า LLM route
+จากนั้นติดตั้ง browser สำหรับ Playwright:
 
-LLM ทำหน้าที่ “referee” เฉพาะเคสยาก เพื่อลดต้นทุน  
-สำคัญ: เก็บ method=model|llm และ confidence เพื่อ audit/เทรนต่อ  
-Output: เติม classification.labels, probs, method, confidence
+```bash
+playwright install chromium
+```
 
-## (4) Summarization (Extractive + Abstractive)
+---
 
-แนะนำทำ 2 ชั้น:
-- Extractive: เอาประโยคสำคัญ/ไฮไลต์ (เร็ว ถูก cheap) → เป็น “หลักฐาน”
-- Abstractive: สรุปภาษาคนอ่าน โดยอ้างอิง extractive หรือ text เต็ม
+## 🚀 วิธีรัน
 
-กลยุทธ์ลด hallucination:
-- ให้ abstractive “ยึด extractive เป็น context”
-- เก็บ key_sentences ไว้แสดง “อ้างอิงจากบทความ”
+```bash
+python server.py
+```
 
-Output: เติม summaries.extractive และ summaries.abstractive
+จากนั้นเปิดเบราว์เซอร์ไปที่:
+
+```
+http://localhost:5000
+```
+
+---
+
+## ⚙️ ปรับค่าได้ใน `news_scraper.py`
+
+| ตัวแปร | ค่าเริ่มต้น | ความหมาย |
+|---|---|---|
+| `INTERVAL_MINUTES` | `15` | ดึงข่าวใหม่ทุกกี่นาที |
+| `MAX_ARTICLES_PER_SOURCE` | `10` | บทความสูงสุดต่อสำนัก |
+| `SUMMARY_SENTENCES` | `3` | จำนวนประโยคใน summary |
+
+---
+
+## 📡 สำนักข่าวที่รองรับ
+
+| สำนัก | URL |
+|---|---|
+| ThaiPBS | https://www.thaipbs.or.th/news |
+| Bangkok Post | https://www.bangkokpost.com/thailand/general |
+| Matichon | https://www.matichon.co.th/news |
+| 101 World | https://www.the101.world |
+
+---
+
+## 📝 หมายเหตุ
+
+- ครั้งแรกที่รันจะใช้เวลา **2-5 นาที** ในการดึงข่าวรอบแรก
+- ไฟล์ `news_output.json` และ `seen_urls.json` จะถูกสร้างอัตโนมัติ ไม่ต้อง push ขึ้น git
