@@ -1,0 +1,12 @@
+# ข้อมูลที่สร้างอัตโนมัติ ไม่ต้อง push
+news_output.json
+seen_urls.json
+ 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+ 
