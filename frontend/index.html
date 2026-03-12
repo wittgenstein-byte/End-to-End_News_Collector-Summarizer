@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The 101 .World | Premium News Experience</title>
+    <!-- Use Inter as the web fallback font for Telegraf -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    
+    <div class="app-wrapper">
+        <!-- Sidebar Navigation (Desktop) / Bottom Nav (Mobile) -->
+        <nav class="side-nav">
+            <div class="nav-brand">
+                <h1>101<span>.</span></h1>
+            </div>
+            
+            <ul class="nav-links">
+                <li><a href="#" class="active"><i class="fa-solid fa-earth-americas"></i> <span>World</span></a></li>
+                <li><a href="#"><i class="fa-solid fa-landmark"></i> <span>Politics</span></a></li>
+                <li><a href="#"><i class="fa-solid fa-chart-line"></i> <span>Economy</span></a></li>
+                <li><a href="#"><i class="fa-solid fa-palette"></i> <span>Culture</span></a></li>
+                <li><a href="#"><i class="fa-solid fa-users"></i> <span>Society</span></a></li>
+            </ul>
+
+            <div class="nav-footer">
+                <a href="#" class="icon-btn"><i class="fa-regular fa-bookmark"></i></a>
+                <a href="#" class="icon-btn"><i class="fa-solid fa-gear"></i></a>
+                <div class="profile-avatar">
+                    <img src="https://ui-avatars.com/api/?name=User&background=2e4d83&color=fff" alt="Profile">
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-container">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="search-bar">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Search news, topics, or authors...">
+                </div>
+                <div class="date-display">
+                    <span id="current-date">Thursday, March 12</span>
+                </div>
+                <button class="mobile-menu-toggle"><i class="fa-solid fa-bars"></i></button>
+            </header>
+
+            <div class="content-grid">
+                
+                <!-- Left/Center Column: Highlighting Stories -->
+                <div class="primary-feed">
+                    <h2 class="section-title">Top Story</h2>
+                    
+                    <article class="hero-article">
+                        <div class="hero-image-wrapper">
+                            <img src="https://images.unsplash.com/photo-1444653614773-995cb1ef9efa?auto=format&fit=crop&q=80&w=1200&h=800" alt="Hero News">
+                            <div class="category-badge">Global Affairs</div>
+                        </div>
+                        <div class="hero-content">
+                            <h1 class="hero-title">Shifting Paradigms: The Future of Global Economic Alliances</h1>
+                            <p class="hero-excerpt">A deep dive into how emerging markets are reshaping trade agreements and what it means for the next decade of political economy.</p>
+                            <div class="article-meta">
+                                <span class="author">By Sarah Jenkins</span>
+                                <span class="dot">&bull;</span>
+                                <span class="read-time">8 min read</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <h2 class="section-title mt-xl">Latest News</h2>
+                    <div class="latest-grid">
+                        <article class="news-card">
+                            <img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=600&h=400" alt="News Image">
+                            <div class="card-content">
+                                <span class="category-text">Economy</span>
+                                <h3>Tech Stocks Surge Amidst New Policy Announcements</h3>
+                                <div class="article-meta">
+                                    <span class="read-time">2h ago</span>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="news-card">
+                            <img src="https://images.unsplash.com/photo-1494173853739-c21f82b34674?auto=format&fit=crop&q=80&w=600&h=400" alt="News Image">
+                            <div class="card-content">
+                                <span class="category-text">Politics</span>
+                                <h3>Senate Passes Landmark Climate Action Bill</h3>
+                                <div class="article-meta">
+                                    <span class="read-time">4h ago</span>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+
+                <!-- Right Column: Trending / Sidebar -->
+                <aside class="secondary-feed">
+                    <div class="trending-section">
+                        <h2 class="section-title">Trending</h2>
+                        
+                        <div class="trending-list">
+                            <article class="trending-item">
+                                <div class="trend-number">01</div>
+                                <div class="trend-content">
+                                    <span class="category-text">Culture</span>
+                                    <h4>The Resurgence of Analog Photography in the Digital Age</h4>
+                                    <span class="author">Mike Torres</span>
+                                </div>
+                            </article>
+
+                            <article class="trending-item">
+                                <div class="trend-number">02</div>
+                                <div class="trend-content">
+                                    <span class="category-text">Science</span>
+                                    <h4>Breakthrough in Quantum Computing Achieves New Milestone</h4>
+                                    <span class="author">Dr. Elena Rostova</span>
+                                </div>
+                            </article>
+
+                            <article class="trending-item">
+                                <div class="trend-number">03</div>
+                                <div class="trend-content">
+                                    <span class="category-text">Society</span>
+                                    <h4>Urban Farming Initiatives Transform City Landscapes</h4>
+                                    <span class="author">James Wu</span>
+                                </div>
+                            </article>
+                            
+                            <article class="trending-item">
+                                <div class="trend-number">04</div>
+                                <div class="trend-content">
+                                    <span class="category-text">Technology</span>
+                                    <h4>AI Regulation: Navigating the Complexities of Innovation</h4>
+                                    <span class="author">Anita Desai</span>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div class="newsletter-card mt-xl">
+                        <i class="fa-regular fa-envelope"></i>
+                        <h3>Stay Informed</h3>
+                        <p>Get the daily brief delivered straight to your inbox.</p>
+                        <form class="newsletter-form">
+                            <input type="email" placeholder="Your email address">
+                            <button type="submit">Subscribe</button>
+                        </form>
+                    </div>
+                </aside>
+
+            </div>
+        </main>
+    </div>
+
+</body>
+</html>
