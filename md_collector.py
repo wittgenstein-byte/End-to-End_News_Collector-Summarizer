@@ -194,23 +194,24 @@ async def close_playwright():
     if _pw:
         await _pw.stop()
 
-def collect_markdown_with_jina(url: str, output_dir: str = "collected_md") -> str:
-    """Synchronous wrapper keeping old name for backward compatibility"""
-    async def _run():
-        try:
-            return await collect_markdown_async(url, output_dir)
-        finally:
-            await close_playwright()
-    return asyncio.run(_run())
+async def collect_markdown_with_jina(url: str, output_dir: str = "collected_md") -> str:
+    """Async wrapper keeping old name for backward compatibility"""
+    # Simply await the async version. Do not close playwright early!
+    return await collect_markdown_async(url, output_dir)
 
 if __name__ == "__main__":
-    url = input("Enter URL to collect .md file from: ").strip()
+    async def main():
+        url = input("Enter URL to collect .md file from: ").strip()
 
-    if not url:
-        print("Error: URL cannot be empty")
-    else:
-        try:
-            filepath = collect_markdown_with_jina(url)
-            print(f"Successfully saved to: {filepath}")
-        except Exception as e:
-            print(f"Error: {e}")
+        if not url:
+            print("Error: URL cannot be empty")
+        else:
+            try:
+                filepath = await collect_markdown_with_jina(url)
+                print(f"Successfully saved to: {filepath}")
+            except Exception as e:
+                print(f"Error: {e}")
+            finally:
+                await close_playwright() # only close here if running as CLI
+                
+    asyncio.run(main())
