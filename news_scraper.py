@@ -7,7 +7,18 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Callable, Coroutine, Any
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
+
+from concurrent.futures import ThreadPoolExecutor
+_executor = ThreadPoolExecutor(max_workers=2)
+
+# เพิ่ม wrapper async ตรงนี้ (ใต้ get_page_source เดิม)
+async def get_page_source_async(url: str, wait_tag: str = "h2", wait_ms: int = 2000) -> str:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _executor,
+        lambda: get_page_source(url, wait_tag, wait_ms)
+    )
 
 # ─────────────────────────────────────────────
 # Config
@@ -67,18 +78,18 @@ def save_all_news(news_list: list[dict]) -> None:
 # Helpers
 # ─────────────────────────────────────────────
 
-async def get_page_source(url: str, wait_tag: str = "h2", wait_ms: int = 2000) -> str:
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page(user_agent=HEADERS["User-Agent"])
-        await page.goto(url, timeout=30000)
+def get_page_source(url: str, wait_tag: str = "h2", wait_ms: int = 2000) -> str:
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(user_agent=HEADERS["User-Agent"])
+        page.goto(url, timeout=30000)
         try:
-            await page.wait_for_selector(wait_tag, timeout=10000)
+            page.wait_for_selector(wait_tag, timeout=10000)
         except Exception:
             pass
-        await page.wait_for_timeout(wait_ms)
-        html = await page.content()
-        await browser.close()
+        page.wait_for_timeout(wait_ms)
+        html = page.content()
+        browser.close()
     return html
 
 
@@ -194,7 +205,7 @@ async def scrape_bangkokpost() -> list[dict]:
 async def scrape_matichon() -> list[dict]:
     base      = "https://www.matichon.co.th"
     selectors = ["div.entry-content", "div.article-content", "div.content", "article"]
-    html      = await get_page_source(f"{base}/news")
+    html      = await get_page_source_async(f"{base}/news")
     soup      = BeautifulSoup(html, "html.parser")
     news_list = []
     for h in soup.select("h2, h3")[:MAX_ARTICLES_PER_SOURCE]:
@@ -210,7 +221,7 @@ async def scrape_matichon() -> list[dict]:
 async def scrape_101world() -> list[dict]:
     base      = "https://www.the101.world"
     selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
-    html      = await get_page_source(base)
+    html      = await get_page_source_async(base)
     soup      = BeautifulSoup(html, "html.parser")
     news_list = []
     for h in soup.select("h2.entry-title")[:MAX_ARTICLES_PER_SOURCE]:
