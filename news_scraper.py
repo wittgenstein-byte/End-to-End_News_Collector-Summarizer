@@ -1,12 +1,13 @@
-import requests
+import asyncio
 import json
 import time
 import os
+import httpx
 from datetime import datetime
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
-from typing import Callable
-from playwright.sync_api import sync_playwright
+from typing import Callable, Coroutine, Any
+from playwright.async_api import async_playwright
 
 # ─────────────────────────────────────────────
 # Config
@@ -66,18 +67,18 @@ def save_all_news(news_list: list[dict]) -> None:
 # Helpers
 # ─────────────────────────────────────────────
 
-def get_page_source(url: str, wait_tag: str = "h2", wait_ms: int = 2000) -> str:
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent=HEADERS["User-Agent"])
-        page.goto(url, timeout=30000)
+async def get_page_source(url: str, wait_tag: str = "h2", wait_ms: int = 2000) -> str:
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(user_agent=HEADERS["User-Agent"])
+        await page.goto(url, timeout=30000)
         try:
-            page.wait_for_selector(wait_tag, timeout=10000)
+            await page.wait_for_selector(wait_tag, timeout=10000)
         except Exception:
             pass
-        page.wait_for_timeout(wait_ms)
-        html = page.content()
-        browser.close()
+        await page.wait_for_timeout(wait_ms)
+        html = await page.content()
+        await browser.close()
     return html
 
 
@@ -99,12 +100,13 @@ def find_image(soup, base: str) -> str:
     return ""
 
 
-def fetch_summary_and_image(url: str, content_selectors: list[str], base: str) -> tuple[str, str]:
+async def fetch_summary_and_image(url: str, content_selectors: list[str], base: str) -> tuple[str, str]:
     """ดึง summary + image_url จากหน้าข่าวจริง"""
     if not url or not url.startswith("http"):
         return "", ""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=10)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(resp.text, "html.parser")
         image_url = find_image(soup, base)
         summary   = ""
@@ -148,64 +150,75 @@ def make_article(title: str, summary: str, source: str, url: str, image_url: str
 # Scrapers
 # ─────────────────────────────────────────────
 
-def scrape_thaipbs() -> list[dict]:
+async def scrape_thaipbs() -> list[dict]:
     base      = "https://www.thaipbs.or.th"
     selectors = ["div.content-detail", "div.article-content", "div.detail", "article"]
-    soup      = BeautifulSoup(requests.get(f"{base}/news", headers=HEADERS, timeout=10).text, "html.parser")
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{base}/news", headers=HEADERS, timeout=10)
+    
+    soup      = BeautifulSoup(resp.text, "html.parser")
     news_list = []
+    
     for h in soup.select("h3")[:MAX_ARTICLES_PER_SOURCE]:
         title = h.text.strip()
         if not title:
             continue
         url                = find_url(h, base)
-        summary, image_url = fetch_summary_and_image(url, selectors, base)
+        summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "ThaiPBS", url, image_url))
     return news_list
 
 
-def scrape_bangkokpost() -> list[dict]:
+async def scrape_bangkokpost() -> list[dict]:
     base      = "https://www.bangkokpost.com"
     selectors = ["div.article-content", "div.story-body", "article"]
-    soup      = BeautifulSoup(requests.get(f"{base}/thailand/general", headers=HEADERS, timeout=10).text, "html.parser")
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{base}/thailand/general", headers=HEADERS, timeout=10)
+        
+    soup      = BeautifulSoup(resp.text, "html.parser")
     news_list = []
     for h in soup.select("h3"):
         title = h.text.strip()
         if not title or h.get("class", []) != [] or title.upper() in NAV_KEYWORDS:
             continue
         url                = find_url(h, base)
-        summary, image_url = fetch_summary_and_image(url, selectors, base)
+        summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "Bangkok Post", url, image_url))
         if len(news_list) >= MAX_ARTICLES_PER_SOURCE:
             break
     return news_list
 
 
-def scrape_matichon() -> list[dict]:
+async def scrape_matichon() -> list[dict]:
     base      = "https://www.matichon.co.th"
     selectors = ["div.entry-content", "div.article-content", "div.content", "article"]
-    soup      = BeautifulSoup(get_page_source(f"{base}/news"), "html.parser")
+    html      = await get_page_source(f"{base}/news")
+    soup      = BeautifulSoup(html, "html.parser")
     news_list = []
     for h in soup.select("h2, h3")[:MAX_ARTICLES_PER_SOURCE]:
         title = h.text.strip()
         if not title or len(title) <= 10:
             continue
         url                = find_url(h, base)
-        summary, image_url = fetch_summary_and_image(url, selectors, base)
+        summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "Matichon", url, image_url))
     return news_list
 
 
-def scrape_101world() -> list[dict]:
+async def scrape_101world() -> list[dict]:
     base      = "https://www.the101.world"
     selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
-    soup      = BeautifulSoup(get_page_source(base), "html.parser")
+    html      = await get_page_source(base)
+    soup      = BeautifulSoup(html, "html.parser")
     news_list = []
     for h in soup.select("h2.entry-title")[:MAX_ARTICLES_PER_SOURCE]:
         title = h.text.strip()
         if not title:
             continue
         url                = find_url(h, base)
-        summary, image_url = fetch_summary_and_image(url, selectors, base)
+        summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "101 World", url, image_url))
     return news_list
 
@@ -218,7 +231,7 @@ def scrape_101world() -> list[dict]:
 class NewsSource:
     name: str
     url: str
-    scrape_fn: Callable
+    scrape_fn: Callable[[], Coroutine[Any, Any, list[dict]]]
 
 
 SOURCES = [
@@ -233,12 +246,12 @@ SOURCES = [
 # One scrape cycle
 # ─────────────────────────────────────────────
 
-def run_once(seen: set) -> tuple[list[dict], set]:
+async def run_once(seen: set) -> tuple[list[dict], set]:
     new_articles = []
     for source in SOURCES:
         try:
             print(f"  ⏳ {source.name} ...")
-            articles = source.scrape_fn()
+            articles = await source.scrape_fn()
             fresh    = [a for a in articles if a["url"] and a["url"] not in seen]
             new_articles.extend(fresh)
             for a in fresh:
@@ -254,7 +267,7 @@ def run_once(seen: set) -> tuple[list[dict], set]:
 # Main loop (standalone)
 # ─────────────────────────────────────────────
 
-if __name__ == "__main__":
+async def main():
     print("🚀 News scraper เริ่มทำงาน")
     print(f"   ดึงข่าวใหม่ทุก {INTERVAL_MINUTES} นาที | กด Ctrl+C เพื่อหยุด\n")
 
@@ -269,7 +282,7 @@ if __name__ == "__main__":
         print(f"🔄 รอบที่ {round_num} | {now}")
         print(f"{'═' * 50}")
 
-        new_articles, seen = run_once(seen)
+        new_articles, seen = await run_once(seen)
 
         if new_articles:
             all_news.extend(new_articles)
@@ -283,7 +296,13 @@ if __name__ == "__main__":
         print(f"\n⏰ รอบถัดไป: {next_run} (อีก {INTERVAL_MINUTES} นาที)")
 
         try:
-            time.sleep(INTERVAL_MINUTES * 60)
-        except KeyboardInterrupt:
+            await asyncio.sleep(INTERVAL_MINUTES * 60)
+        except asyncio.CancelledError:
             print("\n\n👋 หยุดการทำงาน")
             break
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n\n👋 หยุดการทำงาน (KeyboardInterrupt)")
