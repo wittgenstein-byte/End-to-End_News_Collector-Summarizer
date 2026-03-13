@@ -158,9 +158,30 @@ def make_article(title: str, summary: str, source: str, url: str, image_url: str
 
 
 # ─────────────────────────────────────────────
+# Source registry
+# ─────────────────────────────────────────────
+
+@dataclass
+class NewsSource:
+    name: str
+    url: str
+    color: str
+    scrape_fn: Callable[[], Coroutine[Any, Any, list[dict]]]
+
+SOURCES: list[NewsSource] = []
+
+def register_source(name: str, url: str, color: str):
+    def decorator(func: Callable[[], Coroutine[Any, Any, list[dict]]]):
+        SOURCES.append(NewsSource(name, url, color, func))
+        return func
+    return decorator
+
+
+# ─────────────────────────────────────────────
 # Scrapers
 # ─────────────────────────────────────────────
 
+@register_source("ThaiPBS", "https://www.thaipbs.or.th/news", "#e74c3c")
 async def scrape_thaipbs() -> list[dict]:
     base      = "https://www.thaipbs.or.th"
     selectors = ["div.content-detail", "div.article-content", "div.detail", "article"]
@@ -181,6 +202,7 @@ async def scrape_thaipbs() -> list[dict]:
     return news_list
 
 
+@register_source("Bangkok Post", "https://www.bangkokpost.com/thailand/general", "#3498db")
 async def scrape_bangkokpost() -> list[dict]:
     base      = "https://www.bangkokpost.com"
     selectors = ["div.article-content", "div.story-body", "article"]
@@ -202,6 +224,7 @@ async def scrape_bangkokpost() -> list[dict]:
     return news_list
 
 
+@register_source("Matichon", "https://www.matichon.co.th/news", "#2ecc71")
 async def scrape_matichon() -> list[dict]:
     base      = "https://www.matichon.co.th"
     selectors = ["div.entry-content", "div.article-content", "div.content", "article"]
@@ -218,6 +241,7 @@ async def scrape_matichon() -> list[dict]:
     return news_list
 
 
+@register_source("101 World", "https://www.the101.world", "#9b59b6")
 async def scrape_101world() -> list[dict]:
     base      = "https://www.the101.world"
     selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
@@ -232,25 +256,6 @@ async def scrape_101world() -> list[dict]:
         summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "101 World", url, image_url))
     return news_list
-
-
-# ─────────────────────────────────────────────
-# Source registry
-# ─────────────────────────────────────────────
-
-@dataclass
-class NewsSource:
-    name: str
-    url: str
-    scrape_fn: Callable[[], Coroutine[Any, Any, list[dict]]]
-
-
-SOURCES = [
-    NewsSource("ThaiPBS",      "https://www.thaipbs.or.th/news",              scrape_thaipbs),
-    NewsSource("Bangkok Post", "https://www.bangkokpost.com/thailand/general", scrape_bangkokpost),
-    NewsSource("Matichon",     "https://www.matichon.co.th/news",              scrape_matichon),
-    NewsSource("101 World",    "https://www.the101.world",                     scrape_101world),
-]
 
 
 # ─────────────────────────────────────────────
