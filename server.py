@@ -1,15 +1,23 @@
 """
-server.py — Flask + WebSocket + Pagination
-ติดตั้ง: pip install flask flask-cors flask-socketio eventlet
+server.py — FastAPI + WebSocket + BackgroundTasks
+ติดตั้ง: pip install fastapi uvicorn python-socketio httpx
 """
 
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
-from flask_socketio import SocketIO, emit
-import json, os, threading, time
+import asyncio
+import json
+import os
+import uvicorn
+from contextlib import asynccontextmanager
 from datetime import datetime
 
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import socketio
+
 from news_scraper import SOURCES
+from md_collector import collect_markdown_with_jina
 
 # ── config ───────────────────────────────────────────────────
 INTERVAL_MINUTES = 15
@@ -17,10 +25,7 @@ PAGE_SIZE        = 20
 OUTPUT_FILE      = "news_output.json"
 SEEN_FILE        = "seen_urls.json"
 
-app      = Flask(__name__)
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
-
+sio      = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 
 # ── file helpers ─────────────────────────────────────────────
 
@@ -47,7 +52,7 @@ def save_all_news(data: list[dict]) -> None:
 
 # ── background scraper ────────────────────────────────────────
 
-def scrape_loop():
+async def scrape_loop():
     seen = load_seen()
     while True:
         print(f"\n[{datetime.now():%H:%M:%S}] 🔄 กำลังดึงข่าว...")
@@ -56,7 +61,7 @@ def scrape_loop():
 
         for source in SOURCES:
             try:
-                articles = source.scrape_fn()
+                articles = await source.scrape_fn()
                 fresh    = [a for a in articles if a.get("url") and a["url"] not in seen]
                 for a in fresh:
                     seen.add(a["url"])
@@ -70,7 +75,7 @@ def scrape_loop():
             save_all_news(all_news)
             save_seen(seen)
             print(f"  💾 {len(new_batch)} บทความใหม่ (รวม {len(all_news)})")
-            socketio.emit("new_articles", {
+            await sio.emit("new_articles", {
                 "count":    len(new_batch),
                 "total":    len(all_news),
                 "articles": new_batch,
@@ -79,29 +84,59 @@ def scrape_loop():
         else:
             print("  — ไม่มีข่าวใหม่")
 
-        time.sleep(INTERVAL_MINUTES * 60)
+        try:
+            await asyncio.sleep(INTERVAL_MINUTES * 60)
+        except asyncio.CancelledError:
+            print("\n👋 scraper task halted")
+            break
+
+# ── server lifecycle ──────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background task when startup
+    scrape_task = asyncio.create_task(scrape_loop())
+    yield
+    # Cancel task on shutdown
+    scrape_task.cancel()
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# mount ASGI SocketIO Server at /socket.io
+app_asgi = socketio.ASGIApp(sio, other_asgi_app=app)
 
 
 # ── serve frontend ────────────────────────────────────────────
 
-@app.route("/")
-def index():
-    return send_from_directory(".", "index.html")
+@app.get("/")
+async def index():
+    return FileResponse("index.html")
+
+# mount static files if exist to serve assets
+if os.path.exists("frontend"):
+    app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
 # ── REST API ──────────────────────────────────────────────────
 
-@app.route("/api/news")
-def get_news():
-    page   = max(1, int(request.args.get("page", 1)))
-    source = request.args.get("source", "").strip()
-    query  = request.args.get("q", "").strip().lower()
+@app.get("/api/news")
+async def get_news(page: int = 1, source: str = "", q: str = ""):
+    page   = max(1, page)
+    source_val = source.strip()
+    query  = q.strip().lower()
 
     news = load_all_news()
     news.sort(key=lambda x: x.get("fetched_at", ""), reverse=True)
 
-    if source:
-        news = [n for n in news if n["source"].lower() == source.lower()]
+    if source_val:
+        news = [n for n in news if n["source"].lower() == source_val.lower()]
     if query:
         news = [n for n in news if query in n["title"].lower() or query in n.get("summary", "").lower()]
 
@@ -110,7 +145,7 @@ def get_news():
     start       = (page - 1) * PAGE_SIZE
     page_items  = news[start: start + PAGE_SIZE]
 
-    return jsonify({
+    return JSONResponse({
         "total":       total,
         "page":        page,
         "page_size":   PAGE_SIZE,
@@ -121,44 +156,58 @@ def get_news():
         "news":        page_items,
     })
 
-@app.route("/api/sources")
-def get_sources():
+@app.get("/api/sources")
+async def get_sources():
     news   = load_all_news()
     counts = {}
     for n in news:
         counts[n["source"]] = counts.get(n["source"], 0) + 1
-    return jsonify({"sources": counts})
+    return JSONResponse({"sources": counts})
 
-@app.route("/api/status")
-def get_status():
-    return jsonify({
+@app.get("/api/status")
+async def get_status():
+    return JSONResponse({
         "status":   "running",
         "interval": f"{INTERVAL_MINUTES} minutes",
         "total":    len(load_all_news()),
         "time":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
+@app.post("/api/collect-md")
+async def collect_md(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    
+    url = data.get("url")
+    if not url:
+        return JSONResponse({"ok": False, "error": "No URL provided"}, status_code=400)
+    try:
+        filepath = await collect_markdown_with_jina(url)
+        return JSONResponse({"ok": True, "path": filepath})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 
 # ── WebSocket ─────────────────────────────────────────────────
 
-@socketio.on("connect")
-def on_connect():
+@sio.event
+async def connect(sid, environ):
     news = load_all_news()
-    emit("init", {
+    await sio.emit("init", {
         "total":   len(news),
         "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    })
-    print("  🔌 client เชื่อมต่อแล้ว")
+    }, to=sid)
+    print(f"  🔌 client เชื่อมต่อแล้ว ({sid})")
 
-@socketio.on("disconnect")
-def on_disconnect():
-    print("  🔌 client ตัดการเชื่อมต่อ")
+@sio.event
+async def disconnect(sid):
+    print(f"  🔌 client ตัดการเชื่อมต่อ ({sid})")
 
 
 # ── main ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    t = threading.Thread(target=scrape_loop, daemon=True)
-    t.start()
-    print("🚀 Server: http://localhost:5000")
-    socketio.run(app, debug=False, port=5000)
+    print("🚀 FastAPI Server starting...")
+    uvicorn.run("server:app_asgi", host="0.0.0.0", port=5000, reload=True)
