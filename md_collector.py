@@ -1,3 +1,4 @@
+import sys
 import httpx
 import trafilatura
 import asyncio
@@ -7,35 +8,38 @@ import time
 import json
 from pathlib import Path
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor
 
 # ใช้ Playwright ที่มีอยู่แล้ว หรือสร้างขึ้นมาเพื่อ fallback (Tier 2)
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 
-# 1. Shared browser instance for Playwright
-_pw = None
-_browser = None
+_pw_executor = ThreadPoolExecutor(max_workers=2)
 
-async def get_browser():
-    global _pw, _browser
-    if _pw is None:
-        _pw = await async_playwright().start()
-    if _browser is None or not _browser.is_connected():
-        _browser = await _pw.chromium.launch(headless=True)
-    return _browser
-
-async def get_page_source_async(url: str) -> str:
-    """Fallback: use Playwright to render JS for Tier 2"""
-    browser = await get_browser()
-    page = await browser.new_page()
+def _sync_fetch_playwright(url: str) -> str:
+    """รัน Playwright แบบ sync ใน thread แยก — ไม่ขึ้นกับ event loop"""
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-        html = await page.content()
-        return html
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                html = page.content()
+                return html
+            finally:
+                page.close()
+                browser.close()
     except Exception as e:
         print(f"Playwright error for {url}: {e}")
         return ""
-    finally:
-        await page.close()
+
+async def get_page_source_async(url: str) -> str:
+    """ส่งงานไปรันใน thread pool — async-safe บน Windows + uvicorn"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _pw_executor,
+        _sync_fetch_playwright,
+        url
+    )
 
 _sem = asyncio.Semaphore(5)  # concurrent fetch
 
@@ -55,27 +59,70 @@ def save_registry(registry: dict):
 
 SITE_REGISTRY = load_registry()
 
+# ── helper: upgrade registry พร้อม log เหตุผล
+def _upgrade_registry(domain: str, tier: int):
+    old = SITE_REGISTRY.get(domain, 1)
+    if old != tier:
+        SITE_REGISTRY[domain] = tier
+        SITE_REGISTRY[f"{domain}.__reason__"] = f"auto-upgraded from {old} at {time.strftime('%Y-%m-%d')}"
+        save_registry(SITE_REGISTRY)
+
+# ── helper: นับ success เพื่อ upgrade เฉพาะถ้า tier2 ชนะสม่ำเสมอ
+_success_counter: dict[str, dict] = {}
+
+def _record_success(domain: str, tier: int):
+    c = _success_counter.setdefault(domain, {"tier": tier, "count": 0})
+    c["count"] += 1
+    # upgrade ถ้า tier2 ชนะ 3 ครั้งติดต่อกัน
+    if c["count"] >= 3 and c["tier"] == tier:
+        _upgrade_registry(domain, tier)
+        _success_counter.pop(domain)
+
 # 4. In-memory content cache
 _content_cache: dict[str, tuple[str, float]] = {}  # url -> (text, timestamp)
 CACHE_TTL = 3600  # 1 hour
 
-async def fetch_tier1(url: str) -> str:
+HEADERS_FULL = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "th-TH,th;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.google.com/",
+}
+
+async def fetch_tier1(url: str) -> tuple[str, str]:
+    """คืน (text, failure_reason)"""
     async with _sem:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=8, follow_redirects=True, http2=True
+        ) as client:
             try:
-                r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                r = await client.get(url, headers=HEADERS_FULL)
                 r.raise_for_status()
+            except HTTPStatusError as e:
+                code = e.response.status_code
+                reason = (
+                    "blocked"     if code in (401, 403) else
+                    "rate_limit"  if code == 429        else
+                    "server_error"
+                )
+                print(f"Tier 1 HTTP {code} for {url} → {reason}")
+                return "", reason
             except Exception as e:
-                print(f"Tier 1 request error for {url}: {e}")
-                return ""
+                print(f"Tier 1 network error for {url}: {e}")
+                return "", "network_error"
     
     text = trafilatura.extract(
         r.text,
         include_comments=False,
         include_tables=False,
-        favor_precision=True,  # ตัด boilerplate ให้ aggressive กว่า
+        favor_precision=True,
     )
-    return text or ""
+    return (text or ""), "ok"
 
 async def fetch_tier2(url: str) -> str:
     # ใช้ Playwright ที่มีอยู่แล้ว แต่แค่ยิงเมื่อ tier1 ล้มเหลว
@@ -109,22 +156,33 @@ async def extract_content(url: str) -> str:
     print(f"[{domain}] Fetching {url} with Tier {tier}...")
     
     if tier <= 1:
-        text = await fetch_tier1(url)
+        text, reason = await fetch_tier1(url)
 
-    if not text or len(text) < 200:
-        if tier <= 1:
-            print(f"[{domain}] Tier 1 failed or content too short. Falling back to Tier 2 (Playwright)...")
+        if not text or len(text) < 200:
+            if reason == "blocked":
+                print(f"[{domain}] Blocked → upgrading to Tier 2 permanently")
+                _upgrade_registry(domain, 2)
+                text = await fetch_tier2(url)
+
+            elif reason == "rate_limit":
+                print(f"[{domain}] Rate limited → waiting 5s and retry")
+                await asyncio.sleep(5)
+                text, _ = await fetch_tier1(url)
+
+            elif reason in ("network_error", "server_error", "ok"):
+                print(f"[{domain}] Short/error ({reason}) → trying Tier 2")
+                text = await fetch_tier2(url)
+                if text and len(text) >= 200:
+                    _record_success(domain, tier=2)
+
+    elif tier == 2:
         text = await fetch_tier2(url)
-        if text and len(text) >= 200:
-            SITE_REGISTRY[domain] = 2  # จดจำว่าต้องใช้ tier2
-            save_registry(SITE_REGISTRY)
         
     if not text or len(text) < 200:
-        if tier <= 2:
-            print(f"[{domain}] Tier 2 failed or content too short. Falling back to Tier 3 (Jina)...")
+        print(f"[{domain}] All tiers short → Tier 3 (Jina)")
         text = await fetch_tier3(url)
-        SITE_REGISTRY[domain] = 3
-        save_registry(SITE_REGISTRY)
+        if text and len(text) >= 200:
+            _upgrade_registry(domain, 3)
 
     # Cache result
     if text:
@@ -132,30 +190,45 @@ async def extract_content(url: str) -> str:
     return text
 
 # 3. Separate Thai and English phrase cutting logic
-CUT_PHRASES_TH = ["ข่าวที่เกี่ยวข้อง", "อ่านเพิ่มเติม", "ติดตามเรา", "แท็ก"]
-CUT_PHRASES_EN = ["related:", "tags:", "read more:", "advertisement"]
+CUT_PHRASES_TH = [
+    "ข่าวที่เกี่ยวข้อง",
+    "อ่านเพิ่มเติม", 
+    "ติดตามเรา",
+    "แท็ก",
+    "อ้างอิง",
+    "RELATED POSTS",
+    "MOST READ",
+    "Print Friendly"
+]
 
-def prepare_for_llm(text: str, max_chars: int = 2500) -> str:
+CUT_PHRASES_EN = [
+    "related:", "tags:", "read more:", "advertisement",
+    "related posts",
+    "most read",
+]
+
+def prepare_for_llm(text: str, max_chars: int = 10000) -> str:
     # 1. ยุบ whitespace ซ้ำ
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     
-    # 2. ตัด section ท้าย 
-    # Thai — ตรงตัว
+    # 2. ตัด section ท้าย — หา cut point ที่ใกล้ที่สุดหลัง char 500
+    cut_at = len(text)
+
     for phrase in CUT_PHRASES_TH:
         idx = text.find(phrase)
-        if idx > 500:          # ถ้าอยู่ท้ายบทความจริงๆ ไม่ใช่ต้น
-            text = text[:idx]
-    
-    # English — case-insensitive
+        if 500 < idx < cut_at:
+            cut_at = idx
+
     lower = text.lower()
     for phrase in CUT_PHRASES_EN:
         idx = lower.find(phrase)
-        if idx > 500:
-            text = text[:idx]
-            lower = text.lower() # update lower for next iterations if cut
+        if 500 < idx < cut_at:
+            cut_at = idx
+
+    text = text[:cut_at]
     
-    # 3. cap ความยาว — 2500 chars ≈ 600 tokens ภาษาไทย
+    # 3. cap ความยาว
     return text.strip()[:max_chars]
 
 async def collect_markdown_async(url: str, output_dir: str = "collected_md") -> str:
@@ -186,17 +259,9 @@ async def collect_markdown_async(url: str, output_dir: str = "collected_md") -> 
 
     return filepath
 
-# Clean up playwright resources gracefully
-async def close_playwright():
-    global _browser, _pw
-    if _browser:
-        await _browser.close()
-    if _pw:
-        await _pw.stop()
-
 async def collect_markdown_with_jina(url: str, output_dir: str = "collected_md") -> str:
     """Async wrapper keeping old name for backward compatibility"""
-    # Simply await the async version. Do not close playwright early!
+    # Simply await the async version.
     return await collect_markdown_async(url, output_dir)
 
 if __name__ == "__main__":
@@ -211,7 +276,5 @@ if __name__ == "__main__":
                 print(f"Successfully saved to: {filepath}")
             except Exception as e:
                 print(f"Error: {e}")
-            finally:
-                await close_playwright() # only close here if running as CLI
                 
     asyncio.run(main())
