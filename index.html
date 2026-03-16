@@ -410,6 +410,26 @@
             background: var(--accent);
         }
 
+        .summary-btn {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Sarabun', sans-serif;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .summary-btn:hover {
+            background: var(--accent);
+            color: #fff;
+        }
+
         /* ── Pagination ── */
         .pagination {
             display: flex;
@@ -679,7 +699,15 @@
           <div class="card-summary">${esc(n.summary || "")}</div>
           <div class="card-footer">
             <span class="card-time">${n.fetched_at || ""}</span>
-            <span class="card-arrow">→</span>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <button class="summary-btn" onclick="collectSummary('${n.url}', event)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                Summary
+              </button>
+              <span class="card-arrow">→</span>
+            </div>
           </div>
         </div>
       </a>
@@ -735,7 +763,6 @@
             }, 400);
         });
 
-        // ── Toast ─────────────────────────────────────────────────
         function showToast(msg) {
             const t = document.getElementById("toast");
             t.textContent = msg;
@@ -743,7 +770,30 @@
         }
         function dismissToast() {
             document.getElementById("toast").classList.remove("show");
-            fetchPage(1);
+        }
+
+        // ── Summary Action ────────────────────────────────────────
+        async function collectSummary(url, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            showToast(`⭐ กำลังสร้าง Summary สำหรับบทความนี้...`);
+            
+            try {
+                const res = await fetch("http://localhost:5000/api/collect-md", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast(`✅ สร้าง Summary สำเร็จ: ${data.path}`);
+                } else {
+                    showToast(`❌ เกิดข้อผิดพลาด: ${data.error}`);
+                }
+            } catch (e) {
+                showToast(`❌ เชื่อมต่อ API ไม่ได้`);
+            }
         }
 
         // ── Helpers ───────────────────────────────────────────────
