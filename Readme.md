@@ -1,6 +1,6 @@
 # 📰 NEWSROOM — Thai News Aggregator
 
-ระบบดึงข่าวอัตโนมัติจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
+ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
 
 ---
 
@@ -8,9 +8,8 @@
 
 ```
 project/
-├── news_scraper.py   # ดึงข่าวจากแต่ละสำนัก
-├── server.py         # Flask API + WebSocket
-├── index.html        # หน้าเว็บ
+├── backend
+├── frontend
 ├── README.md
 └── .gitignore
 ```
@@ -27,7 +26,7 @@ project/
 ## 📦 ติดตั้ง Dependencies
 
 ```bash
-pip install requests beautifulsoup4 playwright flask flask-cors flask-socketio eventlet
+pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio
 ```
 
 จากนั้นติดตั้ง browser สำหรับ Playwright:
