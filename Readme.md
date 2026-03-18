@@ -9,7 +9,12 @@
 ```
 project/
 ├── backend
+|    └── server.py
+|    └── news_scraper.py
+|    └── jina.py
 ├── frontend
+|    └── index.html
+|    └── app.js
 ├── README.md
 └── .gitignore
 ```
@@ -48,7 +53,10 @@ python server.py
 ```
 http://localhost:5000
 ```
-
+```
+.env
+LLM_API = "your api key"
+```
 ---
 
 ## ⚙️ ปรับค่าได้ใน `news_scraper.py`
