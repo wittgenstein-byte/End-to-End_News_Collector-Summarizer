@@ -31,7 +31,7 @@ project/
 ## 📦 ติดตั้ง Dependencies
 
 ```bash
-pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio
+pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio httpx openai
 ```
 
 จากนั้นติดตั้ง browser สำหรับ Playwright:
@@ -53,8 +53,9 @@ python server.py
 ```
 http://localhost:5000
 ```
+
+.env exxample
 ```
-.env
 LLM_API = "your api key"
 ```
 ---
