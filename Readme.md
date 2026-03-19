@@ -8,11 +8,43 @@
 ## 🗂️ โครงสร้างไฟล์
 
 ```
-project/
-├── backend
-├── frontend
-├── README.md
-└── .gitignore
+### Backend
+├── backend/
+│ ├── main.py — app factory
+│ ├── config.py — settings / env
+│ ├── .env.example
+│ ├── core/
+│ │ ├── browser.py — playwright HTML
+│ │ ├── constants.py — BROWSER_HEADERS
+│ │ └── socket_manager.py — sio singleton
+│ ├── schemas/
+│ │ └── news_schema.py — Pydantic models
+│ ├── repositories/
+│ │ └── news_repository.py — JSON file I/O
+│ ├── services/
+│ │ ├── fetcher_service.py — 3-tier fetch
+│ │ ├── summarizer_service.py — LLM
+│ │ └── scraper_service.py — bg loop
+│ ├── scrapers/
+│ │ ├── __init__.py — export SOURCES
+│ │ ├── registry.py — NewsSource + register
+│ │ ├── helpers.py — find_url / find_image
+│ │ └── sources.py — 4 scrapers
+│ ├── routers/
+│ │ ├── news_router.py — /news /sources /status
+│ │ └── collect_router.py — /collect-md
+│ └── sockets/
+│ └── events.py — connect / disconnect
+
+### Frontend
+├── frontend/
+│ ├── index.html — HTML shell (55 บรรทัด)
+│ └── static/
+│ ├── app.css — all styles
+│ ├── config.js — API_BASE, SOURCE_COLORS
+│ ├── api.js — fetchNews, socket
+│ ├── ui.js — render, DOM only
+│ └── main.js — controller, state
 ```
 
 ---
