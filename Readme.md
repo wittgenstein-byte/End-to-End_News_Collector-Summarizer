@@ -41,7 +41,8 @@ playwright install chromium
 ## 🚀 วิธีรัน
 
 ```bash
-python server.py
+cd backend
+python main.py
 ```
 
 จากนั้นเปิดเบราว์เซอร์ไปที่:
