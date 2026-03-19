@@ -1,6 +1,7 @@
 # 📰 NEWSROOM — Thai News Aggregator
 
 ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
+ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
 
 ---
 
@@ -27,6 +28,7 @@ project/
 
 ```bash
 pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio
+pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio
 ```
 
 จากนั้นติดตั้ง browser สำหรับ Playwright:
@@ -48,7 +50,10 @@ python server.py
 ```
 http://localhost:5000
 ```
-
+```
+.env
+LLM_API = "your api key"
+```
 ---
 
 ## ⚙️ ปรับค่าได้ใน `news_scraper.py`
