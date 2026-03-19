@@ -1,6 +1,7 @@
 # 📰 NEWSROOM — Thai News Aggregator
 
 ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
+ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time
 
 ---
 
@@ -9,12 +10,7 @@
 ```
 project/
 ├── backend
-|    └── server.py
-|    └── news_scraper.py
-|    └── jina.py
 ├── frontend
-|    └── index.html
-|    └── app.js
 ├── README.md
 └── .gitignore
 ```
