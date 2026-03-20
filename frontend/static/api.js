@@ -15,14 +15,23 @@ import { API_BASE, SOCKET_URL } from "./config.js";
  * @param {string} source  — กรองแหล่งข่าว (ว่าง = ทั้งหมด)
  * @param {string} q       — keyword search
  */
-export async function fetchNews(page = 1, source = "", q = "") {
+export async function fetchNews(page = 1, source = "", q = "", category = "") {
   const params = new URLSearchParams({ page });
-  if (source) params.set("source", source);
-  if (q)      params.set("q", q);
+  if (source)   params.set("source", source);
+  if (q)        params.set("q", q);
+  if (category && category !== "all") params.set("category", category);
 
   const res = await fetch(`${API_BASE}/api/news?${params}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+/** ดึง category counts สำหรับ badge บน tabs */
+export async function fetchCategories() {                                  // ← ใหม่
+  const res = await fetch(`${API_BASE}/api/categories`);
+  if (!res.ok) return {};
+  const data = await res.json();
+  return data.categories ?? {};
 }
 
 /**
@@ -40,16 +49,7 @@ export async function summarizeArticle(url) {
   return res.json();
 }
 
-// ── WebSocket ─────────────────────────────────────────────────────
-
-/**
- * สร้าง Socket.IO connection
- * @param {object} handlers
- * @param {function} handlers.onConnect
- * @param {function} handlers.onDisconnect
- * @param {function} handlers.onInit        — ({total, updated})
- * @param {function} handlers.onNewArticles — ({count, total, articles, updated})
- */
+// ── WebSocket ────────────────────────────────────────────────────
 export function createSocket(handlers) {
   /* global io */
   const socket = io(SOCKET_URL);

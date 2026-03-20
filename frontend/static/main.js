@@ -6,12 +6,13 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories } from "./api.js";
 import * as UI from "./UI.js";
 
 // ── State ─────────────────────────────────────────────────────────
 let currentPage   = 1;
 let activeSource  = "";
+let activeCategory = "all";
 let searchQuery   = "";
 let searchTimer   = null;
 let totalNew      = 0;
@@ -24,15 +25,37 @@ async function loadPage(page = 1) {
   UI.showGridLoading();
 
   try {
-    const data = await fetchNews(page, activeSource, searchQuery);
+    const data = await fetchNews(page, activeSource, searchQuery, activeCategory);
     UI.renderGrid(data.news, newArticleSet);
-    UI.renderPagination(data, loadPage);
+    UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
     UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
   } catch (e) {
     UI.showGridError(e.message);
   }
 }
+
+// ── Category handler ──────────────────────────────────────────────
+
+function handleCategoryClick(id) {
+  activeCategory = id;
+  UI.renderCategoryNav(id, {});
+  loadPage(1);
+  refreshCategoryCounts();
+}
+
+async function refreshCategoryCounts() {
+  try {
+    const counts = await fetchCategories();
+    UI.updateCategoryBadges(counts);
+  } catch (e) {
+    console.warn("Failed to fetch category counts:", e.message);
+  }
+}
+
+// expose ให้ onclick ใน pagination เรียกได้
+window.__loadPage = loadPage;
+window.__categoryClick = handleCategoryClick;
 
 // ── Summary Modal ─────────────────────────────────────────────────
 
@@ -114,3 +137,8 @@ document.getElementById("summary-modal").addEventListener("click", e => {
   if (e.target === e.currentTarget) UI.closeModal();
 });
 document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
+
+// ── Init: draw category nav ───────────────────────────────────────
+
+UI.renderCategoryNav("all", {});
+refreshCategoryCounts();

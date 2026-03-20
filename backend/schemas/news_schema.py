@@ -8,8 +8,15 @@ SOLID  I — แยก schema ตาม use-case (request / response / internal)
 
 from __future__ import annotations
 from typing import Literal, Optional
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, field_validator
 
+# ── Category type ─────────────────────────────────────────────────
+ 
+CategoryType = Literal[
+    "politics", "economy", "technology", "health",
+    "environment", "society", "sports", "entertainment", "world",
+]
+SentimentType = Literal["positive", "neutral", "negative"]
 
 # ── Request schemas ───────────────────────────────────────────────
 
@@ -33,16 +40,9 @@ class ArticleRecord(BaseModel):
     source: str
     fetched_at: str = ""
     summary: str = ""
-
+    category: Optional[CategoryType] = None
 
 # ── LLM output schema ─────────────────────────────────────────────
-
-SentimentType = Literal["positive", "neutral", "negative"]
-CategoryType  = Literal[
-    "politics", "economy", "technology", "health",
-    "environment", "society", "sports", "entertainment", "world",
-]
-
 
 class NewsSummary(BaseModel):
     """ผลลัพธ์จาก LLM summarizer"""

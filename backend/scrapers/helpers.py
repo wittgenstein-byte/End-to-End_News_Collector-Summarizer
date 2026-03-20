@@ -1,5 +1,4 @@
 """
-scrapers/helpers.py
 ─────────────────────────────────────────────────────────────────
 SOLID  S — HTML parsing utilities เท่านั้น
            ไม่รู้จัก source ใด ๆ ไม่เก็บ state
@@ -21,12 +20,10 @@ from bs4 import BeautifulSoup
 
 from config import settings
 from core.constants import BROWSER_HEADERS
+from services.classifier_service import classify_article
 
 # คำที่บ่งว่า src นั้นไม่ใช่รูปข่าวจริง
-_IMAGE_SKIP_KEYWORDS = frozenset(
-    ["logo", "icon", "avatar", "ads", "banner", "pixel"]
-)
-
+_IMAGE_SKIP_KEYWORDS = frozenset(["logo", "icon", "avatar", "ads", "banner", "pixel"])
 
 # ── Image extraction ──────────────────────────────────────────────
 
@@ -57,11 +54,7 @@ def find_url(tag, base_url: str) -> str:
     """
     หา href ที่ใกล้ที่สุดจาก tag — ลองหลาย strategy ตามลำดับ
     """
-    a = (
-        tag.find("a")
-        or tag.find_parent("a")
-        or tag.find_next_sibling("a")
-    )
+    a = tag.find("a") or tag.find_parent("a") or tag.find_next_sibling("a")
     if not a:
         parent = tag.find_parent(["div", "article", "li"])
         if parent:
@@ -81,18 +74,24 @@ def find_url(tag, base_url: str) -> str:
 # ── Article builder ───────────────────────────────────────────────
 
 def make_article(
-    title:     str,
-    summary:   str,
-    source:    str,
-    url:       str,
+    title: str,
+    summary: str,
+    source: str,
+    url: str,
     image_url: str = "",
 ) -> dict:
+    """
+    สร้าง article dict พร้อม category ที่จำแนกอัตโนมัติ
+    classifier_service ทำงานใน <1ms ไม่ต้องรอ
+    """
+    category = classify_article(title, summary)
     return {
-        "title":      title.strip(),
-        "summary":    summary.strip() if summary else "(ไม่มีเนื้อหา)",
-        "source":     source,
-        "url":        url,
-        "image_url":  image_url,
+        "title": title.strip(),
+        "summary": summary.strip() if summary else "(ไม่มีเนื้อหา)",
+        "source": source,
+        "url": url,
+        "image_url": image_url,
+        "category": category,
         "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -100,9 +99,9 @@ def make_article(
 # ── Article detail fetcher ────────────────────────────────────────
 
 async def fetch_summary_and_image(
-    url:               str,
+    url: str,
     content_selectors: list[str],
-    base_url:          str,
+    base_url: str,
 ) -> tuple[str, str]:
     """
     ดึงหน้าข่าวจริง → extract summary + image_url
@@ -114,18 +113,17 @@ async def fetch_summary_and_image(
         async with httpx.AsyncClient(follow_redirects=True) as client:
             resp = await client.get(url, headers=BROWSER_HEADERS, timeout=10)
 
-        soup      = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(resp.text, "html.parser")
         image_url = find_image(soup, base_url)
-        summary   = _extract_summary(soup, content_selectors)
+        summary = _extract_summary(soup, content_selectors)
         return summary, image_url
 
     except Exception:
         return "", ""
 
-
 def _extract_summary(soup: BeautifulSoup, selectors: list[str]) -> str:
     """ลอง selector ตามลำดับ — คืน paragraph แรก ๆ รวมกัน"""
-    n = getattr(settings, "summary_sentences", 3)   # fallback = 3
+    n = getattr(settings, "summary_sentences", 3)  # fallback = 3
     for selector in selectors:
         container = soup.select_one(selector)
         if not container:
