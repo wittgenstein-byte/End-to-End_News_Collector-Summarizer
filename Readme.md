@@ -59,7 +59,7 @@
 ## 📦 ติดตั้ง Dependencies
 
 ```bash
-pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio httpx openai
+pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn socketio httpx openai pythainlp
 ```
 
 จากนั้นติดตั้ง browser สำหรับ Playwright:
