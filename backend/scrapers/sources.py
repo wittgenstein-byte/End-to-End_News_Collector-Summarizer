@@ -84,25 +84,39 @@ async def scrape_bangkokpost() -> list[dict]:
 
 
 # ── Matichon (ต้องใช้ Playwright เพราะ JS-rendered) ───────────────
-
-@register_source("Matichon", "https://www.matichon.co.th/news", "#2ecc71")
+@register_source("Matichon", "https://www.matichon.co.th/politics", "#2ecc71")
 async def scrape_matichon() -> list[dict]:
     base      = "https://www.matichon.co.th"
     selectors = ["div.entry-content", "div.article-content", "div.content", "article"]
-
-    # ใช้ core/browser แทน get_page_source_async เดิม
-    html      = await fetch_html_playwright(f"{base}/news", wait_tag="h2")
-    soup      = BeautifulSoup(html, "html.parser")
+    
+    # ดึงจากหลาย section เพื่อให้ได้ข่าวหลากหลายและใหม่กว่า
+    urls_to_scrape = [
+        f"{base}/politics",
+        f"{base}/news_and_report",
+    ]
+    
+    all_headings = []
+    for scrape_url in urls_to_scrape:
+        html = await fetch_html_playwright(scrape_url, wait_tag="h2, h3")
+        soup = BeautifulSoup(html, "html.parser")
+        all_headings.extend(soup.select("h2, h3"))
+    
     news_list = []
-
-    for h in soup.select("h2, h3")[:_LIMIT]:
+    seen_titles = set()
+    
+    for h in all_headings:
+        if len(news_list) >= _LIMIT:
+            break
         title = h.text.strip()
-        if not title or len(title) <= 10:
+        if not title or len(title) <= 10 or title in seen_titles:
             continue
-        url                = find_url(h, base)
+        url = find_url(h, base)
+        if not url or not url.startswith(base):
+            continue
+        seen_titles.add(title)
         summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "Matichon", url, image_url))
-
+    
     return news_list
 
 
