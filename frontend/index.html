@@ -34,6 +34,13 @@
     </div>
   </div>
 
+  <!-- ── Category nav (sticky ใต้ ticker) ── -->
+  <div class="category-strip">
+    <div id="category-nav">
+      <!-- render โดย ui.js → renderCategoryNav() -->
+    </div>
+  </div>
+
   <!-- ── Main ── -->
   <div class="container">
 
@@ -48,8 +55,9 @@
       </div>
     </div>
 
+    <!-- Source filter + Search -->
     <div class="toolbar">
-      <span class="filter-label">กรอง :</span>
+      <span class="filter-label">แหล่งข่าว :</span>
       <button class="filter-btn active" data-source="">ทั้งหมด</button>
       <button class="filter-btn" data-source="ThaiPBS">ThaiPBS</button>
       <button class="filter-btn" data-source="Bangkok Post">Bangkok Post</button>
@@ -74,7 +82,7 @@
     <div class="modal-content">
       <button class="modal-close" id="modal-close-btn">&times;</button>
       <div id="summary-loading" style="display:none; text-align:center; padding:2rem">
-        <div class="spinner"></div>กำลังสรุปข่าวโดย AI...
+        <div class="spinner"></div>✨ กำลังสรุปข่าวโดย AI...
       </div>
       <div id="summary-result" style="display:none"></div>
     </div>
