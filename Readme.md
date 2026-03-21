@@ -83,7 +83,7 @@ python main.py
 http://localhost:5000
 ```
 
-.env exxample
+.env example
 ```
 LLM_API = "your api key"
 ```

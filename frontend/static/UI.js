@@ -131,7 +131,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
             <span class="card-time">${esc(n.fetched_at ?? "")}</span>
             <button class="summary-btn"
                     data-url="${esc(n.url)}"
-                    onclick="window.__summarize(event, this.dataset.url)">
+                    ${n.url ? 'onclick="window.__summarize(event, this.dataset.url)"' : 'disabled title="ไม่มี URL"'}>
               ⭐ สรุป
             </button>
             <span class="card-arrow">→</span>

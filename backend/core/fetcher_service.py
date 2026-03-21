@@ -92,8 +92,13 @@ def _playwright_sync_fetch(url: str) -> str:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=_BROWSER_HEADERS["User-Agent"])
         page = context.new_page()
-        page.goto(url, wait_until="domcontentloaded", timeout=15_000)
-        page.wait_for_timeout(2_000)
+        # Reduce timeout and wait_for_timeout to speed up the process
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=8_000)
+            page.wait_for_timeout(500)
+        except Exception:
+            # If it times out, we still try to get the content
+            pass
         html = page.content()
         browser.close()
     return html
