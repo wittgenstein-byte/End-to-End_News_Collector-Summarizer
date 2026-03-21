@@ -71,6 +71,11 @@ class SummarizerService:
         เรียก LLM แบบ sync (OpenAI SDK ไม่มี async ใน base class)
         ถ้าต้องการ async ให้ wrap ด้วย asyncio.to_thread
         """
+        # Trimming content to speed up inference and avoid giant token counts
+        max_chars = 4000
+        if len(markdown_content) > max_chars:
+            markdown_content = markdown_content[:max_chars] + "\n\n...[Content Truncated]..."
+            
         response = self._client.chat.completions.create(
             model=self._model,
             messages=[
