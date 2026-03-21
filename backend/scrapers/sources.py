@@ -82,39 +82,64 @@ async def scrape_bangkokpost() -> list[dict]:
 
     return news_list
 
+# ── Matichon (ใช้ RSS Feed แทน Playwright) ───────────────────────
 
-# ── Matichon (ต้องใช้ Playwright เพราะ JS-rendered) ───────────────
-@register_source("Matichon", "https://www.matichon.co.th/politics", "#2ecc71")
+@register_source("Matichon", "https://www.matichon.co.th/news", "#2ecc71")
 async def scrape_matichon() -> list[dict]:
-    base      = "https://www.matichon.co.th"
-    selectors = ["div.entry-content", "div.article-content", "div.content", "article"]
-    
-    # ดึงจากหลาย section เพื่อให้ได้ข่าวหลากหลายและใหม่กว่า
-    urls_to_scrape = [
-        f"{base}/politics",
-        f"{base}/news_and_report",
-    ]
-    
-    all_headings = []
-    for scrape_url in urls_to_scrape:
-        html = await fetch_html_playwright(scrape_url, wait_tag="h2, h3")
-        soup = BeautifulSoup(html, "html.parser")
-        all_headings.extend(soup.select("h2, h3"))
-    
+    rss_url = "https://www.matichon.co.th/feed"
+    import xml.etree.ElementTree as ET
+    from html import unescape
+    import re
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+
+    root = ET.fromstring(resp.text)
     news_list = []
-    seen_titles = set()
-    
-    for h in all_headings:
-        if len(news_list) >= _LIMIT:
-            break
-        title = h.text.strip()
-        if not title or len(title) <= 10 or title in seen_titles:
+
+    for item in root.findall(".//item")[:_LIMIT]:
+        title = unescape(item.findtext("title", "").strip())
+        url   = item.findtext("link", "").strip()
+
+        raw_desc = item.findtext("description", "")
+        summary  = unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
+
+        # ── ดึงรูป (เพิ่ม fallback หลายชั้น) ──────────────────────
+        image_url = ""
+
+        # 1. media:content namespace
+        media = item.find("{http://search.yahoo.com/mrss/}content")
+        if media is not None:
+            image_url = media.get("url", "")
+
+        # 2. enclosure tag
+        if not image_url:
+            enclosure = item.find("enclosure")
+            if enclosure is not None:
+                image_url = enclosure.get("url", "")
+
+        # 3. <img src> ใน description
+        if not image_url:
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_desc)
+            if img_match:
+                image_url = img_match.group(1)
+
+        # 4. fallback ดึง og:image จาก article page
+        if not image_url and url:
+            try:
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    r = await client.get(url, headers=BROWSER_HEADERS, timeout=5)
+                s = BeautifulSoup(r.text, "html.parser")
+                og = s.find("meta", property="og:image")
+                if og:
+                    image_url = og.get("content", "")
+            except Exception:
+                pass
+        # ───────────────────────────────────────────────────────────
+
+        if not title:
             continue
-        url = find_url(h, base)
-        if not url or not url.startswith(base):
-            continue
-        seen_titles.add(title)
-        summary, image_url = await fetch_summary_and_image(url, selectors, base)
+
         news_list.append(make_article(title, summary, "Matichon", url, image_url))
     
     return news_list
@@ -138,5 +163,71 @@ async def scrape_101world() -> list[dict]:
         url                = find_url(h, base)
         summary, image_url = await fetch_summary_and_image(url, selectors, base)
         news_list.append(make_article(title, summary, "101 World", url, image_url))
+
+    return news_list
+
+
+# ── The Standard ─────────────────────────────────────────────────
+
+@register_source("The Standard", "https://thestandard.co", "#e67e22")
+async def scrape_thestandard() -> list[dict]:
+    rss_url = "https://thestandard.co/feed"
+    import xml.etree.ElementTree as ET
+    from html import unescape
+    import re
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+
+    root = ET.fromstring(resp.text)
+    news_list = []
+
+    
+
+    for item in root.findall(".//item")[:_LIMIT]:
+        title = unescape(item.findtext("title", "").strip())
+        url   = item.findtext("link", "").strip()
+
+        raw_desc = item.findtext("description", "")
+        summary  = unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
+
+        # ── ดึงรูป ──────────────────────────────────────────────
+        image_url = ""
+
+        # 1. media:content namespace
+        media = item.find("{http://search.yahoo.com/mrss/}content")
+        if media is not None:
+            image_url = media.get("url", "")
+
+        # 2. enclosure tag
+        if not image_url:
+            enclosure = item.find("enclosure")
+            if enclosure is not None:
+                image_url = enclosure.get("url", "")
+
+        # 3. parse <img> ด้วย BeautifulSoup
+        if not image_url:
+            desc_soup = BeautifulSoup(raw_desc, "html.parser")
+            img_tag = desc_soup.find("img")
+            if img_tag:
+                image_url = img_tag.get("src", "")
+
+        # 4. fallback og:image จาก article page
+        if not image_url and url:
+            try:
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    r = await client.get(url, headers=BROWSER_HEADERS, timeout=5)
+                s = BeautifulSoup(r.text, "html.parser")
+                og = s.find("meta", property="og:image")
+                if og:
+                    image_url = og.get("content", "")
+            except Exception:
+                pass
+        # ────────────────────────────────────────────────────────
+
+        if not title:
+            continue
+
+        news_list.append(make_article(title, summary, "The Standard", url, image_url))
 
     return news_list
