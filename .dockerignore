@@ -3,8 +3,9 @@ __pycache__/
 .env
 .git/
 .gitignore
-*.json
-collected_md/
+data/*.json
+data/collected_md/
 backend/.env
 backend/__pycache__/
+node_modules/
 frontend/node_modules/

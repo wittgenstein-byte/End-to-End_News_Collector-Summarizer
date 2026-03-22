@@ -1,0 +1,27 @@
+{
+  "name": "end-to-end_news_collector-summarizer",
+  "version": "1.0.0",
+  "description": "ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time\r ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://your-username@github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer/issues"
+  },
+  "homepage": "https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer#readme",
+  "devDependencies": {
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.8",
+    "tailwindcss": "3.4"
+  }
+}
