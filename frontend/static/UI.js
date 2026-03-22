@@ -124,6 +124,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
             <span class="src-dot" style="background:${color}"></span>
             <span class="source-name">${esc(n.source)}</span>
             ${isNew ? `<span class="badge-new">NEW</span>` : ""}
+            ${n.classification_method ? `<span class="badge-method" title="${esc(n.classification_method)}" style="margin-left:auto;font-size:0.7rem;color:#888;background:#eee;padding:0.1rem 0.4rem;border-radius:0.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">${esc(n.classification_method)}</span>` : ""}
           </div>
           <div class="card-title">${esc(n.title)}</div>
           <div class="card-summary">${esc(n.summary ?? "")}</div>

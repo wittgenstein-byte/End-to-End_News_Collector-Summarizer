@@ -1,0 +1,13 @@
+requests
+beautifulsoup4
+playwright
+fastapi
+trafilatura
+uvicorn
+python-socketio
+httpx
+openai
+pythainlp
+pydantic
+gunicorn
+uvloop
