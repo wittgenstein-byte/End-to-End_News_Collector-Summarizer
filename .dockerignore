@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+.env
+.git/
+.gitignore
+*.json
+collected_md/
+backend/.env
+backend/__pycache__/
+frontend/node_modules/
