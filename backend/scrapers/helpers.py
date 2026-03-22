@@ -16,6 +16,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import httpx
+import trafilatura
 from bs4 import BeautifulSoup
 
 from config import settings
@@ -79,12 +80,15 @@ def make_article(
     source: str,
     url: str,
     image_url: str = "",
+    md: str = "",
 ) -> dict:
     """
     สร้าง article dict พร้อม category ที่จำแนกอัตโนมัติ
     classifier_service ทำงานใน <1ms ไม่ต้องรอ
     """
-    category = classify_article(title, summary)
+    # ถ้าดึง md ไม่ได้ ให้ใช้ summary แทน
+    content_for_classification = md if md else summary
+    category, method = classify_article(title, content_for_classification, url=url)
     return {
         "title": title.strip(),
         "summary": summary.strip() if summary else "(ไม่มีเนื้อหา)",
@@ -92,6 +96,7 @@ def make_article(
         "url": url,
         "image_url": image_url,
         "category": category,
+        "classification_method": method,
         "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -102,13 +107,13 @@ async def fetch_summary_and_image(
     url: str,
     content_selectors: list[str],
     base_url: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
-    ดึงหน้าข่าวจริง → extract summary + image_url
-    คืน ("", "") ถ้า url ไม่ถูกต้องหรือ network ล้มเหลว
+    ดึงหน้าข่าวจริง → extract summary + image_url + full_markdown
+    คืน ("", "", "") ถ้า url ไม่ถูกต้องหรือ network ล้มเหลว
     """
     if not url or not url.startswith("http"):
-        return "", ""
+        return "", "", ""
     try:
         async with httpx.AsyncClient(follow_redirects=True) as client:
             resp = await client.get(url, headers=BROWSER_HEADERS, timeout=10)
@@ -116,10 +121,11 @@ async def fetch_summary_and_image(
         soup = BeautifulSoup(resp.text, "html.parser")
         image_url = find_image(soup, base_url)
         summary = _extract_summary(soup, content_selectors)
-        return summary, image_url
+        md = trafilatura.extract(resp.text) or ""
+        return summary, image_url, md
 
     except Exception:
-        return "", ""
+        return "", "", ""
 
 def _extract_summary(soup: BeautifulSoup, selectors: list[str]) -> str:
     """ลอง selector ตามลำดับ — คืน paragraph แรก ๆ รวมกัน"""

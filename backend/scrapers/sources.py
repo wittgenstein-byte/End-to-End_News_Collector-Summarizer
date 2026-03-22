@@ -50,11 +50,10 @@ async def scrape_thaipbs() -> list[dict]:
         if not title:
             continue
         url                = find_url(h, base)
-        summary, image_url = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "ThaiPBS", url, image_url))
+        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
+        news_list.append(make_article(title, summary, "ThaiPBS", url, image_url, md))
 
     return news_list
-
 
 # ── Bangkok Post ──────────────────────────────────────────────────
 
@@ -75,8 +74,8 @@ async def scrape_bangkokpost() -> list[dict]:
         if not title or h.get("class") or title.upper() in _NAV_KEYWORDS:
             continue
         url                = find_url(h, base)
-        summary, image_url = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "Bangkok Post", url, image_url))
+        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
+        news_list.append(make_article(title, summary, "Bangkok Post", url, image_url, md))
         if len(news_list) >= _LIMIT:
             break
 
@@ -161,11 +160,10 @@ async def scrape_101world() -> list[dict]:
         if not title:
             continue
         url                = find_url(h, base)
-        summary, image_url = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "101 World", url, image_url))
+        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
+        news_list.append(make_article(title, summary, "101 World", url, image_url, md))
 
     return news_list
-
 
 # ── The Standard ─────────────────────────────────────────────────
 
