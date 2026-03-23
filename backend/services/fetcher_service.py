@@ -18,7 +18,7 @@ import httpx
 import trafilatura
 
 # ใช้ constants จาก core — ไม่ define ซ้ำ (DRY)
-from core.constants import BROWSER_HEADERS as _BROWSER_HEADERS, CLOUDFLARE_TELLS as _CLOUDFLARE_TELLS
+from backend.core.constants import BROWSER_HEADERS as _BROWSER_HEADERS, CLOUDFLARE_TELLS as _CLOUDFLARE_TELLS
 
 
 # ── Strategy base class (SOLID O + L) ────────────────────────────
@@ -85,7 +85,7 @@ class PlaywrightStrategy(FetchStrategy):
 
     async def fetch(self, url: str) -> str | None:
         try:
-            from core.browser import fetch_html_playwright
+            from backend.core.browser import fetch_html_playwright
             # wait_until="domcontentloaded" ใช้ wait_tag="body" แทน
             html = await fetch_html_playwright(url, wait_tag="body", wait_ms=2_000)
             md   = trafilatura.extract(html)
