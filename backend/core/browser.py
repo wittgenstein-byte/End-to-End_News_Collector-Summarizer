@@ -23,32 +23,10 @@ GRASP  Pure Fabrication — แยกออกมาเพื่อ reuse ระ
 from __future__ import annotations
 
 import asyncio
+import httpx
 
-from core.constants import BROWSER_HEADERS
-
-
-# ── Sync implementation (รันใน thread pool) ──────────────────────
-
-def _fetch_html_sync(url: str, wait_tag: str, wait_ms: int) -> str:
-    """
-    Playwright sync API — ต้องรันใน thread แยก (ไม่ใช่ event loop)
-    wait_tag : CSS selector ที่รอให้โหลด  (เช่น "h2", "article")
-    wait_ms  : milliseconds หลัง wait_tag ปรากฏ
-    """
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page    = browser.new_page(user_agent=BROWSER_HEADERS["User-Agent"])
-        page.goto(url, timeout=30_000)
-        try:
-            page.wait_for_selector(wait_tag, timeout=10_000)
-        except Exception:
-            pass                            # บางหน้าไม่มี selector นั้น — ไม่ error
-        page.wait_for_timeout(wait_ms)
-        html = page.content()
-        browser.close()
-    return html
+from backend.core.constants import BROWSER_HEADERS
+from backend.config import settings
 
 
 # ── Async wrapper ─────────────────────────────────────────────────
@@ -61,6 +39,17 @@ async def fetch_html_playwright(
 ) -> str:
     """
     Async entry point — เรียกได้จาก coroutine โดยตรง
-    บล็อก thread แยก ไม่บล็อก event loop
+    ส่ง URL ไปให้ Playwright service แทนการรัน local Playwright
     """
-    return await asyncio.to_thread(_fetch_html_sync, url, wait_tag, wait_ms)
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.get(
+                settings.playwright_service_url,
+                params={"url": url, "wait_tag": wait_tag, "wait_ms": wait_ms}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("html", "")
+    except Exception as e:
+        print(f"Error calling Playwright service: {e}")
+        return ""
