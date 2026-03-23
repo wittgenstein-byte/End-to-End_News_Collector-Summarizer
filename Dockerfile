@@ -7,8 +7,8 @@ COPY frontend/tailwind.config.js frontend/postcss.config.js* ./
 COPY frontend/static/ ./static/
 RUN npx tailwindcss -i static/tailwind-input.css -o static/app.css --minify
 
-# Stage 2: Base image with Python and Playwright dependencies
-FROM mcr.microsoft.com/playwright/python:v1.40.0-focal
+# Stage 2: Base image with Python
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -16,9 +16,6 @@ WORKDIR /app
 # Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright Chromium only (to keep image size smaller)
-RUN playwright install chromium
 
 # Copy project files
 COPY . .
