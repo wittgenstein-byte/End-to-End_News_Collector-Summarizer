@@ -1,15 +1,21 @@
+from __future__ import annotations
+
+import asyncio
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import json
-import asyncio
 import httpx
 import trafilatura
-from config import settings
-from services.classifier_service import classify_article
-from core.constants import BROWSER_HEADERS
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from backend.config import settings
+from backend.core.constants import BROWSER_HEADERS
+from backend.services.classifier_service import classify_article
 
 async def process_article(client: httpx.AsyncClient, sem: asyncio.Semaphore, item: dict) -> bool:
     url = item.get("url", "")
@@ -37,12 +43,17 @@ async def process_article(client: httpx.AsyncClient, sem: asyncio.Semaphore, ite
     return True
 
 async def amain():
-    if not settings.output_file.exists():
-        print(f"No file found at {settings.output_file}")
+    if not settings.data_file.exists():
+        print(f"No file found at {settings.data_file}")
         return
 
-    with open(settings.output_file, 'r', encoding='utf-8') as f:
-        news = json.load(f)
+    with open(settings.data_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    news = data.get("articles", [])
+    if not news:
+        print("No articles found in data file")
+        return
 
     print("=== Categories Before ===")
     before_counts = {}
@@ -70,10 +81,15 @@ async def amain():
     for k, v in after_counts.items():
         print(f"{k}: {v}")
     
-    with open(settings.output_file, 'w', encoding='utf-8') as f:
-        json.dump(news, f, ensure_ascii=False, indent=2)
+    # Update data and save
+    data["articles"] = news
+    data["metadata"]["last_updated"] = datetime.now().isoformat()
+    data["metadata"]["total_articles"] = len(news)
+    
+    with open(settings.data_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
         
-    print(f"\n✅ Re-classified and saved {len(news)} articles successfully to {settings.output_file.name}")
+    print(f"\n✅ Re-classified and saved {len(news)} articles successfully to {settings.data_file.name}")
 
 def main():
     asyncio.run(amain())
