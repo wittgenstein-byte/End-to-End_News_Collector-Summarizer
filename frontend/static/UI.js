@@ -136,15 +136,29 @@ export function renderGrid(articles, newUrlSet = new Set()) {
     return;
   }
 
+  const resolveImageUrl = (url, source) => {
+    if (!url) return "";
+    try {
+      const u = new URL(url);
+      if (source === "The Standard" || u.hostname.endsWith("thestandard.co")) {
+        return `/api/image?url=${encodeURIComponent(url)}`;
+      }
+    } catch (e) {
+      return url;
+    }
+    return url;
+  };
+
   grid.innerHTML = articles.map((n, i) => {
     const isNew = newUrlSet.has(n.url);
     const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
+    const imgSrc = resolveImageUrl(n.image_url, n.source);
 
     // Build Image Markup
-    const imgMarkup = n.image_url 
+    const imgMarkup = imgSrc
       ? `
       <div class="aspect-[16/10] overflow-hidden relative shrink-0">
-        <img alt="thumbnail" class="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105" src="${esc(n.image_url)}" onerror="this.parentElement.style.display='none'" loading="lazy" />
+        <img alt="thumbnail" class="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105" src="${esc(imgSrc)}" onerror="this.parentElement.style.display='none'" loading="lazy" />
       </div>`
       : '';
 
@@ -152,7 +166,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
       <article class="bg-white rounded-xl overflow-hidden flex flex-col border border-outline-variant/20 transition-shadow duration-300 group hover:shadow-lg hover:-translate-y-1" style="animation: fadeUp 0.5s ease-out ${i * 0.05}s both;">
         <a class="flex flex-col h-full" href="${esc(n.url) || "#"}" target="_blank" rel="noopener">
           ${imgMarkup}
-          <div class="p-8 flex flex-col h-full ${!n.image_url ? 'border-t-4 border-primary' : ''}">
+          <div class="p-8 flex flex-col h-full ${!imgSrc ? 'border-t-4 border-primary' : ''}">
             
             <div class="flex items-center justify-between mb-6 gap-2">
               <div class="flex items-center gap-2 truncate">
@@ -165,7 +179,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
               </div>
             </div>
 
-            <h2 class="text-2xl lg:text-3xl font-headline font-bold leading-tight mb-4 transition-colors group-hover:text-primary line-clamp-3">${esc(n.title)}</h2>
+            <h2 class="text-xl lg:text-2xl font-headline font-bold leading-tight mb-4 transition-colors group-hover:text-primary line-clamp-3">${esc(n.title)}</h2>
             
             <p class="text-sm text-outline leading-relaxed mb-8 flex-grow line-clamp-3">${esc(n.summary ?? "")}</p>
             
@@ -301,9 +315,9 @@ export function showModalResult(summary) {
   result.style.display = "block";
 
   const bullets  = (s.bullets  ?? []).map((b, i) => `
-    <li class="flex items-start space-x-4 mb-3">
-        <span class="text-primary mt-1 text-sm font-bold opacity-80">0${i+1}.</span>
-        <span class="text-base text-on-surface leading-relaxed">${esc(b)}</span>
+    <li class="takeaways-item flex items-start space-x-4">
+        <span class="text-primary mt-1 text-sm md:text-base font-bold opacity-80 shrink-0">0${i+1}.</span>
+        <span class="text-on-surface leading-relaxed">${esc(b)}</span>
     </li>
   `).join("");
   
@@ -326,26 +340,26 @@ export function showModalResult(summary) {
             </div>` : ""}
         </div>
         
-        <h1 class="font-headline text-3xl md:text-5xl text-primary-container font-extrabold leading-tight tracking-tight">
+        <h1 class="summary-title text-primary-container font-extrabold tracking-tight">
             ${esc(s.title ?? "ไม่มีหัวข้อ")}
         </h1>
     </header>
 
-    <section class="relative my-8">
+    <section class="relative my-7 md:my-8">
         <div class="absolute -left-4 md:-left-6 top-0 bottom-0 w-1 bg-primary-container/20 rounded-full"></div>
-        <p class="font-body text-xl md:text-2xl text-on-surface leading-normal italic opacity-90 pl-2">
+        <p class="summary-lead text-on-surface italic opacity-90 pl-2">
             ${esc(s.summary ?? "")}
         </p>
     </section>
 
     ${bullets ? `
     <section class="space-y-4">
-        <div class="bg-surface-container-lowest p-6 md:p-8 rounded-xl shadow-sm border border-outline-variant/20">
-            <h3 class="font-label font-bold text-xs uppercase tracking-[0.15em] text-primary flex items-center space-x-2 mb-6">
+        <div class="takeaways-card bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20">
+            <h3 class="takeaways-title font-bold uppercase text-primary flex items-center space-x-2">
                 <span class="material-symbols-outlined text-sm">list_alt</span>
                 <span>Key Takeaways</span>
             </h3>
-            <ul class="flex flex-col gap-4">
+            <ul class="takeaways-list flex flex-col">
                 ${bullets}
             </ul>
         </div>
@@ -384,4 +398,4 @@ export function showModalError(msg) {
             Close
         </button>
     </div>`;
-}
+}
