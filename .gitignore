@@ -3,6 +3,8 @@ data/news_output.json
 data/seen_urls.json
 data/site_registry.json
 
+\__init__.py
+
 data/collected_md/
 node_modules/
 frontend/node_modules/
