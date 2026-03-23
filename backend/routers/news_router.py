@@ -11,13 +11,16 @@ GRASP  Controller — รับ HTTP request → เรียก service/repo �
 """
 
 from datetime import datetime
+from urllib.parse import quote, urlparse
 from typing import Optional
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from config import settings
-from repo.news_repo import FileNewsRepository, get_news_repository
-from services.classifier_service import ensure_categories
+from backend.config import settings
+from backend.core.constants import BROWSER_HEADERS
+from backend.repo.news_repo import FileNewsRepository, get_news_repository
+from backend.services.classifier_service import ensure_categories
 
 router = APIRouter(prefix="/api", tags=["news"])
 
@@ -32,6 +35,20 @@ VALID_CATEGORIES = {
     "society",
     "world",
 }
+
+_ALLOWED_IMAGE_HOSTS = {"thestandard.co", "www.thestandard.co"}
+
+
+def _proxy_image_url(url: str, source: str) -> str:
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return url
+    if source.lower() == "the standard" or parsed.netloc in _ALLOWED_IMAGE_HOSTS:
+        return f"/api/image?url={quote(url, safe='')}"
+    return url
 
 
 def _load_news_with_categories(repo: FileNewsRepository) -> list[dict]:
@@ -73,6 +90,11 @@ async def get_news(
     total_pages = max(1, (total + settings.page_size - 1) // settings.page_size)
     start = (page - 1) * settings.page_size
     page_items = news[start : start + settings.page_size]
+    for item in page_items:
+        item["image_url"] = _proxy_image_url(
+            item.get("image_url", ""),
+            item.get("source", ""),
+        )
 
     return JSONResponse(
         {
@@ -132,3 +154,25 @@ async def get_status(
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
     )
+
+
+@router.get("/image")
+async def proxy_image(url: str) -> StreamingResponse:
+    """
+    Proxy image to avoid hotlink protection (currently used for The Standard).
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or parsed.netloc not in _ALLOWED_IMAGE_HOSTS:
+        raise HTTPException(status_code=400, detail="Unsupported image host")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(url, headers=BROWSER_HEADERS, timeout=10)
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=502, detail="Failed to fetch image")
+        media_type = resp.headers.get("content-type", "image/jpeg")
+        return StreamingResponse(iter([resp.content]), media_type=media_type)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="Image fetch error")

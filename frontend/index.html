@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,92 +7,242 @@
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Sarabun:wght@300;400;500&display=swap"
-        rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:ital,wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap" rel="stylesheet">
+  
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 
-  <!-- Styles — browser cache ไฟล์นี้ได้ -->
+  <!-- Styles — Tailwind -->
   <link rel="stylesheet" href="/frontend/static/app.css">
+  
 </head>
-<body>
+<body class="bg-surface text-on-surface antialiased font-body selection:bg-primary-container selection:text-white">
 
   <!-- ── Header ── -->
-  <header>
-    <div class="masthead">NEWS<span>ROOM</span></div>
-    <div class="header-right">
-      <div id="ws-badge">
-        <div class="dot" id="ws-dot"></div>
-        <span id="ws-label">กำลังเชื่อมต่อ...</span>
+  <header class="bg-white/90 backdrop-blur-xl border-b border-outline-variant/30 sticky top-0 z-50">
+    <div class="max-w-[1920px] mx-auto flex items-center justify-between px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl font-headline font-extrabold tracking-tighter text-on-surface">NEWSROOM</span>
+      </div>
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2" id="ws-badge">
+          <span class="w-2 h-2 rounded-full dot error" id="ws-dot"></span>
+          <span class="text-[10px] font-bold tracking-widest text-error uppercase" id="ws-label">ออฟไลน์</span>
+        </div>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">notifications</button>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">account_circle</button>
       </div>
     </div>
   </header>
 
   <!-- ── Breaking news ticker ── -->
-  <div class="ticker-wrap">
-    <div class="ticker-label">Breaking</div>
-    <div class="ticker-track" id="ticker-track">
-      <span>กำลังโหลด...</span>
-    </div>
-  </div>
-
-  <!-- ── Category nav (sticky ใต้ ticker) ── -->
-  <div class="category-strip">
-    <div id="category-nav">
-      <!-- render โดย ui.js → renderCategoryNav() -->
+  <div class="bg-primary text-on-primary py-2 overflow-hidden border-b border-white/10">
+    <div class="flex whitespace-nowrap animate-marquee" id="ticker-track">
+      <div class="flex gap-12 items-center px-4">
+        <span class="text-xs font-medium uppercase tracking-wider opacity-90">กำลังโหลด...</span>
+      </div>
     </div>
   </div>
 
   <!-- ── Main ── -->
-  <div class="container">
+  <main class="max-w-[1920px] mx-auto px-6 pt-8 pb-20">
 
-    <div class="stats-strip">
-      <div class="stat">
-        <div class="stat-num" id="stat-total">—</div>
-        <div class="stat-label">บทความทั้งหมด</div>
+    <!-- ── Category nav (sticky ใต้ ticker) ── -->
+    <div class="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-6 sticky top-[112px] z-40 bg-surface/90 backdrop-blur" id="category-nav">
+      <!-- render โดย ui.js → renderCategoryNav() -->
+    </div>
+
+    <!-- ── Stats ── -->
+    <div class="bg-surface-container-low rounded-xl p-6 mb-8 flex flex-row gap-12 items-center flex-wrap">
+      <div class="flex items-baseline gap-3 cursor-default" title="บทความทั้งหมด">
+        <span class="text-4xl font-headline font-bold text-on-surface" id="stat-total">—</span>
+        <p class="text-[10px] font-bold tracking-widest text-outline uppercase">บทความทั้งหมด</p>
       </div>
-      <div class="stat">
-        <div class="stat-num" id="stat-new">0</div>
-        <div class="stat-label">ข่าวใหม่ (session)</div>
+      <div class="w-px h-8 bg-outline-variant/30 hidden md:block"></div>
+      <div class="flex items-baseline gap-3 cursor-default" title="ข่าวใหม่ใน session นี้">
+        <span class="text-4xl font-headline font-bold text-on-surface" id="stat-new">0</span>
+        <p class="text-[10px] font-bold tracking-widest text-outline uppercase">ข่าวใหม่ <span class="hidden sm:inline">(SESSION)</span></p>
+      </div>
+      <div class="ml-auto">
+        <span class="text-[10px] font-bold text-outline-variant uppercase tracking-widest" id="updated-bar">อัปเดตล่าสุด: —</span>
       </div>
     </div>
 
     <!-- Source filter + Search -->
-    <div class="toolbar">
-      <span class="filter-label">แหล่งข่าว :</span>
-      <button class="filter-btn active" data-source="">ทั้งหมด</button>
-      <button class="filter-btn" data-source="ThaiPBS">ThaiPBS</button>
-      <button class="filter-btn" data-source="Bangkok Post">Bangkok Post</button>
-      <button class="filter-btn" data-source="Matichon">Matichon</button>
-      <button class="filter-btn" data-source="101 World">101 World</button>
-      <button class="filter-btn" data-source="The Standard">The Standard</button>
-      <input class="search-box" id="search-input" type="text" placeholder="ค้นหาข่าว...">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12" id="toolbar">
+      <div class="flex items-center gap-4 flex-wrap">
+        <span class="text-xs font-bold text-outline uppercase tracking-widest shrink-0">แหล่งข่าว :</span>
+        <div class="flex flex-wrap gap-2" id="source-filters">
+          <button class="filter-btn px-5 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary-container transition-colors" data-source="">ทั้งหมด</button>
+          <button class="filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors" data-source="ThaiPBS">ThaiPBS</button>
+          <button class="filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors" data-source="Bangkok Post">Bangkok Post</button>
+          <button class="filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors" data-source="Matichon">Matichon</button>
+          <button class="filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors" data-source="101 World">101 World</button>
+          <button class="filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors" data-source="The Standard">The Standard</button>
+        </div>
+      </div>
+      <div class="relative min-w-[320px] max-w-md w-full ml-auto">
+        <input class="w-full bg-white border border-outline-variant/50 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-2 text-sm placeholder:text-outline-variant shadow-sm transition-shadow outline-none" id="search-input" type="text" placeholder="ค้นหาเนื้อหาข่าว หรือหัวข้อ...">
+        <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline-variant text-[18px]">search</span>
+      </div>
     </div>
 
-    <div id="updated-bar">อัปเดตล่าสุด: —</div>
-    <div id="news-grid">
-      <div class="loading"><div class="spinner"></div>กำลังโหลด...</div>
+    <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 flex flex-col items-center justify-center opacity-60">
+        <svg class="animate-spin h-10 w-10 text-primary mb-4" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
+          <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+        </svg>
+        <span class="font-headline italic text-lg text-primary">กำลังโหลดข้อมูล...</span>
+      </div>
     </div>
-    <div class="pagination" id="pagination"></div>
+    
+    <div class="flex justify-center items-center gap-2 mt-12 mb-8" id="pagination"></div>
 
-  </div>
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="w-full bg-white border-t border-outline-variant/30 py-12 px-6 pb-24 md:pb-12">
+    <div class="max-w-[1920px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+      <div class="md:col-span-2">
+        <span class="text-3xl font-headline font-extrabold tracking-tighter text-on-surface mb-6 block">NEWSROOM</span>
+        <p class="text-sm text-outline max-w-sm leading-relaxed">
+            © 2026 Editorial Intelligence Portal. <br>
+            Delivering authoritative reporting and AI-assisted summaries for the discerning reader.
+        </p>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold tracking-widest text-primary uppercase mb-6">Network</h4>
+        <ul class="space-y-4 text-sm text-on-surface-variant font-medium">
+          <li><a class="hover:text-primary transition-colors" href="#">ThaiPBS</a></li>
+          <li><a class="hover:text-primary transition-colors" href="#">Bangkok Post</a></li>
+          <li><a class="hover:text-primary transition-colors" href="#">Matichon</a></li>
+          <li><a class="hover:text-primary transition-colors" href="#">The Standard</a></li>
+          <li><a class="hover:text-primary transition-colors" href="#">101 World</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold tracking-widest text-primary uppercase mb-6">Legal</h4>
+        <ul class="space-y-4 text-sm text-on-surface-variant font-medium">
+          <li><a class="hover:text-primary transition-colors" href="#">Privacy Policy</a></li>
+          <li><a class="hover:text-primary transition-colors" href="#">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
 
   <!-- ── Toast ── -->
-  <div id="toast"></div>
+  <div id="toast" class="fixed bottom-4 right-4 bg-primary text-white px-5 py-3 rounded-lg text-sm font-medium shadow-lg transform translate-y-full opacity-0 transition-all duration-300 z-[100] flex items-center gap-2">
+    <span class="material-symbols-outlined text-[18px]">info</span>
+    <span id="toast-msg"></span>
+  </div>
 
-  <!-- ── Summary Modal ── -->
-  <div class="modal-overlay" id="summary-modal">
-    <div class="modal-content">
-      <button class="modal-close" id="modal-close-btn">&times;</button>
-      <div id="summary-loading" style="display:none; text-align:center; padding:2rem">
-        <div class="spinner"></div>✨ กำลังสรุปข่าวโดย AI...
+  <!-- ── Summary Modal Overlay ── -->
+  <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-opacity duration-300" id="summary-modal">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-on-background/40 backdrop-blur-sm" id="modal-backdrop"></div>
+    <!-- Modal Container -->
+    <div class="relative w-full max-w-4xl max-h-[90vh] bg-surface-container-low rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(29,28,22,0.12)] border border-white/50 flex flex-col transform translate-y-4 scale-95 transition-all duration-300" id="modal-content-wrap">
+      
+      <!-- Modal Canvas -->
+      <div class="flex-1 overflow-y-auto w-full relative">
+        <div class="absolute inset-0 pointer-events-none" style="background-image: radial-gradient(at 0% 0%, rgba(172, 199, 255, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(231, 226, 217, 0.4) 0px, transparent 50%); mix-blend-mode: multiply;"></div>
+        
+        <!-- Header -->
+        <div class="p-6 md:p-8 flex justify-between items-center bg-surface-container-low/80 backdrop-blur sticky top-0 z-20 border-b border-outline-variant/10">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center text-white shadow-sm">
+              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+            </div>
+            <div>
+              <h2 class="font-headline font-bold text-xl text-primary leading-none">AI Summarization</h2>
+              <p class="font-label text-xs text-on-surface-variant/70 tracking-tight mt-1">Intelligence Portal Engine v2.0</p>
+            </div>
+          </div>
+          <button class="p-2 hover:bg-surface-container-highest bg-white/50 rounded-full transition-colors cursor-pointer" id="modal-close-btn">
+            <span class="material-symbols-outlined text-on-surface-variant">close</span>
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="summary-loading" class="px-6 md:px-10 pb-12 pt-8">
+          <div class="max-w-3xl mx-auto space-y-12">
+            <div class="flex flex-col items-center justify-center py-8">
+              <div class="relative flex items-center justify-center">
+                <svg class="animate-spin h-20 w-20 text-primary" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <circle class="opacity-10" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+                  <path class="opacity-90" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"></path>
+                </svg>
+                <div class="absolute w-2 h-2 bg-primary rounded-full"></div>
+              </div>
+              <div class="mt-8 text-center">
+                <h3 class="font-headline italic text-xl text-primary font-bold mb-2">AI is synthesizing the briefing...</h3>
+                <div class="flex flex-col gap-1">
+                  <span class="text-sm font-label text-on-surface-variant animate-pulse">Analyzing context...</span>
+                  <span class="text-xs font-label text-outline/60 animate-pulse" style="animation-delay: 500ms">Extracting key takeaways...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Skeleton -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 opacity-60">
+              <div class="space-y-4">
+                <div class="h-6 w-3/4 bg-surface-container-highest rounded-md animate-pulse"></div>
+                <div class="space-y-2">
+                  <div class="h-4 w-full bg-surface-variant rounded-sm animate-pulse"></div>
+                  <div class="h-4 w-full bg-surface-variant rounded-sm animate-pulse"></div>
+                  <div class="h-4 w-5/6 bg-surface-variant rounded-sm animate-pulse"></div>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <div class="h-6 w-1/2 bg-surface-container-highest rounded-md animate-pulse"></div>
+                <div class="flex gap-3">
+                  <div class="h-5 w-5 bg-surface-container-highest rounded-full shrink-0 animate-pulse"></div>
+                  <div class="h-4 w-full bg-surface-variant rounded-sm animate-pulse"></div>
+                </div>
+                <div class="flex gap-3">
+                  <div class="h-5 w-5 bg-surface-container-highest rounded-full shrink-0 animate-pulse"></div>
+                  <div class="h-4 w-4/6 bg-surface-variant rounded-sm animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result State -->
+        <div id="summary-result" style="display:none" class="p-8 md:p-12 space-y-8 relative z-10">
+          <!-- Rendered from UI.js -->
+        </div>
+
       </div>
-      <div id="summary-result" style="display:none"></div>
     </div>
   </div>
 
-  <!-- Socket.IO (CDN) — โหลดก่อน main.js -->
+  <!-- Persistent Bottom Nav (Mobile Only) -->
+  <nav class="md:hidden fixed bottom-0 left-0 w-full h-16 flex justify-around items-center px-6 pb-2 pt-2 bg-surface-container-lowest border-t border-outline-variant/20 z-40">
+    <div class="flex flex-col items-center justify-center text-primary cursor-pointer w-1/4">
+      <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">newspaper</span>
+      <span class="font-label text-[10px] font-bold mt-1">ฟีดข่าว</span>
+    </div>
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="document.getElementById('search-input').focus()">
+      <span class="material-symbols-outlined text-[20px]">search</span>
+      <span class="font-label text-[10px] font-medium mt-1">ค้นหา</span>
+    </div>
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4">
+      <span class="material-symbols-outlined text-[20px]">bookmarks</span>
+      <span class="font-label text-[10px] font-medium mt-1">บันทึก</span>
+    </div>
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4">
+      <span class="material-symbols-outlined text-[20px]">person</span>
+      <span class="font-label text-[10px] font-medium mt-1">โปรไฟล์</span>
+    </div>
+  </nav>
+
+  <!-- Socket.IO -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
-  <!-- App — type="module" ใช้ ES Module import/export ได้เลย -->
+  <!-- App -->
   <script type="module" src="/frontend/static/main.js"></script>
 
 </body>

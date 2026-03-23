@@ -17,7 +17,7 @@ import asyncio
 from datetime import datetime
 from typing import Callable, Awaitable
 
-from repo.news_repo import NewsRepositoryPort
+from backend.repo.news_repo import NewsRepositoryPort
 
 
 # Type alias สำหรับฟังก์ชัน emit WebSocket
@@ -42,7 +42,7 @@ class ScraperService:
 
     async def run_loop(self) -> None:
         """เรียกใน lifespan — รันจนกว่า task ถูก cancel"""
-        from scrapers import SOURCES   # import ในนี้เพื่อ lazy load
+        from backend.scrapers import SOURCES   # import ในนี้เพื่อ lazy load
 
         seen = self._repo.load_seen()
 

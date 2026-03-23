@@ -14,7 +14,10 @@ from pathlib import Path
 # ── Resolve base paths ───────────────────────────────────────────
 _HERE = Path(__file__).resolve().parent          # backend/
 BASE_DIR = _HERE.parent                          # project root
-ENV_PATH = _HERE / ".env"
+# ตรวจสอบ .env ใน root ก่อน ถ้าไม่มีค่อยดูใน backend/
+ENV_PATH = BASE_DIR / ".env"
+if not ENV_PATH.exists():
+    ENV_PATH = _HERE / ".env"
 
 
 def _load_env_file(path: Path) -> dict[str, str]:
@@ -56,14 +59,15 @@ class Settings:
     summary_sentences: int          = int(_get("SUMMARY_SENTENCES",        "3"))
     page_size: int                  = int(_get("PAGE_SIZE",                "20"))
 
-    # Storage (ใช้ pathlib เพื่อ cross-platform — แก้ hardcode D:\... ออก)
-    output_file: Path       = BASE_DIR / _get("OUTPUT_FILE",  "news_output.json")
-    seen_file: Path         = BASE_DIR / _get("SEEN_FILE",    "seen_urls.json")
-    collected_md_dir: Path  = BASE_DIR / _get("COLLECTED_MD_DIR", "collected_md")
+    # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
+    DATA_DIR: Path          = BASE_DIR / "data"
+    data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
+    collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")
     port: int               = int(_get("PORT", "5000"))
+    playwright_service_url: str = _get("PLAYWRIGHT_SERVICE_URL", "http://playwright:8001/scrape")
 
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"

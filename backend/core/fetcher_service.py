@@ -82,34 +82,15 @@ class HttpxHeadersStrategy(FetchStrategy):
             return None
 
 
-# ── Tier 3: Playwright (sync ใน thread pool) ─────────────────────
-
-def _playwright_sync_fetch(url: str) -> str:
-    """รันใน asyncio.to_thread เพราะ playwright sync API block"""
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(user_agent=_BROWSER_HEADERS["User-Agent"])
-        page = context.new_page()
-        # Reduce timeout and wait_for_timeout to speed up the process
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=8_000)
-            page.wait_for_timeout(500)
-        except Exception:
-            # If it times out, we still try to get the content
-            pass
-        html = page.content()
-        browser.close()
-    return html
-
+# ── Tier 3: Playwright (ผ่าน microservice) ─────────────────────
 
 class PlaywrightStrategy(FetchStrategy):
     name = "Tier 3 (Playwright)"
 
     async def fetch(self, url: str) -> str | None:
         try:
-            html = await asyncio.to_thread(_playwright_sync_fetch, url)
+            from backend.core.browser import fetch_html_playwright
+            html = await fetch_html_playwright(url, wait_tag="body", wait_ms=2_000)
             md = trafilatura.extract(html)
             return md if md else None
         except Exception:

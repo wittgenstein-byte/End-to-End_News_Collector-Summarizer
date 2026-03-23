@@ -14,7 +14,7 @@ import json
 
 from openai import OpenAI
 
-from schemas.news_schema import NewsSummary
+from backend.schemas.news_schema import NewsSummary
 
 
 # ── System prompt ─────────────────────────────────────────────────
@@ -110,7 +110,7 @@ class SummarizerService:
 # ── DI factory ────────────────────────────────────────────────────
 
 def get_summarizer_service() -> SummarizerService:
-    from config import settings
+    from backend.config import settings
     client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
     return SummarizerService(
         client=client,

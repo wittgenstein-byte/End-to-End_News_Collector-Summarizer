@@ -8,8 +8,8 @@ SOLID  S — จัดการ WebSocket events เท่านั้น
 
 from datetime import datetime
 
-from core.socket_manager import sio
-from repo.news_repo import get_news_repository
+from backend.core.socket_manager import sio
+from backend.repo.news_repo import get_news_repository
 
 
 @sio.event

@@ -1,5 +1,14 @@
-# Step 1: Base image with Python and Playwright dependencies
-FROM mcr.microsoft.com/playwright/python:v1.40.0-focal
+# Stage 1: Build frontend assets
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend/tailwind.config.js frontend/postcss.config.js* ./
+COPY frontend/static/ ./static/
+RUN npx tailwindcss -i static/tailwind-input.css -o static/app.css --minify
+
+# Stage 2: Base image with Python
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -8,11 +17,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium only (to keep image size smaller)
-RUN playwright install chromium
-
 # Copy project files
 COPY . .
+
+# Overwrite css with built css
+COPY --from=frontend-builder /app/frontend/static/app.css ./frontend/static/app.css
 
 # Environment variables (Defaults - can be overridden at runtime)
 ENV PORT=5000

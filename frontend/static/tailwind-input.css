@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+body {
+  font-family: 'Bai Jamjuree', sans-serif;
+  background-color: #fef9f0;
+  color: #1d1c16;
+}
+
+.newsreader { font-family: 'Newsreader', serif; }
+.manrope { font-family: 'Bai Jamjuree', sans-serif; }
+
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.custom-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+#summary-result {
+  font-family: "Bai Jamjuree", sans-serif;
+}
+
+#summary-result .summary-title {
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+#summary-result .summary-lead {
+  font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+  line-height: 2;
+  font-weight: 400;
+  color: #3d3c34;
+  margin-bottom: 0;
+}
+
+#summary-result .takeaways-card {
+  margin-top: 1.75rem;
+  padding: 1.25rem 1.5rem 1.25rem;
+  border-radius: 12px;
+}
+
+#summary-result .takeaways-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+#summary-result .takeaways-list {
+  gap: 0.65rem;
+}
+
+#summary-result .takeaways-item {
+  font-size: 0.95rem;
+  line-height: 1.75;
+  font-weight: 400;
+}

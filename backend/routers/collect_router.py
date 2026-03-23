@@ -11,6 +11,7 @@ GRASP  Controller — ประสาน fetcher → save file → summarizer
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -18,10 +19,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from config import settings
-from schemas.news_schema import CollectRequest
-from core.fetcher_service import FetcherService, get_fetcher_service
-from services.summarizer_service import SummarizerService, get_summarizer_service
+from backend.config import settings
+from backend.schemas.news_schema import CollectRequest
+from backend.core.fetcher_service import FetcherService, get_fetcher_service
+from backend.services.summarizer_service import SummarizerService, get_summarizer_service
 
 router = APIRouter(prefix="/api", tags=["collect"])
 
@@ -60,6 +61,7 @@ async def collect_md(
         # SummarizerService ใช้ sync OpenAI → wrap ด้วย to_thread
         summary = await asyncio.to_thread(summarizer.summarize, md_content)
     except Exception as e:
+        logging.error("LLM Error during summarization:", exc_info=True)
         raise HTTPException(status_code=500, detail=f"LLM สรุปล้มเหลว: {e}")
 
     return JSONResponse({
