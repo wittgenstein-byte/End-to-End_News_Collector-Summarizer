@@ -14,8 +14,8 @@ Public API ของ scrapers package
 """
 
 # side-effect import — registers all sources into SOURCES list
-import scrapers.sources  # noqa: F401
+import backend.scrapers.sources  # noqa: F401
 
-from scrapers.registry import SOURCES, NewsSource, register_source
+from backend.scrapers.registry import SOURCES, NewsSource, register_source
 
 __all__ = ["SOURCES", "NewsSource", "register_source"]

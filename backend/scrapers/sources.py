@@ -16,11 +16,16 @@ from __future__ import annotations
 import httpx
 from bs4 import BeautifulSoup
 
-from config import settings
-from core.browser import fetch_html_playwright
-from core.constants import BROWSER_HEADERS
-from scrapers.registry import register_source
-from scrapers.helpers import fetch_summary_and_image, find_url, make_article
+from backend.config import settings
+from backend.core.browser import fetch_html_playwright
+from backend.core.constants import BROWSER_HEADERS
+from backend.scrapers.registry import register_source
+from backend.scrapers.helpers import (
+    fetch_summary_and_image,
+    find_image,
+    find_url,
+    make_article,
+)
 
 # ── Bangkok Post nav items ที่ไม่ใช่ข่าว ──────────────────────────
 _NAV_KEYWORDS: frozenset[str] = frozenset({
@@ -169,6 +174,7 @@ async def scrape_101world() -> list[dict]:
 
 @register_source("The Standard", "https://thestandard.co", "#e67e22")
 async def scrape_thestandard() -> list[dict]:
+    base = "https://thestandard.co"
     rss_url = "https://thestandard.co/feed"
     import xml.etree.ElementTree as ET
     from html import unescape
@@ -203,29 +209,32 @@ async def scrape_thestandard() -> list[dict]:
             if enclosure is not None:
                 image_url = enclosure.get("url", "")
 
-        # 3. parse <img> ด้วย BeautifulSoup
+        # 3. parse <img>  BeautifulSoup
         if not image_url:
             desc_soup = BeautifulSoup(raw_desc, "html.parser")
-            img_tag = desc_soup.find("img")
-            if img_tag:
-                image_url = img_tag.get("src", "")
+            image_url = find_image(desc_soup, base)
 
-        # 4. fallback og:image จาก article page
+        # 4. content:encoded (feed)
+        if not image_url:
+            encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
+            if encoded is not None and encoded.text:
+                encoded_soup = BeautifulSoup(encoded.text, "html.parser")
+                image_url = find_image(encoded_soup, base)
+
+        # 5. fallback �ҡ article page
         if not image_url and url:
             try:
                 async with httpx.AsyncClient(follow_redirects=True) as client:
                     r = await client.get(url, headers=BROWSER_HEADERS, timeout=5)
                 s = BeautifulSoup(r.text, "html.parser")
-                og = s.find("meta", property="og:image")
-                if og:
-                    image_url = og.get("content", "")
+                image_url = find_image(s, base)
             except Exception:
                 pass
-        # ────────────────────────────────────────────────────────
-
         if not title:
             continue
 
         news_list.append(make_article(title, summary, "The Standard", url, image_url))
 
     return news_list
+
+
