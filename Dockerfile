@@ -35,9 +35,9 @@ ENV HOST=0.0.0.0
 ENV LLM_BASE_URL=https://gen.ai.kku.ac.th/api/v1
 ENV LLM_MODEL=gemini-3.1-flash-lite-preview
 
-# Expose the port
+# Expose the default port (runtime may override with PORT env)
 EXPOSE 5000
 
 # Run the application with Gunicorn for production
 # Using uvicorn.workers.UvicornWorker for ASGI support (FastAPI + Socket.IO)
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:5000", "backend.main:app_asgi", "--workers", "1", "--timeout", "120"]
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-5000} backend.main:app_asgi --workers 1 --timeout 120"]
