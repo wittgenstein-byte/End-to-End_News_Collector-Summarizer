@@ -7,6 +7,25 @@
 
 import { API_BASE, SOCKET_URL } from "./config.js";
 
+async function buildHttpError(res) {
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const data = await res.json().catch(() => null);
+    const detail = data?.detail ?? data?.error ?? data?.message;
+    if (typeof detail === "string" && detail.trim()) {
+      return new Error(detail);
+    }
+  } else {
+    const text = await res.text().catch(() => "");
+    if (text.trim()) {
+      return new Error(text.trim());
+    }
+  }
+
+  return new Error(`HTTP ${res.status}`);
+}
+
 // ── HTTP ──────────────────────────────────────────────────────────
 
 /**
@@ -22,7 +41,7 @@ export async function fetchNews(page = 1, source = "", q = "", category = "") {
   if (category && category !== "all") params.set("category", category);
 
   const res = await fetch(`${API_BASE}/api/news?${params}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw await buildHttpError(res);
   return res.json();
 }
 
@@ -45,7 +64,7 @@ export async function summarizeArticle(url) {
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ url }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw await buildHttpError(res);
   return res.json();
 }
 

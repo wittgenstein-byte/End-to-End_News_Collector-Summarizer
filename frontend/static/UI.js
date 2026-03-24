@@ -164,9 +164,9 @@ export function renderGrid(articles, newUrlSet = new Set()) {
 
     return `
       <article class="bg-white rounded-xl overflow-hidden flex flex-col border border-outline-variant/20 transition-shadow duration-300 group hover:shadow-lg hover:-translate-y-1" style="animation: fadeUp 0.5s ease-out ${i * 0.05}s both;">
-        <a class="flex flex-col h-full" href="${esc(n.url) || "#"}" target="_blank" rel="noopener">
+        <a class="flex flex-col flex-1" href="${esc(n.url) || "#"}" target="_blank" rel="noopener">
           ${imgMarkup}
-          <div class="p-8 flex flex-col h-full ${!imgSrc ? 'border-t-4 border-primary' : ''}">
+          <div class="p-8 pb-4 flex flex-col flex-1 ${!imgSrc ? 'border-t-4 border-primary' : ''}">
             
             <div class="flex items-center justify-between mb-6 gap-2">
               <div class="flex items-center gap-2 truncate">
@@ -181,11 +181,14 @@ export function renderGrid(articles, newUrlSet = new Set()) {
 
             <h2 class="text-xl lg:text-2xl font-headline font-bold leading-tight mb-4 transition-colors group-hover:text-primary line-clamp-3">${esc(n.title)}</h2>
             
-            <p class="text-sm text-outline leading-relaxed mb-8 flex-grow line-clamp-3">${esc(n.summary ?? "")}</p>
+            <p class="text-sm text-outline leading-relaxed mb-4 flex-grow line-clamp-3">${esc(n.summary ?? "")}</p>
             
-            <div class="mt-auto pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+          </div>
+        </a>
+        <div class="px-8 pb-8 mt-auto">
+          <div class="pt-4 border-t border-outline-variant/10 flex items-center justify-between gap-3">
                 <span class="text-[10px] font-bold tracking-widest text-outline-variant uppercase">${esc(n.fetched_at ?? "")}</span>
-                <button class="flex items-center justify-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary hover:text-white active:scale-95 transition-all w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+                <button type="button" class="flex items-center justify-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary hover:text-white active:scale-95 transition-all w-fit disabled:opacity-50 disabled:cursor-not-allowed"
                         data-url="${esc(n.url)}"
                         ${n.url ? 'onclick="window.__summarize(event, this.dataset.url)"' : 'disabled title="ไม่มี URL"'}>
                   <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
@@ -193,7 +196,6 @@ export function renderGrid(articles, newUrlSet = new Set()) {
                 </button>
             </div>
           </div>
-        </a>
       </article>
       `;
   }).join("");

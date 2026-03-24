@@ -3,8 +3,7 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
-COPY frontend/tailwind.config.js frontend/postcss.config.js* ./
-COPY frontend/static/ ./static/
+COPY frontend/ ./
 RUN npx tailwindcss -i static/tailwind-input.css -o static/app.css --minify
 
 # Stage 2: Base image with Python
