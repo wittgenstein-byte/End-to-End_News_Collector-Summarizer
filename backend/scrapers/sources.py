@@ -14,6 +14,7 @@ GRASP  Low Coupling — ใช้แค่ registry + helpers ไม่รู้
 from __future__ import annotations
 
 import httpx
+import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 
 from backend.config import settings
@@ -35,6 +36,19 @@ _NAV_KEYWORDS: frozenset[str] = frozenset({
 })
 
 _LIMIT = settings.max_articles_per_source   # อ่านจาก config ที่เดียว
+
+
+def _parse_rss_root(xml_text: str) -> ET.Element:
+    """
+    Parse RSS defensively because some feeds append trailing junk after </rss>.
+    """
+    try:
+        return ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        end_index = xml_text.lower().rfind("</rss>")
+        if end_index == -1:
+            raise exc
+        return ET.fromstring(xml_text[: end_index + len("</rss>")])
 
 
 # ── ThaiPBS ───────────────────────────────────────────────────────
@@ -91,14 +105,13 @@ async def scrape_bangkokpost() -> list[dict]:
 @register_source("Matichon", "https://www.matichon.co.th/news", "#2ecc71")
 async def scrape_matichon() -> list[dict]:
     rss_url = "https://www.matichon.co.th/feed"
-    import xml.etree.ElementTree as ET
     from html import unescape
     import re
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
 
-    root = ET.fromstring(resp.text)
+    root = _parse_rss_root(resp.text)
     news_list = []
 
     for item in root.findall(".//item")[:_LIMIT]:
@@ -176,14 +189,13 @@ async def scrape_101world() -> list[dict]:
 async def scrape_thestandard() -> list[dict]:
     base = "https://thestandard.co"
     rss_url = "https://thestandard.co/feed"
-    import xml.etree.ElementTree as ET
     from html import unescape
     import re
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
 
-    root = ET.fromstring(resp.text)
+    root = _parse_rss_root(resp.text)
     news_list = []
 
     
