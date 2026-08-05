@@ -8,6 +8,7 @@ RUN npx tailwindcss -i static/tailwind-input.css -o static/app.css --minify
 
 # Stage 2: Base image with Python
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Set working directory
 WORKDIR /app
@@ -15,9 +16,12 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy project dependencies and install
+COPY pyproject.toml uv.lock* requirements.txt ./
+RUN uv sync --frozen --no-cache --no-dev || uv pip install --system --no-cache -r requirements.txt
+
+# Ensure virtual environment binaries are on PATH if created by uv sync
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy only runtime files
 COPY backend/ ./backend/
