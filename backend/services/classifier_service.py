@@ -191,11 +191,11 @@ for cat, rules in _COMPOUND_RULES.items():
 
 # ── ML Models Loading ─────────────────────────────────────────────
 from pathlib import Path
-import joblib
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 
 try:
+    import joblib
     _TFIDF = joblib.load(_BASE_DIR / "model" / "tfidf_vectorizer.pkl")
     _SVM = joblib.load(_BASE_DIR / "model" / "svm_classifier.pkl")
 except Exception as e:

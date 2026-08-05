@@ -14,7 +14,6 @@ GRASP  Low Coupling — ใช้แค่ registry + helpers ไม่รู้
 from __future__ import annotations
 
 import httpx
-import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 
 from backend.config import settings
@@ -26,6 +25,7 @@ from backend.scrapers.helpers import (
     find_image,
     find_url,
     make_article,
+    parse_rss_items,
 )
 
 # ── Bangkok Post nav items ที่ไม่ใช่ข่าว ──────────────────────────
@@ -36,19 +36,6 @@ _NAV_KEYWORDS: frozenset[str] = frozenset({
 })
 
 _LIMIT = settings.max_articles_per_source   # อ่านจาก config ที่เดียว
-
-
-def _parse_rss_root(xml_text: str) -> ET.Element:
-    """
-    Parse RSS defensively because some feeds append trailing junk after </rss>.
-    """
-    try:
-        return ET.fromstring(xml_text)
-    except ET.ParseError as exc:
-        end_index = xml_text.lower().rfind("</rss>")
-        if end_index == -1:
-            raise exc
-        return ET.fromstring(xml_text[: end_index + len("</rss>")])
 
 
 # ── ThaiPBS ───────────────────────────────────────────────────────
@@ -105,61 +92,13 @@ async def scrape_bangkokpost() -> list[dict]:
 @register_source("Matichon", "https://www.matichon.co.th/news", "#2ecc71")
 async def scrape_matichon() -> list[dict]:
     rss_url = "https://www.matichon.co.th/feed"
-    from html import unescape
-    import re
-
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
-
-    root = _parse_rss_root(resp.text)
-    news_list = []
-
-    for item in root.findall(".//item")[:_LIMIT]:
-        title = unescape(item.findtext("title", "").strip())
-        url   = item.findtext("link", "").strip()
-
-        raw_desc = item.findtext("description", "")
-        summary  = unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
-
-        # ── ดึงรูป (เพิ่ม fallback หลายชั้น) ──────────────────────
-        image_url = ""
-
-        # 1. media:content namespace
-        media = item.find("{http://search.yahoo.com/mrss/}content")
-        if media is not None:
-            image_url = media.get("url", "")
-
-        # 2. enclosure tag
-        if not image_url:
-            enclosure = item.find("enclosure")
-            if enclosure is not None:
-                image_url = enclosure.get("url", "")
-
-        # 3. <img src> ใน description
-        if not image_url:
-            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_desc)
-            if img_match:
-                image_url = img_match.group(1)
-
-        # 4. fallback ดึง og:image จาก article page
-        if not image_url and url:
-            try:
-                async with httpx.AsyncClient(follow_redirects=True) as client:
-                    r = await client.get(url, headers=BROWSER_HEADERS, timeout=5)
-                s = BeautifulSoup(r.text, "html.parser")
-                og = s.find("meta", property="og:image")
-                if og:
-                    image_url = og.get("content", "")
-            except Exception:
-                pass
-        # ───────────────────────────────────────────────────────────
-
-        if not title:
-            continue
-
-        news_list.append(make_article(title, summary, "Matichon", url, image_url))
-    
-    return news_list
+    base = "https://www.matichon.co.th"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        return parse_rss_items(resp.text, "Matichon", base_url=base, limit=_LIMIT)
+    except Exception:
+        return []
 
 
 # ── 101 World (ต้องใช้ Playwright) ───────────────────────────────
@@ -187,66 +126,11 @@ async def scrape_101world() -> list[dict]:
 
 @register_source("The Standard", "https://thestandard.co", "#e67e22")
 async def scrape_thestandard() -> list[dict]:
-    base = "https://thestandard.co"
     rss_url = "https://thestandard.co/feed"
-    from html import unescape
-    import re
-
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
-
-    root = _parse_rss_root(resp.text)
-    news_list = []
-
-    
-
-    for item in root.findall(".//item")[:_LIMIT]:
-        title = unescape(item.findtext("title", "").strip())
-        url   = item.findtext("link", "").strip()
-
-        raw_desc = item.findtext("description", "")
-        summary  = unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
-
-        # ── ดึงรูป ──────────────────────────────────────────────
-        image_url = ""
-
-        # 1. media:content namespace
-        media = item.find("{http://search.yahoo.com/mrss/}content")
-        if media is not None:
-            image_url = media.get("url", "")
-
-        # 2. enclosure tag
-        if not image_url:
-            enclosure = item.find("enclosure")
-            if enclosure is not None:
-                image_url = enclosure.get("url", "")
-
-        # 3. parse <img>  BeautifulSoup
-        if not image_url:
-            desc_soup = BeautifulSoup(raw_desc, "html.parser")
-            image_url = find_image(desc_soup, base)
-
-        # 4. content:encoded (feed)
-        if not image_url:
-            encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
-            if encoded is not None and encoded.text:
-                encoded_soup = BeautifulSoup(encoded.text, "html.parser")
-                image_url = find_image(encoded_soup, base)
-
-        # 5. fallback �ҡ article page
-        if not image_url and url:
-            try:
-                async with httpx.AsyncClient(follow_redirects=True) as client:
-                    r = await client.get(url, headers=BROWSER_HEADERS, timeout=5)
-                s = BeautifulSoup(r.text, "html.parser")
-                image_url = find_image(s, base)
-            except Exception:
-                pass
-        if not title:
-            continue
-
-        news_list.append(make_article(title, summary, "The Standard", url, image_url))
-
-    return news_list
-
-
+    base = "https://thestandard.co"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        return parse_rss_items(resp.text, "The Standard", base_url=base, limit=_LIMIT)
+    except Exception:
+        return []
