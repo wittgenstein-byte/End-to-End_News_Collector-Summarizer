@@ -164,7 +164,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
 
     return `
       <article class="bg-white rounded-xl overflow-hidden flex flex-col border border-outline-variant/20 transition-shadow duration-300 group hover:shadow-lg hover:-translate-y-1" style="animation: fadeUp 0.5s ease-out ${i * 0.05}s both;">
-        <a class="flex flex-col flex-1" href="${esc(n.url) || "#"}" target="_blank" rel="noopener">
+        <a class="flex flex-col flex-1" href="${esc(n.url) || "#"}" target="_blank" rel="noopener" data-title="${esc(n.title)}" data-source="${esc(n.source)}" data-category="${esc(n.category ?? "")}" data-url="${esc(n.url)}">
           ${imgMarkup}
           <div class="p-8 pb-4 flex flex-col flex-1 ${!imgSrc ? 'border-t-4 border-primary' : ''}">
             

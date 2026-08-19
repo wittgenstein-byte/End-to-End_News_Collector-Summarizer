@@ -63,6 +63,7 @@ class Settings:
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
+    event_db_path: Path     = DATA_DIR / _get("EVENT_DB_FILE", "event_tracking.sqlite3")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")

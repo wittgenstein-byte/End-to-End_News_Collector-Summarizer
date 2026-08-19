@@ -1,24 +1,68 @@
 /**
  * main.js — App controller (GRASP: Controller)
  *
- * หน้าที่: เชื่อม api.js กับ ui.js
- * ไม่ fetch เอง ไม่แตะ DOM โดยตรง
- * เป็น orchestrator เท่านั้น
+ * Purpose: bridge API and UI logic.
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories } from "./api.js";
+import {
+  fetchNews,
+  summarizeArticle,
+  createSocket,
+  fetchCategories,
+  trackEvent,
+  hasCookieConsent,
+  getAnonymousUserId,
+  setCookieConsent,
+} from "./api.js";
 import * as UI from "./UI.js";
 
-// ── State ─────────────────────────────────────────────────────────
-let currentPage   = 1;
-let activeSource  = "";
+let currentPage = 1;
+let activeSource = "";
 let activeCategory = "all";
-let searchQuery   = "";
-let searchTimer   = null;
-let totalNew      = 0;
-let newArticleSet = new Set();   // Set<url> ของข่าวใหม่ใน session
+let searchQuery = "";
+let searchTimer = null;
+let totalNew = 0;
+let newArticleSet = new Set();
 
-// ── Page fetch ────────────────────────────────────────────────────
+function trackPageView() {
+  if (!hasCookieConsent()) return;
+  trackEvent("page_view", {
+    category: activeCategory,
+    source: activeSource,
+    metadata: {
+      page: currentPage,
+      search_query: searchQuery,
+    },
+  });
+}
+
+function initCookieConsent() {
+  const banner = document.getElementById("cookie-consent");
+  if (!banner) return;
+
+  const accepted = hasCookieConsent();
+  banner.classList.toggle("hidden", accepted);
+
+  if (accepted) {
+    getAnonymousUserId();
+  }
+}
+
+window.__acceptCookies = () => {
+  setCookieConsent(true);
+  const banner = document.getElementById("cookie-consent");
+  if (banner) banner.classList.add("hidden");
+  getAnonymousUserId();
+  trackEvent("cookie_consent", {
+    metadata: { choice: "accept" },
+  });
+};
+
+window.__declineCookies = () => {
+  setCookieConsent(false);
+  const banner = document.getElementById("cookie-consent");
+  if (banner) banner.classList.add("hidden");
+};
 
 async function loadPage(page = 1) {
   currentPage = page;
@@ -29,17 +73,24 @@ async function loadPage(page = 1) {
     UI.renderGrid(data.news, newArticleSet);
     UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
-    UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
+    UI.updateTicker(data.news.slice(0, 15).map((n) => n.title));
+    trackPageView();
   } catch (e) {
     UI.showGridError(e.message);
   }
 }
 
-// ── Category handler ──────────────────────────────────────────────
-
 function handleCategoryClick(id) {
   activeCategory = id;
   UI.renderCategoryNav(id, {});
+  trackEvent("category_click", {
+    category: id,
+    source: activeSource,
+    metadata: {
+      page: 1,
+      search_query: searchQuery,
+    },
+  });
   loadPage(1);
   refreshCategoryCounts();
 }
@@ -53,11 +104,8 @@ async function refreshCategoryCounts() {
   }
 }
 
-// expose ให้ onclick ใน pagination เรียกได้
 window.__loadPage = loadPage;
 window.__categoryClick = handleCategoryClick;
-
-// ── Summary Modal ─────────────────────────────────────────────────
 
 async function handleSummarize(event, url) {
   event.preventDefault();
@@ -71,17 +119,14 @@ async function handleSummarize(event, url) {
     if (data.ok && data.summary) {
       UI.showModalResult(data.summary);
     } else {
-      throw new Error(data.error ?? "เกิดข้อผิดพลาดในการสรุปข่าว");
+      throw new Error(data.error ?? "Summary could not be generated");
     }
   } catch (err) {
     UI.showModalError(err.message);
   }
 }
 
-// expose ให้ onclick attribute ใน ui.js เรียกได้
 window.__summarize = handleSummarize;
-
-// ── WebSocket ─────────────────────────────────────────────────────
 
 createSocket({
   onConnect() {
@@ -96,48 +141,76 @@ createSocket({
   },
   onNewArticles(data) {
     totalNew += data.count;
-    data.articles.forEach(a => newArticleSet.add(a.url));
+    data.articles.forEach((a) => newArticleSet.add(a.url));
     UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
-    UI.updateTicker(data.articles.map(a => a.title));
-    UI.showToast(`✨ มีข่าวใหม่ ${data.count} บทความ — คลิกเพื่อดู`);
+    UI.updateTicker(data.articles.map((a) => a.title));
+    UI.showToast(`New articles: ${data.count}`);
   },
 });
 
-// ── Filter buttons ────────────────────────────────────────────────
-
-document.querySelectorAll(".filter-btn").forEach(btn => {
+document.querySelectorAll(".filter-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     activeSource = btn.dataset.source ?? "";
     UI.updateSourceFilters(activeSource);
+    trackEvent("source_filter", {
+      source: activeSource,
+      category: activeCategory,
+      metadata: {
+        page: 1,
+        search_query: searchQuery,
+      },
+    });
     loadPage(1);
   });
 });
 
-// ── Search ────────────────────────────────────────────────────────
-
-document.getElementById("search-input").addEventListener("input", e => {
+document.getElementById("search-input").addEventListener("input", (e) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     searchQuery = e.target.value.trim();
+    trackEvent("search", {
+      category: activeCategory,
+      source: activeSource,
+      metadata: {
+        page: 1,
+        search_query: searchQuery,
+      },
+    });
     loadPage(1);
   }, 400);
 });
 
-// ── Toast dismiss ─────────────────────────────────────────────────
+document.getElementById("news-grid").addEventListener("click", (event) => {
+  const link = event.target.closest("a[href]");
+  if (!link || !link.href) return;
+
+  const articleUrl = link.href;
+  const title = link.dataset.title || link.querySelector("h2")?.textContent?.trim() || "";
+  const source = link.dataset.source || "";
+  const category = link.dataset.category || activeCategory;
+
+  trackEvent("article_open", {
+    article_url: articleUrl,
+    article_title: title,
+    source,
+    category,
+    metadata: {
+      page: currentPage,
+      search_query: searchQuery,
+    },
+  });
+});
 
 document.getElementById("toast").addEventListener("click", () => {
   UI.hideToast();
   loadPage(1);
 });
 
-// ── Modal close ───────────────────────────────────────────────────
-
-document.getElementById("summary-modal").addEventListener("click", e => {
+document.getElementById("summary-modal").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) UI.closeModal();
 });
 document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
 
-// ── Init: draw category nav ───────────────────────────────────────
-
 UI.renderCategoryNav("all", {});
 refreshCategoryCounts();
+initCookieConsent();
