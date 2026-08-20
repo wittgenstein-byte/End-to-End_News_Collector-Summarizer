@@ -68,6 +68,8 @@ class Settings:
     host: str               = _get("HOST", "0.0.0.0")
     port: int               = int(_get("PORT", "5000"))
     playwright_service_url: str = _get("PLAYWRIGHT_SERVICE_URL", "http://playwright:8001/scrape")
+    obscura_service_url: str    = _get("OBSCURA_SERVICE_URL", "ws://localhost:9222")
+    cors_origins: list[str]     = [x.strip() for x in _get("CORS_ORIGINS", "*").split(",") if x.strip()]
 
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"

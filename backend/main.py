@@ -13,6 +13,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+# On Windows, Playwright requires ProactorEventLoop for subprocesses
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 # ── Import Fix ────────────────────────────────────────────────────
 # Ensure the parent directory is in sys.path so 'import backend.xxx' works
 # even when running from within the backend directory.
@@ -98,8 +102,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -171,10 +175,13 @@ app_asgi = socketio.ASGIApp(sio, other_asgi_app=app)
 # ── Entry point ───────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     print("🚀 FastAPI Server starting...")
     uvicorn.run(
         "main:app_asgi",
         host=settings.host,
         port=settings.port,
         reload=True,
+        loop="asyncio",
     )
