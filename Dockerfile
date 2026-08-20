@@ -23,6 +23,10 @@ RUN uv sync --frozen --no-cache --no-dev || uv pip install --system --no-cache -
 # Ensure virtual environment binaries are on PATH if created by uv sync
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Install Playwright browsers (full chromium + headless shell) for the
+# in-app browser's BrowserService fallback engine
+RUN playwright install --with-deps chromium
+
 # Copy only runtime files
 COPY backend/ ./backend/
 COPY frontend/index.html ./frontend/index.html
