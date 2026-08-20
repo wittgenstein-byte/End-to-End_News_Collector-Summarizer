@@ -14,7 +14,8 @@ export function esc(s) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // ── WS badge ──────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
 
     return `
       <article class="bg-white rounded-xl overflow-hidden flex flex-col border border-outline-variant/20 transition-shadow duration-300 group hover:shadow-lg hover:-translate-y-1" style="animation: fadeUp 0.5s ease-out ${i * 0.05}s both;">
-        <a class="flex flex-col flex-1" href="${esc(n.url) || "#"}" target="_blank" rel="noopener">
+        <div class="flex flex-col flex-1 cursor-pointer" data-url="${esc(n.url)}" onclick="window.__openBrowserWithUrl(this.dataset.url)">
           ${imgMarkup}
           <div class="p-8 pb-4 flex flex-col flex-1 ${!imgSrc ? 'border-t-4 border-primary' : ''}">
             
@@ -184,7 +185,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
             <p class="text-sm text-outline leading-relaxed mb-4 flex-grow line-clamp-3">${esc(n.summary ?? "")}</p>
             
           </div>
-        </a>
+        </div>
         <div class="px-8 pb-8 mt-auto">
           <div class="pt-4 border-t border-outline-variant/10 flex items-center justify-between gap-3">
                 <span class="text-[10px] font-bold tracking-widest text-outline-variant uppercase">${esc(n.fetched_at ?? "")}</span>

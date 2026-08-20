@@ -69,9 +69,12 @@ export async function summarizeArticle(url) {
 }
 
 // ── WebSocket ────────────────────────────────────────────────────
+let globalSocket = null;
+
 export function createSocket(handlers) {
   /* global io */
   const socket = io(SOCKET_URL);
+  globalSocket = socket;
 
   socket.on("connect",      ()     => handlers.onConnect?.());
   socket.on("disconnect",   ()     => handlers.onDisconnect?.());
@@ -79,4 +82,8 @@ export function createSocket(handlers) {
   socket.on("new_articles", data   => handlers.onNewArticles?.(data));
 
   return socket;
+}
+
+export function getSocket() {
+  return globalSocket;
 }
