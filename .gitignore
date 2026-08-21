@@ -6,6 +6,7 @@ data/site_registry.json
 
 data/collected_md/
 data/news_data.json
+data/datasets/
 
 \__init__.py
 
@@ -13,10 +14,14 @@ data/collected_md/
 node_modules/
 frontend/node_modules/
 frontend/stitch_export/
+
+tests/
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.safetensors
 .env
 venv/
 .venv/ 
