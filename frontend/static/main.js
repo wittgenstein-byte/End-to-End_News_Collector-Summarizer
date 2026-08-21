@@ -11,14 +11,21 @@ import * as UI from "./UI.js";
 
 // ── PDPA & Personalization ────────────────────────────────────────
 const PDPA_KEY = "pdpa_consent";
-let hasConsent = localStorage.getItem(PDPA_KEY) === "true";
-let personalizationData = hasConsent ? JSON.parse(localStorage.getItem("personalization") || "{}") : {};
+const PERSONALIZATION_KEY = "personalization";
 const SEARCH_HISTORY_KEY = "search_history";
+const NEWS_CACHE_KEY = "news_cache";
+
+let hasConsent = localStorage.getItem(PDPA_KEY) === "true";
+let personalizationData = hasConsent ? JSON.parse(localStorage.getItem(PERSONALIZATION_KEY) || "{}") : {};
 let searchHistory = hasConsent ? JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]") : [];
 
 function savePersonalization() {
   if (hasConsent) {
-    localStorage.setItem("personalization", JSON.stringify(personalizationData));
+    try {
+      localStorage.setItem(PERSONALIZATION_KEY, JSON.stringify(personalizationData));
+    } catch (e) {
+      console.warn("Failed to save personalization to localStorage:", e);
+    }
   }
 }
 
@@ -26,19 +33,35 @@ window.__acceptCookies = () => {
   hasConsent = true;
   localStorage.setItem(PDPA_KEY, "true");
   document.getElementById("pdpa-banner").classList.add("translate-y-full");
+  const consentEl = document.getElementById("setting-consent-status");
+  if (consentEl) consentEl.textContent = "Accepted";
   applyPersonalization();
+  UI.renderCategoryNav(activeCategory, {}, personalizationData.bookmarkedArticles || {});
+  UI.showToast("บันทึกความยินยอม PDPA เรียบร้อย");
 };
 
 window.__declineCookies = () => {
   hasConsent = false;
   localStorage.setItem(PDPA_KEY, "false");
-  localStorage.removeItem("personalization");
+  localStorage.removeItem(PERSONALIZATION_KEY);
   localStorage.removeItem(SEARCH_HISTORY_KEY);
+  localStorage.removeItem(NEWS_CACHE_KEY);
   personalizationData = {};
   searchHistory = [];
   document.getElementById("pdpa-banner").classList.add("translate-y-full");
+  const consentEl = document.getElementById("setting-consent-status");
+  if (consentEl) consentEl.textContent = "Declined";
   document.documentElement.classList.remove("dark");
   document.documentElement.classList.add("light");
+  document.documentElement.style.fontSize = "";
+  delete document.body.dataset.density;
+
+  if (activeCategory === "bookmarks") {
+    activeCategory = "all";
+  }
+  UI.renderCategoryNav(activeCategory, {}, {});
+  loadPage(1);
+  UI.showToast("ปฏิเสธการใช้คุกกี้ — ลบข้อมูลการตั้งค่าส่วนบุคคลทั้งหมดแล้ว");
 };
 
 function checkPDPA() {
@@ -51,25 +74,45 @@ function checkPDPA() {
     hasConsent = consent === "true";
     if (hasConsent) applyPersonalization();
   }
-  document.getElementById("setting-consent-status").textContent = consent === "true" ? "Accepted" : consent === "false" ? "Declined" : "Unknown";
+  const consentEl = document.getElementById("setting-consent-status");
+  if (consentEl) {
+    consentEl.textContent = consent === "true" ? "Accepted" : consent === "false" ? "Declined" : "Unknown";
+  }
 }
 
 function applyPersonalization() {
+  if (!hasConsent) return;
+
   if (personalizationData.darkMode) {
     document.documentElement.classList.add("dark");
     document.documentElement.classList.remove("light");
     const dmEl = document.getElementById("setting-darkmode");
     if (dmEl) dmEl.checked = true;
+  } else {
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
+    const dmEl = document.getElementById("setting-darkmode");
+    if (dmEl) dmEl.checked = false;
   }
+
   if (personalizationData.fontSize) {
     document.documentElement.style.fontSize = personalizationData.fontSize;
     const fsEl = document.getElementById("setting-fontsize");
     if (fsEl) fsEl.value = personalizationData.fontSize;
   }
+
   if (personalizationData.layoutDensity) {
     document.body.dataset.density = personalizationData.layoutDensity;
     const ldEl = document.getElementById("setting-density");
     if (ldEl) ldEl.value = personalizationData.layoutDensity;
+  }
+
+  // Restore category and source filter preferences
+  if (personalizationData.preferredCategory && personalizationData.preferredCategory !== "bookmarks") {
+    activeCategory = personalizationData.preferredCategory;
+  }
+  if (personalizationData.preferredSource !== undefined) {
+    activeSource = personalizationData.preferredSource;
   }
 }
 
@@ -108,9 +151,10 @@ window.__changeLayoutDensity = (density) => {
 };
 
 window.__clearPersonalizationData = () => {
-  localStorage.removeItem("personalization");
+  localStorage.removeItem(PERSONALIZATION_KEY);
   localStorage.removeItem(PDPA_KEY);
   localStorage.removeItem(SEARCH_HISTORY_KEY);
+  localStorage.removeItem(NEWS_CACHE_KEY);
   location.reload();
 };
 
@@ -119,7 +163,11 @@ function saveSearchQuery(query) {
   searchHistory = searchHistory.filter(q => q !== query);
   searchHistory.unshift(query);
   if (searchHistory.length > 20) searchHistory.pop();
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  try {
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  } catch (e) {
+    console.warn("Failed to save search history to localStorage:", e);
+  }
 }
 
 // ── In-App Browser ────────────────────────────────────────────────
@@ -372,19 +420,176 @@ function disarmBrowserLoadTimeout() {
   clearTimeout(browserLoadTimer);
 }
 
+// ── Bookmarks View & Article Bookmark Handler ─────────────────────
+
+window.__toggleArticleBookmark = (event, articleJsonStr) => {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!hasConsent) {
+    UI.showToast("กรุณายินยอมให้ใช้คุกกี้เพื่อใช้งานระบบบันทึกข่าว (PDPA)");
+    return;
+  }
+  try {
+    const article = typeof articleJsonStr === "string" ? JSON.parse(decodeURIComponent(articleJsonStr)) : articleJsonStr;
+    if (!article || !article.url) return;
+
+    personalizationData.bookmarkedArticles = personalizationData.bookmarkedArticles || {};
+
+    if (personalizationData.bookmarkedArticles[article.url]) {
+      delete personalizationData.bookmarkedArticles[article.url];
+      savePersonalization();
+      UI.showToast("ลบบุ๊กมาร์กเรียบร้อย");
+    } else {
+      article.bookmarked_at = new Date().toISOString();
+      personalizationData.bookmarkedArticles[article.url] = article;
+      savePersonalization();
+      UI.showToast("บันทึกบทความเรียบร้อย 🔖");
+    }
+
+    const bCount = Object.keys(personalizationData.bookmarkedArticles).length;
+    UI.updateCategoryBadges({}, bCount);
+
+    if (activeCategory === "bookmarks") {
+      renderBookmarkedArticles();
+    } else {
+      loadPage(currentPage);
+    }
+  } catch (err) {
+    console.error("Failed to toggle article bookmark:", err);
+  }
+};
+
+function renderBookmarkedArticles() {
+  activeCategory = "bookmarks";
+  const bookmarksObj = personalizationData.bookmarkedArticles || {};
+  let articles = Object.values(bookmarksObj);
+
+  // Sort latest bookmarked first
+  articles.sort((a, b) => new Date(b.bookmarked_at || 0) - new Date(a.bookmarked_at || 0));
+
+  // Filter by active source if any
+  if (activeSource) {
+    articles = articles.filter(a => a.source && a.source.toLowerCase() === activeSource.toLowerCase());
+  }
+
+  // Filter by search query if any
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    articles = articles.filter(a =>
+      (a.title && a.title.toLowerCase().includes(q)) ||
+      (a.summary && a.summary.toLowerCase().includes(q)) ||
+      (a.source && a.source.toLowerCase().includes(q))
+    );
+  }
+
+  UI.renderCategoryNav("bookmarks", {}, personalizationData.bookmarkedArticles || {});
+  UI.updateSourceFilters(activeSource);
+
+  if (articles.length === 0) {
+    const totalSaved = Object.keys(bookmarksObj).length;
+    if (totalSaved === 0) {
+      document.getElementById("news-grid").innerHTML = `
+        <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 text-on-surface-variant flex flex-col items-center justify-center">
+          <span class="material-symbols-outlined text-outline text-5xl mb-3">bookmark_border</span>
+          <span class="font-bold text-lg text-on-surface mb-1">ยังไม่มีบทความที่บันทึกไว้</span>
+          <span class="text-sm text-outline">คลิกที่ไอคอนบุ๊กมาร์กบนการ์ดข่าวเพื่อบันทึกไว้อ่านภายหลัง</span>
+        </div>
+      `;
+    } else {
+      document.getElementById("news-grid").innerHTML = `
+        <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 text-on-surface-variant">
+          ไม่พบบทความที่บันทึกไว้ตรงกับคำค้นหาหรือตัวกรอง
+        </div>
+      `;
+    }
+  } else {
+    UI.renderGrid(articles, newArticleSet, personalizationData.bookmarkedArticles || {});
+  }
+
+  UI.renderPagination({ page: 1, total_pages: 1, total: articles.length });
+  UI.updateStats({ total: articles.length });
+}
+
+window.__showBookmarks = () => {
+  if (!hasConsent) {
+    UI.showToast("กรุณายินยอมให้ใช้คุกกี้เพื่อใช้งานระบบบันทึกข่าว (PDPA)");
+    return;
+  }
+  renderBookmarkedArticles();
+};
+
 // ── Page fetch ────────────────────────────────────────────────────
 
 async function loadPage(page = 1) {
+  if (activeCategory === "bookmarks") {
+    renderBookmarkedArticles();
+    return;
+  }
+
   currentPage = page;
   UI.showGridLoading();
 
   try {
     const data = await fetchNews(page, activeSource, searchQuery, activeCategory);
-    UI.renderGrid(data.news, newArticleSet);
+
+    // Save to offline news cache if default page 1 feed and consent granted
+    if (hasConsent && page === 1 && !activeSource && !searchQuery && (activeCategory === "all" || !activeCategory)) {
+      try {
+        localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({
+          timestamp: Date.now(),
+          articles: data.news,
+          total: data.total,
+          updated: data.updated
+        }));
+      } catch (cacheErr) {
+        console.warn("Failed to cache news feed to localStorage:", cacheErr);
+      }
+    }
+
+    UI.renderGrid(data.news, newArticleSet, personalizationData.bookmarkedArticles || {});
     UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
     UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
   } catch (e) {
+    console.warn("fetchNews failed, attempting offline cache fallback:", e.message);
+    // Offline fallback
+    const cachedRaw = localStorage.getItem(NEWS_CACHE_KEY);
+    if (cachedRaw) {
+      try {
+        const cached = JSON.parse(cachedRaw);
+        const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+        if (cached && Array.isArray(cached.articles) && (Date.now() - (cached.timestamp || 0) < CACHE_TTL_MS)) {
+          let articles = cached.articles;
+          if (activeCategory && activeCategory !== "all") {
+            articles = articles.filter(a => a.category === activeCategory);
+          }
+          if (activeSource) {
+            articles = articles.filter(a => a.source && a.source.toLowerCase() === activeSource.toLowerCase());
+          }
+          if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            articles = articles.filter(a =>
+              (a.title && a.title.toLowerCase().includes(q)) ||
+              (a.summary && a.summary.toLowerCase().includes(q)) ||
+              (a.source && a.source.toLowerCase().includes(q))
+            );
+          }
+
+          UI.renderGrid(articles, newArticleSet, personalizationData.bookmarkedArticles || {});
+          UI.renderPagination({ page: 1, total_pages: 1, total: articles.length });
+          UI.updateStats({ total: cached.total || articles.length, updated: cached.updated ? `${cached.updated} (ออฟไลน์)` : "แคชออฟไลน์" });
+          UI.updateTicker(articles.slice(0, 15).map(n => n.title));
+          UI.showToast("⚡ กำลังแสดงข่าวจากแคชออฟไลน์ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)");
+          return;
+        } else if (cached && Date.now() - (cached.timestamp || 0) >= CACHE_TTL_MS) {
+          localStorage.removeItem(NEWS_CACHE_KEY);
+        }
+      } catch (parseErr) {
+        localStorage.removeItem(NEWS_CACHE_KEY);
+      }
+    }
     UI.showGridError(e.message);
   }
 }
@@ -392,8 +597,16 @@ async function loadPage(page = 1) {
 // ── Category handler ──────────────────────────────────────────────
 
 function handleCategoryClick(id) {
+  if (id === "bookmarks") {
+    window.__showBookmarks();
+    return;
+  }
   activeCategory = id;
-  UI.renderCategoryNav(id, {});
+  if (hasConsent) {
+    personalizationData.preferredCategory = id;
+    savePersonalization();
+  }
+  UI.renderCategoryNav(id, {}, personalizationData.bookmarkedArticles || {});
   loadPage(1);
   refreshCategoryCounts();
 }
@@ -401,7 +614,8 @@ function handleCategoryClick(id) {
 async function refreshCategoryCounts() {
   try {
     const counts = await fetchCategories();
-    UI.updateCategoryBadges(counts);
+    const bCount = Object.keys(personalizationData.bookmarkedArticles || {}).length;
+    UI.updateCategoryBadges(counts, bCount);
   } catch (e) {
     console.warn("Failed to fetch category counts:", e.message);
   }
@@ -519,8 +733,16 @@ socket.on("browser_tab_opened", (data) => {
 
 function handleSourceFilterClick(source) {
   activeSource = source ?? "";
+  if (hasConsent) {
+    personalizationData.preferredSource = activeSource;
+    savePersonalization();
+  }
   UI.updateSourceFilters(activeSource);
-  loadPage(1);
+  if (activeCategory === "bookmarks") {
+    renderBookmarkedArticles();
+  } else {
+    loadPage(1);
+  }
 }
 
 async function refreshSourceFilters() {
@@ -544,7 +766,11 @@ searchInput.addEventListener("input", e => {
   searchTimer = setTimeout(() => {
     searchQuery = e.target.value.trim();
     if (searchQuery) saveSearchQuery(searchQuery);
-    loadPage(1);
+    if (activeCategory === "bookmarks") {
+      renderBookmarkedArticles();
+    } else {
+      loadPage(1);
+    }
   }, 400);
 });
 
@@ -571,12 +797,16 @@ function showSearchSuggestions(items) {
   items.forEach(q => {
     const item = document.createElement("button");
     item.className = "w-full text-left px-4 py-2 text-sm hover:bg-surface-container transition-colors flex items-center gap-2";
-    item.innerHTML = `<span class="material-symbols-outlined text-[16px] text-outline">history</span>${q}`;
+    item.innerHTML = `<span class="material-symbols-outlined text-[16px] text-outline">history</span>${UI.esc(q)}`;
     item.addEventListener("mousedown", (e) => {
       e.preventDefault();
       searchInput.value = q;
       searchQuery = q;
-      loadPage(1);
+      if (activeCategory === "bookmarks") {
+        renderBookmarkedArticles();
+      } else {
+        loadPage(1);
+      }
       container.remove();
     });
     container.appendChild(item);
@@ -588,7 +818,11 @@ function showSearchSuggestions(items) {
 
 document.getElementById("toast").addEventListener("click", () => {
   UI.hideToast();
-  loadPage(1);
+  if (activeCategory === "bookmarks") {
+    renderBookmarkedArticles();
+  } else {
+    loadPage(1);
+  }
 });
 
 // ── Modal close ───────────────────────────────────────────────────
@@ -600,7 +834,11 @@ document.getElementById("modal-close-btn").addEventListener("click", () => UI.cl
 
 // ── Init: draw category nav & source filters ──────────────────────
 
-UI.renderCategoryNav("all", {});
+if (hasConsent) {
+  applyPersonalization();
+}
+
+UI.renderCategoryNav(activeCategory, {}, personalizationData.bookmarkedArticles || {});
 UI.renderSourceFilters([], activeSource, {});
 refreshCategoryCounts();
 refreshSourceFilters();

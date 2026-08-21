@@ -46,18 +46,23 @@ export function updateStats({ total, newCount, updated }) {
  
 /**
  * วาด category strip
- * @param {string}         activeId   — id ที่กำลัง active
- * @param {object}         counts     — {politics: 12, economy: 8, ...}
+ * @param {string}         activeId       — id ที่กำลัง active
+ * @param {object}         counts         — {politics: 12, economy: 8, ...}
+ * @param {object}         bookmarkedMap  — {url: article, ...}
  */
-export function renderCategoryNav(activeId, counts = {}) {
+export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   const nav = document.getElementById("category-nav");
-  nav.innerHTML = CATEGORIES.map(cat => {
+  if (!nav) return;
+
+  const bookmarkCount = Object.keys(bookmarkedMap || {}).length;
+
+  // Tailwind specific styling
+  const activeClasses = "bg-primary text-white border-primary shadow-sm";
+  const inactiveClasses = "bg-white border-outline-variant/30 text-on-surface-variant hover:bg-surface-container";
+
+  let html = CATEGORIES.map(cat => {
     const count   = cat.id === "all" ? (counts.all ?? "") : (counts[cat.id] ?? 0);
     const isActive = cat.id === activeId;
-    
-    // Tailwind specific styling
-    const activeClasses = "bg-primary text-white border-primary shadow-sm";
-    const inactiveClasses = "bg-white border-outline-variant/30 text-on-surface-variant hover:bg-surface-container";
     
     return `
       <button class="cat-pill flex items-center gap-2 px-5 py-2 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${isActive ? activeClasses : inactiveClasses}"
@@ -68,13 +73,39 @@ export function renderCategoryNav(activeId, counts = {}) {
         ${count !== "" ? `<span class="cat-count text-[10px] ${isActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold">${count}</span>` : ""}
       </button>`;
   }).join("");
+
+  // Add Bookmarks pill to category strip
+  const isBookmarkActive = activeId === "bookmarks";
+  html += `
+    <button class="cat-pill flex items-center gap-2 px-5 py-2 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${isBookmarkActive ? activeClasses : inactiveClasses}"
+            data-id="bookmarks"
+            onclick="__categoryClick('bookmarks')">
+      <span class="material-symbols-outlined text-lg">bookmarks</span>
+      <span>ที่บันทึกไว้</span>
+      ${bookmarkCount > 0 ? `<span class="cat-count text-[10px] ${isBookmarkActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold">${bookmarkCount}</span>` : ""}
+    </button>
+  `;
+
+  nav.innerHTML = html;
 }
  
 /** อัปเดต count badges โดยไม่ redraw ทั้งหมด */
-export function updateCategoryBadges(counts = {}) {
+export function updateCategoryBadges(counts = {}, bookmarkCount = 0) {
   document.querySelectorAll(".cat-pill").forEach(btn => {
-    const id    = btn.dataset.id;
-    const badge = btn.querySelector(".cat-count");
+    const id = btn.dataset.id;
+    let badge = btn.querySelector(".cat-count");
+    if (id === "bookmarks") {
+      if (bookmarkCount > 0) {
+        if (badge) {
+          badge.textContent = bookmarkCount;
+        } else {
+          btn.insertAdjacentHTML("beforeend", `<span class="cat-count text-[10px] opacity-50 ml-1 font-bold">${bookmarkCount}</span>`);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+      return;
+    }
     if (!badge) return;
     const count = id === "all" ? (counts.all ?? "") : (counts[id] ?? 0);
     badge.textContent = count;
@@ -226,12 +257,14 @@ export function formatClassificationBadge(method) {
 
 /**
  * @param {object[]} articles
- * @param {Set<string>} newUrlSet  — URLs ของข่าวใหม่ใน session นี้
+ * @param {Set<string>} newUrlSet     — URLs ของข่าวใหม่ใน session นี้
+ * @param {object}      bookmarkedMap — { [url]: articleObj }
  */
-export function renderGrid(articles, newUrlSet = new Set()) {
+export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) {
   const grid = document.getElementById("news-grid");
+  if (!grid) return;
 
-  if (!articles.length) {
+  if (!articles || !articles.length) {
     grid.innerHTML = `<div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 text-on-surface-variant">ไม่พบข่าวในหมวดหมู่ หรือคำค้นหานี้</div>`;
     return;
   }
@@ -250,10 +283,12 @@ export function renderGrid(articles, newUrlSet = new Set()) {
   };
 
   grid.innerHTML = articles.map((n, i) => {
-    const isNew = newUrlSet.has(n.url);
+    const isNew = newUrlSet && newUrlSet.has(n.url);
+    const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[n.url]);
     const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
     const imgSrc = resolveImageUrl(n.image_url, n.source);
     const catObj = getCategoryById(n.category);
+    const articleJsonEncoded = encodeURIComponent(JSON.stringify(n));
 
     // Build Image Markup
     const imgMarkup = imgSrc
@@ -296,6 +331,14 @@ export function renderGrid(articles, newUrlSet = new Set()) {
                 <span class="text-[10px] font-bold tracking-widest text-outline-variant uppercase">${esc(n.fetched_at ?? "")}</span>
                 <div class="flex items-center gap-2">
                   ${n.url ? `
+                  <button type="button"
+                          class="flex items-center justify-center p-2 rounded-lg border border-outline-variant/30 ${isBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all"
+                          onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')"
+                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                    <span class="material-symbols-outlined text-[18px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
+                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                    </span>
+                  </button>
                   <a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"
                      class="flex items-center justify-center gap-1 border border-outline-variant/30 text-on-surface-variant px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container hover:text-primary active:scale-95 transition-all"
                      title="เปิดอ่านที่เว็บข่าวต้นทาง"

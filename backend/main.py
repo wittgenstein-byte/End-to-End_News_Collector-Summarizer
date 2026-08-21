@@ -24,23 +24,21 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE.parent) not in sys.path:
     sys.path.insert(0, str(_HERE.parent))
 
-import socketio
 import httpx
+import socketio  # type: ignore[import-untyped]
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings
-from backend.core.socket_manager import sio, emit
-
 # register socket events (side-effect import)
 import backend.sockets.events  # noqa: F401
-
+from backend.config import settings
+from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
-from backend.routers.news_router import router as news_router
 from backend.routers.collect_router import router as collect_router
+from backend.routers.news_router import router as news_router
 from backend.services.scraper_service import ScraperService
 
 

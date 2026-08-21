@@ -442,7 +442,6 @@ def get_wangchanberta():
         return None, None
 
     try:
-        import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         _WANGCHAN_TOKENIZER = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
