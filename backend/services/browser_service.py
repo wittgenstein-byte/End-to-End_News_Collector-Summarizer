@@ -440,26 +440,6 @@ class BrowserService:
                 }
             }
 
-            // Remove blocking cookie consent banners, modal backdrops, and ad overlays
-            // that freeze the landing page when scripts are disabled
-            const overlays = clone.querySelectorAll(`
-                #onetrust-consent-sdk,
-                #cookie-notice,
-                #cookie-law-info-bar,
-                .cookie-banner,
-                .cookie-consent,
-                .pdpa-consent,
-                .pdpa-banner,
-                .modal-backdrop,
-                .sp_veil,
-                .didomi-popup-container,
-                .qc-cmp2-container,
-                [id*="cookie-banner"],
-                [class*="cookie-banner"],
-                [class*="consent-modal"]
-            `);
-            for (const el of overlays) el.remove();
-
             // Ensure body and html can scroll freely
             if (clone.style) clone.style.overflow = "auto";
             const body = clone.querySelector("body");
@@ -504,11 +484,70 @@ class BrowserService:
             }
 
             // Inject global click interceptor script with event capturing (useCapture: true)
-            // Handles <a>, <div data-url>, <button role="link">, and relative URL resolution
+            // 1. Handles Cookie / PDPA / Consent / Popup dismiss & accept buttons
+            // 2. Handles <a>, <div data-url>, <button role="link">, and relative URL resolution
             const interceptor = document.createElement("script");
             interceptor.textContent = `
                 document.addEventListener('click', function(e) {
-                    const link = e.target.closest('a, [data-href], [data-url], [data-permalink], [role="link"]');
+                    const target = e.target;
+
+                    // --- 1. Interactive Cookie / Consent / Banner / Popup Dismiss Handler ---
+                    const interactiveEl = target.closest('button, a, input, [role="button"], [data-dismiss], [aria-label], span, svg, div');
+                    if (interactiveEl) {
+                        const text = (interactiveEl.textContent || "").trim().toLowerCase();
+                        const ariaLabel = (interactiveEl.getAttribute("aria-label") || "").toLowerCase();
+                        const cls = (interactiveEl.className || "").toString().toLowerCase();
+                        const elId = (interactiveEl.id || "").toLowerCase();
+
+                        const isCloseOrAccept = 
+                            /^(ยอมรับ|ตกลง|เข้าใจแล้ว|รับทราบ|ยินยอม|ปิด|accept|agree|got it|allow|ok|okay|i agree|close|reject|decline|dismiss|x|✕|✖|×|hide)$/i.test(text) ||
+                            /(close|dismiss|accept|agree|consent|pdpa)/i.test(ariaLabel) ||
+                            /(close|dismiss|accept|agree|consent|pdpa)/i.test(cls) ||
+                            /(close|dismiss|accept|agree|consent|pdpa)/i.test(elId);
+
+                        if (isCloseOrAccept) {
+                            const banner = interactiveEl.closest(\`
+                                [id*="cookie" i], [class*="cookie" i],
+                                [id*="consent" i], [class*="consent" i],
+                                [id*="pdpa" i], [class*="pdpa" i],
+                                [id*="popup" i], [class*="popup" i],
+                                [id*="modal" i], [class*="modal" i],
+                                [id*="banner" i], [class*="banner" i],
+                                [id*="notice" i], [class*="notice" i],
+                                [id*="dialog" i], [class*="dialog" i],
+                                [id*="overlay" i], [class*="overlay" i]
+                            \`) || (function() {
+                                let p = interactiveEl.parentElement;
+                                let count = 0;
+                                while (p && p !== document.body && count < 6) {
+                                    const pos = window.getComputedStyle ? window.getComputedStyle(p).position : "";
+                                    if (pos === "fixed" || pos === "sticky" || (pos === "absolute" && p.offsetWidth > 200)) {
+                                        return p;
+                                    }
+                                    p = p.parentElement;
+                                    count++;
+                                }
+                                return null;
+                            })();
+
+                            if (banner) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                banner.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                                banner.style.opacity = '0';
+                                banner.style.pointerEvents = 'none';
+                                setTimeout(() => {
+                                    try { banner.remove(); } catch(err) { banner.style.display = 'none'; }
+                                    document.documentElement.style.overflow = 'auto';
+                                    document.body.style.overflow = 'auto';
+                                }, 200);
+                                return;
+                            }
+                        }
+                    }
+
+                    // --- 2. Navigation Link Handling ---
+                    const link = target.closest('a, [data-href], [data-url], [data-permalink], [role="link"]');
                     if (!link) return;
                     const rawUrl = link.getAttribute('href') || link.getAttribute('data-href') || link.getAttribute('data-url') || link.getAttribute('data-permalink');
                     if (rawUrl && rawUrl !== '#' && !rawUrl.startsWith('javascript:')) {
