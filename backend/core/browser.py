@@ -39,17 +39,39 @@ async def fetch_html_playwright(
 ) -> str:
     """
     Async entry point — เรียกได้จาก coroutine โดยตรง
-    ส่ง URL ไปให้ Playwright service แทนการรัน local Playwright
+    ส่ง URL ไปให้ Playwright service ถ้าล้มเหลวจะ fallback ไปใช้ local Playwright
     """
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
                 settings.playwright_service_url,
                 params={"url": url, "wait_tag": wait_tag, "wait_ms": wait_ms}
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("html", "")
+            html = data.get("html", "")
+            if html:
+                return html
+    except Exception:
+        pass
+
+    # Fallback to local Playwright
+    try:
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            if wait_tag:
+                try:
+                    await page.wait_for_selector(wait_tag, timeout=wait_ms)
+                except Exception:
+                    pass
+            elif wait_ms > 0:
+                await page.wait_for_timeout(wait_ms)
+            html = await page.content()
+            await browser.close()
+            return html
     except Exception as e:
-        print(f"Error calling Playwright service: {e}")
+        print(f"Error in Playwright fetch for {url}: {e}")
         return ""

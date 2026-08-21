@@ -6,7 +6,7 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, getSocket } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket } from "./api.js";
 import * as UI from "./UI.js";
 
 // ── PDPA & Personalization ────────────────────────────────────────
@@ -447,6 +447,8 @@ const socket = createSocket({
   onInit(data) {
     UI.updateStats({ total: data.total, updated: data.updated });
     loadPage(1);
+    refreshCategoryCounts();
+    refreshSourceFilters();
   },
   onNewArticles(data) {
     totalNew += data.count;
@@ -454,6 +456,8 @@ const socket = createSocket({
     UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
     UI.updateTicker(data.articles.map(a => a.title));
     UI.showToast(`✨ มีข่าวใหม่ ${data.count} บทความ — คลิกเพื่อดู`);
+    refreshCategoryCounts();
+    refreshSourceFilters();
   }
 });
 
@@ -511,15 +515,26 @@ socket.on("browser_tab_opened", (data) => {
   console.log("Tab opened on server:", data.tab_id);
 });
 
-// ── Filter buttons ────────────────────────────────────────────────
+// ── Source Filter handler ──────────────────────────────────────────
 
-document.querySelectorAll(".filter-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    activeSource = btn.dataset.source ?? "";
-    UI.updateSourceFilters(activeSource);
-    loadPage(1);
-  });
-});
+function handleSourceFilterClick(source) {
+  activeSource = source ?? "";
+  UI.updateSourceFilters(activeSource);
+  loadPage(1);
+}
+
+async function refreshSourceFilters() {
+  try {
+    const counts = await fetchSources();
+    const sources = Object.keys(counts);
+    UI.renderSourceFilters(sources, activeSource, counts);
+  } catch (e) {
+    console.warn("Failed to fetch source counts:", e.message);
+    UI.renderSourceFilters([], activeSource, {});
+  }
+}
+
+window.__sourceFilterClick = handleSourceFilterClick;
 
 // ── Search ────────────────────────────────────────────────────────
 
@@ -583,8 +598,10 @@ document.getElementById("summary-modal").addEventListener("click", e => {
 });
 document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
 
-// ── Init: draw category nav ───────────────────────────────────────
+// ── Init: draw category nav & source filters ──────────────────────
 
 UI.renderCategoryNav("all", {});
+UI.renderSourceFilters([], activeSource, {});
 refreshCategoryCounts();
+refreshSourceFilters();
 checkPDPA();

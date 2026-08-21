@@ -53,6 +53,14 @@ export async function fetchCategories() {                                  // �
   return data.categories ?? {};
 }
 
+/** ดึง source counts สำหรับ filter buttons */
+export async function fetchSources() {
+  const res = await fetch(`${API_BASE}/api/sources`);
+  if (!res.ok) return {};
+  const data = await res.json();
+  return data.sources ?? {};
+}
+
 /**
  * ส่ง URL ให้ backend ดึงเนื้อหา + สรุปด้วย AI
  * @param {string} url

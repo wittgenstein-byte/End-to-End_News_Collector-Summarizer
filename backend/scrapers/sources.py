@@ -19,14 +19,13 @@ from bs4 import BeautifulSoup
 from backend.config import settings
 from backend.core.browser import fetch_html_playwright
 from backend.core.constants import BROWSER_HEADERS
-from backend.scrapers.registry import register_source
 from backend.scrapers.helpers import (
     fetch_summary_and_image,
-    find_image,
     find_url,
     make_article,
     parse_rss_items,
 )
+from backend.scrapers.registry import register_source
 
 # ── Bangkok Post nav items ที่ไม่ใช่ข่าว ──────────────────────────
 _NAV_KEYWORDS: frozenset[str] = frozenset({
@@ -101,26 +100,40 @@ async def scrape_matichon() -> list[dict]:
         return []
 
 
-# ── 101 World (ต้องใช้ Playwright) ───────────────────────────────
+# ── 101 World (RSS Feed พร้อม Playwright Fallback) ───────────────
 
 @register_source("101 World", "https://www.the101.world", "#9b59b6")
 async def scrape_101world() -> list[dict]:
-    base      = "https://www.the101.world"
-    selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
+    rss_url = "https://www.the101.world/feed/"
+    base = "https://www.the101.world"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        items = parse_rss_items(resp.text, "101 World", base_url=base, limit=_LIMIT)
+        if items:
+            return items
+    except Exception:
+        pass
 
-    html      = await fetch_html_playwright(base, wait_tag="h2.entry-title")
-    soup      = BeautifulSoup(html, "html.parser")
-    news_list = []
+    # Fallback to Playwright if RSS fails
+    try:
+        selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
+        html = await fetch_html_playwright(base, wait_tag="h2.entry-title")
+        soup = BeautifulSoup(html, "html.parser")
+        news_list = []
 
-    for h in soup.select("h2.entry-title")[:_LIMIT]:
-        title = h.text.strip()
-        if not title:
-            continue
-        url                = find_url(h, base)
-        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "101 World", url, image_url, md))
+        for h in soup.select("h2.entry-title")[:_LIMIT]:
+            title = h.text.strip()
+            if not title:
+                continue
+            url = find_url(h, base)
+            summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
+            news_list.append(make_article(title, summary, "101 World", url, image_url, md))
 
-    return news_list
+        return news_list
+    except Exception:
+        return []
+
 
 # ── The Standard ─────────────────────────────────────────────────
 
@@ -134,3 +147,173 @@ async def scrape_thestandard() -> list[dict]:
         return parse_rss_items(resp.text, "The Standard", base_url=base, limit=_LIMIT)
     except Exception:
         return []
+
+
+# ── Khaosod ───────────────────────────────────────────────────────
+
+@register_source("Khaosod", "https://www.khaosod.co.th", "#e74c3c")
+async def scrape_khaosod() -> list[dict]:
+    rss_url = "https://www.khaosod.co.th/feed"
+    base = "https://www.khaosod.co.th"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        items = parse_rss_items(resp.text, "Khaosod", base_url=base, limit=_LIMIT * 2)
+        # กรองข่าวภาษาอังกฤษ khaosodenglish.com ออกทั้งหมด
+        return [
+            item for item in items
+            if "khaosodenglish.com" not in item.get("url", "").lower()
+        ][:_LIMIT]
+    except Exception:
+        return []
+
+
+# ── Thairath (ไทยรัฐ) ──────────────────────────────────────────────
+
+@register_source("Thairath", "https://www.thairath.co.th", "#00b16a")
+async def scrape_thairath() -> list[dict]:
+    rss_url = "https://www.thairath.co.th/rss/news"
+    base = "https://www.thairath.co.th"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        return parse_rss_items(resp.text, "Thairath", base_url=base, limit=_LIMIT)
+    except Exception:
+        return []
+
+
+# ── Thai Post (ไทยโพสต์) ──────────────────────────────────────────
+
+@register_source("Thai Post", "https://www.thaipost.net", "#d35400")
+async def scrape_thaipost() -> list[dict]:
+    rss_url = "https://www.thaipost.net/feed/"
+    base = "https://www.thaipost.net"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(rss_url, headers=BROWSER_HEADERS, timeout=10)
+        return parse_rss_items(resp.text, "Thai Post", base_url=base, limit=_LIMIT)
+    except Exception:
+        return []
+
+
+# ── Daily News (เดลินิวส์) ────────────────────────────────────────
+
+@register_source("Daily News", "https://www.dailynews.co.th", "#e74c3c")
+async def scrape_dailynews() -> list[dict]:
+    base = "https://www.dailynews.co.th"
+    selectors = ["div.entry-content", "div.article-content", "article", "div.content-all"]
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(f"{base}/news/", headers=BROWSER_HEADERS, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        news_list = []
+        seen = set()
+        for h in soup.select("h3 a, .entry-title a, article h3, article a"):
+            title = h.text.strip()
+            url = find_url(h, base)
+            if not title or len(title) < 15 or not url or url in seen or "/news/" not in url:
+                continue
+            seen.add(url)
+            summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
+            news_list.append(make_article(title, summary, "Daily News", url, image_url, md))
+            if len(news_list) >= _LIMIT:
+                break
+        return news_list
+    except Exception:
+        return []
+
+
+# ── Komchadluek (คมชัดลึกออนไลน์) ──────────────────────────────────
+
+@register_source("Komchadluek", "https://www.komchadluek.net", "#c0392b")
+async def scrape_komchadluek() -> list[dict]:
+    base = "https://www.komchadluek.net"
+    selectors = ["div.article-body", "div.content-detail", "article"]
+    try:
+        html = await fetch_html_playwright(base, wait_tag="a", wait_ms=2000)
+        soup = BeautifulSoup(html, "html.parser")
+        news_list = []
+        seen = set()
+        for a in soup.find_all("a"):
+            href = a.get("href", "")
+            title = a.text.strip()
+            if not href or not title or len(title) < 15:
+                continue
+            if not any(x in href for x in ["/news/", "/general-news/", "/politics/", "/entertainment/"]):
+                continue
+            if not href.startswith("http"):
+                href = base.rstrip("/") + "/" + href.lstrip("/")
+            if href in seen:
+                continue
+            seen.add(href)
+            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Komchadluek", href, image_url, md))
+            if len(news_list) >= _LIMIT:
+                break
+        return news_list
+    except Exception:
+        return []
+
+
+# ── Nation Online (เนชั่นออนไลน์) ──────────────────────────────────
+
+@register_source("Nation Online", "https://www.nationtv.tv", "#16a085")
+async def scrape_nationtv() -> list[dict]:
+    base = "https://www.nationtv.tv"
+    selectors = ["div.article-body", "div.content-detail", "article"]
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(f"{base}/news", headers=BROWSER_HEADERS, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        news_list = []
+        seen = set()
+        for a in soup.select('a[href*="/news/"]'):
+            title = a.text.strip()
+            href = a.get("href", "")
+            if not title or len(title) < 15 or not href:
+                continue
+            if not href.startswith("http"):
+                href = base.rstrip("/") + "/" + href.lstrip("/")
+            if href in seen:
+                continue
+            seen.add(href)
+            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Nation Online", href, image_url, md))
+            if len(news_list) >= _LIMIT:
+                break
+        return news_list
+    except Exception:
+        return []
+
+
+# ── Bangkokbiznews (กรุงเทพธุรกิจ) ──────────────────────────────────
+
+@register_source("Bangkokbiznews", "https://www.bangkokbiznews.com", "#1f3a93")
+async def scrape_bangkokbiznews() -> list[dict]:
+    base = "https://www.bangkokbiznews.com"
+    selectors = ["div.article-body", "div.content-detail", "article"]
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(base, headers=BROWSER_HEADERS, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        news_list = []
+        seen = set()
+        for a in soup.select('a[href*="/business/"], a[href*="/finance/"], a[href*="/politics/"], a[href*="/tech/"], a[href*="/category/"]'):
+            title = a.text.strip()
+            href = a.get("href", "")
+            if not title or len(title) < 15 or not href:
+                continue
+            if not href.startswith("http"):
+                href = base.rstrip("/") + "/" + href.lstrip("/")
+            if href in seen:
+                continue
+            seen.add(href)
+            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Bangkokbiznews", href, image_url, md))
+            if len(news_list) >= _LIMIT:
+                break
+        return news_list
+    except Exception:
+        return []
+
+

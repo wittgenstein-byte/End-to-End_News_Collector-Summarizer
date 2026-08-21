@@ -21,6 +21,12 @@ dependencies = [
     "numpy",
     "scikit-learn==1.6.1",
     "playwright",
+    "torch>=2.13.0",
+    "transformers>=5.15.1",
+    "sentencepiece>=0.2.2",
+    "accelerate>=1.14.0",
+    "tiktoken>=0.14.0",
+    "protobuf>=7.36.0",
 ]
 
 [dependency-groups]
@@ -29,3 +35,8 @@ dev = [
     "ruff",
     "mypy",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["backend/tests"]
+
