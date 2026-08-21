@@ -1,0 +1,31 @@
+[project]
+name = "news-collector-summarizer"
+version = "0.1.0"
+description = "Thai News Aggregator & Summarizer with FastAPI, Socket.IO, and Playwright"
+readme = "Readme.md"
+requires-python = ">=3.10, <3.13"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "fastapi",
+    "trafilatura",
+    "uvicorn",
+    "python-socketio",
+    "httpx",
+    "openai",
+    "pythainlp",
+    "pydantic",
+    "gunicorn",
+    "uvloop; sys_platform != 'win32'",
+    "joblib",
+    "numpy",
+    "scikit-learn==1.6.1",
+    "playwright",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]

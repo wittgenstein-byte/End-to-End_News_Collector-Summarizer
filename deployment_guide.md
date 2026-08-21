@@ -71,8 +71,8 @@ Use this only if you also run a Playwright service separately.
 
 ### 1. Install Python dependencies
 ```bash
-pip install -r requirements.txt
-playwright install chromium
+uv sync
+uv run playwright install chromium
 ```
 
 ### 2. Configure environment
@@ -87,13 +87,13 @@ PLAYWRIGHT_SERVICE_URL=http://localhost:8001/scrape
 Development mode:
 
 ```bash
-python backend/main.py
+uv run python backend/main.py
 ```
 
 Production mode:
 
 ```bash
-gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:5000 backend.main:app_asgi --workers 1 --timeout 120
+uv run gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:5000 backend.main:app_asgi --workers 1 --timeout 120
 ```
 
 ### 4. Verify

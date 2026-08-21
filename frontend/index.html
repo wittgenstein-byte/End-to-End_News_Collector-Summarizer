@@ -30,7 +30,9 @@
           <span class="w-2 h-2 rounded-full dot error" id="ws-dot"></span>
           <span class="text-[10px] font-bold tracking-widest text-error uppercase" id="ws-label">ออฟไลน์</span>
         </div>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openBrowser()" title="เปิด In-App Browser">language</button>
         <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">notifications</button>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openSettings()">settings</button>
         <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">account_circle</button>
       </div>
     </div>
@@ -239,11 +241,98 @@
     </div>
   </nav>
 
+  <!-- ── In-App Browser Modal ── -->
+  <div class="fixed inset-0 z-[100] flex-col bg-white transition-opacity duration-300" id="browser-modal" style="display: none; z-index: 100;">
+    <!-- Browser Toolbar -->
+    <div class="flex items-center gap-2 p-3 border-b border-outline-variant/30 bg-surface-container-low shrink-0">
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserBack()" title="ย้อนกลับ"><span class="material-symbols-outlined">arrow_back</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserForward()" title="ไปข้างหน้า"><span class="material-symbols-outlined">arrow_forward</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserRefresh()" title="รีเฟรช"><span class="material-symbols-outlined">refresh</span></button>
+      <div class="flex-1 flex items-center bg-white border border-outline-variant/50 rounded-full px-4 py-1.5">
+        <input class="w-full bg-transparent outline-none text-sm" id="browser-url" type="text" placeholder="Enter URL..." onkeydown="if(event.key === 'Enter') window.__browserNavigate()">
+      </div>
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserAddBookmark()" title="บันทึกบุ๊กมาร์ก"><span class="material-symbols-outlined" id="browser-bookmark-icon">bookmark_border</span></button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 hover:bg-surface-container text-primary font-bold text-xs rounded-full border border-primary/20 bg-primary/5 transition-colors" onclick="window.__browserOpenExternal()" title="เปิดอ่านที่เว็บข่าวต้นทาง (Open to Source)">
+        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+        <span class="hidden sm:inline">เปิดเว็บต้นทาง</span>
+      </button>
+      <button class="p-2 hover:bg-error/10 text-error rounded-full ml-auto" onclick="window.__closeBrowser()" title="ปิด"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <!-- Browser Tabs -->
+    <div class="flex items-center gap-1 px-2 pt-2 border-b border-outline-variant/30 bg-surface-container-lowest overflow-x-auto shrink-0" id="browser-tabs">
+        <button class="p-1 hover:bg-surface-container rounded" onclick="window.__browserNewTab()"><span class="material-symbols-outlined text-sm">add</span></button>
+    </div>
+    <!-- Browser Content -->
+    <div class="flex-1 relative bg-white overflow-hidden" id="browser-content-container">
+      <div class="absolute inset-0 flex flex-col items-center justify-center bg-white/95 z-10 gap-3" id="browser-loading" style="display:none">
+        <svg class="animate-spin h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle><path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path></svg>
+        <span class="text-sm font-medium text-primary italic">กำลังโหลดเนื้อหาข่าวผ่าน In-App Browser...</span>
+        <span class="text-xs text-outline">หากโหลดช้า สามารถกดปุ่ม <span class="material-symbols-outlined text-[14px] align-middle">open_in_new</span> มุมขวาบนเพื่อเปิดเว็บต้นทางได้</span>
+      </div>
+      <iframe class="w-full h-full border-none" id="browser-iframe" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+  </div>
+
+  <!-- ── PDPA Banner ── -->
+  <div id="pdpa-banner" class="fixed bottom-0 left-0 right-0 bg-surface-container-high border-t border-outline-variant/30 p-6 z-[100] transform translate-y-full transition-transform duration-300">
+    <div class="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div>
+        <h4 class="font-bold text-on-surface">Privacy & Cookies</h4>
+        <p class="text-sm text-on-surface-variant">We use localStorage strictly for personalization (theme, preferences, search history, bookmarks) stored on your device. Separately, when you use the in-app browser, the pages you open are loaded and processed through our servers so we can display them to you — see our Privacy Policy for details.</p>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button class="px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors" onclick="window.__declineCookies()">Decline</button>
+        <button class="px-4 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-container transition-colors" onclick="window.__acceptCookies()">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings Modal ── -->
+  <div id="settings-modal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4 bg-on-background/40 backdrop-blur-sm">
+    <div class="w-full max-w-md bg-surface rounded-xl shadow-xl overflow-hidden flex flex-col">
+      <div class="p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+        <h2 class="font-bold text-lg">Personalization Settings</h2>
+        <button class="p-1 hover:bg-surface-container rounded-full" onclick="window.__closeSettings()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="p-6 space-y-6 overflow-y-auto">
+        <div>
+          <h3 class="font-bold mb-2 text-sm text-primary uppercase">Theme</h3>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm">Dark Mode</span>
+            <input type="checkbox" id="setting-darkmode" onchange="window.__toggleDarkMode(this.checked)" class="toggle">
+          </div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm">Font Size</span>
+            <select id="setting-fontsize" onchange="window.__changeFontSize(this.value)" class="bg-white border border-outline-variant/50 rounded-lg px-3 py-1 text-sm">
+              <option value="14px">Small</option>
+              <option value="16px" selected>Medium</option>
+              <option value="18px">Large</option>
+              <option value="20px">Extra Large</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm">Layout Density</span>
+            <select id="setting-density" onchange="window.__changeLayoutDensity(this.value)" class="bg-white border border-outline-variant/50 rounded-lg px-3 py-1 text-sm">
+              <option value="comfortable" selected>Comfortable</option>
+              <option value="compact">Compact</option>
+              <option value="spacious">Spacious</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2 text-sm text-primary uppercase">Data & Privacy</h3>
+          <p class="text-xs text-outline mb-2">Consent: <span id="setting-consent-status" class="font-bold">Unknown</span></p>
+          <button class="w-full py-2 bg-error/10 text-error rounded-lg text-sm font-bold hover:bg-error/20" onclick="window.__clearPersonalizationData()">Clear All Data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Socket.IO -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <!-- App -->
-  <script type="module" src="/frontend/static/main.js"></script>
+  <script type="module" src="/frontend/static/main.js?v=1.0.5"></script>
 
 </body>
 </html>

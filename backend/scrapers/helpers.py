@@ -14,7 +14,10 @@ GRASP  Information Expert — รู้วิธี extract ข้อมูล�
 from __future__ import annotations
 
 from datetime import datetime
+from html import unescape
+import re
 from urllib.parse import urljoin
+import xml.etree.ElementTree as ET
 
 import httpx
 import trafilatura
@@ -156,4 +159,80 @@ def _extract_summary(soup: BeautifulSoup, selectors: list[str]) -> str:
         if paragraphs:
             return ". ".join(paragraphs[:n])[:400]
     return ""
+
+
+# ── RSS Feed Parsing ───────────────────────────────────────────────
+
+def _parse_rss_root(xml_text: str) -> ET.Element:
+    """
+    Parse RSS defensively because some feeds append trailing junk after </rss>.
+    """
+    try:
+        return ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        end_index = xml_text.lower().rfind("</rss>")
+        if end_index == -1:
+            raise exc
+        return ET.fromstring(xml_text[: end_index + len("</rss>")])
+
+
+def parse_rss_items(
+    xml_text: str,
+    source_name: str,
+    base_url: str = "",
+    limit: int = 10,
+) -> list[dict]:
+    """
+    Parse RSS feed XML into standard article dicts.
+    Extracts image strictly from RSS XML fields (media:content, enclosure,
+    description <img>, content:encoded <img>) without external HTTP calls.
+    """
+    root = _parse_rss_root(xml_text)
+    news_list = []
+
+    for item in root.findall(".//item")[:limit]:
+        title = unescape(item.findtext("title", "").strip())
+        url = item.findtext("link", "").strip()
+
+        raw_desc = item.findtext("description", "")
+        summary = unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
+
+        # ── Extract Image from RSS XML ────────────────────────────────────
+        image_url = ""
+
+        # 1. media:content namespace
+        media = item.find("{http://search.yahoo.com/mrss/}content")
+        if media is not None:
+            image_url = media.get("url", "")
+
+        # 2. enclosure tag
+        if not image_url:
+            enclosure = item.find("enclosure")
+            if enclosure is not None:
+                image_url = enclosure.get("url", "")
+
+        # 3. <img> in description tag
+        if not image_url and raw_desc:
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_desc)
+            if img_match:
+                image_url = img_match.group(1)
+
+        # 4. <img> in content:encoded namespace
+        if not image_url:
+            encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
+            if encoded is not None and encoded.text:
+                img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', encoded.text)
+                if img_match:
+                    image_url = img_match.group(1)
+
+        if image_url and base_url:
+            image_url = _abs_url(image_url, base_url)
+
+        if not title:
+            continue
+
+        news_list.append(make_article(title, summary, source_name, url, image_url))
+
+    return news_list
+
 

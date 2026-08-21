@@ -1,7 +1,11 @@
+.rtk
 # ข้อมูลที่สร้างอัตโนมัติ ไม่ต้อง push
 data/news_output.json
 data/seen_urls.json
 data/site_registry.json
+
+data/collected_md/
+data/news_data.json
 
 \__init__.py
 
@@ -19,3 +23,9 @@ venv/
 .md
 # Report
 system_flow_report.md
+
+.agents
+CLAUDE.md
+PROJECT.md
+ORIGINAL_REQUEST.md
+graphify-out

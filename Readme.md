@@ -63,12 +63,11 @@ data/                  — created at runtime
 ## 📦 ติดตั้ง Dependencies
 
 ```bash
-# Python
-pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn \
-  socketio httpx openai pythainlp pydantic
+# Python dependencies (using uv)
+uv sync
 
 # Playwright browser
-playwright install chromium
+uv run playwright install chromium
 
 # Frontend
 cd frontend && npm install && cd ..
@@ -103,7 +102,7 @@ PORT=5000
 ## 🚀 วิธีรัน
 
 ```bash
-python backend/main.py
+uv run python backend/main.py
 ```
 
 เปิดเบราว์เซอร์ → http://localhost:5000
@@ -131,8 +130,8 @@ politics, economy, technology, health, environment, society, sports, entertainme
 ## 🔍 Lint / Type Check
 
 ```bash
-ruff check backend/
-mypy backend/
+uv run ruff check backend/
+uv run mypy backend/
 ```
 
 ---
@@ -140,17 +139,14 @@ mypy backend/
 ## 🧪 Test
 
 ```bash
-# ติดตั้ง pytest ก่อน (ถ้ายังไม่มี)
-pip install pytest
-
 # รันทุก test
-pytest backend/tests/ -v
+uv run pytest backend/tests/ -v
 
 # รันไฟล์เดียว
-pytest backend/tests/test_news_repo.py -v
+uv run pytest backend/tests/test_news_repo.py -v
 
 # รัน test ที่มีชื่อตรงกับ pattern
-pytest -k "test_load" -v
+uv run pytest -k "test_load" -v
 ```
 
 ---

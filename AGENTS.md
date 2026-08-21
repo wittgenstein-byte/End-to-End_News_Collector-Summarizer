@@ -13,15 +13,14 @@
 ## Build / Run
 
 ```bash
-# Install dependencies
-pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn \
-  socketio httpx openai pythainlp pydantic
+# Install dependencies & create virtual environment
+uv sync
 
 # Install Playwright Chromium (required)
-playwright install chromium
+uv run playwright install chromium
 
 # Run server (auto-reload enabled)
-python backend/main.py
+uv run python backend/main.py
 
 # Open in browser
 http://localhost:5000
@@ -38,11 +37,11 @@ LLM_API=your_api_key_here
 
 ## Lint / Type Check
 
-No formal linter config. Run manually if installed:
+Run manually via `uv`:
 
 ```bash
-ruff check backend/
-mypy backend/
+uv run ruff check backend/
+uv run mypy backend/
 ```
 
 ---
@@ -53,9 +52,9 @@ mypy backend/
 
 ```bash
 # Single test file / function / by name
-pytest backend/tests/test_news_repo.py -v
-pytest backend/tests/test_news_repo.py::TestFileNewsRepository::test_load_news -v
-pytest -k "test_load_news" -v
+uv run pytest backend/tests/test_news_repo.py -v
+uv run pytest backend/tests/test_news_repo.py::TestFileNewsRepository::test_load_news -v
+uv run pytest -k "test_load_news" -v
 ```
 
 Place tests in `backend/tests/` with `conftest.py` for fixtures.
