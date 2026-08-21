@@ -81,15 +81,68 @@ export function updateCategoryBadges(counts = {}) {
   });
 }
 
-export function updateSourceFilters(activeSource) {
-    document.querySelectorAll(".filter-btn").forEach(btn => {
-        const source = btn.dataset.source;
-        if (source === activeSource) {
-            btn.className = "filter-btn px-5 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary-container transition-colors";
-        } else {
-            btn.className = "filter-btn px-5 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-colors";
-        }
-    });
+/**
+ * วาดปุ่มตัวกรองสำนักข่าวแบบ Dynamic อัตโนมัติ
+ * @param {string[]} sources     — รายการสำนักข่าว
+ * @param {string}   activeSource — สำนักข่าวที่เลือก ("" = ทั้งหมด)
+ * @param {object}   counts       — จำนวนข่าวต่อสำนัก { "ThaiPBS": 10, ... }
+ */
+export function renderSourceFilters(sources = [], activeSource = "", counts = {}) {
+  const container = document.getElementById("source-filters");
+  if (!container) return;
+
+  // รวมสำนักข่าวจาก SOURCE_COLORS และ sources ที่ดึงจาก API/Data
+  const sourceSet = new Set([...Object.keys(SOURCE_COLORS), ...sources]);
+  const sourceList = Array.from(sourceSet).filter(Boolean);
+
+  const isAllActive = !activeSource;
+
+  let html = `
+    <button class="filter-btn px-5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
+      isAllActive
+        ? 'bg-primary text-white hover:bg-primary-container'
+        : 'bg-white border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container'
+    }" data-source="" onclick="window.__sourceFilterClick('')">
+      ทั้งหมด
+    </button>
+  `;
+
+  html += sourceList.map(src => {
+    const isActive = src.toLowerCase() === (activeSource || "").toLowerCase();
+    const count = counts[src];
+    const color = SOURCE_COLORS[src] ?? "#1a3a6b";
+
+    return `
+      <button class="filter-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs transition-all shadow-xs ${
+        isActive
+          ? 'bg-primary text-white font-bold hover:bg-primary-container'
+          : 'bg-white border border-outline-variant/30 font-medium text-on-surface-variant hover:bg-surface-container'
+      }" data-source="${esc(src)}" onclick="window.__sourceFilterClick('${esc(src)}')">
+        <span class="w-2 h-2 rounded-full shrink-0" style="background:${isActive ? '#ffffff' : color}"></span>
+        <span>${esc(src)}</span>
+        ${count !== undefined ? `<span class="text-[10px] ${isActive ? 'opacity-80' : 'opacity-50'} ml-0.5 font-bold">(${count})</span>` : ""}
+      </button>
+    `;
+  }).join("");
+
+  container.innerHTML = html;
+}
+
+export function updateSourceFilters(activeSource = "") {
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    const source = btn.dataset.source ?? "";
+    const isActive = source.toLowerCase() === (activeSource || "").toLowerCase();
+    const colorDot = btn.querySelector("span.rounded-full");
+    const srcColor = SOURCE_COLORS[source] ?? "#1a3a6b";
+
+    if (isActive) {
+      btn.className = "filter-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary-container transition-all shadow-xs";
+      if (colorDot) colorDot.style.background = "#ffffff";
+    } else {
+      btn.className = "filter-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white border border-outline-variant/30 text-xs font-medium text-on-surface-variant hover:bg-surface-container transition-all shadow-xs";
+      if (colorDot) colorDot.style.background = srcColor;
+    }
+  });
 }
 // ── Ticker ────────────────────────────────────────────────────────
 
