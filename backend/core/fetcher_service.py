@@ -11,12 +11,10 @@ GRASP  Low Coupling — แต่ละ Tier ไม่รู้จักกั�
 
 from __future__ import annotations
 
-import asyncio
 from abc import ABC, abstractmethod
 
 import httpx
 import trafilatura
-
 
 # ── Strategy base class (SOLID O + L) ────────────────────────────
 

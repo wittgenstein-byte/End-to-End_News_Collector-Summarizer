@@ -13,18 +13,17 @@ GRASP  Information Expert — รู้วิธี extract ข้อมูล�
 
 from __future__ import annotations
 
-from datetime import datetime
-from html import unescape
 import re
-from urllib.parse import urljoin
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from html import unescape
+from urllib.parse import urljoin
 
-import httpx
 import trafilatura
 from bs4 import BeautifulSoup, Tag
 
 from backend.config import settings
-from backend.core.constants import BROWSER_HEADERS
+from backend.core.http_cache import http_cache
 from backend.services.classifier_service import classify_article
 
 # คำที่บ่งว่า src นั้นไม่ใช่รูปข่าวจริง
@@ -42,7 +41,9 @@ def find_image(soup: BeautifulSoup, base_url: str) -> str:
     if not og:
         og = soup.find("meta", attrs={"name": "twitter:image"})
     if og and og.get("content"):
-        return _abs_url(og["content"], base_url)
+        content_val = og["content"]
+        content_str = content_val[0] if isinstance(content_val, list) else str(content_val)
+        return _abs_url(content_str, base_url)
 
     for img in soup.find_all("img"):
         src = _pick_img_url(img)
@@ -58,10 +59,11 @@ def _pick_img_url(img: Tag) -> str:
     for key in ("src", "data-src", "data-lazy-src", "data-original"):
         val = img.get(key)
         if val:
-            return val
+            return val[0] if isinstance(val, list) else str(val)
     srcset = img.get("srcset") or img.get("data-srcset")
     if srcset:
-        return srcset.split(",")[0].strip().split(" ")[0]
+        srcset_str = srcset[0] if isinstance(srcset, list) else str(srcset)
+        return srcset_str.split(",")[0].strip().split(" ")[0]
     return ""
 
 
@@ -85,7 +87,8 @@ def find_url(tag, base_url: str) -> str:
     if not a or not a.get("href"):
         return ""
 
-    href: str = a["href"]
+    raw_href = a["href"]
+    href: str = raw_href[0] if isinstance(raw_href, list) else str(raw_href)
     if href.startswith("http"):
         return href
     if href.startswith("/"):
@@ -118,7 +121,7 @@ def make_article(
         "image_url": image_url,
         "category": category,
         "classification_method": method,
-        "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
@@ -136,13 +139,14 @@ async def fetch_summary_and_image(
     if not url or not url.startswith("http"):
         return "", "", ""
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            resp = await client.get(url, headers=BROWSER_HEADERS, timeout=10)
+        text, _ = await http_cache.fetch(url, timeout=10)
+        if not text:
+            return "", "", ""
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(text, "html.parser")
         image_url = find_image(soup, base_url)
         summary = _extract_summary(soup, content_selectors)
-        md = trafilatura.extract(resp.text) or ""
+        md = trafilatura.extract(text) or ""
         return summary, image_url, md
 
     except Exception:
@@ -169,10 +173,10 @@ def _parse_rss_root(xml_text: str) -> ET.Element:
     """
     try:
         return ET.fromstring(xml_text)
-    except ET.ParseError as exc:
+    except ET.ParseError:
         end_index = xml_text.lower().rfind("</rss>")
         if end_index == -1:
-            raise exc
+            raise
         return ET.fromstring(xml_text[: end_index + len("</rss>")])
 
 
