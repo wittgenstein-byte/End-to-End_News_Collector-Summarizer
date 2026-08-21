@@ -10,9 +10,9 @@ GRASP  Controller — รับ HTTP request → เรียก service/repo �
 ─────────────────────────────────────────────────────────────────
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import quote, urlparse
-from typing import Optional
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -64,7 +64,7 @@ async def get_news(
     page: int = 1,
     source: str = "",
     q: str = "",
-    category: Optional[str] = None,
+    category: str | None = None,
     repo: FileNewsRepository = Depends(get_news_repository),
 ) -> JSONResponse:
     page = max(1, page)
@@ -104,7 +104,7 @@ async def get_news(
             "total_pages": total_pages,
             "has_next": page < total_pages,
             "has_prev": page > 1,
-            "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
             "news": page_items,
         }
     )
@@ -151,7 +151,7 @@ async def get_status(
             "status": "running",
             "interval": f"{settings.interval_minutes} minutes",
             "total": len(repo.load_news()),
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         }
     )
 
