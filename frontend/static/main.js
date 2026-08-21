@@ -423,7 +423,7 @@ async function handleSummarize(event, url) {
   try {
     const data = await summarizeArticle(url);
     if (data.ok && data.summary) {
-      UI.showModalResult(data.summary);
+      UI.showModalResult(data.summary, url);
     } else {
       throw new Error(data.error ?? "เกิดข้อผิดพลาดในการสรุปข่าว");
     }

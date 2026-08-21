@@ -43,6 +43,44 @@ from backend.config import settings
 ALLOWED_SCHEMES = {"http", "https"}
 BLOCKED_HOSTNAMES = {"localhost", "metadata.google.internal"}
 
+# Heavy media streams, sockets, and continuous event polling
+BLOCKED_RESOURCE_TYPES = {"media", "websocket", "eventsource", "manifest", "other"}
+
+# Telemetry, crash reporting, analytics, and heavy script networks that cause headless browser hang
+BLOCKED_TRACKER_DOMAINS = {
+    "google-analytics.com",
+    "googletagmanager.com",
+    "analytics.google.com",
+    "connect.facebook.net",
+    "clarity.ms",
+    "hotjar.com",
+    "scorecardresearch.com",
+    "browser.sentry-cdn.com",
+    "sentry.io",
+    "crashlytics.com",
+    "app-measurement.com",
+    "taboola.com",
+    "outbrain.com",
+    "criteo.com",
+    "criteo.net",
+    "rubiconproject.com",
+    "amazon-adsystem.com",
+    "adnxs.com",
+}
+
+LAUNCH_ARGS = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-web-security",
+    "--disable-features=IsolateOrigins,site-per-process,Translate,BackForwardCache,MediaRouter",
+    "--mute-audio",
+    "--autoplay-policy=user-gesture-required",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+]
+
 
 class UnsafeUrlError(ValueError):
     """Raised when a navigation target fails the SSRF/scheme allowlist check."""
@@ -87,7 +125,7 @@ class BrowserService:
             self._tab_locks = defaultdict(asyncio.Lock)
         return self._tab_locks[tab_id]
 
-    # ── URL safety ──────────────────────────────────────────────
+    # ── URL safety & Route filtering ────────────────────────────
 
     async def _assert_safe_url(self, url: str) -> None:
         parsed = urlparse(url)
@@ -135,7 +173,13 @@ class BrowserService:
     async def _handle_route(self, route: Route) -> None:
         req = route.request
         req_url = req.url
-        # Allow safe in-memory pseudo schemes for subresources
+
+        # 1. Block heavy streaming media, WebSockets, and continuous event streams
+        if req.resource_type in BLOCKED_RESOURCE_TYPES:
+            await route.abort("blockedbyclient")
+            return
+
+        # 2. Allow safe in-memory pseudo schemes for subresources
         if req_url.startswith(("data:", "blob:", "about:")):
             if req.is_navigation_request() and not req_url.startswith("about:blank"):
                 await route.abort("blockedbyclient")
@@ -143,6 +187,14 @@ class BrowserService:
             await route.continue_()
             return
 
+        # 3. Block telemetry, analytics, crashlytics, and heavy tracker scripts
+        parsed = urlparse(req_url)
+        host = (parsed.hostname or "").lower()
+        if any(tracker in host for tracker in BLOCKED_TRACKER_DOMAINS):
+            await route.abort("blockedbyclient")
+            return
+
+        # 4. Security check: enforce SSRF and IP safety
         try:
             await self._assert_safe_url(req_url)
             await route.continue_()
@@ -178,11 +230,11 @@ class BrowserService:
                     print(f"  ⚠️ Obscura not active ({e}). Using local Chromium engine...", flush=True)
                     self._obscura_available = False
 
-            # Launch local Chromium engine
+            # Launch local Chromium engine with performance optimization flags
             try:
                 self._browser = await self._playwright.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                    args=LAUNCH_ARGS,
                 )
             except Exception as e:
                 print(f"  ⚠️ Local launch retry ({e}). Resetting Playwright instance...", flush=True)
@@ -193,7 +245,7 @@ class BrowserService:
                 self._playwright = await async_playwright().start()
                 self._browser = await self._playwright.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                    args=LAUNCH_ARGS,
                 )
 
             return self._browser
@@ -363,6 +415,30 @@ class BrowserService:
             const base = document.createElement("base");
             base.href = document.location.href;
             head.insertBefore(base, head.firstChild);
+
+            // Inline all stylesheets into <style> tags so the snapshot is fully styled
+            // without failing due to cross-origin CORS or iframe sandboxing
+            const linkEls = Array.from(clone.querySelectorAll('link[rel~="stylesheet"]'));
+            for (const link of linkEls) {
+                const href = link.getAttribute("href") || "";
+                let cssText = "";
+                for (const sheet of document.styleSheets) {
+                    try {
+                        if (sheet.href === link.href || (href && sheet.href && (sheet.href.includes(href) || href.includes(sheet.href)))) {
+                            const rules = Array.from(sheet.cssRules || []);
+                            cssText = rules.map(r => r.cssText).join("\\n");
+                            break;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+                if (cssText) {
+                    const styleEl = document.createElement("style");
+                    styleEl.textContent = cssText;
+                    link.replaceWith(styleEl);
+                }
+            }
 
             // Remove blocking cookie consent banners, modal backdrops, and ad overlays
             // that freeze the landing page when scripts are disabled

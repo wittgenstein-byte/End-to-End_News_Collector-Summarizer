@@ -189,12 +189,22 @@ export function renderGrid(articles, newUrlSet = new Set()) {
         <div class="px-8 pb-8 mt-auto">
           <div class="pt-4 border-t border-outline-variant/10 flex items-center justify-between gap-3">
                 <span class="text-[10px] font-bold tracking-widest text-outline-variant uppercase">${esc(n.fetched_at ?? "")}</span>
-                <button type="button" class="flex items-center justify-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary hover:text-white active:scale-95 transition-all w-fit disabled:opacity-50 disabled:cursor-not-allowed"
-                        data-url="${esc(n.url)}"
-                        ${n.url ? 'onclick="window.__summarize(event, this.dataset.url)"' : 'disabled title="ไม่มี URL"'}>
-                  <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                  สรุป
-                </button>
+                <div class="flex items-center gap-2">
+                  ${n.url ? `
+                  <a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"
+                     class="flex items-center justify-center gap-1 border border-outline-variant/30 text-on-surface-variant px-3 py-2 rounded-lg font-bold text-xs hover:bg-surface-container hover:text-primary active:scale-95 transition-all"
+                     title="เปิดอ่านที่เว็บข่าวต้นทาง"
+                     onclick="event.stopPropagation()">
+                    <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                    <span class="hidden sm:inline">ต้นทาง</span>
+                  </a>` : ""}
+                  <button type="button" class="flex items-center justify-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary hover:text-white active:scale-95 transition-all w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+                          data-url="${esc(n.url)}"
+                          ${n.url ? 'onclick="window.__summarize(event, this.dataset.url)"' : 'disabled title="ไม่มี URL"'}>
+                    <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                    สรุป
+                  </button>
+                </div>
             </div>
           </div>
       </article>
@@ -311,7 +321,7 @@ export function showModalLoading() {
   document.getElementById("summary-result").innerHTML      = "";
 }
 
-export function showModalResult(summary) {
+export function showModalResult(summary, originalUrl = "") {
   const s = summary;
   document.getElementById("summary-loading").style.display = "none";
   const result = document.getElementById("summary-result");
@@ -377,8 +387,14 @@ export function showModalResult(summary) {
     </section>
     ` : ""}
 
-    <footer class="mt-12 pt-8 border-t border-outline-variant/20 flex justify-between items-center text-xs font-bold text-outline uppercase tracking-widest">
+    <footer class="mt-12 pt-8 border-t border-outline-variant/20 flex flex-wrap justify-between items-center gap-4 text-xs font-bold text-outline uppercase tracking-widest">
         <span>Generated: ${new Date().toLocaleTimeString()}</span>
+        ${originalUrl ? `
+        <a href="${esc(originalUrl)}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary-container transition-colors shadow-sm normal-case tracking-normal">
+          <span>อ่านข่าวต้นฉบับเต็ม</span>
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+        </a>` : ""}
         <span>ID: ${Math.random().toString(36).substr(2, 6)}</span>
     </footer>
   `;

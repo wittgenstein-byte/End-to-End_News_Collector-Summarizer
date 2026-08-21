@@ -242,21 +242,24 @@
   </nav>
 
   <!-- ── In-App Browser Modal ── -->
-  <div class="fixed inset-0 z-[70] flex-col bg-white transition-opacity duration-300" id="browser-modal" style="display: none">
+  <div class="fixed inset-0 z-[100] flex-col bg-white transition-opacity duration-300" id="browser-modal" style="display: none; z-index: 100;">
     <!-- Browser Toolbar -->
-    <div class="flex items-center gap-2 p-2 border-b border-outline-variant/30 bg-surface-container-low">
-      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserBack()"><span class="material-symbols-outlined">arrow_back</span></button>
-      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserForward()"><span class="material-symbols-outlined">arrow_forward</span></button>
-      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserRefresh()"><span class="material-symbols-outlined">refresh</span></button>
-      <div class="flex-1 flex items-center bg-white border border-outline-variant/50 rounded-full px-4 py-1">
+    <div class="flex items-center gap-2 p-3 border-b border-outline-variant/30 bg-surface-container-low shrink-0">
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserBack()" title="ย้อนกลับ"><span class="material-symbols-outlined">arrow_back</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserForward()" title="ไปข้างหน้า"><span class="material-symbols-outlined">arrow_forward</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserRefresh()" title="รีเฟรช"><span class="material-symbols-outlined">refresh</span></button>
+      <div class="flex-1 flex items-center bg-white border border-outline-variant/50 rounded-full px-4 py-1.5">
         <input class="w-full bg-transparent outline-none text-sm" id="browser-url" type="text" placeholder="Enter URL..." onkeydown="if(event.key === 'Enter') window.__browserNavigate()">
       </div>
       <button class="p-2 hover:bg-surface-container rounded-full" onclick="window.__browserAddBookmark()" title="บันทึกบุ๊กมาร์ก"><span class="material-symbols-outlined" id="browser-bookmark-icon">bookmark_border</span></button>
-      <button class="p-2 hover:bg-surface-container rounded-full text-primary" onclick="window.__browserOpenExternal()" title="เปิดในเบราว์เซอร์ภายนอก (Compliance / External)"><span class="material-symbols-outlined">open_in_new</span></button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 hover:bg-surface-container text-primary font-bold text-xs rounded-full border border-primary/20 bg-primary/5 transition-colors" onclick="window.__browserOpenExternal()" title="เปิดอ่านที่เว็บข่าวต้นทาง (Open to Source)">
+        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+        <span class="hidden sm:inline">เปิดเว็บต้นทาง</span>
+      </button>
       <button class="p-2 hover:bg-error/10 text-error rounded-full ml-auto" onclick="window.__closeBrowser()" title="ปิด"><span class="material-symbols-outlined">close</span></button>
     </div>
     <!-- Browser Tabs -->
-    <div class="flex items-center gap-1 px-2 pt-2 border-b border-outline-variant/30 bg-surface-container-lowest overflow-x-auto" id="browser-tabs">
+    <div class="flex items-center gap-1 px-2 pt-2 border-b border-outline-variant/30 bg-surface-container-lowest overflow-x-auto shrink-0" id="browser-tabs">
         <button class="p-1 hover:bg-surface-container rounded" onclick="window.__browserNewTab()"><span class="material-symbols-outlined text-sm">add</span></button>
     </div>
     <!-- Browser Content -->
@@ -266,7 +269,7 @@
         <span class="text-sm font-medium text-primary italic">กำลังโหลดเนื้อหาข่าวผ่าน In-App Browser...</span>
         <span class="text-xs text-outline">หากโหลดช้า สามารถกดปุ่ม <span class="material-symbols-outlined text-[14px] align-middle">open_in_new</span> มุมขวาบนเพื่อเปิดเว็บต้นทางได้</span>
       </div>
-      <iframe class="w-full h-full border-none" id="browser-iframe" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+      <iframe class="w-full h-full border-none" id="browser-iframe" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer-when-downgrade"></iframe>
     </div>
   </div>
 
