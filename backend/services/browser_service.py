@@ -25,14 +25,16 @@ from collections import defaultdict
 from urllib.parse import urlparse
 
 if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined,union-attr]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined,union-attr]
 
 from playwright.async_api import (
     Browser,
     BrowserContext,
     Page,
     Playwright,
+    Request,
+    Route,
     async_playwright,
 )
 
@@ -67,6 +69,7 @@ class BrowserService:
         self._lock: asyncio.Lock | None = None
         self._tab_locks: dict[str, asyncio.Lock] | None = None
         self._obscura_available: bool = True
+        self._dns_cache: dict[str, tuple[float, bool, str]] = {}
 
     def _run_worker_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
@@ -96,18 +99,55 @@ class BrowserService:
         if host.lower() in BLOCKED_HOSTNAMES:
             raise UnsafeUrlError(f"Host '{host}' is blocked")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        cached = self._dns_cache.get(host.lower())
+        if cached is not None:
+            cached_time, is_safe, err_msg = cached
+            if now - cached_time < 30.0:
+                if not is_safe:
+                    raise UnsafeUrlError(err_msg)
+                return
+
         try:
-            infos = await loop.run_in_executor(
-                None, socket.getaddrinfo, host, None
-            )
+            infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
         except socket.gaierror as e:
-            raise UnsafeUrlError(f"Could not resolve host '{host}': {e}") from e
+            err_msg = f"Could not resolve host '{host}': {e}"
+            self._dns_cache[host.lower()] = (now, False, err_msg)
+            raise UnsafeUrlError(err_msg) from e
 
         for family, _, _, _, sockaddr in infos:
             ip = ipaddress.ip_address(sockaddr[0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                raise UnsafeUrlError(f"Host '{host}' resolves to a blocked IP range ({ip})")
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_reserved
+                or ip.is_multicast
+                or ip.is_unspecified
+            ):
+                err_msg = f"Host '{host}' resolves to a blocked IP range ({ip})"
+                self._dns_cache[host.lower()] = (now, False, err_msg)
+                raise UnsafeUrlError(err_msg)
+
+        self._dns_cache[host.lower()] = (now, True, "")
+
+    async def _handle_route(self, route: Route) -> None:
+        req = route.request
+        req_url = req.url
+        # Allow safe in-memory pseudo schemes for subresources
+        if req_url.startswith(("data:", "blob:", "about:")):
+            if req.is_navigation_request() and not req_url.startswith("about:blank"):
+                await route.abort("blockedbyclient")
+                return
+            await route.continue_()
+            return
+
+        try:
+            await self._assert_safe_url(req_url)
+            await route.continue_()
+        except Exception:
+            await route.abort("blockedbyclient")
 
     # ── internal worker lifecycle ───────────────────────────────
 
@@ -174,35 +214,13 @@ class BrowserService:
 
     async def _open_tab_inner(self, tab_id: str) -> None:
         async with self._lock_for(tab_id):
-            existing_page = self._pages.get(tab_id)
-            if existing_page and not existing_page.is_closed():
-                return
-
-            await self._close_existing_tab_locked(tab_id)
-
-            browser = await self._ensure_browser_inner()
-            try:
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    viewport={"width": 1280, "height": 800},
-                )
-                page = await context.new_page()
-            except Exception:
-                self._browser = None
-                browser = await self._ensure_browser_inner()
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    viewport={"width": 1280, "height": 800},
-                )
-                page = await context.new_page()
-
-            self._contexts[tab_id] = context
-            self._pages[tab_id] = page
+            await self._open_tab_locked(tab_id)
 
     async def _close_tab_inner(self, tab_id: str) -> None:
         async with self._lock_for(tab_id):
             await self._close_existing_tab_locked(tab_id)
-        self._tab_locks.pop(tab_id, None)
+        if self._tab_locks is not None:
+            self._tab_locks.pop(tab_id, None)
 
     async def _navigate_inner(self, tab_id: str, url: str) -> dict:
         try:
@@ -221,11 +239,28 @@ class BrowserService:
 
             try:
                 # Fast initial load using domcontentloaded
-                await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+
+                # Validate final URL and all redirect chain hops before returning snapshot
+                final_url = page.url
+                await self._assert_safe_url(final_url)
+
+                if response:
+                    curr_req: Request | None = response.request.redirected_from
+                    while curr_req is not None:
+                        await self._assert_safe_url(curr_req.url)
+                        curr_req = curr_req.redirected_from
+
                 # Short grace period for initial DOM hydration / fonts / dynamic article elements
                 await asyncio.sleep(0.5)
                 content = await self._get_snapshot_content(page)
                 return {"html": content, "url": page.url, "title": await page.title()}
+            except UnsafeUrlError as e:
+                try:
+                    await page.goto("about:blank")
+                except Exception:
+                    pass
+                return {"error": f"Blocked URL: {e}"}
             except Exception as e:
                 return {"error": f"Navigation failed: {e!s}"}
 
@@ -241,6 +276,7 @@ class BrowserService:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
             )
+            await context.route("**/*", self._handle_route)
             page = await context.new_page()
         except Exception:
             self._browser = None
@@ -249,6 +285,7 @@ class BrowserService:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
             )
+            await context.route("**/*", self._handle_route)
             page = await context.new_page()
 
         self._contexts[tab_id] = context
@@ -261,8 +298,15 @@ class BrowserService:
                 return {"error": "Tab not found"}
             try:
                 await page.go_back()
+                await self._assert_safe_url(page.url)
                 content = await self._get_snapshot_content(page)
                 return {"html": content, "url": page.url, "title": await page.title()}
+            except UnsafeUrlError as e:
+                try:
+                    await page.goto("about:blank")
+                except Exception:
+                    pass
+                return {"error": f"Blocked URL: {e}"}
             except Exception as e:
                 return {"error": str(e)}
 
@@ -273,8 +317,15 @@ class BrowserService:
                 return {"error": "Tab not found"}
             try:
                 await page.go_forward()
+                await self._assert_safe_url(page.url)
                 content = await self._get_snapshot_content(page)
                 return {"html": content, "url": page.url, "title": await page.title()}
+            except UnsafeUrlError as e:
+                try:
+                    await page.goto("about:blank")
+                except Exception:
+                    pass
+                return {"error": f"Blocked URL: {e}"}
             except Exception as e:
                 return {"error": str(e)}
 
@@ -285,8 +336,15 @@ class BrowserService:
                 return {"error": "Tab not found"}
             try:
                 await page.reload()
+                await self._assert_safe_url(page.url)
                 content = await self._get_snapshot_content(page)
                 return {"html": content, "url": page.url, "title": await page.title()}
+            except UnsafeUrlError as e:
+                try:
+                    await page.goto("about:blank")
+                except Exception:
+                    pass
+                return {"error": f"Blocked URL: {e}"}
             except Exception as e:
                 return {"error": str(e)}
 
