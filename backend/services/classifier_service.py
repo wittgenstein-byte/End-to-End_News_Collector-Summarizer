@@ -414,12 +414,31 @@ _WANGCHAN_MODEL = None
 
 
 def get_wangchanberta():
-    """Lazy load WangchanBERTa model to avoid slow startup."""
+    """Lazy load WangchanBERTa model safely by verifying all required files exist."""
     global _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
     if _WANGCHAN_MODEL is not None and _WANGCHAN_TOKENIZER is not None:
         return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
 
-    if not _WANGCHAN_DIR.exists() or not (_WANGCHAN_DIR / "config.json").exists():
+    if not _WANGCHAN_DIR.exists():
+        return None, None
+
+    # 1. ตรวจสอบไฟล์ Config
+    has_config = (_WANGCHAN_DIR / "config.json").exists()
+
+    # 2. ตรวจสอบไฟล์ Model Weights (ต้องมี safetensors หรือ bin)
+    has_weights = (
+        (_WANGCHAN_DIR / "model.safetensors").exists()
+        or (_WANGCHAN_DIR / "pytorch_model.bin").exists()
+    )
+
+    # 3. ตรวจสอบไฟล์ Tokenizer (ต้องมี SentencePiece หรือ tokenizer.json)
+    has_tokenizer = (
+        (_WANGCHAN_DIR / "sentencepiece.bpe.model").exists()
+        or (_WANGCHAN_DIR / "tokenizer.json").exists()
+    )
+
+    # หากไฟล์ไม่ครบ ให้ข้ามทันทีโดยไม่ต้องเสียเวลาเสี่ยงรัน from_pretrained
+    if not (has_config and has_weights and has_tokenizer):
         return None, None
 
     try:
@@ -431,7 +450,7 @@ def get_wangchanberta():
         _WANGCHAN_MODEL.eval()
         return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
     except Exception as e:
-        print(f"Warning: WangchanBERTa not loaded: {e}")
+        print(f"Warning: WangchanBERTa failed to load: {e}")
         return None, None
 
 
