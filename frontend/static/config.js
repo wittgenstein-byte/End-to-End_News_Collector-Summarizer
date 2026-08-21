@@ -17,10 +17,18 @@ export const PAGE_SIZE  = 20;
 
 /** Source colors — sync กับ scrapers/registry.py */
 export const SOURCE_COLORS = {
-  "ThaiPBS":      "#e74c3c",
-  "Bangkok Post": "#3498db",
-  "Matichon":     "#2ecc71",
-  "101 World":    "#9b59b6",
+  "ThaiPBS":        "#e74c3c",
+  "Bangkok Post":   "#3498db",
+  "Matichon":       "#2ecc71",
+  "101 World":      "#9b59b6",
+  "The Standard":   "#e67e22",
+  "Khaosod":        "#e74c3c",
+  "Thairath":       "#00b16a",
+  "Komchadluek":    "#c0392b",
+  "Daily News":     "#e74c3c",
+  "Nation Online":  "#16a085",
+  "Bangkokbiznews": "#1f3a93",
+  "Thai Post":      "#d35400",
 };
 
 /**

@@ -123,6 +123,52 @@ export function hideToast() {
   toast.classList.add("translate-y-full", "opacity-0");
 }
 
+// ── Classification Method Badge Helper ────────────────────────────
+
+export function formatClassificationBadge(method) {
+  if (!method) return "";
+
+  const m = String(method);
+  let icon = "label";
+  let label = m;
+  let bgClass = "bg-surface-container text-outline border-outline-variant/30";
+
+  if (m.startsWith("URL Priority") || m.startsWith("URL")) {
+    icon = "bolt";
+    const match = m.match(/\((.*?)\)/);
+    const cue = match ? match[1] : "URL";
+    label = `URL: ${cue}`;
+    bgClass = "bg-blue-50 text-blue-700 border-blue-200";
+  } else if (m.startsWith("WangchanBERTa")) {
+    icon = "smart_toy";
+    const confMatch = m.match(/conf=([\d.]+)/);
+    const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
+    label = `WangchanBERTa${pct}`;
+    bgClass = "bg-amber-50 text-amber-800 border-amber-300";
+  } else if (m.startsWith("ML")) {
+    icon = "memory";
+    const confMatch = m.match(/conf=([\d.]+)/);
+    const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
+    label = `LinearSVC${pct}`;
+    bgClass = "bg-purple-50 text-purple-700 border-purple-200";
+  } else if (m.startsWith("Rule-based") || m.startsWith("Rule")) {
+    icon = "rule";
+    label = "Rules";
+    bgClass = "bg-slate-100 text-slate-700 border-slate-300";
+  } else {
+    icon = "tune";
+    label = "Default";
+    bgClass = "bg-gray-50 text-gray-600 border-gray-200";
+  }
+
+  return `
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-xs ${bgClass}" title="Classification Engine: ${esc(m)}">
+      <span class="material-symbols-outlined text-[12px] shrink-0">${icon}</span>
+      <span>${esc(label)}</span>
+    </span>
+  `;
+}
+
 // ── News grid ─────────────────────────────────────────────────────
 
 /**
@@ -154,6 +200,7 @@ export function renderGrid(articles, newUrlSet = new Set()) {
     const isNew = newUrlSet.has(n.url);
     const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
     const imgSrc = resolveImageUrl(n.image_url, n.source);
+    const catObj = getCategoryById(n.category);
 
     // Build Image Markup
     const imgMarkup = imgSrc
@@ -169,14 +216,19 @@ export function renderGrid(articles, newUrlSet = new Set()) {
           ${imgMarkup}
           <div class="p-8 pb-4 flex flex-col flex-1 ${!imgSrc ? 'border-t-4 border-primary' : ''}">
             
-            <div class="flex items-center justify-between mb-6 gap-2">
+            <div class="flex items-center justify-between mb-4 gap-2 flex-wrap">
               <div class="flex items-center gap-2 truncate">
                 <span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>
                 <span class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant truncate">${esc(n.source)}</span>
               </div>
-              <div class="flex gap-2 shrink-0">
-                ${isNew ? `<span class="px-2 py-0.5 rounded-full bg-surface-container text-[10px] font-bold text-primary uppercase">NEW</span>` : ""}
-                ${n.classification_method ? `<span class="px-2 py-0.5 rounded-full bg-surface-container text-[10px] font-medium text-outline uppercase truncate max-w-[100px]" title="${esc(n.classification_method)}">${esc(n.classification_method)}</span>` : ""}
+              <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+                ${isNew ? `<span class="px-2 py-0.5 rounded-full bg-primary/10 text-[10px] font-bold text-primary uppercase border border-primary/20">NEW</span>` : ""}
+                ${catObj && catObj.id !== 'all' ? `
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style="background:${catObj.bg}; color:${catObj.color}">
+                    <span>${catObj.icon}</span>
+                    <span>${catObj.label}</span>
+                  </span>` : ''}
+                ${formatClassificationBadge(n.classification_method)}
               </div>
             </div>
 
@@ -342,8 +394,9 @@ export function showModalResult(summary, originalUrl = "") {
     <!-- Modal Inner Results -->
     <header class="space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 flex-wrap gap-1">
                 ${s.category ? `<span class="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded-full border border-primary/20">${esc(s.category)}</span>` : ""}
+                ${formatClassificationBadge(s.classification_method)}
                 <span class="text-on-surface-variant/70 text-[10px] uppercase font-bold tracking-widest">• OVERVIEW</span>
             </div>
             ${s.sentiment ? `
