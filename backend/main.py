@@ -126,6 +126,29 @@ async def index() -> FileResponse | JSONResponse:
     return JSONResponse({"error": f"index.html not found at {_INDEX}"}, status_code=404)
 
 
+@app.get("/manifest.webmanifest", response_model=None)
+async def manifest() -> FileResponse | JSONResponse:
+    manifest_path = settings.frontend_dir / "manifest.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(
+            str(manifest_path),
+            media_type="application/manifest+json",
+        )
+    return JSONResponse({"error": "manifest.webmanifest not found"}, status_code=404)
+
+
+@app.get("/sw.js", response_model=None)
+async def service_worker() -> FileResponse | JSONResponse:
+    sw_path = settings.frontend_dir / "sw.js"
+    if sw_path.exists():
+        return FileResponse(
+            str(sw_path),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/"},
+        )
+    return JSONResponse({"error": "sw.js not found"}, status_code=404)
+
+
 @app.get("/livez", response_model=None)
 async def livez() -> JSONResponse:
     return JSONResponse({"status": "ok"})
