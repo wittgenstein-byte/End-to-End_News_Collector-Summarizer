@@ -92,9 +92,9 @@ class ScraperService:
                 if fresh:
                     print(f"  ✅ {source.name}: {len(fresh)} ใหม่")
                 elif articles:
-                    print(f"  ✅ {source.name}: 0 ใหม่ (URL ซ้ำ)")
+                    print(f"  ✅ {source.name}: 0 ใหม่ (URL ซ้ำ {len(articles)} รายการ)")
                 else:
-                    print(f"  ✅ {source.name}: 0 ใหม่ (304 Not Modified / Unchanged)")
+                    print(f"  — {source.name}: 0 ใหม่ (304 Not Modified / ไม่มีบทความใหม่)")
             except Exception as e:
                 print(f"  ❌ {source.name}: {e}")
         return new_batch
