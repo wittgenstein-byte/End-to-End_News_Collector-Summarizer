@@ -7,7 +7,7 @@ SOLID  S — จัดการ socket instance เท่านั้น
 ─────────────────────────────────────────────────────────────────
 """
 
-import socketio
+import socketio  # type: ignore[import-untyped]
 
 # Singleton — ทุก module import ตัวนี้ตัวเดียว
 # ป้องกัน scraper_service กับ sockets/events ใช้คนละ instance

@@ -15,8 +15,10 @@ CHANGELOG (security patch):
 ─────────────────────────────────────────────────────────────────
 """
 
+from __future__ import annotations
+
 from collections.abc import Coroutine
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from backend.core.socket_manager import sio
@@ -48,7 +50,7 @@ async def connect(sid: str, environ: dict) -> None:
         "init",
         {
             "total":   len(news),
-            "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         },
         to=sid,
     )

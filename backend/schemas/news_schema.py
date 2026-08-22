@@ -7,7 +7,9 @@ SOLID  I — แยก schema ตาม use-case (request / response / internal)
 """
 
 from __future__ import annotations
-from typing import Literal, Optional
+
+from typing import Literal
+
 from pydantic import BaseModel, field_validator
 
 # ── Category type ─────────────────────────────────────────────────
@@ -40,20 +42,20 @@ class ArticleRecord(BaseModel):
     source: str
     fetched_at: str = ""
     summary: str = ""
-    category: Optional[CategoryType] = None
+    category: CategoryType | None = None
 
 # ── LLM output schema ─────────────────────────────────────────────
 
 class NewsSummary(BaseModel):
     """ผลลัพธ์จาก LLM summarizer"""
-    title: Optional[str]                = None
-    source_url: Optional[str]           = None
-    published_at: Optional[str]         = None
-    language: Optional[str]             = None
-    summary: Optional[str]              = None
+    title: str | None                = None
+    source_url: str | None           = None
+    published_at: str | None         = None
+    language: str | None             = None
+    summary: str | None              = None
     bullets: list[str]                  = []
-    category: Optional[CategoryType]    = None
-    sentiment: Optional[SentimentType]  = None
+    category: CategoryType | None    = None
+    sentiment: SentimentType | None  = None
     keywords: list[str]                 = []
 
 
@@ -61,10 +63,10 @@ class NewsSummary(BaseModel):
 
 class CollectResponse(BaseModel):
     ok: bool
-    path: Optional[str]         = None
-    summary: Optional[NewsSummary] = None
-    error: Optional[str]        = None
-    fetch_method: Optional[str] = None
+    path: str | None         = None
+    summary: NewsSummary | None = None
+    error: str | None        = None
+    fetch_method: str | None = None
 
 
 class NewsListResponse(BaseModel):

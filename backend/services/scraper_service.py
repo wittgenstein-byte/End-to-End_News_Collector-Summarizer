@@ -14,11 +14,10 @@ GRASP  Low Coupling — ไม่ import socketio / files โดยตรง
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 
 from backend.repo.news_repo import NewsRepositoryPort
-
 
 # Type alias สำหรับฟังก์ชัน emit WebSocket
 EmitFn = Callable[[str, dict], Awaitable[None]]
@@ -42,12 +41,12 @@ class ScraperService:
 
     async def run_loop(self) -> None:
         """เรียกใน lifespan — รันจนกว่า task ถูก cancel"""
-        from backend.scrapers import SOURCES   # import ในนี้เพื่อ lazy load
+        from backend.scrapers import SOURCES  # import ในนี้เพื่อ lazy load
 
         seen = self._repo.load_seen()
 
         while True:
-            print(f"\n[{datetime.now():%H:%M:%S}] 🔄 กำลังดึงข่าว...")
+            print(f"\n[{datetime.now(timezone.utc):%H:%M:%S}] 🔄 กำลังดึงข่าว...")
             all_news  = self._repo.load_news()
             new_batch = await self._scrape_all(SOURCES, seen)
 
@@ -62,7 +61,7 @@ class ScraperService:
                         "count":    len(new_batch),
                         "total":    len(all_news),
                         "articles": new_batch,
-                        "updated":  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "updated":  datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                     },
                 )
             else:
@@ -90,7 +89,12 @@ class ScraperService:
                 for a in fresh:
                     seen.add(a["url"])
                 new_batch.extend(fresh)
-                print(f"  ✅ {source.name}: {len(fresh)} ใหม่")
+                if fresh:
+                    print(f"  ✅ {source.name}: {len(fresh)} ใหม่")
+                elif articles:
+                    print(f"  ✅ {source.name}: 0 ใหม่ (URL ซ้ำ {len(articles)} รายการ)")
+                else:
+                    print(f"  — {source.name}: 0 ใหม่ (304 Not Modified / ไม่มีบทความใหม่)")
             except Exception as e:
                 print(f"  ❌ {source.name}: {e}")
         return new_batch

@@ -40,3 +40,20 @@ dev = [
 pythonpath = ["."]
 testpaths = ["backend/tests"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = [
+    "B008",    # FastAPI Depends() / Query() parameter defaults
+    "BLE001",  # Do not catch blind exception (boundary resilience specified in AGENTS.md)
+    "S110",    # try-except-pass in best-effort recovery / socket close
+    "E501",    # Line length
+]
+
+[tool.mypy]
+python_version = "3.10"
+
+
+

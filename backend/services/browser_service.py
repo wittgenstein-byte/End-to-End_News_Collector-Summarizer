@@ -18,11 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import re
 import socket
 import sys
 import threading
-from collections import defaultdict
-from urllib.parse import urlparse
+import time
+from collections import OrderedDict, defaultdict
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined,union-attr]
@@ -81,13 +85,216 @@ LAUNCH_ARGS = [
     "--disable-renderer-backgrounding",
 ]
 
+# Tracking query parameters to strip during normalization
+TRACKING_QUERY_PARAMS: set[str] = {
+    "fbclid",
+    "gclid",
+    "_ga",
+    "_gl",
+    "ref",
+    "ref_src",
+    "mc_cid",
+    "mc_eid",
+}
+
+
+def normalize_browser_url(url: str) -> str:
+    """
+    Canonicalize a URL for snapshot caching.
+    - Strips hash fragments (#...)
+    - Normalizes schemes and hostnames to lowercase
+    - Strips default ports (:80 for http, :443 for https)
+    - Strips tracking query parameters (utm_*, fbclid, gclid, etc.)
+    - Sorts remaining query parameters alphabetically
+    """
+    url = url.strip()
+    if not url:
+        return ""
+    if not (url.lower().startswith("http://") or url.lower().startswith("https://")):
+        url = "https://" + url
+
+    parsed = urlsplit(url)
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+
+    # Strip standard default ports
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+
+    if (
+        port is not None
+        and ((scheme == "http" and port == 80) or (scheme == "https" and port == 443))
+        and ":" in netloc
+    ):
+        netloc = netloc.rsplit(":", 1)[0]
+
+    # Normalize path (collapse redundant slashes)
+    path = parsed.path or "/"
+    path = re.sub(r"/+", "/", path)
+
+    # Filter tracking query parameters and sort remaining
+    if parsed.query:
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [
+            (k, v)
+            for k, v in query_pairs
+            if not (k.lower().startswith("utm_") or k.lower() in TRACKING_QUERY_PARAMS)
+        ]
+        filtered.sort(key=lambda x: (x[0], x[1]))
+        query = urlencode(filtered)
+    else:
+        query = ""
+
+    # Strip hash fragment (5th element is empty)
+    return urlunsplit((scheme, netloc, path, query, ""))
+
+
+@dataclass(slots=True)
+class SnapshotEntry:
+    """Cached DOM snapshot entry with timestamp."""
+
+    html: str
+    url: str
+    title: str
+    timestamp: float
+
+
+class BrowserSnapshotCache:
+    """
+    Thread-safe and async-safe in-memory LRU cache for DOM snapshots.
+    Default TTL: 15 minutes (900 seconds), Max Size: 100 entries.
+    """
+
+    def __init__(self, ttl_seconds: int = 900, max_size: int = 100) -> None:
+        self._ttl_seconds: int = ttl_seconds
+        self._max_size: int = max_size
+        self._cache: OrderedDict[str, SnapshotEntry] = OrderedDict()
+        self._lock = threading.Lock()
+        self._hits: int = 0
+        self._misses: int = 0
+
+    def get(self, url: str) -> dict[str, Any] | None:
+        """
+        Lookup cached snapshot by URL.
+        Returns dict with keys {html, url, title, cached} on hit, or None on miss/expiry.
+        """
+        if not url:
+            return None
+        key = normalize_browser_url(url)
+        with self._lock:
+            entry = self._cache.get(key)
+            if entry is None:
+                self._misses += 1
+                return None
+
+            now = time.time()
+            if now - entry.timestamp > self._ttl_seconds:
+                del self._cache[key]
+                self._misses += 1
+                return None
+
+            # LRU update: move accessed key to most-recently used position
+            self._cache.move_to_end(key)
+            self._hits += 1
+            return {
+                "html": entry.html,
+                "url": entry.url,
+                "title": entry.title,
+                "cached": True,
+            }
+
+    def set(self, url: str, html: str, final_url: str = "", title: str = "") -> None:
+        """
+        Store DOM snapshot in cache.
+        Ignores empty or invalid HTML/URL.
+        """
+        if not url or not html or not html.strip():
+            return
+
+        key = normalize_browser_url(url)
+        resolved_url = final_url if final_url else url
+        entry = SnapshotEntry(
+            html=html,
+            url=resolved_url,
+            title=title or "",
+            timestamp=time.time(),
+        )
+
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = entry
+
+            # Also index under final_url if a redirect occurred
+            if final_url:
+                final_key = normalize_browser_url(final_url)
+                if final_key != key:
+                    if final_key in self._cache:
+                        self._cache.move_to_end(final_key)
+                    self._cache[final_key] = entry
+
+            # Enforce max capacity (evict least recently used entries)
+            while len(self._cache) > self._max_size:
+                self._cache.popitem(last=False)
+
+    def invalidate(self, url: str) -> bool:
+        """Invalidate a specific URL from cache. Returns True if found and removed."""
+        if not url:
+            return False
+        key = normalize_browser_url(url)
+        with self._lock:
+            return self._cache.pop(key, None) is not None
+
+    def clear(self) -> None:
+        """Clear all entries and reset hit/miss counters."""
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+
+    @property
+    def size(self) -> int:
+        """Return the current number of cached snapshot entries."""
+        with self._lock:
+            return len(self._cache)
+
+    def __len__(self) -> int:
+        return self.size
+
+    def stats(self) -> dict[str, Any]:
+        """Return cache statistics including hits, misses, and utilization."""
+        with self._lock:
+            total_requests = self._hits + self._misses
+            hit_ratio = (self._hits / total_requests) if total_requests > 0 else 0.0
+            return {
+                "size": len(self._cache),
+                "max_size": self._max_size,
+                "ttl": self._ttl_seconds,
+                "ttl_seconds": self._ttl_seconds,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_ratio": round(hit_ratio, 4),
+            }
+
 
 class UnsafeUrlError(ValueError):
     """Raised when a navigation target fails the SSRF/scheme allowlist check."""
 
 
 class BrowserService:
-    def __init__(self) -> None:
+    def __init__(self, snapshot_cache: BrowserSnapshotCache | None = None) -> None:
+        # In-memory HTML snapshot cache (Layer 3)
+        self._snapshot_cache = (
+            snapshot_cache
+            if snapshot_cache is not None
+            else BrowserSnapshotCache(
+                ttl_seconds=getattr(settings, "browser_snapshot_cache_ttl_seconds", 900),
+                max_size=getattr(settings, "browser_snapshot_cache_max_size", 100),
+            )
+        )
+
         # Dedicated event loop thread for Playwright operations
         self._loop = (
             asyncio.ProactorEventLoop()
@@ -403,7 +610,7 @@ class BrowserService:
     # ── snapshot extraction & sanitization ──────────────────────
 
     async def _get_snapshot_content(self, page: Page) -> str:
-        content = await page.evaluate('''() => {
+        content = await page.evaluate(r'''() => {
             const clone = document.documentElement.cloneNode(true);
 
             // Inject <base href="..."> so images, fonts, styles resolve correctly
@@ -568,6 +775,21 @@ class BrowserService:
         }''')
         return content
 
+    # ── Snapshot Cache Management (Layer 3) ─────────────────────
+
+    @property
+    def snapshot_cache(self) -> BrowserSnapshotCache:
+        """Access the underlying snapshot cache instance."""
+        return self._snapshot_cache
+
+    def clear_snapshot_cache(self) -> None:
+        """Clear all stored snapshots in the LRU cache."""
+        self._snapshot_cache.clear()
+
+    def snapshot_cache_stats(self) -> dict[str, Any]:
+        """Return statistics (size, hits, misses, etc.) of the snapshot cache."""
+        return self._snapshot_cache.stats()
+
     # ── Public Async API (thread-safe dispatch) ─────────────────
 
     async def open_tab(self, tab_id: str) -> None:
@@ -577,16 +799,72 @@ class BrowserService:
         await self._dispatch(self._close_tab_inner(tab_id))
 
     async def navigate(self, tab_id: str, url: str) -> dict:
-        return await self._dispatch(self._navigate_inner(tab_id, url))
+        # 1. Enforce SSRF & Scheme safety before cache lookup
+        try:
+            await self._assert_safe_url(url)
+        except UnsafeUrlError as e:
+            return {"error": f"Blocked URL: {e}"}
+
+        # 2. Check Snapshot Cache (Layer 3) to bypass Playwright/CDP execution
+        cached_snapshot = self._snapshot_cache.get(url)
+        if cached_snapshot is not None:
+            return cached_snapshot
+
+        # 3. Cache Miss: Dispatch to Playwright / Obscura worker thread
+        result = await self._dispatch(self._navigate_inner(tab_id, url))
+
+        # 4. Strict Error Isolation: Cache ONLY valid snapshots
+        if isinstance(result, dict) and "error" not in result and bool(result.get("html")):
+            final_url = result.get("url", url)
+            title = result.get("title", "")
+            self._snapshot_cache.set(
+                url=url,
+                html=result["html"],
+                final_url=final_url,
+                title=title,
+            )
+
+        return result
 
     async def go_back(self, tab_id: str) -> dict:
-        return await self._dispatch(self._go_back_inner(tab_id))
+        result = await self._dispatch(self._go_back_inner(tab_id))
+        if isinstance(result, dict) and "error" not in result and bool(result.get("html")):
+            page_url = result.get("url", "")
+            if page_url:
+                self._snapshot_cache.set(
+                    url=page_url,
+                    html=result["html"],
+                    final_url=page_url,
+                    title=result.get("title", ""),
+                )
+        return result
 
     async def go_forward(self, tab_id: str) -> dict:
-        return await self._dispatch(self._go_forward_inner(tab_id))
+        result = await self._dispatch(self._go_forward_inner(tab_id))
+        if isinstance(result, dict) and "error" not in result and bool(result.get("html")):
+            page_url = result.get("url", "")
+            if page_url:
+                self._snapshot_cache.set(
+                    url=page_url,
+                    html=result["html"],
+                    final_url=page_url,
+                    title=result.get("title", ""),
+                )
+        return result
 
     async def refresh(self, tab_id: str) -> dict:
-        return await self._dispatch(self._refresh_inner(tab_id))
+        result = await self._dispatch(self._refresh_inner(tab_id))
+        if isinstance(result, dict) and "error" not in result and bool(result.get("html")):
+            refreshed_url = result.get("url", "")
+            if refreshed_url:
+                title = result.get("title", "")
+                self._snapshot_cache.set(
+                    url=refreshed_url,
+                    html=result["html"],
+                    final_url=refreshed_url,
+                    title=title,
+                )
+        return result
 
 
 browser_service = BrowserService()

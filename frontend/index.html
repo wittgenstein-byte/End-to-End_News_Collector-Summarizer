@@ -31,9 +31,8 @@
           <span class="text-[10px] font-bold tracking-widest text-error uppercase" id="ws-label">ออฟไลน์</span>
         </div>
         <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openBrowser()" title="เปิด In-App Browser">language</button>
-        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">notifications</button>
-        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openSettings()">settings</button>
-        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors">account_circle</button>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__showBookmarks()" title="บทความที่บันทึกไว้ (Bookmarks)">bookmarks</button>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openSettings()" title="ตั้งค่า Personalization & Privacy">settings</button>
       </div>
     </div>
   </header>
@@ -218,7 +217,7 @@
 
   <!-- Persistent Bottom Nav (Mobile Only) -->
   <nav class="md:hidden fixed bottom-0 left-0 w-full h-16 flex justify-around items-center px-6 pb-2 pt-2 bg-surface-container-lowest border-t border-outline-variant/20 z-40">
-    <div class="flex flex-col items-center justify-center text-primary cursor-pointer w-1/4">
+    <div class="flex flex-col items-center justify-center text-primary cursor-pointer w-1/4" onclick="window.__categoryClick('all')">
       <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">newspaper</span>
       <span class="font-label text-[10px] font-bold mt-1">ฟีดข่าว</span>
     </div>
@@ -226,13 +225,13 @@
       <span class="material-symbols-outlined text-[20px]">search</span>
       <span class="font-label text-[10px] font-medium mt-1">ค้นหา</span>
     </div>
-    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4">
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="window.__showBookmarks()">
       <span class="material-symbols-outlined text-[20px]">bookmarks</span>
       <span class="font-label text-[10px] font-medium mt-1">บันทึก</span>
     </div>
-    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4">
-      <span class="material-symbols-outlined text-[20px]">person</span>
-      <span class="font-label text-[10px] font-medium mt-1">โปรไฟล์</span>
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="window.__openSettings()">
+      <span class="material-symbols-outlined text-[20px]">settings</span>
+      <span class="font-label text-[10px] font-medium mt-1">ตั้งค่า</span>
     </div>
   </nav>
 
@@ -327,7 +326,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <!-- App -->
-  <script type="module" src="/frontend/static/main.js?v=1.0.5"></script>
+  <script type="module" src="/frontend/static/main.js?v=1.0.6"></script>
 
 </body>
 </html>

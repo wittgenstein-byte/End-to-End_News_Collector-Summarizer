@@ -1,7 +1,7 @@
-import httpx
-import os
 import asyncio
 from pathlib import Path
+
+import httpx
 
 
 async def fetch_with_jina(url: str, retries: int = 3, delay: float = 2.0) -> str:
@@ -22,7 +22,7 @@ async def fetch_with_jina(url: str, retries: int = 3, delay: float = 2.0) -> str
             else:
                 response.raise_for_status()
 
-    raise Exception(f"Failed after {retries} attempts: 503 Service Unavailable")
+    raise RuntimeError(f"Failed after {retries} attempts: 503 Service Unavailable")
 
 
 async def fetch_with_readhtml(url: str) -> str:
@@ -54,18 +54,16 @@ async def collect_markdown_with_jina(url: str, output_dir: str = "collected_md")
         try:
             content = await fetch_with_readhtml(url)
         except Exception as e2:
-            raise Exception(f"All methods failed. Last error: {e2}")
+            raise RuntimeError(f"All methods failed. Last error: {e2}") from e2
 
     filename = url.split("/")[-1]
     if not filename.endswith(".md"):
         filename += ".md"
 
-    filepath = os.path.join(output_dir, filename)
+    filepath = Path(output_dir) / filename
+    filepath.write_text(content, encoding="utf-8")
 
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    return filepath
+    return str(filepath)
 
 
 if __name__ == "__main__":

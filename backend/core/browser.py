@@ -25,8 +25,35 @@ from __future__ import annotations
 import asyncio
 import httpx
 
-from backend.core.constants import BROWSER_HEADERS
 from backend.config import settings
+
+
+def _fetch_html_sync(url: str, wait_tag: str, wait_ms: int) -> str:
+    """
+    Synchronous Playwright execution executed in a background thread via asyncio.to_thread.
+    This avoids asyncio WindowsProactorEventLoop/SelectorEventLoop subprocess NotImplementedError
+    when running on Windows under uvicorn or worker threads.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page()
+                page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                if wait_tag:
+                    try:
+                        page.wait_for_selector(wait_tag, timeout=min(wait_ms, 5000))
+                    except Exception:
+                        pass
+                if wait_ms > 0:
+                    page.wait_for_timeout(wait_ms)
+                return page.content()
+            finally:
+                browser.close()
+    except Exception as e:
+        print(f"Error in Playwright fetch for {url}: {e}")
+        return ""
 
 
 # ── Async wrapper ─────────────────────────────────────────────────
@@ -39,10 +66,11 @@ async def fetch_html_playwright(
 ) -> str:
     """
     Async entry point — เรียกได้จาก coroutine โดยตรง
-    ส่ง URL ไปให้ Playwright service ถ้าล้มเหลวจะ fallback ไปใช้ local Playwright
+    ส่ง URL ไปให้ Playwright service ถ้าล้มเหลวจะ fallback ไปใช้ local Playwright ทันที
     """
+    # 1. พยายามเรียก Playwright microservice (ถ้ามีรันใน Docker)
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get(
                 settings.playwright_service_url,
                 params={"url": url, "wait_tag": wait_tag, "wait_ms": wait_ms}
@@ -55,23 +83,5 @@ async def fetch_html_playwright(
     except Exception:
         pass
 
-    # Fallback to local Playwright
-    try:
-        from playwright.async_api import async_playwright
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            if wait_tag:
-                try:
-                    await page.wait_for_selector(wait_tag, timeout=wait_ms)
-                except Exception:
-                    pass
-            elif wait_ms > 0:
-                await page.wait_for_timeout(wait_ms)
-            html = await page.content()
-            await browser.close()
-            return html
-    except Exception as e:
-        print(f"Error in Playwright fetch for {url}: {e}")
-        return ""
+    # 2. Fallback to local Playwright via asyncio.to_thread
+    return await asyncio.to_thread(_fetch_html_sync, url, wait_tag, wait_ms)
