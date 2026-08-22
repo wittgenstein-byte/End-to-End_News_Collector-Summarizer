@@ -14,6 +14,44 @@ export const API_BASE   = IS_DEV
 
 export const SOCKET_URL = API_BASE;
 export const PAGE_SIZE  = 20;
+export const TRENDING_LIMIT = 3;
+
+/**
+ * Sentiment visual token configurations
+ */
+export const SENTIMENT_CONFIG = {
+  positive: {
+    label: "เชิงบวก",
+    icon: "sentiment_satisfied",
+    emoji: "😊",
+    color: "#059669",
+    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200"
+  },
+  neutral: {
+    label: "เป็นกลาง",
+    icon: "horizontal_rule",
+    emoji: "😐",
+    color: "#475569",
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200"
+  },
+  negative: {
+    label: "เชิงลบ",
+    icon: "sentiment_dissatisfied",
+    emoji: "⚠️",
+    color: "#e11d48",
+    badgeClass: "bg-rose-50 text-rose-700 border-rose-200"
+  }
+};
+
+/** หา sentiment config จาก sentiment string */
+export function getSentimentConfig(sentiment) {
+  if (!sentiment) return null;
+  const s = String(sentiment).toLowerCase();
+  if (s.includes("positive") || s.includes("บวก")) return SENTIMENT_CONFIG.positive;
+  if (s.includes("negative") || s.includes("ลบ")) return SENTIMENT_CONFIG.negative;
+  if (s.includes("neutral") || s.includes("กลาง")) return SENTIMENT_CONFIG.neutral;
+  return null;
+}
 
 /** Source colors — sync กับ scrapers/registry.py */
 export const SOURCE_COLORS = {

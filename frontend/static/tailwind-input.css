@@ -65,3 +65,124 @@ body {
   line-height: 1.75;
   font-weight: 400;
 }
+
+/* ── Layout Density: Compact ── */
+body[data-density="compact"] #news-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+body[data-density="compact"] article {
+  border-radius: 0.5rem;
+}
+body[data-density="compact"] article .p-8 {
+  padding: 1rem;
+}
+body[data-density="compact"] article h2 {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  -webkit-line-clamp: 2;
+  margin-bottom: 0.5rem;
+}
+body[data-density="compact"] article p {
+  font-size: 0.8rem;
+  -webkit-line-clamp: 2;
+  margin-bottom: 0.5rem;
+}
+body[data-density="compact"] article .px-8 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 0.75rem;
+}
+
+/* ── Layout Density: Spacious ── */
+body[data-density="spacious"] #news-grid {
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 2.5rem;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+body[data-density="spacious"] article {
+  border-radius: 1rem;
+}
+body[data-density="spacious"] article .p-8 {
+  padding: 2.5rem 2.5rem 1.5rem 2.5rem;
+}
+body[data-density="spacious"] article h2 {
+  font-size: 1.65rem;
+  line-height: 1.3;
+  -webkit-line-clamp: 4;
+  margin-bottom: 1.25rem;
+}
+body[data-density="spacious"] article p {
+  font-size: 0.95rem;
+  line-height: 1.8;
+  -webkit-line-clamp: 5;
+}
+body[data-density="spacious"] article .px-8 {
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+  padding-bottom: 2rem;
+}
+
+/* ── Dark Mode ── */
+html.dark body {
+  background-color: #121316;
+  color: #e2e2e8;
+}
+html.dark header {
+  background-color: rgba(18, 19, 22, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+html.dark .bg-white {
+  background-color: #1c1d22 !important;
+}
+html.dark .bg-surface-container-lowest {
+  background-color: #141519 !important;
+}
+html.dark .bg-surface-container-low {
+  background-color: #18191e !important;
+}
+html.dark .bg-surface-container {
+  background-color: #22232a !important;
+}
+html.dark .bg-surface-container-high {
+  background-color: #282932 !important;
+}
+html.dark .bg-surface-container-highest {
+  background-color: #31333e !important;
+}
+html.dark .text-on-surface {
+  color: #f2f2f8 !important;
+}
+html.dark .text-outline {
+  color: #9496a1 !important;
+}
+html.dark .border-outline-variant\/10 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .border-outline-variant\/20,
+html.dark .border-outline-variant\/30,
+html.dark .border-outline-variant\/50 {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.dark input,
+html.dark select {
+  background-color: #22232a !important;
+  color: #f2f2f8 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+html.dark .cat-pill.bg-white {
+  background-color: #1c1d22 !important;
+  color: #c4c6d1 !important;
+}
+
+/* ── Hero & Floating Animations ── */
+@keyframes floatPulse {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-float-pulse {
+  animation: floatPulse 3s ease-in-out infinite;
+}

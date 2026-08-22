@@ -5,7 +5,7 @@
  * รับ data สำเร็จรูปจาก main.js — ไม่ fetch เอง
  */
 
-import { SOURCE_COLORS, CATEGORIES, getCategoryById } from "./config.js";
+import { SOURCE_COLORS, CATEGORIES, getCategoryById, getSentimentConfig, SENTIMENT_CONFIG } from "./config.js";
 
 // ── Escape ────────────────────────────────────────────────────────
 
@@ -260,6 +260,336 @@ export function formatClassificationBadge(method) {
   `;
 }
 
+// ── Standardized Article Badges ───────────────────────────────────
+
+/**
+ * Standardize article badges priority:
+ * 1. ⚡ Breaking
+ * 2. 🔥 Trending
+ * 3. Sentiment indicator
+ * 4. Category
+ * 5. Classification engine
+ * 6. NEW (Session)
+ */
+export function renderArticleBadges(article, isNew = false) {
+  if (!article) return "";
+
+  const badges = [];
+
+  // 1. Status badges from backend article.badges or individual flags
+  if (article.badges && Array.isArray(article.badges) && article.badges.length > 0) {
+    for (const badge of article.badges) {
+      if (badge.includes("Breaking") || badge.includes("ด่วน")) {
+        badges.push(`
+          <span class="bg-error text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs animate-pulse inline-flex items-center gap-1 shrink-0">
+            <span class="material-symbols-outlined text-[12px]">bolt</span>
+            <span>${esc(badge)}</span>
+          </span>
+        `);
+      } else if (badge.includes("Top Story")) {
+        badges.push(`
+          <span class="bg-amber-500 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1 shrink-0">
+            <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">star</span>
+            <span>${esc(badge)}</span>
+          </span>
+        `);
+      } else if (badge.includes("Trending")) {
+        const scoreText = (typeof article.trending_score === "number" && !isNaN(article.trending_score))
+          ? ` • ${article.trending_score.toFixed(1)}`
+          : "";
+        badges.push(`
+          <span class="bg-gradient-to-r from-amber-500 to-rose-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1 shrink-0" title="คะแนนความนิยม / แนวโน้ม">
+            <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+            <span>Trending${scoreText}</span>
+          </span>
+        `);
+      } else {
+        badges.push(`
+          <span class="bg-surface-container text-on-surface-variant font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1 shrink-0">
+            <span>${esc(badge)}</span>
+          </span>
+        `);
+      }
+    }
+  } else {
+    // Fallback status flags
+    if (article.is_breaking) {
+      badges.push(`
+        <span class="bg-error text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs animate-pulse inline-flex items-center gap-1 shrink-0">
+          <span class="material-symbols-outlined text-[12px]">bolt</span>
+          <span>ด่วน</span>
+        </span>
+      `);
+    }
+
+    const isTrending = article.is_trending || (article.trending_score && article.trending_score >= 4.5) || (article.cluster_count && article.cluster_count >= 2) || (article.cluster_size && article.cluster_size >= 2);
+    if (isTrending) {
+      const scoreText = (typeof article.trending_score === "number" && !isNaN(article.trending_score))
+        ? ` • ${article.trending_score.toFixed(1)}`
+        : "";
+      badges.push(`
+        <span class="bg-gradient-to-r from-amber-500 to-rose-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1 shrink-0" title="คะแนนความนิยม / แนวโน้ม">
+          <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+          <span>Trending${scoreText}</span>
+        </span>
+      `);
+    }
+  }
+
+  // 3. Sentiment Indicator
+  const sentConf = getSentimentConfig(article.sentiment);
+  if (sentConf) {
+    badges.push(`
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-xs ${sentConf.badgeClass} shrink-0" title="ทิศทางอารมณ์ข่าว: ${sentConf.label}">
+        <span class="material-symbols-outlined text-[12px]">${sentConf.icon}</span>
+        <span>${sentConf.label}</span>
+      </span>
+    `);
+  }
+
+  // 4. Category Badge
+  const catObj = getCategoryById(article.category);
+  if (catObj && catObj.id !== "all") {
+    badges.push(`
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style="background:${catObj.bg}; color:${catObj.color}">
+        <span>${catObj.icon}</span>
+        <span>${catObj.label}</span>
+      </span>
+    `);
+  }
+
+  // 5. Classification Engine Badge
+  if (article.classification_method) {
+    badges.push(formatClassificationBadge(article.classification_method));
+  }
+
+  // 6. NEW Badge (Session)
+  if (isNew) {
+    badges.push(`
+      <span class="px-2 py-0.5 rounded-full bg-primary/10 text-[10px] font-bold text-primary uppercase border border-primary/20 shrink-0">NEW</span>
+    `);
+  }
+
+  return badges.join("");
+}
+
+// ── Floating Live Update Indicator ────────────────────────────────
+
+export function showFloatingUpdateBanner(count) {
+  const indicator = document.getElementById("new-articles-indicator");
+  const countText = document.getElementById("new-articles-count-text");
+  if (!indicator) return;
+
+  if (countText) {
+    countText.textContent = count && count > 0
+      ? `⚡ มีข่าวใหม่ ${count} บทความ • คลิกเพื่อดู`
+      : `⚡ มีข่าวใหม่เข้ามา • คลิกเพื่อดู`;
+  }
+
+  indicator.classList.remove("-translate-y-16", "opacity-0", "pointer-events-none");
+  indicator.classList.add("translate-y-0", "opacity-100", "pointer-events-auto");
+}
+
+export function hideFloatingUpdateBanner() {
+  const indicator = document.getElementById("new-articles-indicator");
+  if (!indicator) return;
+
+  indicator.classList.remove("translate-y-0", "opacity-100", "pointer-events-auto");
+  indicator.classList.add("-translate-y-16", "opacity-0", "pointer-events-none");
+}
+
+// ── Hero / Trending Highlight Section ─────────────────────────────
+
+export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
+  const container = document.getElementById("hero-trending");
+  if (!container) return;
+
+  if (!articles || !articles.length) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+
+  container.classList.remove("hidden");
+
+  const resolveImageUrl = (url, source) => {
+    if (!url) return "";
+    try {
+      const u = new URL(url);
+      if (source === "The Standard" || u.hostname.endsWith("thestandard.co")) {
+        return `/api/image?url=${encodeURIComponent(url)}`;
+      }
+    } catch (e) {
+      return url;
+    }
+    return url;
+  };
+
+  const primaryArticle = articles[0];
+  const secondaryArticles = articles.slice(1, 3);
+
+  const primImg = resolveImageUrl(primaryArticle.image_url, primaryArticle.source);
+  const primColor = SOURCE_COLORS[primaryArticle.source] ?? "#1a3a6b";
+  const primBookmarked = Boolean(bookmarkedMap && bookmarkedMap[primaryArticle.url]);
+  const primJsonEncoded = encodeURIComponent(JSON.stringify(primaryArticle));
+
+  let multiSourcePill = "";
+  if (primaryArticle.cluster_sources && Array.isArray(primaryArticle.cluster_sources) && primaryArticle.cluster_sources.length > 1) {
+    multiSourcePill = `
+      <div class="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/5 px-3 py-1 rounded-full border border-primary/20 w-fit">
+        <span class="material-symbols-outlined text-[14px]">hub</span>
+        <span>รายงานจาก ${primaryArticle.cluster_sources.length} สำนักข่าว: ${esc(primaryArticle.cluster_sources.join(", "))}</span>
+      </div>
+    `;
+  } else if (primaryArticle.cluster_size && primaryArticle.cluster_size > 1) {
+    multiSourcePill = `
+      <div class="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/5 px-3 py-1 rounded-full border border-primary/20 w-fit">
+        <span class="material-symbols-outlined text-[14px]">hub</span>
+        <span>มีประเด็นตรงกัน ${primaryArticle.cluster_size} สำนักข่าว</span>
+      </div>
+    `;
+  }
+
+  const secondaryCardsHtml = secondaryArticles.map((n, idx) => {
+    const rankNum = idx + 2;
+    const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[n.url]);
+    const secImg = resolveImageUrl(n.image_url, n.source);
+    const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
+    const secJsonEncoded = encodeURIComponent(JSON.stringify(n));
+
+    return `
+      <div class="bg-white rounded-xl border border-outline-variant/30 p-4 flex gap-4 hover:shadow-md hover:border-primary/40 transition-all group flex-1">
+        ${secImg ? `
+        <div class="w-28 sm:w-36 aspect-[4/3] rounded-lg overflow-hidden relative shrink-0 cursor-pointer" onclick="window.__openBrowserWithUrl('${esc(n.url)}')">
+          <img src="${esc(secImg)}" alt="thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.parentElement.style.display='none'" loading="lazy">
+          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/75 text-white font-bold text-[10px] backdrop-blur-xs">#${rankNum}</span>
+        </div>` : `
+        <div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center font-bold text-lg text-primary shrink-0">
+          #${rankNum}
+        </div>`}
+        <div class="flex flex-col justify-between flex-1 min-w-0">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+              <div class="flex items-center gap-1.5 truncate">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant truncate">${esc(n.source)}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                ${(typeof n.trending_score === "number" && !isNaN(n.trending_score)) ? `<span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔥 Trending • ${n.trending_score.toFixed(1)}</span>` : ''}
+              </div>
+            </div>
+            <h3 class="font-headline font-bold text-sm sm:text-base text-on-surface leading-snug line-clamp-2 cursor-pointer group-hover:text-primary transition-colors" onclick="window.__openBrowserWithUrl('${esc(n.url)}')">
+              ${esc(n.title)}
+            </h3>
+          </div>
+          <div class="flex items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/10">
+            <span class="text-[9px] font-bold text-outline uppercase">${esc(n.fetched_at ?? "")}</span>
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors" onclick="window.__toggleArticleBookmark(event, '${secJsonEncoded}')" title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
+                  ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                </span>
+              </button>
+              <button type="button" class="px-2 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded text-[11px] font-bold transition-colors flex items-center gap-1" onclick="window.__summarize(event, '${esc(n.url)}')">
+                <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                สรุป
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="mb-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm">
+          <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        </div>
+        <div>
+          <h2 class="font-headline font-extrabold text-xl lg:text-2xl text-on-surface tracking-tight">เกาะติดประเด็นร้อน (Trending Highlights)</h2>
+          <p class="text-xs text-outline font-medium">วิเคราะห์กระแสข่าวและความเชื่อมโยงหลายสำนักด้วย AI แบบเรียลไทม์</p>
+        </div>
+      </div>
+      <span class="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 hidden sm:inline-flex items-center gap-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+        AI TRENDING ENGINE
+      </span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <!-- Primary Hero Card (Rank #1) -->
+      <div class="lg:col-span-2 bg-white rounded-2xl overflow-hidden border border-outline-variant/30 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group">
+        <div class="relative cursor-pointer overflow-hidden aspect-[16/9] max-h-[380px] bg-slate-900" onclick="window.__openBrowserWithUrl('${esc(primaryArticle.url)}')">
+          ${primImg ? `
+            <img src="${esc(primImg)}" alt="Hero Highlight" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90" onerror="this.parentElement.style.display='none'" />
+          ` : ''}
+          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-between p-6 md:p-8">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2">
+                <span class="px-3 py-1 rounded-full bg-rose-600 text-white font-extrabold text-xs tracking-wider uppercase shadow-md flex items-center gap-1 animate-pulse">
+                  <span class="material-symbols-outlined text-[14px]">whatshot</span>
+                  <span>#1 HOT STORY</span>
+                </span>
+                <span class="px-2.5 py-1 rounded-full bg-black/60 text-white backdrop-blur-md text-xs font-bold border border-white/20">
+                  🔥 Trending • ${(typeof primaryArticle.trending_score === "number" && !isNaN(primaryArticle.trending_score)) ? primaryArticle.trending_score.toFixed(1) : '9.8'}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-2.5 h-2.5 rounded-full" style="background:${primColor}"></span>
+                <span class="text-xs font-bold text-white uppercase tracking-wider">${esc(primaryArticle.source)}</span>
+              </div>
+              <h1 class="text-xl md:text-3xl font-headline font-bold text-white leading-tight drop-shadow-md group-hover:text-amber-200 transition-colors line-clamp-3">
+                ${esc(primaryArticle.title)}
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6 md:p-8 flex-1 flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              ${renderArticleBadges(primaryArticle, false)}
+            </div>
+            ${multiSourcePill}
+            <p class="text-sm md:text-base text-outline leading-relaxed line-clamp-3">
+              ${esc(primaryArticle.summary || "ไม่มีเนื้อหาบทคัดย่อ")}
+            </p>
+          </div>
+
+          <div class="pt-4 border-t border-outline-variant/20 flex items-center justify-between gap-4 flex-wrap">
+            <span class="text-xs font-bold text-outline uppercase tracking-wider">${esc(primaryArticle.fetched_at || "")}</span>
+            <div class="flex items-center gap-2">
+              <button type="button" class="p-2.5 rounded-xl border border-outline-variant/30 ${primBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all" onclick="window.__toggleArticleBookmark(event, '${primJsonEncoded}')" title="${primBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                <span class="material-symbols-outlined text-[20px]" style="${primBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
+                  ${primBookmarked ? 'bookmark' : 'bookmark_border'}
+                </span>
+              </button>
+              <a href="${esc(primaryArticle.url)}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 border border-outline-variant/30 text-on-surface px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-surface-container hover:text-primary active:scale-95 transition-all" onclick="event.stopPropagation()">
+                <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                <span>อ่านต้นฉบับ</span>
+              </a>
+              <button type="button" class="flex items-center gap-2 bg-primary text-white hover:bg-primary-container px-5 py-2.5 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all" onclick="window.__summarize(event, '${esc(primaryArticle.url)}')">
+                <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <span>สรุปประเด็นด้วย AI</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Trending Cards (Rank #2, #3) -->
+      <div class="flex flex-col gap-4 justify-between">
+        ${secondaryCardsHtml}
+      </div>
+    </div>
+  `;
+}
+
 // ── News grid ─────────────────────────────────────────────────────
 
 /**
@@ -294,7 +624,6 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
     const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[n.url]);
     const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
     const imgSrc = resolveImageUrl(n.image_url, n.source);
-    const catObj = getCategoryById(n.category);
     const articleJsonEncoded = encodeURIComponent(JSON.stringify(n));
 
     // Build Image Markup
@@ -317,13 +646,7 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
                 <span class="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant truncate">${esc(n.source)}</span>
               </div>
               <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
-                ${isNew ? `<span class="px-2 py-0.5 rounded-full bg-primary/10 text-[10px] font-bold text-primary uppercase border border-primary/20">NEW</span>` : ""}
-                ${catObj && catObj.id !== 'all' ? `
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style="background:${catObj.bg}; color:${catObj.color}">
-                    <span>${catObj.icon}</span>
-                    <span>${catObj.label}</span>
-                  </span>` : ''}
-                ${formatClassificationBadge(n.classification_method)}
+                ${renderArticleBadges(n, isNew)}
               </div>
             </div>
 

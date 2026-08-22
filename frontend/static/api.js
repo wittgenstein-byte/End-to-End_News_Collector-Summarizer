@@ -62,6 +62,43 @@ export async function fetchSources() {
 }
 
 /**
+ * ดึงรายการข่าวที่มีแนวโน้มร้อนแรง / ยอดนิยม (Trending News)
+ * @param {number} limit
+ * @param {string} category
+ */
+export async function fetchTrendingNews(limit = 3, category = "") {
+  const params = new URLSearchParams({ limit });
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/news/trending?${params}`);
+    if (!res.ok) return { trending: [], articles: [], total: 0 };
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchTrendingNews request failed:", e.message);
+    return { trending: [], articles: [], total: 0 };
+  }
+}
+
+/**
+ * บันทึกสถิติ engagement ของผู้อ่าน (click, summary, bookmark)
+ * @param {string} url
+ * @param {"click"|"summary"|"bookmark"} eventType
+ */
+export async function recordEngagement(url, eventType = "click") {
+  if (!url) return;
+  try {
+    await fetch(`${API_BASE}/api/news/engagement`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, event_type: eventType }),
+    });
+  } catch (err) {
+    // Non-blocking telemetry
+  }
+}
+
+/**
  * ส่ง URL ให้ backend ดึงเนื้อหา + สรุปด้วย AI
  * @param {string} url
  * @returns {Promise<{ok: boolean, summary?: object, error?: string}>}

@@ -19,6 +19,21 @@
 </head>
 <body class="bg-surface text-on-surface antialiased font-body selection:bg-primary-container selection:text-white">
 
+  <!-- ── Non-intrusive Floating Real-time Indicator ── -->
+  <div id="new-articles-indicator" class="fixed top-24 left-1/2 -translate-x-1/2 z-40 transform -translate-y-16 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="flex items-center gap-3 bg-primary/95 text-white px-5 py-2.5 rounded-full shadow-2xl border border-white/20 backdrop-blur-md cursor-pointer hover:bg-primary hover:scale-105 active:scale-95 transition-transform" onclick="window.__loadUnreadArticles()">
+      <span class="flex h-2.5 w-2.5 relative">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+      <span class="text-xs font-bold font-body" id="new-articles-count-text">มีข่าวใหม่ • คลิกเพื่ออัปเดต</span>
+      <span class="material-symbols-outlined text-[16px] animate-bounce">arrow_upward</span>
+      <button class="p-1 hover:bg-white/20 rounded-full ml-1" onclick="window.__dismissNewArticlesBanner(event)" title="ปิดการแจ้งเตือน">
+        <span class="material-symbols-outlined text-[14px]">close</span>
+      </button>
+    </div>
+  </div>
+
   <!-- ── Header ── -->
   <header class="bg-white/90 backdrop-blur-xl border-b border-outline-variant/30 sticky top-0 z-50">
     <div class="max-w-[1920px] mx-auto flex items-center justify-between px-6 py-4">
@@ -69,6 +84,11 @@
         <span class="text-[10px] font-bold text-outline-variant uppercase tracking-widest" id="updated-bar">อัปเดตล่าสุด: —</span>
       </div>
     </div>
+
+    <!-- ── Hero / Trending Highlight Section ── -->
+    <section id="hero-trending" class="mb-12 hidden">
+      <!-- Dynamically populated via UI.renderHeroTrending -->
+    </section>
 
     <!-- Source filter + Search -->
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12" id="toolbar">
@@ -268,15 +288,19 @@
   </div>
 
   <!-- ── PDPA Banner ── -->
-  <div id="pdpa-banner" class="fixed bottom-0 left-0 right-0 bg-surface-container-high border-t border-outline-variant/30 p-6 z-[100] transform translate-y-full transition-transform duration-300">
-    <div class="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+  <div id="pdpa-banner" class="fixed bottom-0 left-0 right-0 bg-surface-container-high border-t border-outline-variant/30 p-6 z-[100] transform translate-y-full transition-transform duration-300 shadow-2xl">
+    <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
       <div>
-        <h4 class="font-bold text-on-surface">Privacy & Cookies</h4>
-        <p class="text-sm text-on-surface-variant">We use localStorage strictly for personalization (theme, preferences, search history, bookmarks) stored on your device. Separately, when you use the in-app browser, the pages you open are loaded and processed through our servers so we can display them to you — see our Privacy Policy for details.</p>
+        <h4 class="font-bold text-on-surface flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-primary text-[18px]">lock</span>
+          <span>ความเป็นส่วนตัวและคุกกี้ (Privacy &amp; PDPA)</span>
+        </h4>
+        <p class="text-sm text-on-surface-variant mt-1 leading-relaxed">เราใช้ localStorage บนอุปกรณ์ของคุณเพื่อปรับแต่งประสบการณ์ (โหมดมืด, ขนาดฟอนต์, บุ๊กมาร์ก, แคชออฟไลน์) โดยไม่มีการส่งข้อมูลส่วนบุคคลกลับมายังเซิร์ฟเวอร์ คุณสามารถเลือกยอมรับ ปฏิเสธ หรือตั้งค่าสิทธิ์อย่างละเอียดได้</p>
       </div>
-      <div class="flex gap-2 shrink-0">
-        <button class="px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors" onclick="window.__declineCookies()">Decline</button>
-        <button class="px-4 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-container transition-colors" onclick="window.__acceptCookies()">Accept</button>
+      <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        <button class="px-3.5 py-2 rounded-lg text-sm font-bold text-outline hover:bg-surface-container hover:text-on-surface transition-colors" onclick="window.__declineCookies()">ปฏิเสธ</button>
+        <button class="px-3.5 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 border border-primary/30 transition-colors" onclick="window.__openPrivacyModal()">ตั้งค่าความยินยอม</button>
+        <button class="px-4 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-container transition-colors shadow-sm" onclick="window.__acceptCookies()">ยอมรับทั้งหมด</button>
       </div>
     </div>
   </div>
@@ -318,6 +342,66 @@
           <p class="text-xs text-outline mb-2">Consent: <span id="setting-consent-status" class="font-bold">Unknown</span></p>
           <button class="w-full py-2 bg-error/10 text-error rounded-lg text-sm font-bold hover:bg-error/20" onclick="window.__clearPersonalizationData()">Clear All Data</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Granular Privacy Settings Modal ── -->
+  <div id="privacy-modal" class="fixed inset-0 z-[90] hidden items-center justify-center p-4 bg-on-background/40 backdrop-blur-sm">
+    <div class="w-full max-w-lg bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/30">
+      <div class="p-5 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-primary text-2xl">shield</span>
+          <div>
+            <h2 class="font-bold text-lg text-on-surface">ตั้งค่าความเป็นส่วนตัว (PDPA)</h2>
+            <p class="text-xs text-outline">จัดการสิทธิ์การจัดเก็บข้อมูลบนอุปกรณ์ของคุณ</p>
+          </div>
+        </div>
+        <button class="p-1.5 hover:bg-surface-container rounded-full transition-colors" onclick="window.__closePrivacyModal()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+        <!-- Necessary -->
+        <div class="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-on-surface">ข้อมูลจำเป็นสำหรับการทำงานพื้นฐาน</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">จำเป็น</span>
+            </div>
+            <p class="text-xs text-outline mt-1 leading-relaxed">ใช้สำหรับจดจำสถานะการเปิดแท็บเบราว์เซอร์ชั่วคราวและการตัดสินใจความยินยอม ไม่มีการติดตามข้ามเว็บไซต์</p>
+          </div>
+          <input type="checkbox" checked disabled class="toggle mt-1 opacity-70 cursor-not-allowed">
+        </div>
+
+        <!-- UI Preferences -->
+        <div class="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-start justify-between gap-4">
+          <div>
+            <span class="font-bold text-sm text-on-surface">การตั้งค่าหน้าตาและการแสดงผล (UI Preferences)</span>
+            <p class="text-xs text-outline mt-1 leading-relaxed">จดจำโหมดสี (Dark/Light mode), ขนาดตัวอักษร, และความหนาแน่นของเลย์เอาต์ (Density)</p>
+          </div>
+          <input type="checkbox" id="privacy-pref-ui" checked class="toggle mt-1">
+        </div>
+
+        <!-- Bookmarks & Filters -->
+        <div class="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-start justify-between gap-4">
+          <div>
+            <span class="font-bold text-sm text-on-surface">การบันทึกบทความและตัวกรองที่ชื่นชอบ (Bookmarks &amp; Favorites)</span>
+            <p class="text-xs text-outline mt-1 leading-relaxed">บันทึกข่าวที่คั่นหน้าไว้ (Bookmarks) และหมวดหมู่/สำนักข่าวที่เปิดใช้งานเป็นค่าเริ่มต้น</p>
+          </div>
+          <input type="checkbox" id="privacy-pref-bookmarks" checked class="toggle mt-1">
+        </div>
+
+        <!-- Cache & History -->
+        <div class="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-start justify-between gap-4">
+          <div>
+            <span class="font-bold text-sm text-on-surface">แคชข่าวออฟไลน์และประวัติการค้นหา (Offline Cache &amp; History)</span>
+            <p class="text-xs text-outline mt-1 leading-relaxed">เก็บแคชเนื้อหาข่าว 24 ชั่วโมงเพื่อให้อ่านขณะออฟไลน์ได้เร็วขึ้น และประวัติการค้นหาสำหรับแนะนำคำค้น</p>
+          </div>
+          <input type="checkbox" id="privacy-pref-cache" checked class="toggle mt-1">
+        </div>
+      </div>
+      <div class="p-4 border-t border-outline-variant/30 bg-surface-container-low flex justify-end gap-3">
+        <button class="px-4 py-2 rounded-lg text-sm font-bold text-outline hover:bg-surface-container transition-colors" onclick="window.__closePrivacyModal()">ยกเลิก</button>
+        <button class="px-5 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-container transition-colors shadow-sm" onclick="window.__saveCustomPrivacy()">บันทึกการตั้งค่า</button>
       </div>
     </div>
   </div>
