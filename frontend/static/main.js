@@ -37,6 +37,21 @@ let personalizationData = hasConsent ? JSON.parse(localStorage.getItem(PERSONALI
 let searchHistory = (hasConsent && privacyPermissions.cache) ? JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]") : [];
 let unreadArticlesQueue = [];
 
+// ── PWA Article Map, Reading History & AI Cache ────────────────────
+const currentArticleMap = new Map();
+const READING_HISTORY_KEY = "newsroom_reading_history";
+const AI_SUMMARIES_CACHE_KEY = "newsroom_ai_summaries";
+
+let readingHistory = [];
+let cachedAiSummaries = {};
+
+try {
+  readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
+  cachedAiSummaries = JSON.parse(localStorage.getItem(AI_SUMMARIES_CACHE_KEY) || "{}");
+} catch (e) {
+  console.warn("Storage parse error for history/cache:", e);
+}
+
 function savePersonalization() {
   if (hasConsent) {
     try {
@@ -341,48 +356,12 @@ function makeTabId() {
 }
 
 window.__openBrowser = () => {
-  const modal = document.getElementById("browser-modal");
-  modal.style.display = "flex";
-  if (browserTabs.length === 0) window.__browserNewTab();
+  window.location.hash = "#/";
 };
 
 window.__openBrowserWithUrl = (url) => {
   if (!url) return;
-  recordEngagement(url, "click");
-  const modal = document.getElementById("browser-modal");
-  const wasHidden = modal.style.display === "none" || !modal.style.display;
-  modal.style.display = "flex";
-
-  // If opening from closed state, clean start
-  if (wasHidden && browserTabs.length > 0) {
-    const socket = getSocket();
-    if (socket) {
-      browserTabs.forEach(id => socket.emit("browser_close_tab", { tab_id: id }));
-    }
-    browserTabs = [];
-    tabStates = {};
-    currentTabId = null;
-  }
-
-  // สร้าง tabId ใหม่
-  const tabId = makeTabId();
-  browserTabs.push(tabId);
-  currentTabId = tabId;
-  tabStates[tabId] = { html: "", url: url, title: "Loading..." };
-
-  // แสดง loading ทันที
-  document.getElementById("browser-iframe").srcdoc = "";
-  document.getElementById("browser-url").value = url;
-  document.getElementById("browser-loading").style.display = "flex";
-  renderBrowserTabs();
-
-  armBrowserLoadTimeout();
-
-  // emit event เดียว — backend เปิด tab + navigate ในคำสั่งเดียว (ไม่มี race condition)
-  const socket = getSocket();
-  if (socket) {
-    socket.emit("browser_open_and_navigate", { tab_id: tabId, url });
-  }
+  window.__openPreview(url);
 };
 
 window.__browserShowError = (msg) => {
@@ -699,6 +678,7 @@ async function loadPage(page = 1) {
       .then(trendingData => {
         const trendingList = (trendingData && (trendingData.trending || trendingData.articles)) || [];
         if (trendingList.length > 0) {
+          trendingList.forEach(a => { if (a.url) currentArticleMap.set(a.url, a); });
           UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
         } else {
           document.getElementById("hero-trending")?.classList.add("hidden");
@@ -716,6 +696,9 @@ async function loadPage(page = 1) {
 
   try {
     const data = await fetchNews(page, activeSource, searchQuery, activeCategory);
+    if (data.news && Array.isArray(data.news)) {
+      data.news.forEach(a => { if (a.url) currentArticleMap.set(a.url, a); });
+    }
 
     // Save to offline news cache if default page 1 feed and consent granted
     if (hasConsent && privacyPermissions.cache && page === 1 && !activeSource && !searchQuery && (activeCategory === "all" || !activeCategory)) {
@@ -1042,6 +1025,232 @@ document.getElementById("summary-modal").addEventListener("click", e => {
 });
 document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
 
+// ── PWA Router & Preview Sub-View Controller ──────────────────────
+
+export function cleanTrackingParams(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const trackingKeys = [
+      "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+      "fbclid", "gclid", "dclid", "msclkid", "ref", "source", "igshid", "_hsenc", "_hsmi"
+    ];
+    trackingKeys.forEach(k => u.searchParams.delete(k));
+    return u.toString();
+  } catch (e) {
+    return rawUrl;
+  }
+}
+
+function showPreviewByUrl(url, autoSummarize = false) {
+  if (!url) {
+    UI.switchView("feed");
+    return;
+  }
+
+  // Lookup in currentArticleMap, bookmarks, or reading history
+  let article = currentArticleMap.get(url);
+  if (!article && personalizationData.bookmarkedArticles && personalizationData.bookmarkedArticles[url]) {
+    article = personalizationData.bookmarkedArticles[url];
+  }
+  if (!article) {
+    article = readingHistory.find(h => h.url === url);
+  }
+  if (!article) {
+    article = {
+      url: url,
+      title: "บทความข่าว",
+      summary: "คลิกปุ่มสรุปเนื้อหาด้วย AI หรือกดอ่านข่าวฉบับเต็มจากเว็บไซต์ต้นฉบับ",
+      source: "เว็บข่าวต้นทาง",
+      fetched_at: "ล่าสุด",
+      category: "general"
+    };
+  }
+
+  // Record to reading history
+  const historyItem = {
+    url: article.url,
+    title: article.title,
+    summary: article.summary,
+    source: article.source,
+    image_url: article.image_url,
+    category: article.category,
+    viewed_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+
+  readingHistory = [historyItem, ...readingHistory.filter(h => h.url !== article.url)].slice(0, 100);
+  try {
+    localStorage.setItem(READING_HISTORY_KEY, JSON.stringify(readingHistory));
+  } catch (e) {
+    console.warn("Failed to persist reading history:", e);
+  }
+
+  const isBookmarked = Boolean(personalizationData.bookmarkedArticles && personalizationData.bookmarkedArticles[article.url]);
+  const cachedSummary = cachedAiSummaries[article.url] || null;
+
+  UI.renderPreviewView(article, isBookmarked, cachedSummary);
+  UI.switchView("preview");
+
+  // If requested with auto-summarize and not yet cached, trigger AI summarize immediately
+  if (autoSummarize && !cachedSummary) {
+    window.__runPreviewAiSummary(article.url);
+  }
+}
+
+function handleHashRouting() {
+  const hash = window.location.hash || "#/";
+  if (hash.startsWith("#/preview/")) {
+    const rawPart = hash.replace("#/preview/", "");
+    const [encodedUrl, queryStr] = rawPart.split("?");
+    const articleUrl = decodeURIComponent(encodedUrl);
+    const params = new URLSearchParams(queryStr || "");
+    const autoSummarize = params.get("summarize") === "1" || params.get("summarize") === "true";
+    showPreviewByUrl(articleUrl, autoSummarize);
+  } else {
+    UI.switchView("feed");
+  }
+}
+
+window.addEventListener("hashchange", handleHashRouting);
+
+// ── Global Window Handlers for PWA Sub-View ───────────────────────
+
+window.__openPreview = (url) => {
+  if (!url) return;
+  window.location.hash = `#/preview/${encodeURIComponent(url)}`;
+};
+
+window.__openPreviewAndSummarize = (url) => {
+  if (!url) return;
+  window.location.hash = `#/preview/${encodeURIComponent(url)}?summarize=1`;
+};
+
+window.__backToFeed = () => {
+  window.location.hash = "#/";
+};
+
+window.__openExternalSourceClean = (url) => {
+  if (!url) return;
+  const cleanUrl = cleanTrackingParams(url);
+  recordEngagement(url, "external_read");
+  window.open(cleanUrl, "_blank", "noopener,noreferrer");
+};
+
+window.__runPreviewAiSummary = async (url) => {
+  if (!url) return;
+  UI.showInlineSummaryLoading();
+  recordEngagement(url, "summary");
+
+  try {
+    const data = await summarizeArticle(url);
+    if (data.ok && data.summary) {
+      cachedAiSummaries[url] = data.summary;
+      try {
+        localStorage.setItem(AI_SUMMARIES_CACHE_KEY, JSON.stringify(cachedAiSummaries));
+      } catch (e) {
+        console.warn("Failed to cache AI summary:", e);
+      }
+      const section = document.getElementById("preview-ai-section");
+      if (section) {
+        section.innerHTML = UI.renderInlineSummary(data.summary);
+      }
+    } else {
+      throw new Error(data.error || "เกิดข้อผิดพลาดในการสังเคราะห์ข้อมูล");
+    }
+  } catch (err) {
+    UI.showInlineSummaryError(err.message, url);
+  }
+};
+
+window.__shareArticle = async (title, url) => {
+  const cleanUrl = cleanTrackingParams(url);
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: title || "NEWSROOM Briefing",
+        text: title,
+        url: cleanUrl
+      });
+    } catch (e) {
+      // User cancelled share
+    }
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(cleanUrl).then(() => {
+      UI.showToast("คัดลอกลิงก์เรียบร้อยแล้ว");
+    });
+  }
+};
+
+// ── History & Bookmarks Modals ────────────────────────────────────
+
+window.__showHistory = () => {
+  UI.openHistoryModal("ประวัติการอ่าน (Reading History)", "history");
+  UI.renderHistoryList(readingHistory, "history", personalizationData.bookmarkedArticles || {});
+};
+
+window.__showBookmarks = () => {
+  const bookmarksList = Object.values(personalizationData.bookmarkedArticles || {});
+  UI.openHistoryModal("บทความที่บันทึกไว้ (Bookmarks)", "bookmarks");
+  UI.renderHistoryList(bookmarksList, "bookmarks", personalizationData.bookmarkedArticles || {});
+};
+
+window.__closeHistoryModal = () => {
+  UI.closeHistoryModal();
+};
+
+window.__clearHistoryList = () => {
+  readingHistory = [];
+  try {
+    localStorage.removeItem(READING_HISTORY_KEY);
+  } catch (e) {
+    console.warn("Failed to clear reading history:", e);
+  }
+  UI.renderHistoryList([], "history", personalizationData.bookmarkedArticles || {});
+  UI.showToast("ล้างประวัติการอ่านเรียบร้อยแล้ว");
+};
+
+// ── Service Worker & PWA Install Lifecycle ────────────────────────
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" })
+      .then(reg => console.log("[PWA] Service Worker registered:", reg.scope))
+      .catch(err => console.warn("[PWA] Service Worker registration failed:", err));
+  });
+}
+
+// Offline connection detection
+window.addEventListener("online", () => {
+  UI.showOfflineStatus(false);
+  UI.showToast("🟢 กลับมาออนไลน์แล้ว");
+});
+window.addEventListener("offline", () => {
+  UI.showOfflineStatus(true);
+  UI.showToast("🟠 เข้าสู่โหมดออฟไลน์ (กำลังอ่านจากแคชบนเครื่อง)");
+});
+if (!navigator.onLine) {
+  UI.showOfflineStatus(true);
+}
+
+// PWA Install prompt handling
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  UI.showPwaInstallBanner(async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log("[PWA] User choice:", outcome);
+      deferredPrompt = null;
+      UI.hidePwaInstallBanner();
+    }
+  });
+});
+
+window.__dismissPwaInstall = () => {
+  UI.hidePwaInstallBanner();
+};
+
 // ── Init: draw category nav & source filters ──────────────────────
 
 if (hasConsent) {
@@ -1053,3 +1262,6 @@ UI.renderSourceFilters([], activeSource, {});
 refreshCategoryCounts();
 refreshSourceFilters();
 checkPDPA();
+
+// Handle initial route on startup
+handleHashRouting();
