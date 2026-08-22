@@ -39,6 +39,7 @@ from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
 from backend.routers.collect_router import router as collect_router
 from backend.routers.news_router import router as news_router
+from backend.routers.trending_router import router as trending_router
 from backend.services.scraper_service import ScraperService
 
 
@@ -110,6 +111,7 @@ app.add_middleware(
 
 app.include_router(news_router)
 app.include_router(collect_router)
+app.include_router(trending_router)
 
 
 # ── Frontend static files ─────────────────────────────────────────

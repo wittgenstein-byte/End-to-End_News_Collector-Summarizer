@@ -70,6 +70,14 @@ BLOCKED_TRACKER_DOMAINS = {
     "rubiconproject.com",
     "amazon-adsystem.com",
     "adnxs.com",
+    "adop.cc",
+    "compass.adop.cc",
+    "innity.com",
+    "innity.net",
+    "mgid.com",
+    "revcontent.com",
+    "popads.net",
+    "ad-delivery.net",
 }
 
 LAUNCH_ARGS = [
@@ -510,8 +518,12 @@ class BrowserService:
                         await self._assert_safe_url(curr_req.url)
                         curr_req = curr_req.redirected_from
 
-                # Short grace period for initial DOM hydration / fonts / dynamic article elements
-                await asyncio.sleep(0.5)
+                # Grace period for initial DOM hydration, web fonts, and dynamic article elements
+                try:
+                    await page.evaluate("() => document.fonts ? document.fonts.ready : Promise.resolve()")
+                except Exception:
+                    pass
+                await asyncio.sleep(0.8)
                 content = await self._get_snapshot_content(page)
                 return {"html": content, "url": page.url, "title": await page.title()}
             except UnsafeUrlError as e:
@@ -623,29 +635,58 @@ class BrowserService:
             base.href = document.location.href;
             head.insertBefore(base, head.firstChild);
 
-            // Inline all stylesheets into <style> tags so the snapshot is fully styled
-            // without failing due to cross-origin CORS or iframe sandboxing
+            // 1. Inline all stylesheets into <style> tags where accessible,
+            // or resolve href to absolute URL with CORS fallback
             const linkEls = Array.from(clone.querySelectorAll('link[rel~="stylesheet"]'));
             for (const link of linkEls) {
-                const href = link.getAttribute("href") || "";
+                const rawHref = link.getAttribute("href") || "";
                 let cssText = "";
                 for (const sheet of document.styleSheets) {
                     try {
-                        if (sheet.href === link.href || (href && sheet.href && (sheet.href.includes(href) || href.includes(sheet.href)))) {
+                        if (sheet.href === link.href || (rawHref && sheet.href && (sheet.href.includes(rawHref) || rawHref.includes(sheet.href)))) {
                             const rules = Array.from(sheet.cssRules || []);
                             cssText = rules.map(r => r.cssText).join("\\n");
                             break;
                         }
                     } catch (e) {
-                        // ignore
+                        // Cross-origin stylesheet SecurityError
                     }
                 }
                 if (cssText) {
                     const styleEl = document.createElement("style");
                     styleEl.textContent = cssText;
                     link.replaceWith(styleEl);
+                } else if (rawHref) {
+                    try {
+                        link.href = new URL(rawHref, document.baseURI).href;
+                        link.setAttribute("crossorigin", "anonymous");
+                    } catch (e) {}
                 }
             }
+
+            // 2. Extract Adopted StyleSheets (Constructed Stylesheets / Shadow DOM / Frameworks)
+            if (document.adoptedStyleSheets && document.adoptedStyleSheets.length > 0) {
+                for (const sheet of document.adoptedStyleSheets) {
+                    try {
+                        const rules = Array.from(sheet.cssRules || []);
+                        const cssText = rules.map(r => r.cssText).join("\\n");
+                        if (cssText) {
+                            const styleEl = document.createElement("style");
+                            styleEl.textContent = cssText;
+                            head.appendChild(styleEl);
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            // 3. Ensure high-fidelity Thai font fallback stack
+            const fontFallback = document.createElement("style");
+            fontFallback.textContent = `
+                body, button, input, select, textarea {
+                    font-family: inherit, -apple-system, BlinkMacSystemFont, "Sarabun", "Sukhumvit Set", "Prompt", "Segoe UI", Roboto, sans-serif;
+                }
+            `;
+            head.appendChild(fontFallback);
 
             // Ensure body and html can scroll freely
             if (clone.style) clone.style.overflow = "auto";
@@ -656,11 +697,15 @@ class BrowserService:
             }
 
             // Convert lazy-loaded images to standard src so images render without client JS
-            const images = clone.querySelectorAll("img, picture source");
+            const images = clone.querySelectorAll("img, picture source, [data-src], [data-lazy-src], [data-original]");
             for (const el of images) {
-                const lazySrc = el.getAttribute("data-src") || el.getAttribute("data-original") || el.getAttribute("data-lazy-src") || el.getAttribute("data-lazy");
+                const lazySrc = el.getAttribute("data-src") || el.getAttribute("data-original") || el.getAttribute("data-lazy-src") || el.getAttribute("data-lazy") || el.getAttribute("data-url");
                 if (lazySrc && (!el.getAttribute("src") || el.getAttribute("src").startsWith("data:image"))) {
-                    el.setAttribute("src", lazySrc);
+                    try {
+                        el.setAttribute("src", new URL(lazySrc, document.baseURI).href);
+                    } catch(e) {
+                        el.setAttribute("src", lazySrc);
+                    }
                 }
                 const lazySrcset = el.getAttribute("data-srcset");
                 if (lazySrcset && !el.getAttribute("srcset")) {
@@ -672,6 +717,26 @@ class BrowserService:
             // Remove dangerous scripts/iframes to prevent execution loops
             const dangerous = clone.querySelectorAll("script, iframe, noscript, object, embed");
             for (const el of dangerous) el.remove();
+
+            // Remove unused script preloads, modulepreloads, and preconnects to prevent
+            // "resource was preloaded using link preload but not used" warnings and unneeded downloads
+            const uselessPreloads = clone.querySelectorAll(`
+                link[rel="preload"][as="script"],
+                link[rel="modulepreload"],
+                link[rel="prefetch"],
+                link[rel="dns-prefetch"],
+                link[rel="preconnect"]
+            `);
+            for (const el of uselessPreloads) el.remove();
+
+            // Strip tracking pixels and 1x1 ad beacons (Privacy by Design / PDPA minimization)
+            const trackingPixels = clone.querySelectorAll(`
+                img[width="1"], img[height="1"],
+                img[src*="adop.cc"], img[src*="doubleclick"],
+                img[src*="analytics"], img[src*="tracker"],
+                img[src*="pixel"]
+            `);
+            for (const el of trackingPixels) el.remove();
 
             // Strip every inline event-handler attribute (onerror, onload,
             // onclick, onmouseover, ...) and javascript:/data: URIs from
