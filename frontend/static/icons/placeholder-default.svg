@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="def-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="60%" stop-color="#090D16"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <radialGradient id="def-glow" cx="70%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="def-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#475569" fill-opacity="0.25"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#def-bg)"/>
+  <rect width="800" height="450" fill="url(#def-glow)"/>
+  <rect width="800" height="450" fill="url(#def-grid)"/>
+
+  <!-- Editorial Geometric Rule Accents -->
+  <g opacity="0.35">
+    <line x1="60" y1="40" x2="740" y2="40" stroke="#94A3B8" stroke-width="1" stroke-dasharray="4 4"/>
+    <line x1="60" y1="410" x2="740" y2="410" stroke="#94A3B8" stroke-width="1"/>
+    <path d="M60 60 V40 H80 M720 40 H740 V60 M60 390 V410 H80 M720 410 H740 V390" stroke="#F59E0B" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Abstract Editorial Card & Soundwave Graphics -->
+  <g transform="translate(400, 195)">
+    <circle r="90" fill="none" stroke="#F59E0B" stroke-width="1" stroke-opacity="0.1" stroke-dasharray="6 6"/>
+    <circle r="120" fill="none" stroke="#94A3B8" stroke-width="1" stroke-opacity="0.08"/>
+    
+    <path d="M-180 0 Q-120 -40 -60 0 T60 0 T180 0" fill="none" stroke="#38BDF8" stroke-width="2" stroke-opacity="0.3"/>
+    <path d="M-220 0 Q-150 45 -70 0 T70 0 T220 0" fill="none" stroke="#F59E0B" stroke-width="2" stroke-opacity="0.35"/>
+
+    <rect x="-140" y="-42" width="280" height="84" rx="20" fill="#FFFFFF" fill-opacity="0.04" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="1"/>
+    
+    <path d="M-30 -16 H-10 C0 -16 0 16 -10 16 H-30 Z M-10 -16 H10 C20 -16 20 16 10 16 H-10 M-22 -8 H-14 M-22 0 H-14 M2 -8 H10 M2 0 H10" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="28" cy="-2" r="4" fill="#38BDF8"/>
+  </g>
+
+  <!-- Badge Text & Metadata -->
+  <text x="400" y="325" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#F8FAFC" text-anchor="middle" letter-spacing="4">EDITORIAL DISPATCH</text>
+  <text x="400" y="348" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#94A3B8" text-anchor="middle" letter-spacing="2">VERIFIED INTELLIGENCE DESK</text>
+</svg>
