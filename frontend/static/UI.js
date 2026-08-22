@@ -223,17 +223,19 @@ export function formatClassificationBadge(method) {
     const cue = match ? match[1] : "URL";
     label = `URL: ${cue}`;
     bgClass = "bg-blue-50 text-blue-700 border-blue-200";
-  } else if (m.startsWith("WangchanBERTa")) {
+  } else if (m.startsWith("Hybrid:") || m.includes("WangchanBERTa")) {
     icon = "smart_toy";
     const confMatch = m.match(/conf=([\d.]+)/);
     const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
-    label = `WangchanBERTa${pct}`;
+    const isHybrid = m.startsWith("Hybrid");
+    label = isHybrid ? `Hybrid WangchanBERTa${pct}` : `WangchanBERTa${pct}`;
     bgClass = "bg-amber-50 text-amber-800 border-amber-300";
   } else if (m.startsWith("ML")) {
     icon = "memory";
     const confMatch = m.match(/conf=([\d.]+)/);
     const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
     label = `LinearSVC${pct}`;
+    bgClass = "bg-purple-50 text-purple-700 border-purple-200";
   } else if (m.startsWith("Rule (") || m.startsWith("High-Specificity Rule")) {
     icon = "verified";
     const match = m.match(/\((.*?)\)/);
