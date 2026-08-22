@@ -110,9 +110,8 @@ def make_article(
     สร้าง article dict พร้อม category ที่จำแนกอัตโนมัติ
     classifier_service ทำงานใน <1ms ไม่ต้องรอ
     """
-    # ถ้าดึง md ไม่ได้ ให้ใช้ summary แทน
-    content_for_classification = md if md else summary
-    category, method = classify_article(title, content_for_classification, url=url)
+    # ใช้ title + summary สำหรับการจำแนกหมวดหมู่ที่แม่นยำ ไม่นำ raw md ทั้งหน้ามาปน
+    category, method = classify_article(title, summary, url=url)
     return {
         "title": title.strip(),
         "summary": summary.strip() if summary else "(ไม่มีเนื้อหา)",

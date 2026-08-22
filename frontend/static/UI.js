@@ -234,7 +234,12 @@ export function formatClassificationBadge(method) {
     const confMatch = m.match(/conf=([\d.]+)/);
     const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
     label = `LinearSVC${pct}`;
-    bgClass = "bg-purple-50 text-purple-700 border-purple-200";
+  } else if (m.startsWith("Rule (") || m.startsWith("High-Specificity Rule")) {
+    icon = "verified";
+    const match = m.match(/\((.*?)\)/);
+    const cue = match ? match[1] : "Rule";
+    label = `Rule: ${cue}`;
+    bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
   } else if (m.startsWith("Rule-based") || m.startsWith("Rule")) {
     icon = "rule";
     label = "Rules";

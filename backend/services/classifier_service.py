@@ -499,12 +499,67 @@ def predict_with_wangchanberta(text: str) -> tuple[str, str, float] | None:
         return None
 
 
+# ── Denoising phrases for ML ───────────────────────────────────────
+# คำบอกเล่าข่าวโซเชียลทั่วไปที่ชอบเบี่ยงคะแนน TF-IDF เข้า Technology โดยไม่ตั้งใจ
+_DENOISE_PHRASES = (
+    "ในโลกออนไลน์",
+    "โลกออนไลน์",
+    "ชาวเน็ต",
+    "โซเชียลมีเดีย",
+    "โลกโซเชียล",
+    "เพจดัง",
+    "เพจเฟซบุ๊ก",
+    "คลิปไวรัล",
+    "แชร์ว่อน",
+    "แห่แชร์",
+    "คอมเมนต์",
+)
+
+# ── High-Specificity Domain Cues ──────────────────────────────────
+# คำเฉพาะทางระดับสูงที่ระบุหมวดหมู่ชัดเจนในหัวข้อข่าว (Title Priority)
+_HIGH_SPECIFICITY_CUES: dict[str, tuple[str, ...]] = {
+    "environment": (
+        "น้ำท่วม", "อุทกภัย", "น้ำป่าไหลหลาก", "น้ำป่า", "แม่น้ำเอ่อล้น", "น้ำล้นตลิ่ง",
+        "ดินถล่ม", "โคลนถล่ม", "พายุหมุน", "พายุดีเปรสชัน", "ไต้ฝุ่น", "สึนามิ",
+        "แผ่นดินไหว", "pm2.5", "pm 2.5", "มลพิษทางอากาศ", "วิกฤตโลกร้อน", "ภาวะโลกร้อน",
+        "ก๊าซเรือนกระจก", "ปะการังฟอกขาว", "ไฟป่า", "ภัยแล้ง", "ภัยพิบัติ",
+    ),
+    "technology": (
+        "ยานยนต์ไฟฟ้า", "รถยนต์ไฟฟ้า", "รถ ev", "รถยนต์ ev", "วิศวกรรมยานยนต์ไฟฟ้า",
+        "ปัญญาประดิษฐ์", "generative ai", "chatgpt", "ชิปเซ็ต", "เซมิคอนดักเตอร์",
+        "ไมโครชิป", "ไซเบอร์ซีเคียวริตี้", "แฮกเกอร์", "ควอนตัมคอมพิวเตอร์",
+        "บล็อกเชน", "สมาร์ทโฟนเรือธง", "ระบบ 5g", "ปัญญาประดิษฐ์ ai",
+    ),
+    "entertainment": (
+        "นักแสดง", "ดาราสาว", "ดาราชาย", "นักร้อง", "วงการบันเทิง", "คู่รักดารา",
+        "เตียงหัก", "แฉแหลก", "เมียน้อย", "ละครดัง", "ซีรีส์ดัง",
+        "แฟนมีตติ้ง", "คอนเสิร์ต", "ภาพยนตร์ใหม่", "บ็อกซ์ออฟฟิศ", "เพลงฮิต",
+        "อัลบั้มใหม่", "เปิดตัวภาพยนตร์", "เปิดตัวซีรีส์", "นางเอก", "พระเอก",
+        "ดาราดัง", "เปิ้ล ไอริณ", "ไอริณ",
+    ),
+    "sports": (
+        "ฟุตบอล", "พรีเมียร์ลีก", "ไทยลีก", "ผลบอล", "ยูฟ่า", "แชมเปียนส์ลีก",
+        "วอลเลย์บอล", "โอลิมปิก", "ซีเกมส์", "เอเชียนเกมส์", "เหรียญทอง",
+        "มวยไทย", "ฟอร์มูล่าวัน", "formula 1", "แบดมินตัน",
+    ),
+    "health": (
+        "กระทรวงสาธารณสุข", "กรมควบคุมโรค", "องค์การอนามัยโลก", "วัคซีน",
+        "โรคระบาด", "ไข้หวัดใหญ่", "ติดเชื้อ", "มะเร็ง", "ยารักษาโรค",
+        "แพทย์เตือน", "โรงพยาบาล", "ผู้ป่วย",
+    ),
+}
+
+
 def predict_with_ml(text: str) -> tuple[str, str, float]:
     """ฟังก์ชันเรียกใช้โมเดล SVM/LinearSVC และคืนค่า (หมวด, วิธีคิด, ความมั่นใจ)"""
     if _TFIDF is None or _SVM is None:
         return _DEFAULT_CATEGORY, "ML (Failed to load)", 0.0
     try:
         lower = text.lower().strip()
+        # กรองคำเล่าเรื่องโซเชียลมีเดียทั่วไปออก เพื่อไม่ให้บิดเบือนคะแนนไปหมวด technology
+        for phrase in _DENOISE_PHRASES:
+            lower = lower.replace(phrase, " ")
+
         tokens = word_tokenize(lower, engine="newmm")
         cleaned_tokens = [
             tok.strip()
@@ -647,15 +702,23 @@ def classify(text: str) -> tuple[str, str]:
 
 def classify_article(title: str, summary: str = "", url: str = "") -> tuple[str, str]:
     """
-    จำแนกบทความโดยเช็ก URL ก่อน (Tier 1: Fast-path URL Priority)
-    ถ้า URL ระบุหมวดหมู่ชัดเจน จะคืนค่าทันทีโดยไม่เข้าสู่ NLP/ML
-    ถ้าไม่มีจึงนำ title + summary ไปจำแนก (Tier 2: Rules, Tier 3: ML)
-    คืนค่า (category, method)
+    จำแนกบทความโดยเช็ก:
+    1. URL Priority (Tier 1: Fast-path)
+    2. High-Specificity Domain Cues ในหัวข้อข่าว (Title Domain Cues)
+    3. Primary ML Classifier (Tier 2: LinearSVC / WangchanBERTa)
+    4. Fallback Keyword Rules (Tier 3)
     """
     if url:
         url_match = get_category_from_url(url)
         if url_match:
             return url_match
+
+    # 2. ตรวจสอบ High-Specificity Cues ในหัวข้อข่าว (Title Priority)
+    title_lower = (title or "").lower()
+    for cat, cues in _HIGH_SPECIFICITY_CUES.items():
+        for cue in cues:
+            if cue in title_lower:
+                return cat, f"Rule ({cat})"
 
     combined = f"{title} {title} {title} {summary}"
     return classify(combined)
