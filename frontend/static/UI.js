@@ -72,7 +72,8 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   const inactiveClasses = "bg-white border-outline-variant/30 text-on-surface-variant hover:bg-surface-container";
 
   let html = CATEGORIES.map(cat => {
-    const count   = cat.id === "all" ? (counts.all ?? "") : (counts[cat.id] ?? 0);
+    const rawCount = cat.id === "all" ? (counts.all ?? "") : counts[cat.id];
+    const hasCount = rawCount !== undefined && rawCount !== "";
     const isActive = cat.id === activeId;
     
     return `
@@ -81,7 +82,7 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
               onclick="__categoryClick('${cat.id}')">
         <span class="material-symbols-outlined text-lg">${cat.icon}</span>
         <span>${cat.label}</span>
-        ${count !== "" ? `<span class="cat-count text-[10px] ${isActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold">${count}</span>` : ""}
+        <span class="cat-count text-[10px] ${isActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold ${hasCount ? '' : 'hidden'}">${hasCount ? rawCount : ''}</span>
       </button>`;
   }).join("");
 
@@ -93,7 +94,7 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
             onclick="__categoryClick('bookmarks')">
       <span class="material-symbols-outlined text-lg">bookmarks</span>
       <span>ที่บันทึกไว้</span>
-      ${bookmarkCount > 0 ? `<span class="cat-count text-[10px] ${isBookmarkActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold">${bookmarkCount}</span>` : ""}
+      <span class="cat-count text-[10px] ${isBookmarkActive ? 'opacity-80' : 'opacity-50'} ml-1 font-bold ${bookmarkCount > 0 ? '' : 'hidden'}">${bookmarkCount > 0 ? bookmarkCount : ''}</span>
     </button>
   `;
 
@@ -109,17 +110,31 @@ export function updateCategoryBadges(counts = {}, bookmarkCount = 0) {
       if (bookmarkCount > 0) {
         if (badge) {
           badge.textContent = bookmarkCount;
+          badge.classList.remove("hidden");
         } else {
           btn.insertAdjacentHTML("beforeend", `<span class="cat-count text-[10px] opacity-50 ml-1 font-bold">${bookmarkCount}</span>`);
         }
       } else if (badge) {
-        badge.remove();
+        badge.classList.add("hidden");
+        badge.textContent = "";
       }
       return;
     }
-    if (!badge) return;
-    const count = id === "all" ? (counts.all ?? "") : (counts[id] ?? 0);
-    badge.textContent = count;
+    if (!badge) {
+      const rawCount = id === "all" ? (counts.all ?? "") : counts[id];
+      if (rawCount !== undefined && rawCount !== "") {
+        btn.insertAdjacentHTML("beforeend", `<span class="cat-count text-[10px] opacity-50 ml-1 font-bold">${rawCount}</span>`);
+      }
+      return;
+    }
+    const rawCount = id === "all" ? (counts.all ?? "") : counts[id];
+    if (rawCount !== undefined && rawCount !== "") {
+      badge.textContent = rawCount;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+      badge.textContent = "";
+    }
   });
 }
 
@@ -411,175 +426,267 @@ export function hideFloatingUpdateBanner() {
 
 // ── Hero / Trending Highlight Section ─────────────────────────────
 
+// ── Hero / Trending Carousel State ───────────────────────────────
+let heroTrendingArticles = [];
+let heroBookmarkedMap = {};
+let heroCurrentIndex = 0;
+let heroAutoPlayTimer = null;
+
+function startHeroAutoPlay() {
+  stopHeroAutoPlay();
+  if (heroTrendingArticles.length > 1) {
+    heroAutoPlayTimer = setInterval(() => {
+      heroCurrentIndex = (heroCurrentIndex + 1) % heroTrendingArticles.length;
+      updateHeroTrendingSlide();
+    }, 3500);
+  }
+}
+
+function stopHeroAutoPlay() {
+  if (heroAutoPlayTimer) {
+    clearInterval(heroAutoPlayTimer);
+    heroAutoPlayTimer = null;
+  }
+}
+
 export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
   const container = document.getElementById("hero-trending");
   if (!container) return;
 
   if (!articles || !articles.length) {
+    stopHeroAutoPlay();
     container.innerHTML = "";
     container.classList.add("hidden");
     return;
   }
 
   container.classList.remove("hidden");
+  heroTrendingArticles = articles.slice(0, 7);
+  heroBookmarkedMap = bookmarkedMap || {};
+  heroCurrentIndex = 0;
 
-  const primaryArticle = articles[0];
-  const secondaryArticles = articles.slice(1, 3);
-  const primColor = SOURCE_COLORS[primaryArticle.source] ?? "#1a3a6b";
-  const primBookmarked = Boolean(bookmarkedMap && bookmarkedMap[primaryArticle.url]);
-  const primJsonEncoded = encodeURIComponent(JSON.stringify(primaryArticle));
+  updateHeroTrendingSlide();
+  startHeroAutoPlay();
+}
+
+function updateHeroTrendingSlide() {
+  const container = document.getElementById("hero-trending");
+  if (!container || !heroTrendingArticles.length) return;
+
+  const total = heroTrendingArticles.length;
+  const n = heroTrendingArticles[heroCurrentIndex];
+  const rankNum = heroCurrentIndex + 1;
+  const isBookmarked = Boolean(heroBookmarkedMap && heroBookmarkedMap[n.url]);
+  const imgSrc = n.image_url || getCategoryPlaceholder(n.category);
+  const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
+  const jsonEncoded = encodeURIComponent(JSON.stringify(n));
+  const scoreVal = (typeof n.trending_score === "number" && !isNaN(n.trending_score))
+    ? n.trending_score.toFixed(1)
+    : "9.8";
+
+  let rankBadge = "";
+  if (rankNum === 1) {
+    rankBadge = `
+      <span class="px-3 py-1 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 animate-pulse">
+        <span class="material-symbols-outlined text-[15px]">whatshot</span>
+        <span>#1 HOT STORY</span>
+      </span>
+    `;
+  } else if (rankNum === 2) {
+    rankBadge = `
+      <span class="px-3 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs shadow-md flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[15px]">local_fire_department</span>
+        <span>#2 TRENDING</span>
+      </span>
+    `;
+  } else if (rankNum === 3) {
+    rankBadge = `
+      <span class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-md flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[15px]">trending_up</span>
+        <span>#3 TRENDING</span>
+      </span>
+    `;
+  } else {
+    rankBadge = `
+      <span class="px-3 py-1 rounded-lg bg-black/75 text-white font-bold text-xs backdrop-blur-xs flex items-center gap-1.5">
+        <span>อันดับ #${rankNum}</span>
+      </span>
+    `;
+  }
 
   let multiSourcePill = "";
-  if (primaryArticle.cluster_sources && Array.isArray(primaryArticle.cluster_sources) && primaryArticle.cluster_sources.length > 1) {
+  if (n.cluster_sources && Array.isArray(n.cluster_sources) && n.cluster_sources.length > 1) {
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/5 px-3 py-1 rounded-full border border-primary/20 w-fit">
-        <span class="material-symbols-outlined text-[14px]">hub</span>
-        <span>รายงานจาก ${primaryArticle.cluster_sources.length} สำนักข่าว: ${esc(primaryArticle.cluster_sources.join(", "))}</span>
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+        <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
+        <span class="text-white">รายงานจาก ${n.cluster_sources.length} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(n.cluster_sources.join(", "))}</span></span>
       </div>
     `;
-  } else if (primaryArticle.cluster_size && primaryArticle.cluster_size > 1) {
+  } else if (n.cluster_size && n.cluster_size > 1) {
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/5 px-3 py-1 rounded-full border border-primary/20 w-fit">
-        <span class="material-symbols-outlined text-[14px]">hub</span>
-        <span>มีประเด็นตรงกัน ${primaryArticle.cluster_size} สำนักข่าว</span>
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+        <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
+        <span class="text-white">ประเด็นตรงกัน ${n.cluster_size} สำนักข่าว</span>
       </div>
     `;
   }
 
-  const secondaryCardsHtml = secondaryArticles.map((n, idx) => {
-    const rankNum = idx + 2;
-    const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[n.url]);
-    const secImg = n.image_url || getCategoryPlaceholder(n.category);
-    const color = SOURCE_COLORS[n.source] ?? "#1a3a6b";
-    const secJsonEncoded = encodeURIComponent(JSON.stringify(n));
-
+  // Generate 7 indicator progress bars at the bottom with 3.5s animation
+  const indicatorsHtml = heroTrendingArticles.map((_, idx) => {
+    const isPast = idx < heroCurrentIndex;
+    const isCurrent = idx === heroCurrentIndex;
     return `
-      <div class="bg-white rounded-xl border border-outline-variant/30 p-4 flex gap-4 hover:shadow-md hover:border-primary/40 transition-all group flex-1 cursor-pointer" onclick="window.__openPreview('${esc(n.url)}')">
-        <div class="w-28 sm:w-36 aspect-[4/3] rounded-lg overflow-hidden relative shrink-0">
-          <img src="${esc(secImg)}" alt="thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='${getCategoryPlaceholder(n.category)}';" loading="lazy">
-          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/75 text-white font-bold text-[10px] backdrop-blur-xs">#${rankNum}</span>
-        </div>
-        <div class="flex flex-col justify-between flex-1 min-w-0">
-          <div>
-            <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
-              <div class="flex items-center gap-1.5 truncate">
-                <span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant truncate">${esc(n.source)}</span>
-              </div>
-              <div class="flex items-center gap-1">
-                ${(typeof n.trending_score === "number" && !isNaN(n.trending_score)) ? `<span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">🔥 Trending • ${n.trending_score.toFixed(1)}</span>` : ''}
-              </div>
-            </div>
-            <h3 class="font-headline font-bold text-sm sm:text-base text-on-surface leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-              ${esc(n.title)}
-            </h3>
-          </div>
-          <div class="flex items-center justify-between gap-2 pt-2 mt-2 border-t border-outline-variant/10" onclick="event.stopPropagation()">
-            <span class="text-[9px] font-bold text-outline uppercase">${esc(n.fetched_at ?? "")}</span>
-            <div class="flex items-center gap-1.5">
-              <button type="button" class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors" onclick="window.__toggleArticleBookmark(event, '${secJsonEncoded}')" title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
-                  ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                </span>
-              </button>
-              <button type="button" class="px-2 py-1 bg-surface-container text-on-surface hover:bg-surface-container-high rounded text-[11px] font-bold transition-colors flex items-center gap-1" onclick="window.__openPreview('${esc(n.url)}')">
-                <span class="material-symbols-outlined text-[12px]">visibility</span>
-                อ่านย่อ
-              </button>
-              <button type="button" class="px-2.5 py-1 bg-primary text-white hover:bg-primary-container rounded text-[11px] font-bold transition-colors flex items-center gap-1 shadow-xs" onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                สรุป AI
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <button type="button" 
+              class="hero-progress-segment" 
+              onclick="window.__goToTrendingSlide(${idx})" 
+              title="อันดับที่ #${idx + 1}">
+        <div class="hero-progress-bar-fill ${isCurrent ? 'hero-progress-active' : (isPast ? 'w-full' : 'w-0')}"></div>
+      </button>
     `;
   }).join("");
 
   container.innerHTML = `
-    <div class="mb-4 flex items-center justify-between gap-4">
+    <!-- Header Title -->
+    <div class="mb-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm">
-          <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm shrink-0">
+          <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
         </div>
         <div>
-          <h2 class="font-headline font-extrabold text-xl lg:text-2xl text-on-surface tracking-tight">เกาะติดประเด็นร้อน (Trending Highlights)</h2>
-          <p class="text-xs text-outline font-medium">วิเคราะห์กระแสข่าวและความเชื่อมโยงหลายสำนักด้วย AI แบบเรียลไทม์</p>
+          <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">เกาะติดประเด็นร้อน (Trending Highlights)</h2>
         </div>
       </div>
-      <span class="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 hidden sm:inline-flex items-center gap-1">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-        AI TRENDING ENGINE
-      </span>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold text-outline bg-surface-container px-3 py-1 rounded-full border border-outline-variant/30">
+          อันดับ ${rankNum} / ${total}
+        </span>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-      <!-- Primary Hero Card (Rank #1) -->
-      <div class="lg:col-span-2 bg-white rounded-2xl overflow-hidden border border-outline-variant/30 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group">
-        <div class="relative cursor-pointer overflow-hidden aspect-[16/9] max-h-[380px] bg-slate-900" onclick="window.__openPreview('${esc(primaryArticle.url)}')">
-          <img src="${esc(primaryArticle.image_url || getCategoryPlaceholder(primaryArticle.category))}" alt="Hero Highlight" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90" onerror="this.onerror=null; this.src='${getCategoryPlaceholder(primaryArticle.category)}';" />
-          <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-between p-6 md:p-8">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-2">
-                <span class="px-3 py-1 rounded-full bg-rose-600 text-white font-extrabold text-xs tracking-wider uppercase shadow-md flex items-center gap-1 animate-pulse">
-                  <span class="material-symbols-outlined text-[14px]">whatshot</span>
-                  <span>#1 HOT STORY</span>
-                </span>
-                <span class="px-2.5 py-1 rounded-full bg-black/60 text-white backdrop-blur-md text-xs font-bold border border-white/20">
-                  🔥 Trending • ${(typeof primaryArticle.trending_score === "number" && !isNaN(primaryArticle.trending_score)) ? primaryArticle.trending_score.toFixed(1) : '9.8'}
-                </span>
-              </div>
-            </div>
+    <!-- Single Frame Modal/Banner Carousel -->
+    <div class="hero-carousel-container group"
+         onmouseenter="window.__pauseTrendingAutoPlay()"
+         onmouseleave="window.__resumeTrendingAutoPlay()">
+      
+      <!-- Background Image -->
+      <img src="${esc(imgSrc)}" 
+           alt="${esc(n.title)}" 
+           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90 cursor-pointer"
+           onclick="window.__openPreview('${esc(n.url)}')"
+           onerror="this.onerror=null; this.src='${getCategoryPlaceholder(n.category)}';" 
+           loading="eager" />
 
-            <div>
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-2.5 h-2.5 rounded-full" style="background:${primColor}"></span>
-                <span class="text-xs font-bold text-white uppercase tracking-wider">${esc(primaryArticle.source)}</span>
-              </div>
-              <h1 class="text-xl md:text-3xl font-headline font-bold text-white leading-tight drop-shadow-md group-hover:text-amber-200 transition-colors line-clamp-3">
-                ${esc(primaryArticle.title)}
-              </h1>
-            </div>
+      <!-- Left Navigation Arrow -->
+      <button type="button" 
+              class="hero-nav-btn hero-nav-btn-left"
+              onclick="window.__prevTrendingSlide(event)"
+              title="ก่อนหน้า">
+        <span class="material-symbols-outlined text-[28px]">chevron_left</span>
+      </button>
+
+      <!-- Right Navigation Arrow -->
+      <button type="button" 
+              class="hero-nav-btn hero-nav-btn-right"
+              onclick="window.__nextTrendingSlide(event)"
+              title="ถัดไป">
+        <span class="material-symbols-outlined text-[28px]">chevron_right</span>
+      </button>
+
+      <!-- Dark Gradient Overlay with Text and Badges -->
+      <div class="hero-gradient-overlay">
+        <!-- Top Status Row -->
+        <div class="flex items-center justify-between gap-2 pointer-events-auto">
+          <div class="flex items-center gap-2">
+            ${rankBadge}
+            <span class="px-2.5 py-1 rounded-lg bg-black/75 text-white backdrop-blur-md text-xs font-bold border border-white/30 shadow-md">
+              🔥 Trending • ${scoreVal}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full shadow-xs" style="background:${color}"></span>
+            <span class="text-xs font-bold text-white uppercase tracking-wider drop-shadow-md">${esc(n.source)}</span>
           </div>
         </div>
 
-        <div class="p-5 md:p-6 flex-1 flex flex-col justify-between space-y-4">
+        <!-- Bottom Content Row -->
+        <div class="space-y-3 pointer-events-auto pb-4">
           <div class="space-y-2">
-            <div class="flex items-center gap-2 flex-wrap">
-              ${renderArticleBadges(primaryArticle, false)}
-            </div>
             ${multiSourcePill}
+            <h1 class="text-lg sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight drop-shadow-lg group-hover:text-amber-200 transition-colors line-clamp-2 cursor-pointer"
+                onclick="window.__openPreview('${esc(n.url)}')">
+              ${esc(n.title)}
+            </h1>
           </div>
 
-          <div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between gap-4 flex-wrap">
-            <span class="text-xs font-bold text-outline uppercase tracking-wider">${esc(primaryArticle.fetched_at || "")}</span>
-            <div class="flex items-center gap-2">
-              <button type="button" class="p-2 rounded-xl border border-outline-variant/30 ${primBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all" onclick="window.__toggleArticleBookmark(event, '${primJsonEncoded}')" title="${primBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                <span class="material-symbols-outlined text-[18px]" style="${primBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
-                  ${primBookmarked ? 'bookmark' : 'bookmark_border'}
+          <div class="flex items-center justify-between gap-4 flex-wrap pt-2">
+            <span class="text-xs font-bold text-white/90 uppercase tracking-wider drop-shadow-md">${esc(n.fetched_at || "")}</span>
+            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+              <button type="button" 
+                      class="p-2 rounded-xl border border-white/40 bg-black/60 text-white hover:bg-white hover:text-slate-900 backdrop-blur-md active:scale-95 transition-all shadow-md cursor-pointer"
+                      onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                      title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                <span class="material-symbols-outlined text-[18px] text-white" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                  ${isBookmarked ? 'bookmark' : 'bookmark_border'}
                 </span>
               </button>
-              <button type="button" class="flex items-center gap-1.5 bg-surface-container text-on-surface hover:bg-surface-container-high px-4 py-2 rounded-xl font-bold text-xs active:scale-95 transition-all" onclick="window.__openPreview('${esc(primaryArticle.url)}')">
-                <span class="material-symbols-outlined text-[16px]">visibility</span>
-                <span>อ่านย่อ</span>
+              <button type="button" 
+                      class="flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-900 px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer" 
+                      onclick="window.__openPreview('${esc(n.url)}')">
+                <span class="material-symbols-outlined text-[16px] text-slate-900">visibility</span>
+                <span class="text-slate-900 font-bold">อ่านย่อ</span>
               </button>
-              <button type="button" class="flex items-center gap-1.5 bg-primary text-white hover:bg-primary-container px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all" onclick="window.__openPreviewAndSummarize('${esc(primaryArticle.url)}')">
-                <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                <span>สรุป AI ทันที</span>
+              <button type="button" 
+                      class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/20" 
+                      onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
+                <span class="material-symbols-outlined text-[16px] text-amber-300" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <span class="text-white font-bold">สรุป AI ทันที</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Secondary Trending Cards (Rank #2, #3) -->
-      <div class="flex flex-col gap-4 justify-between">
-        ${secondaryCardsHtml}
+      <!-- Bottom Progress Indicator Bar Segments -->
+      <div class="hero-progress-container">
+        ${indicatorsHtml}
       </div>
     </div>
   `;
 }
+
+// Global Carousel Actions
+window.__prevTrendingSlide = (event) => {
+  if (event) event.stopPropagation();
+  if (!heroTrendingArticles.length) return;
+  heroCurrentIndex = (heroCurrentIndex - 1 + heroTrendingArticles.length) % heroTrendingArticles.length;
+  updateHeroTrendingSlide();
+  startHeroAutoPlay();
+};
+
+window.__nextTrendingSlide = (event) => {
+  if (event) event.stopPropagation();
+  if (!heroTrendingArticles.length) return;
+  heroCurrentIndex = (heroCurrentIndex + 1) % heroTrendingArticles.length;
+  updateHeroTrendingSlide();
+  startHeroAutoPlay();
+};
+
+window.__goToTrendingSlide = (index) => {
+  if (index >= 0 && index < heroTrendingArticles.length) {
+    heroCurrentIndex = index;
+    updateHeroTrendingSlide();
+    startHeroAutoPlay();
+  }
+};
+
+window.__pauseTrendingAutoPlay = () => {
+  stopHeroAutoPlay();
+};
+
+window.__resumeTrendingAutoPlay = () => {
+  startHeroAutoPlay();
+};
 
 // ── News grid ─────────────────────────────────────────────────────
 

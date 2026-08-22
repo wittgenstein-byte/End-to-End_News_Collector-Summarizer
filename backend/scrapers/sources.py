@@ -115,6 +115,12 @@ async def scrape_101world() -> list[dict]:
         if text:
             items = parse_rss_items(text, "101 World", base_url=base, limit=_LIMIT)
             if items:
+                selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
+                for item in items:
+                    if not item.get("image_url") and item.get("url"):
+                        _, img, _, _ = await fetch_summary_and_image(item["url"], selectors, base)
+                        if img:
+                            item["image_url"] = img
                 return items
     except Exception:
         pass

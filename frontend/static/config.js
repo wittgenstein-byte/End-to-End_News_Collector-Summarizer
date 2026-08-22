@@ -6,15 +6,15 @@
  * ถ้าแยก server → เปลี่ยน API_BASE ตรงนี้ที่เดียวพอ
  */
 
-const IS_DEV = window.location.hostname === "localhost";
+const IS_DEV = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
 export const API_BASE   = IS_DEV
-  ? "http://localhost:5000"
+  ? (window.location.port ? `${window.location.protocol}//${window.location.hostname}:${window.location.port}` : "http://localhost:5000")
   : window.location.origin;          // production: same origin
 
 export const SOCKET_URL = API_BASE;
 export const PAGE_SIZE  = 20;
-export const TRENDING_LIMIT = 3;
+export const TRENDING_LIMIT = 7;
 
 /**
  * Sentiment visual token configurations

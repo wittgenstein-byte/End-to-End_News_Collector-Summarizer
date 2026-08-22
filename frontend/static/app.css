@@ -69,8 +69,27 @@ html.dark header {
   background-color: rgba(18, 19, 22, 0.9) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
+html.dark footer {
+  background-color: #16171b !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+html.dark footer a {
+  color: #9496a1 !important;
+}
+html.dark footer a:hover {
+  color: #8ab4f8 !important;
+}
 html.dark .bg-white {
   background-color: #1c1d22 !important;
+}
+html.dark .bg-surface {
+  background-color: #121316 !important;
+}
+html.dark .bg-surface\/90 {
+  background-color: rgba(18, 19, 22, 0.9) !important;
+}
+html.dark .bg-surface\/95 {
+  background-color: rgba(18, 19, 22, 0.95) !important;
 }
 html.dark .bg-surface-container-lowest {
   background-color: #141519 !important;
@@ -90,8 +109,32 @@ html.dark .bg-surface-container-highest {
 html.dark .text-on-surface {
   color: #f2f2f8 !important;
 }
+html.dark .text-on-surface-variant {
+  color: #c4c6d1 !important;
+}
 html.dark .text-outline {
   color: #9496a1 !important;
+}
+html.dark .text-primary {
+  color: #8ab4f8 !important;
+}
+html.dark .bg-primary {
+  background-color: #2e4d83 !important;
+  color: #ffffff !important;
+}
+html.dark .bg-primary\/5 {
+  background-color: rgba(138, 180, 248, 0.08) !important;
+}
+html.dark .bg-primary\/10 {
+  background-color: rgba(138, 180, 248, 0.15) !important;
+}
+html.dark .border-primary {
+  border-color: #3b68b8 !important;
+}
+html.dark .border-primary\/20,
+html.dark .border-primary\/30,
+html.dark .border-primary\/40 {
+  border-color: rgba(138, 180, 248, 0.25) !important;
 }
 html.dark .border-outline-variant\/10 {
   border-color: rgba(255, 255, 255, 0.08) !important;
@@ -107,9 +150,78 @@ html.dark select {
   color: #f2f2f8 !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
+html.dark input[type="checkbox"] {
+  accent-color: #3b68b8 !important;
+}
 html.dark .cat-pill.bg-white {
   background-color: #1c1d22 !important;
   color: #c4c6d1 !important;
+}
+html.dark #settings-modal > div,
+html.dark #privacy-modal > div,
+html.dark #history-modal > div {
+  background-color: #18191e !important;
+  color: #e2e2e8 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.dark #settings-modal span,
+html.dark #settings-modal h2,
+html.dark #privacy-modal span,
+html.dark #privacy-modal h2,
+html.dark #history-modal span,
+html.dark #history-modal h2 {
+  color: #e2e2e8 !important;
+}
+html.dark #settings-modal h3,
+html.dark #privacy-modal h3 {
+  color: #8ab4f8 !important;
+}
+html.dark #settings-modal .bg-surface-container-low,
+html.dark #privacy-modal .bg-surface-container-low,
+html.dark #history-modal .bg-surface-container-low {
+  background-color: #141519 !important;
+}
+html.dark #summary-modal #modal-content-wrap {
+  background-color: #18191e !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.dark #summary-result .summary-title {
+  color: #f2f2f8 !important;
+}
+html.dark #summary-result .summary-lead {
+  color: #c4c6d1 !important;
+}
+html.dark #summary-result .takeaways-card {
+  background-color: #22232a !important;
+  color: #e2e2e8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+html.dark #summary-result .takeaways-item {
+  color: #e2e2e8 !important;
+}
+html.dark #summary-result .takeaways-title {
+  color: #8ab4f8 !important;
+}
+html.dark #pwa-install-banner {
+  background-color: rgba(28, 29, 34, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.dark nav.md\:hidden {
+  background-color: #141519 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+html.dark #browser-modal {
+  background-color: #121316 !important;
+  color: #e2e2e8 !important;
+}
+html.dark #browser-modal .bg-white {
+  background-color: #1c1d22 !important;
+}
+html.dark .bg-error\/10 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+html.dark .text-error {
+  color: #f87171 !important;
 }
 
 /* ── Hero & Floating Indicator Transitions ── */
@@ -152,4 +264,168 @@ html.dark .cat-pill.bg-white {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
+}
+
+.aspect-\[16\/9\] {
+  aspect-ratio: 16 / 9;
+}
+.aspect-\[4\/3\] {
+  aspect-ratio: 4 / 3;
+}
+
+/* ── Story Progress Bar Animation (3.5s) ── */
+@keyframes fillProgressBar {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.animate-progress-35s {
+  animation: fillProgressBar 3.5s linear forwards;
+}
+
+.group:hover .animate-progress-35s {
+  animation-play-state: paused;
+}
+
+/* ── Hero Trending Carousel Custom Dedicated Styles ── */
+.hero-carousel-container {
+  position: relative;
+  width: 100%;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(196, 198, 209, 0.3);
+  aspect-ratio: 16 / 9;
+  min-height: 380px;
+  max-height: 480px;
+  background-color: #0f172a;
+}
+
+@media (min-width: 768px) {
+  .hero-carousel-container {
+    aspect-ratio: 16 / 8;
+    min-height: 420px;
+    max-height: 500px;
+  }
+}
+
+/* Dark Gradient Overlay for high-contrast readability */
+.hero-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.96) 0%,
+    rgba(0, 0, 0, 0.88) 30%,
+    rgba(0, 0, 0, 0.65) 55%,
+    rgba(0, 0, 0, 0.2) 80%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.5rem;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@media (min-width: 640px) {
+  .hero-gradient-overlay {
+    padding: 2rem;
+  }
+}
+
+/* Navigation Arrow Buttons */
+.hero-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 9999px;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  z-index: 30;
+  transition: all 0.2s ease;
+  opacity: 0.95;
+}
+
+.hero-nav-btn:hover {
+  background-color: rgba(0, 0, 0, 0.95);
+  border-color: rgba(255, 255, 255, 0.8);
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.hero-nav-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.hero-nav-btn-left {
+  left: 1rem;
+}
+
+.hero-nav-btn-right {
+  right: 1rem;
+}
+
+/* Bottom Progress Segments */
+.hero-progress-container {
+  position: absolute;
+  bottom: 0.65rem;
+  left: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 30;
+}
+
+.hero-progress-segment {
+  height: 4px;
+  flex: 1;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border: none;
+  padding: 0;
+}
+
+.hero-progress-segment:hover {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+.hero-progress-bar-fill {
+  height: 100%;
+  background-color: #ffffff;
+  border-radius: 9999px;
+}
+
+.hero-progress-active {
+  width: 0%;
+  animation: fillProgress35 3.5s linear forwards;
+}
+
+@keyframes fillProgress35 {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.hero-carousel-container:hover .hero-progress-active {
+  animation-play-state: paused;
+}
+
+/* Headline Text Styling with Text-Shadow */
+.hero-headline {
+  color: #ffffff !important;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9), 0 4px 16px rgba(0, 0, 0, 0.7);
 }
