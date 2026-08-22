@@ -193,6 +193,12 @@ _URL_CUES: dict[str, str] = {
     "/entertain": "entertainment",
     "-entertain": "entertainment",
     "entertain-": "entertainment",
+    "/pop": "entertainment",
+    "-pop": "entertainment",
+    "pop-": "entertainment",
+    "/pop/": "entertainment",
+    "/k-pop": "entertainment",
+    "/kpop": "entertainment",
     "/movie": "entertainment",
     "/movies": "entertainment",
     "/music": "entertainment",
@@ -201,7 +207,6 @@ _URL_CUES: dict[str, str] = {
     "/drama": "entertainment",
     "/series": "entertainment",
     "/showbiz": "entertainment",
-    "/k-pop": "entertainment",
     "/บันเทิง": "entertainment",
     "/ดารา": "entertainment",
     "/ละคร": "entertainment",
@@ -614,9 +619,9 @@ def get_category_from_url(url: str) -> tuple[str, str] | None:
         parsed = urlparse(decoded_url)
         path = parsed.path.rstrip("/")
 
-        # 1. เช็ก exact path segment (เช่น /politics, /category/politics, /news/politics)
+        # 1. เช็ก exact path segment จากขวาไปซ้าย (leaf category สำคัญที่สุด เช่น /category/culture/entertainment -> entertainment)
         segments = [s.strip() for s in path.split("/") if s.strip()]
-        for seg in segments:
+        for seg in reversed(segments):
             seg_slash = f"/{seg}"
             if seg_slash in _URL_CUES:
                 return _URL_CUES[seg_slash], f"URL Priority ({seg_slash})"
@@ -642,22 +647,39 @@ def get_category_from_url(url: str) -> tuple[str, str] | None:
 def classify(text: str) -> tuple[str, str]:
     """
     จำแนกข้อความเป็น 1 ใน 9 หมวด พร้อมบอกว่าแยกด้วยวิธีไหน
-    Flow การทำงาน:
-    1. Primary Engine: ML Classifier (Calibrated LinearSVC / WangchanBERTa)
-    2. Fallback Engine: Rule-based Keyword Matching (กรณี ML ความมั่นใจต่ำมาก < 0.25 หรือโหลดไม่สำเร็จ)
-    3. Default Fallback: 'society'
+    Flow การทำงานแบบ Hybrid Architecture:
+    1. Fast Primary Engine (Calibrated LinearSVC): ประมวลผลรวดเร็ว (~2ms)
+       - ถ้า LinearSVC มั่นใจสูง (conf >= 0.50) -> คืนผลลัพธ์ของ LinearSVC ทันที
+    2. Deep Learning Escalation (WangchanBERTa):
+       - ถ้า LinearSVC มั่นใจน้อย (< 0.50) -> ส่งต่อให้ WangchanBERTa วิเคราะห์บริบทเชิงลึก
+       - ถ้า WangchanBERTa โหลดได้และมั่นใจ (conf >= 0.35) -> คืนผลลัพธ์ของ WangchanBERTa
+    3. Fallback to LinearSVC:
+       - ถ้า WangchanBERTa ไม่พร้อมหรือมั่นใจต่ำ -> ใช้ LinearSVC (ถ้า conf >= 0.25)
+    4. Fallback Engine: Keyword & Compound Rules (กรณีทุกโมเดลไม่มั่นใจ < 0.25)
+    5. Default Fallback: 'society'
     """
     if not text or not text.strip():
         return _DEFAULT_CATEGORY, "Fallback (Empty Text)"
 
-    # 1. Primary Engine: ML Classifier (Calibrated LinearSVC หรือ WangchanBERTa)
+    # 1. รัน Fast Primary Engine (Calibrated LinearSVC)
     ml_cat, ml_method, ml_conf = predict_with_ml(text)
 
-    # ถ้า ML มีความมั่นใจตั้งแต่ 0.25 ขึ้นไป (ใน 9 คลาส ค่า random guess คือ ~0.11)
+    # ก) ถ้า LinearSVC มั่นใจสูง (>= 0.50) ให้ใช้ผลของ LinearSVC ทันที (Fast-path ~2ms)
+    if ml_conf >= 0.50 and not ml_method.startswith("ML (Failed") and not ml_method.startswith("ML (Error"):
+        return ml_cat, f"{ml_method} (conf={ml_conf:.2f})"
+
+    # 2. ถ้า LinearSVC มั่นใจน้อย (< 0.50) ส่งต่อให้ WangchanBERTa ช่วยตัดสินแบบ Hybrid
+    wb_result = predict_with_wangchanberta(text)
+    if wb_result is not None:
+        wb_cat, wb_method, wb_conf = wb_result
+        if wb_conf >= 0.35:
+            return wb_cat, f"Hybrid: {wb_method} (conf={wb_conf:.2f}, SVC={ml_conf:.2f})"
+
+    # 3. ถ้า WangchanBERTa ไม่พร้อมหรือมั่นใจต่ำ แต่ LinearSVC ยังพอมีความมั่นใจ (>= 0.25)
     if ml_conf >= 0.25 and not ml_method.startswith("ML (Failed") and not ml_method.startswith("ML (Error"):
         return ml_cat, f"{ml_method} (conf={ml_conf:.2f})"
 
-    # 2. Fallback Engine: Keyword & Compound Rules (ทำงานเฉพาะเมื่อ ML ไม่มั่นใจ)
+    # 4. Fallback Engine: Keyword & Compound Rules
     lower = text.lower()
     tokens = word_tokenize(lower)
     tokens_set = set(tokens)
@@ -700,20 +722,79 @@ def classify(text: str) -> tuple[str, str]:
     return _DEFAULT_CATEGORY, f"Fallback (Default, ML conf: {ml_conf:.2f})"
 
 
-def classify_article(title: str, summary: str = "", url: str = "") -> tuple[str, str]:
+def get_category_from_cues(cues: list[str] | str | None) -> tuple[str, str] | None:
+    """
+    ตรวจจับหมวดหมู่จาก Category Cues (เช่น hidden URLs ใน DOM, breadcrumbs, RSS categories)
+    คืนค่า (category_id, method_description) หรือ None ถ้าไม่ตรง
+    """
+    if not cues:
+        return None
+
+    cue_list = [cues] if isinstance(cues, str) else list(cues)
+
+    for raw_cue in cue_list:
+        if not raw_cue or not isinstance(raw_cue, str):
+            continue
+        cue = raw_cue.strip()
+        if not cue:
+            continue
+
+        # 1. ถ้า cue เป็น URL หรือ path (เช่น https://thestandard.co/category/pop/ หรือ /category/politics)
+        if "/" in cue or "." in cue:
+            url_match = get_category_from_url(cue)
+            if url_match:
+                cat, _ = url_match
+                return cat, f"Category Cue ({cue})"
+
+        # 2. ตรวจสอบชื่อหมวดหมู่ภาษาไทย / ภาษาอังกฤษตรงๆ หรือจาก _RULES
+        cue_lower = cue.lower()
+        if cue_lower in _VALID_CATEGORIES:
+            return cue_lower, f"Category Cue ({cue})"
+
+        # Check in _URL_CUES (e.g. "การเมือง", "บันเทิง", "เศรษฐกิจ", "pop", "politics")
+        if cue_lower in _URL_CUES:
+            return _URL_CUES[cue_lower], f"Category Cue ({cue})"
+        cue_slash = f"/{cue_lower}"
+        if cue_slash in _URL_CUES:
+            return _URL_CUES[cue_slash], f"Category Cue ({cue})"
+
+        # Check if cue matches keywords in _RULES
+        for cat, kws in _RULES.items():
+            for kw in kws:
+                kw_l = kw.lower()
+                if kw_l == cue_lower or (len(kw_l) > 3 and kw_l in cue_lower):
+                    return cat, f"Category Cue ({cue})"
+
+    return None
+
+
+def classify_article(
+    title: str,
+    summary: str = "",
+    url: str = "",
+    category_cues: list[str] | str | None = None,
+) -> tuple[str, str]:
     """
     จำแนกบทความโดยเช็ก:
-    1. URL Priority (Tier 1: Fast-path)
-    2. High-Specificity Domain Cues ในหัวข้อข่าว (Title Domain Cues)
-    3. Primary ML Classifier (Tier 2: LinearSVC / WangchanBERTa)
-    4. Fallback Keyword Rules (Tier 3)
+    1. URL Priority (Tier 1: Fast-path จาก Main Article URL)
+    2. Hidden Category Cues (Tier 1.5: จาก Hidden URLs ใน DOM, breadcrumbs, RSS categories)
+    3. High-Specificity Domain Cues ในหัวข้อข่าว (Title Domain Cues)
+    4. Primary ML Classifier (Tier 2: LinearSVC / WangchanBERTa)
+    5. Fallback Keyword Rules (Tier 3)
     """
+    # 1. Main Article URL
     if url:
         url_match = get_category_from_url(url)
         if url_match:
             return url_match
 
-    # 2. ตรวจสอบ High-Specificity Cues ในหัวข้อข่าว (Title Priority)
+    # 2. Hidden Category URLs & DOM/RSS Cues
+    if category_cues:
+        cue_match = get_category_from_cues(category_cues)
+        if cue_match:
+            return cue_match
+
+    # 3. ตรวจสอบ High-Specificity Cues ในหัวข้อข่าว (Title Priority)
     title_lower = (title or "").lower()
     for cat, cues in _HIGH_SPECIFICITY_CUES.items():
         for cue in cues:
@@ -746,7 +827,8 @@ def ensure_categories(news: list[dict], *, force: bool = False) -> int:
         title = (item.get("title") or "").strip()
         summary = (item.get("summary") or "").strip()
         url = item.get("url", "")
-        cat, method = classify_article(title, summary, url=url)
+        category_cues = item.get("category_cues")
+        cat, method = classify_article(title, summary, url=url, category_cues=category_cues)
         item["category"] = cat
         item["classification_method"] = method
         updated += 1

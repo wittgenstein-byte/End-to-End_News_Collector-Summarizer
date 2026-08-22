@@ -54,9 +54,9 @@ async def scrape_thaipbs() -> list[dict]:
         title = h.text.strip()
         if not title:
             continue
-        url                = find_url(h, base)
-        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "ThaiPBS", url, image_url, md))
+        url = find_url(h, base)
+        summary, image_url, md, category_cues = await fetch_summary_and_image(url, selectors, base)
+        news_list.append(make_article(title, summary, "ThaiPBS", url, image_url, md, category_cues=category_cues))
 
     return news_list
 
@@ -79,9 +79,9 @@ async def scrape_bangkokpost() -> list[dict]:
         # กรอง: ต้องมี title, ไม่มี class พิเศษ, ไม่ใช่ nav item
         if not title or h.get("class") or title.upper() in _NAV_KEYWORDS:
             continue
-        url                = find_url(h, base)
-        summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
-        news_list.append(make_article(title, summary, "Bangkok Post", url, image_url, md))
+        url = find_url(h, base)
+        summary, image_url, md, category_cues = await fetch_summary_and_image(url, selectors, base)
+        news_list.append(make_article(title, summary, "Bangkok Post", url, image_url, md, category_cues=category_cues))
         if len(news_list) >= _LIMIT:
             break
 
@@ -131,8 +131,8 @@ async def scrape_101world() -> list[dict]:
             if not title:
                 continue
             url = find_url(h, base)
-            summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
-            news_list.append(make_article(title, summary, "101 World", url, image_url, md))
+            summary, image_url, md, category_cues = await fetch_summary_and_image(url, selectors, base)
+            news_list.append(make_article(title, summary, "101 World", url, image_url, md, category_cues=category_cues))
 
         return news_list
     except Exception:
@@ -223,8 +223,8 @@ async def scrape_dailynews() -> list[dict]:
             if not title or len(title) < 15 or not url or url in seen or "/news/" not in url:
                 continue
             seen.add(url)
-            summary, image_url, md = await fetch_summary_and_image(url, selectors, base)
-            news_list.append(make_article(title, summary, "Daily News", url, image_url, md))
+            summary, image_url, md, category_cues = await fetch_summary_and_image(url, selectors, base)
+            news_list.append(make_article(title, summary, "Daily News", url, image_url, md, category_cues=category_cues))
             if len(news_list) >= _LIMIT:
                 break
         return news_list
@@ -256,8 +256,8 @@ async def scrape_komchadluek() -> list[dict]:
             if href in seen:
                 continue
             seen.add(href)
-            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
-            news_list.append(make_article(title, summary, "Komchadluek", href, image_url, md))
+            summary, image_url, md, category_cues = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Komchadluek", href, image_url, md, category_cues=category_cues))
             if len(news_list) >= _LIMIT:
                 break
         return news_list
@@ -289,8 +289,8 @@ async def scrape_nationtv() -> list[dict]:
             if href in seen:
                 continue
             seen.add(href)
-            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
-            news_list.append(make_article(title, summary, "Nation Online", href, image_url, md))
+            summary, image_url, md, category_cues = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Nation Online", href, image_url, md, category_cues=category_cues))
             if len(news_list) >= _LIMIT:
                 break
         return news_list
@@ -322,8 +322,8 @@ async def scrape_bangkokbiznews() -> list[dict]:
             if href in seen:
                 continue
             seen.add(href)
-            summary, image_url, md = await fetch_summary_and_image(href, selectors, base)
-            news_list.append(make_article(title, summary, "Bangkokbiznews", href, image_url, md))
+            summary, image_url, md, category_cues = await fetch_summary_and_image(href, selectors, base)
+            news_list.append(make_article(title, summary, "Bangkokbiznews", href, image_url, md, category_cues=category_cues))
             if len(news_list) >= _LIMIT:
                 break
         return news_list
