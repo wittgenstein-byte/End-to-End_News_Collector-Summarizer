@@ -16,8 +16,22 @@
   <!-- Styles — Tailwind -->
   <link rel="stylesheet" href="/frontend/static/app.css">
   
+  <!-- PWA Manifest & Meta -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1a3a6b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/frontend/static/icons/icon-192.svg">
+  
 </head>
 <body class="bg-surface text-on-surface antialiased font-body selection:bg-primary-container selection:text-white">
+
+  <!-- ── Offline Connection Status Bar ── -->
+  <div id="offline-bar" class="fixed top-0 left-0 right-0 bg-amber-600 text-white text-xs font-bold text-center py-2 z-[110] transform -translate-y-full transition-transform duration-300 flex items-center justify-center gap-2 shadow-md">
+    <span class="material-symbols-outlined text-[16px]">cloud_off</span>
+    <span>โหมดออฟไลน์ — กำลังอ่านข้อมูลแคชและบุ๊กมาร์กบนอุปกรณ์ของคุณ</span>
+  </div>
 
   <!-- ── Non-intrusive Floating Real-time Indicator ── -->
   <div id="new-articles-indicator" class="fixed top-24 left-1/2 -translate-x-1/2 z-40 transform -translate-y-16 opacity-0 pointer-events-none transition-all duration-300">
@@ -37,15 +51,16 @@
   <!-- ── Header ── -->
   <header class="bg-white/90 backdrop-blur-xl border-b border-outline-variant/30 sticky top-0 z-50">
     <div class="max-w-[1920px] mx-auto flex items-center justify-between px-6 py-4">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.hash = '#/'">
         <span class="text-2xl font-headline font-extrabold tracking-tighter text-on-surface">NEWSROOM</span>
+        <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded-full hidden sm:inline">PWA</span>
       </div>
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-4 sm:gap-6">
         <div class="flex items-center gap-2" id="ws-badge">
           <span class="w-2 h-2 rounded-full dot error" id="ws-dot"></span>
           <span class="text-[10px] font-bold tracking-widest text-error uppercase" id="ws-label">ออฟไลน์</span>
         </div>
-        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openBrowser()" title="เปิด In-App Browser">language</button>
+        <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__showHistory()" title="ประวัติการอ่าน & ข่าวที่เปิดดู (Reading History)">history</button>
         <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__showBookmarks()" title="บทความที่บันทึกไว้ (Bookmarks)">bookmarks</button>
         <button class="material-symbols-outlined text-primary hover:bg-surface-container rounded-full p-2 transition-colors" onclick="window.__openSettings()" title="ตั้งค่า Personalization & Privacy">settings</button>
       </div>
@@ -53,7 +68,7 @@
   </header>
 
   <!-- ── Breaking news ticker ── -->
-  <div class="bg-primary text-on-primary py-2 overflow-hidden border-b border-white/10">
+  <div class="bg-primary text-on-primary py-2 overflow-hidden border-b border-white/10" id="ticker-container">
     <div class="flex whitespace-nowrap animate-marquee" id="ticker-track">
       <div class="flex gap-12 items-center px-4">
         <span class="text-xs font-medium uppercase tracking-wider opacity-90">กำลังโหลด...</span>
@@ -62,59 +77,67 @@
   </div>
 
   <!-- ── Main ── -->
-  <main class="max-w-[1920px] mx-auto px-6 pt-8 pb-20">
+  <main class="max-w-[1920px] mx-auto px-4 sm:px-6 pt-6 pb-20">
 
-    <!-- ── Category nav (sticky ใต้ ticker) ── -->
-    <div class="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-6 sticky top-[112px] z-40 bg-surface/90 backdrop-blur" id="category-nav">
-      <!-- render โดย ui.js → renderCategoryNav() -->
-    </div>
-
-    <!-- ── Stats ── -->
-    <div class="bg-surface-container-low rounded-xl p-6 mb-8 flex flex-row gap-12 items-center flex-wrap">
-      <div class="flex items-baseline gap-3 cursor-default" title="บทความทั้งหมด">
-        <span class="text-4xl font-headline font-bold text-on-surface" id="stat-total">—</span>
-        <p class="text-[10px] font-bold tracking-widest text-outline uppercase">บทความทั้งหมด</p>
+    <!-- ── 1. FEED VIEW (หน้ารวมข่าว) ── -->
+    <div id="feed-view">
+      <!-- ── Category nav (sticky ใต้ ticker) ── -->
+      <div class="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-6 sticky top-[112px] z-40 bg-surface/90 backdrop-blur" id="category-nav">
+        <!-- render โดย ui.js → renderCategoryNav() -->
       </div>
-      <div class="w-px h-8 bg-outline-variant/30 hidden md:block"></div>
-      <div class="flex items-baseline gap-3 cursor-default" title="ข่าวใหม่ใน session นี้">
-        <span class="text-4xl font-headline font-bold text-on-surface" id="stat-new">0</span>
-        <p class="text-[10px] font-bold tracking-widest text-outline uppercase">ข่าวใหม่ <span class="hidden sm:inline">(SESSION)</span></p>
-      </div>
-      <div class="ml-auto">
-        <span class="text-[10px] font-bold text-outline-variant uppercase tracking-widest" id="updated-bar">อัปเดตล่าสุด: —</span>
-      </div>
-    </div>
 
-    <!-- ── Hero / Trending Highlight Section ── -->
-    <section id="hero-trending" class="mb-12 hidden">
-      <!-- Dynamically populated via UI.renderHeroTrending -->
-    </section>
-
-    <!-- Source filter + Search -->
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12" id="toolbar">
-      <div class="flex items-center gap-4 flex-wrap">
-        <span class="text-xs font-bold text-outline uppercase tracking-widest shrink-0">แหล่งข่าว :</span>
-        <div class="flex flex-wrap gap-2" id="source-filters">
-          <!-- Dynamic Source Filters populated via UI.renderSourceFilters -->
+      <!-- ── Stats ── -->
+      <div class="bg-surface-container-low rounded-xl p-6 mb-8 flex flex-row gap-12 items-center flex-wrap">
+        <div class="flex items-baseline gap-3 cursor-default" title="บทความทั้งหมด">
+          <span class="text-4xl font-headline font-bold text-on-surface" id="stat-total">—</span>
+          <p class="text-[10px] font-bold tracking-widest text-outline uppercase">บทความทั้งหมด</p>
+        </div>
+        <div class="w-px h-8 bg-outline-variant/30 hidden md:block"></div>
+        <div class="flex items-baseline gap-3 cursor-default" title="ข่าวใหม่ใน session นี้">
+          <span class="text-4xl font-headline font-bold text-on-surface" id="stat-new">0</span>
+          <p class="text-[10px] font-bold tracking-widest text-outline uppercase">ข่าวใหม่ <span class="hidden sm:inline">(SESSION)</span></p>
+        </div>
+        <div class="ml-auto">
+          <span class="text-[10px] font-bold text-outline-variant uppercase tracking-widest" id="updated-bar">อัปเดตล่าสุด: —</span>
         </div>
       </div>
-      <div class="relative min-w-[320px] max-w-md w-full ml-auto">
-        <input class="w-full bg-white border border-outline-variant/50 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-2 text-sm placeholder:text-outline-variant shadow-sm transition-shadow outline-none" id="search-input" type="text" placeholder="ค้นหาเนื้อหาข่าว หรือหัวข้อ...">
-        <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline-variant text-[18px]">search</span>
+
+      <!-- ── Hero / Trending Highlight Section ── -->
+      <section id="hero-trending" class="mb-12 hidden">
+        <!-- Dynamically populated via UI.renderHeroTrending -->
+      </section>
+
+      <!-- Source filter + Search -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12" id="toolbar">
+        <div class="flex items-center gap-4 flex-wrap">
+          <span class="text-xs font-bold text-outline uppercase tracking-widest shrink-0">แหล่งข่าว :</span>
+          <div class="flex flex-wrap gap-2" id="source-filters">
+            <!-- Dynamic Source Filters populated via UI.renderSourceFilters -->
+          </div>
+        </div>
+        <div class="relative min-w-[320px] max-w-md w-full ml-auto">
+          <input class="w-full bg-white border border-outline-variant/50 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 py-2 text-sm placeholder:text-outline-variant shadow-sm transition-shadow outline-none" id="search-input" type="text" placeholder="ค้นหาเนื้อหาข่าว หรือหัวข้อ...">
+          <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline-variant text-[18px]">search</span>
+        </div>
       </div>
+
+      <div id="news-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 flex flex-col items-center justify-center opacity-60">
+          <svg class="animate-spin h-10 w-10 text-primary mb-4" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
+            <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+          </svg>
+          <span class="font-headline italic text-lg text-primary">กำลังโหลดข้อมูล...</span>
+        </div>
+      </div>
+      
+      <div class="flex justify-center items-center gap-2 mt-12 mb-8" id="pagination"></div>
     </div>
 
-    <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 flex flex-col items-center justify-center opacity-60">
-        <svg class="animate-spin h-10 w-10 text-primary mb-4" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
-          <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
-        </svg>
-        <span class="font-headline italic text-lg text-primary">กำลังโหลดข้อมูล...</span>
-      </div>
+    <!-- ── 2. PREVIEW SUB-VIEW (หน้า Preview ใน Web App) ── -->
+    <div id="preview-view" class="hidden max-w-4xl mx-auto min-h-[60vh] py-2">
+      <!-- Dynamically populated via UI.renderPreviewView() -->
     </div>
-    
-    <div class="flex justify-center items-center gap-2 mt-12 mb-8" id="pagination"></div>
 
   </main>
 
@@ -235,15 +258,55 @@
     </div>
   </div>
 
+  <!-- ── PWA Install Floating Banner ── -->
+  <div id="pwa-install-banner" class="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm bg-white/95 backdrop-blur border border-primary/20 p-4 rounded-2xl shadow-2xl z-50 transform translate-y-32 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="flex items-center gap-3">
+      <img src="/frontend/static/icons/icon-192.svg" class="w-10 h-10 rounded-xl shadow-sm shrink-0" alt="App Icon">
+      <div class="flex-1 min-w-0">
+        <h4 class="font-bold text-sm text-on-surface">ติดตั้ง NEWSROOM App</h4>
+        <p class="text-xs text-outline truncate">เปิดอ่านแบบ Standalone ไว &amp; ออฟไลน์</p>
+      </div>
+      <button id="pwa-install-btn" class="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary-container transition-colors shrink-0">
+        ติดตั้ง
+      </button>
+      <button id="pwa-dismiss-btn" class="p-1 text-outline hover:text-on-surface rounded-full" onclick="window.__dismissPwaInstall()">
+        <span class="material-symbols-outlined text-[18px]">close</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Reading History & Bookmarks Modal ── -->
+  <div id="history-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 bg-on-background/40 backdrop-blur-sm">
+    <div class="w-full max-w-2xl max-h-[85vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/30">
+      <div class="p-5 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary" id="history-modal-icon">history</span>
+          <h2 class="font-bold text-lg text-on-surface" id="history-modal-title">ประวัติการอ่าน (Reading History)</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-1 text-xs font-bold text-error hover:bg-error/10 rounded-lg transition-colors" id="history-clear-btn" onclick="window.__clearHistoryList()">
+            ล้างประวัติ
+          </button>
+          <button class="p-1.5 hover:bg-surface-container rounded-full transition-colors" onclick="window.__closeHistoryModal()">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3" id="history-modal-content">
+        <!-- Rendered by UI.js -->
+      </div>
+    </div>
+  </div>
+
   <!-- Persistent Bottom Nav (Mobile Only) -->
   <nav class="md:hidden fixed bottom-0 left-0 w-full h-16 flex justify-around items-center px-6 pb-2 pt-2 bg-surface-container-lowest border-t border-outline-variant/20 z-40">
-    <div class="flex flex-col items-center justify-center text-primary cursor-pointer w-1/4" onclick="window.__categoryClick('all')">
+    <div class="flex flex-col items-center justify-center text-primary cursor-pointer w-1/4" onclick="window.location.hash = '#/'; window.__categoryClick('all')">
       <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">newspaper</span>
       <span class="font-label text-[10px] font-bold mt-1">ฟีดข่าว</span>
     </div>
-    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="document.getElementById('search-input').focus()">
-      <span class="material-symbols-outlined text-[20px]">search</span>
-      <span class="font-label text-[10px] font-medium mt-1">ค้นหา</span>
+    <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="window.__showHistory()">
+      <span class="material-symbols-outlined text-[20px]">history</span>
+      <span class="font-label text-[10px] font-medium mt-1">ประวัติ</span>
     </div>
     <div class="flex flex-col items-center justify-center text-outline cursor-pointer w-1/4" onclick="window.__showBookmarks()">
       <span class="material-symbols-outlined text-[20px]">bookmarks</span>
@@ -410,7 +473,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <!-- App -->
-  <script type="module" src="/frontend/static/main.js?v=1.0.6"></script>
+  <script type="module" src="/frontend/static/main.js?v=2.3.0"></script>
 
 </body>
 </html>
