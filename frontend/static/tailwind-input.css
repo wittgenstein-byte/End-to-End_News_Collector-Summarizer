@@ -343,18 +343,17 @@ html.dark .text-error {
   }
 }
 
-/* Natural Gradient Overlay: Clear vibrant center image, dark bottom for crisp text */
+/* Clean Minimal Bottom Gradient: 70%+ of the image is 100% transparent and clear */
 .hero-gradient-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.92) 0%,
-    rgba(0, 0, 0, 0.78) 22%,
-    rgba(0, 0, 0, 0.35) 42%,
-    rgba(0, 0, 0, 0) 58%,
-    rgba(0, 0, 0, 0) 80%,
-    rgba(0, 0, 0, 0.3) 100%
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.6) 16%,
+    rgba(0, 0, 0, 0.15) 28%,
+    transparent 38%,
+    transparent 100%
   );
   display: flex;
   flex-direction: column;
@@ -468,4 +467,15 @@ html.dark .text-error {
 .hero-headline {
   color: #ffffff !important;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9), 0 4px 16px rgba(0, 0, 0, 0.7);
+}
+
+/* Global Text Selection Styling */
+::selection {
+  background-color: #2e4d83 !important;
+  color: #ffffff !important;
+}
+
+::-moz-selection {
+  background-color: #2e4d83 !important;
+  color: #ffffff !important;
 }
