@@ -70,7 +70,7 @@ data/                    — Runtime generated directory
 
 ---
 
-## 📡 สำนักข่าวที่รองรับ (12 สำนักข่าว)
+## 📡 สำนักข่าวที่รองรับ (14 สำนักข่าว)
 
 | สำนักข่าว | Base URL | รูปแบบการดึงข้อมูล | หมวดหมู่หลักผ่าน URL Priority |
 | :--- | :--- | :--- | :--- |
@@ -86,6 +86,8 @@ data/                    — Runtime generated directory
 | **คมชัดลึก (Komchadluek)** | `https://www.komchadluek.net` | Playwright Browser Fetch | กีฬา, บันเทิง, การเมือง, อาชญากรรม |
 | **เนชั่นออนไลน์ (Nation Online)** | `https://www.nationtv.tv` | HTTP Scraping | สังคม, กีฬา, การเมือง |
 | **กรุงเทพธุรกิจ (Bangkokbiznews)** | `https://www.bangkokbiznews.com` | HTTP Scraping | ธุรกิจ, การเงิน, เทคโนโลยี, ตลาดหุ้น |
+| **PPTV HD 36** | `https://www.pptvhd36.com` | HTTP Scraping | ทั่วไป, ต่างประเทศ, กีฬา |
+| **Techhub** | `https://www.techhub.in.th` | HTTP Scraping | เทคโนโลยี, ไอที, คอมพิวเตอร์ |
 
 ---
 
@@ -190,4 +192,41 @@ uv run mypy backend/ --ignore-missing-imports --explicit-package-bases
 - โฟลเดอร์ `data/` จะถูกสร้างขึ้นอัตโนมัติเมื่อรันระบบ เพื่อเก็บข้อมูลข่าว (`news_data.json`) และไฟล์ Markdown ที่ดาวน์โหลดมา
 - ระบบมีการบันทึก Seen URLs เพื่อป้องกันการดึงข่าวซ้ำซ้อนในแต่ละรอบ
 - ศึกษารายละเอียดแนวทางการเขียนโค้ดและ SOLID / GRASP architecture ได้ใน `AGENTS.md`
+
+### 🛡️ 4-Layer Caching Architecture
+
+- **Layer 1 – Frontend Client Cache**: Uses `localStorage` for bookmarks, preferences, and theme settings, providing offline‑first persistence.
+- **Layer 2 – AI Summary Cache**: Async‑in‑memory TTLCache (24 h, 1,000 items) with async lock to coalesce concurrent summary requests and avoid duplicate LLM calls.
+- **Layer 3 – Browser Snapshot Cache**: In‑memory snapshot cache (15 min TTL, 100 entries) with error isolation, preventing redundant Playwright/CDP navigation.
+- **Layer 4 – HTTP Conditional Request Cache**: Implements `ETag` / `If‑Modified‑Since` handling and HTTP 304 support to skip re‑downloading unchanged news articles.
+
+All cache layers live in `backend/core/` and are exercised by the comprehensive test suite `backend/tests/test_caching.py`, which now passes **100 %**.
+
+---
+
+## 📱 สถาปัตยกรรม PWA & ความปลอดภัยลิขสิทธิ์ (PWA & Copyright-Safe Architecture)
+
+เพื่อมอบประสบการณ์การใช้งานบนเว็บและมือถือเทียบเท่าแอปแบบ Native รวมทั้งมีความปลอดภัยทางกฎหมายลิขสิทธิ์สูงสุด ระบบได้รับการอัปเดตสถาปัตยกรรมใหม่ดังนี้:
+
+### 1. Progressive Web App (PWA) Standalone
+- **Web App Manifest (`manifest.webmanifest`)**: รองรับการติดตั้งเป็นแอปแบบ Standalone ทั้งบนระบบปฏิบัติการ iOS (Safari Add to Home Screen) และ Android
+- **Service Worker (`sw.js`)**: ติดตั้ง Service Worker ประมวลผลแบบออฟไลน์ด้วยกลยุทธ์:
+  - *Cache-First*: สำหรับไฟล์แกนหลัก (App Shell), CSS, JS และภาพ Placeholders
+  - *Network-First (with Cache Fallback)*: สำหรับคำขอข่าวสารผ่าน API `/api/news` เพื่อให้เปิดอ่านข่าวล่าสุดแบบออฟไลน์ได้ทันทีเมื่อขาดการเชื่อมต่ออินเทอร์เน็ต
+- **Offline Banner & Install Prompt**: แสดงแถบสถานะเครือข่ายออฟไลน์แบบเรียลไทม์ และปุ่มเชิญชวนติดตั้ง PWA อัตโนมัติ
+
+### 2. นโยบายรูปภาพปลอดภัยลิขสิทธิ์ (Copyright-Safe Image Policy)
+- **หลีกเลี่ยงการทำสำเนารูปข่าวภายนอก**: ระบบจะไม่บันทึก แคช หรือทำสำเนาไฟล์ภาพประกอบข่าวสารของสำนักข่าวภายนอกลงบนระบบโครงสร้างเครื่องเซิร์ฟเวอร์หรือบน Cache API ของบราวเซอร์ (หลีกเลี่ยงการละเมิดลิขสิทธิ์)
+- **High-End Editorial Placeholders**: ออกแบบภาพประกอบเวกเตอร์ SVG สไตล์ Editorial ประจำหมวดหมู่ข่าวทั้ง 7 หมวดหมู่เก็บไว้ในเครื่องเบราว์เซอร์ เพื่อใช้แสดงผลทันทีแบบออฟไลน์หรือเมื่อรูปข่าวต้นทางดาวน์โหลดไม่ได้
+
+### 3. SPA Hash Routing & Excerpt Snippet Preview (`#/preview/{id}`)
+- สลับการทำงานจากระบบ In-App Browser Iframe มาเป็นการใช้ **Excerpt Snippet Preview Sub-View**
+- ใช้การทำ SPA Routing ผ่าน URL Hash (`#/`, `#/preview/{url}`, `#/history`) สามารถกดอ่านบทคัดย่อข่าวสารแบบย่อ 2-3 บรรทัดบนแอปได้ทันทีโดยไม่หลุดออกจากหน้า PWA พร้อมปุ่มย้อนกลับที่จำตำแหน่งเลื่อนหน้าเดิมได้อย่างราบรื่น
+
+### 4. สรุปเนื้อหาด้วย AI แบบ On-Demand (Auto & On-Demand AI Summary)
+- การ์ดข่าวบนฟีดได้รับการปรับปรุงให้กะทัดรัด (Compact Grid) และมีปุ่ม **"สรุป AI"** ให้กดเรียกใช้งานได้ทันทีบนตัวการ์ด
+- เมื่อกดใช้งาน ระบบจะเปิดหน้า Preview พร้อมเรียกประมวลผล Gemini AI เพื่อถอดใจความสำคัญ, Sentiment และข้อสรุปข่าวสารแบบเรียลไทม์ทันที และบันทึกผลลัพธ์ลงในเบราว์เซอร์สำหรับกลับมาอ่านออฟไลน์ครั้งถัดไป
+
+### 5. เปิดลิงก์ปลอดภัยต้นทาง & ล้างพารามิเตอร์ติดตาม (Clean URL Launching)
+- ปุ่ม **"อ่านข่าวฉบับเต็มบนเว็บต้นฉบับ"** จะทำการทำความสะอาด URL ต้นทาง โดยการตัดพารามิเตอร์การตลาดและเครื่องมือติดตามทั้งหมด (`utm_*`, `fbclid`, `gclid`, `ref`, ฯลฯ) เพื่อปกป้องความเป็นส่วนตัวของผู้ใช้ และเปิดอ่านในเบราว์เซอร์ระบบภายนอกด้วยความปลอดภัยสูงสุดผ่านคุณสมบัติ `target="_blank" rel="noopener noreferrer"`
 
