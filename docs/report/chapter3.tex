@@ -167,26 +167,36 @@ WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & 
 
 \begin{table}[H]
 \centering
-\caption{รายการซอฟต์แวร์ที่ใช้ในการพัฒนา}
+\caption{รายการซอฟต์แวร์และชุดเทคโนโลยีที่ใช้ในการพัฒนา (Exact Tech Stack Versions)}
 \label{tab:software}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|l|c|p{6cm}|}
+\begin{tabular}{|c|l|c|p{7.2cm}|}
 \hline
-\textbf{ลำดับ} & \textbf{ซอฟต์แวร์ / เครื่องมือ} & \textbf{เวอร์ชัน} & \textbf{วัตถุประสงค์การใช้งาน} \\
+\textbf{ลำดับ} & \textbf{ซอฟต์แวร์ / ไลบรารี} & \textbf{เวอร์ชันจริง} & \textbf{บทบาทและหน้าที่ในระบบ} \\
 \hline
-1 & ระบบปฏิบัติการ & Windows 11 / Ubuntu 22.04 LTS & สภาพแวดล้อมการพัฒนาและประมวลผล \\ \hline
-2 & Python \& uv & 3.11+ / 0.4+ & ภาษาโปรแกรมหลักและตัวจัดการแพ็กเกจ \\ \hline
-3 & FastAPI \& Uvicorn & 0.115+ / 0.30+ & พัฒนา REST API และเว็บเซิร์ฟเวอร์แบบ Asynchronous \\ \hline
-4 & Playwright (Chromium) & 1.48+ & จำลองการทำงานของเบราว์เซอร์เพื่อดึงหน้าเว็บ JavaScript \\ \hline
-5 & BeautifulSoup4 \& httpx & 4.12+ / 0.27+ & แยกวิเคราะห์โครงสร้าง HTML และส่งคำขอ HTTP \\ \hline
-6 & PyThaiNLP & 5.0+ & ตัดคำและประมวลผลข้อความภาษาไทย \\ \hline
-7 & Scikit-learn \& Joblib & 1.5+ / 1.4+ & โมเดล SVM / TF-IDF Vectorizer สำหรับจำแนกหมวดหมู่ \\ \hline
-8 & Transformers & 4.40+ & รันและประเมินโมเดล WangchanBERTa \\ \hline
-9 & Python-SocketIO & 5.11+ & สื่อสารแบบเรียลไทม์สองทางผ่าน WebSocket \\ \hline
-10 & Vanilla JS (ES Modules) & ES2022 & พัฒนา Single Page Application ฝั่ง Frontend \\ \hline
-11 & Tailwind CSS & 3.4+ & จัดการสไตล์และส่วนติดต่อผู้ใช้แบบ Responsive \\ \hline
-12 & Pytest & 8.0+ & ชุดทดสอบอัตโนมัติ (Unit, Stress, Security Tests) \\ \hline
-13 & Git \& GitHub & 2.40+ & ระบบควบคุมเวอร์ชันของโค้ด \\
+1 & Python & 3.11.15 & ภาษาโปรแกรมหลักฝั่งเซิร์ฟเวอร์ \\ \hline
+2 & uv & 0.6.14 & ตัวจัดการแพ็กเกจและสภาพแวดล้อมเสมือนความเร็วสูง \\ \hline
+3 & FastAPI & 0.141.1 & เว็บเฟรมเวิร์คแบบอะซิงโครนัสสำหรับพัฒนา REST API \\ \hline
+4 & Uvicorn & 0.52.1 & เว็บเซิร์ฟเวอร์ ASGI ประสิทธิภาพสูง \\ \hline
+5 & Pydantic & 2.13.4 & ตรวจสอบและแปลงโครงสร้างข้อมูลที่ระดับ Runtime \\ \hline
+6 & Playwright & 1.62.0 & จำลองเบราว์เซอร์ Chromium เพื่อดึงหน้าเว็บ JavaScript/SPA \\ \hline
+7 & Trafilatura & 2.2.0 & สกัดเนื้อหาหลักของบทความข่าวและแปลงเป็น Markdown \\ \hline
+8 & BeautifulSoup4 & 4.15.0 & แยกวิเคราะห์โครงสร้างเอกสาร HTML และ CSS Selector \\ \hline
+9 & PyThaiNLP & 5.3.5 & ตัดคำภาษาไทยด้วยเอนจิน newmm และคัดกรอง Stop words \\ \hline
+10 & Scikit-learn & 1.6.1 & โมเดล Calibrated LinearSVC และ TF-IDF Vectorizer \\ \hline
+11 & Joblib & 1.5.3 & จัดเก็บและโหลดโมเดล Machine Learning (Serialization) \\ \hline
+12 & NumPy & 2.4.6 & ประมวลผลทางคณิตศาสตร์และอาร์เรย์เชิงตัวเลข \\ \hline
+13 & PyTorch & 2.13.0 & เฟรมเวิร์คการเรียนรู้เชิงลึกสำหรับรันโมเดลภาษา \\ \hline
+14 & Transformers & 5.15.1 & รันและประเมินผลโมเดล WangchanBERTa \\ \hline
+15 & OpenAI SDK & 2.53.0 & เชื่อมต่อบริการโมเดลภาษาขนาดใหญ่ KKU Gen.AI \\ \hline
+16 & HTTPX & 0.28.1 & ตัวส่งคำขอ HTTP แบบอะซิงโครนัส \\ \hline
+17 & Python-SocketIO & 5.16.3 & จัดการการเชื่อมต่อ WebSocket สองทิศทางฝั่งเซิร์ฟเวอร์ \\ \hline
+18 & Socket.IO Client (JS) & 4.7.5 & รับส่งข้อมูลเหตุการณ์แบบเรียลไทม์ฝั่งเว็บเบราว์เซอร์ \\ \hline
+19 & Tailwind CSS & 3.4.1 & จัดการสไตล์และส่วนติดต่อผู้ใช้แบบ Responsive \\ \hline
+20 & Ruff & 0.16.1 & เครื่องมือตรวจสอบคุณภาพโค้ดและจัดรูปแบบ (Linter \& Formatter) \\ \hline
+21 & Mypy & 2.3.0 & ตรวจสอบความถูกต้องของ Type Annotation ภาษา Python \\ \hline
+22 & Pytest & 9.1.1 & ชุดทดสอบอัตโนมัติ (Unit Tests, Stress Tests, PDPA Tests) \\ \hline
+23 & Git & 2.40+ & ระบบควบคุมเวอร์ชันของโค้ดโครงงาน \\
 \hline
 \end{tabular}%
 }
