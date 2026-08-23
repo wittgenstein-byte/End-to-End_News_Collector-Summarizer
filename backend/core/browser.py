@@ -23,10 +23,38 @@ GRASP  Pure Fabrication — แยกออกมาเพื่อ reuse ระ
 from __future__ import annotations
 
 import asyncio
+
 import httpx
 
-from backend.core.constants import BROWSER_HEADERS
 from backend.config import settings
+
+
+def _fetch_html_sync(url: str, wait_tag: str, wait_ms: int) -> str:
+    """
+    Synchronous Playwright execution executed in a background thread via asyncio.to_thread.
+    This avoids asyncio WindowsProactorEventLoop/SelectorEventLoop subprocess NotImplementedError
+    when running on Windows under uvicorn or worker threads.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page()
+                page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                if wait_tag:
+                    try:
+                        page.wait_for_selector(wait_tag, timeout=min(wait_ms, 5000))
+                    except Exception:
+                        pass
+                if wait_ms > 0:
+                    page.wait_for_timeout(wait_ms)
+                return page.content()
+            finally:
+                browser.close()
+    except Exception as e:
+        print(f"Error in Playwright fetch for {url}: {e}")
+        return ""
 
 
 # ── Async wrapper ─────────────────────────────────────────────────
@@ -39,17 +67,22 @@ async def fetch_html_playwright(
 ) -> str:
     """
     Async entry point — เรียกได้จาก coroutine โดยตรง
-    ส่ง URL ไปให้ Playwright service แทนการรัน local Playwright
+    ส่ง URL ไปให้ Playwright service ถ้าล้มเหลวจะ fallback ไปใช้ local Playwright ทันที
     """
+    # 1. พยายามเรียก Playwright microservice (ถ้ามีรันใน Docker)
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get(
                 settings.playwright_service_url,
                 params={"url": url, "wait_tag": wait_tag, "wait_ms": wait_ms}
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("html", "")
-    except Exception as e:
-        print(f"Error calling Playwright service: {e}")
-        return ""
+            html = data.get("html", "")
+            if html:
+                return html
+    except Exception:
+        pass
+
+    # 2. Fallback to local Playwright via asyncio.to_thread
+    return await asyncio.to_thread(_fetch_html_sync, url, wait_tag, wait_ms)

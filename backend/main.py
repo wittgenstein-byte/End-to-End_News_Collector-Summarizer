@@ -13,6 +13,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+# On Windows, Playwright requires ProactorEventLoop for subprocesses
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 # ── Import Fix ────────────────────────────────────────────────────
 # Ensure the parent directory is in sys.path so 'import backend.xxx' works
 # even when running from within the backend directory.
@@ -20,23 +24,22 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE.parent) not in sys.path:
     sys.path.insert(0, str(_HERE.parent))
 
-import socketio
 import httpx
+import socketio  # type: ignore[import-untyped]
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings
-from backend.core.socket_manager import sio, emit
-
 # register socket events (side-effect import)
 import backend.sockets.events  # noqa: F401
-
+from backend.config import settings
+from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
-from backend.routers.news_router import router as news_router
 from backend.routers.collect_router import router as collect_router
+from backend.routers.news_router import router as news_router
+from backend.routers.trending_router import router as trending_router
 from backend.services.scraper_service import ScraperService
 
 
@@ -98,8 +101,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -108,6 +111,7 @@ app.add_middleware(
 
 app.include_router(news_router)
 app.include_router(collect_router)
+app.include_router(trending_router)
 
 
 # ── Frontend static files ─────────────────────────────────────────
@@ -120,6 +124,29 @@ async def index() -> FileResponse | JSONResponse:
     if _INDEX.exists():
         return FileResponse(str(_INDEX))
     return JSONResponse({"error": f"index.html not found at {_INDEX}"}, status_code=404)
+
+
+@app.get("/manifest.webmanifest", response_model=None)
+async def manifest() -> FileResponse | JSONResponse:
+    manifest_path = settings.frontend_dir / "manifest.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(
+            str(manifest_path),
+            media_type="application/manifest+json",
+        )
+    return JSONResponse({"error": "manifest.webmanifest not found"}, status_code=404)
+
+
+@app.get("/sw.js", response_model=None)
+async def service_worker() -> FileResponse | JSONResponse:
+    sw_path = settings.frontend_dir / "sw.js"
+    if sw_path.exists():
+        return FileResponse(
+            str(sw_path),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/"},
+        )
+    return JSONResponse({"error": "sw.js not found"}, status_code=404)
 
 
 @app.get("/livez", response_model=None)
@@ -171,10 +198,13 @@ app_asgi = socketio.ASGIApp(sio, other_asgi_app=app)
 # ── Entry point ───────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     print("🚀 FastAPI Server starting...")
     uvicorn.run(
         "main:app_asgi",
         host=settings.host,
         port=settings.port,
         reload=True,
+        loop="asyncio",
     )

@@ -9,20 +9,231 @@ GRASP  Information Expert — รู้จัก keyword ของแต่ล�
 """
 
 from __future__ import annotations
+
+from urllib.parse import unquote, urlparse
+
 from pythainlp.tokenize import word_tokenize
 
 # ── URL Priority Rules ────────────────────────────────────────────
-_URL_CUES = {
+_URL_CUES: dict[str, str] = {
+    # ── Politics ──────────────────────────────────────────────────────
+    "/politics": "politics",
+    "-politics": "politics",
+    "politics-": "politics",
+    "/politic": "politics",
+    "-politic": "politics",
+    "politic-": "politics",
+    "/parliament": "politics",
+    "/election": "politics",
+    "/governance": "politics",
+    "/การเมือง": "politics",
+    "/รัฐบาล": "politics",
+    "/เลือกตั้ง": "politics",
+    "/สภา": "politics",
+
+    # ── Economy / Business / Finance ──────────────────────────────────
+    "/economy": "economy",
+    "-economy": "economy",
+    "economy-": "economy",
+    "/economic": "economy",
+    "-economic": "economy",
+    "economic-": "economy",
+    "/economics": "economy",
+    "/business": "economy",
+    "-business": "economy",
+    "business-": "economy",
+    "/finance": "economy",
+    "-finance": "economy",
+    "finance-": "economy",
+    "/financial": "economy",
+    "/money": "economy",
+    "/wealth": "economy",
+    "/market": "economy",
+    "/stock": "economy",
+    "/trade": "economy",
+    "/crypto": "economy",
+    "/investment": "economy",
+    "/banking": "economy",
+    "/เศรษฐกิจ": "economy",
+    "/การเงิน": "economy",
+    "/ธุรกิจ": "economy",
+    "/หุ้น": "economy",
+    "/การค้า": "economy",
+    "/การลงทุน": "economy",
+
+    # ── Technology ────────────────────────────────────────────────────
+    "/technology": "technology",
+    "-technology": "technology",
+    "technology-": "technology",
+    "/technologies": "technology",
+    "/tech": "technology",
+    "-tech": "technology",
+    "tech-": "technology",
+    "/digital": "technology",
+    "-digital": "technology",
+    "digital-": "technology",
+    "/cyber": "technology",
+    "-cyber": "technology",
+    "/cyberbiz": "technology",
+    "/gadget": "technology",
+    "/innovation": "technology",
+    "/it/": "technology",
+    "/it-": "technology",
+    "-it/": "technology",
+    "/เทคโนโลยี": "technology",
+    "/ดิจิทัล": "technology",
+    "/ไซเบอร์": "technology",
+    "/ไอที": "technology",
+    "/นวัตกรรม": "technology",
+
+    # ── Health ────────────────────────────────────────────────────────
+    "/health": "health",
+    "-health": "health",
+    "health-": "health",
+    "/healthcare": "health",
+    "/medical": "health",
+    "-medical": "health",
+    "medical-": "health",
+    "/medicine": "health",
+    "/wellness": "health",
+    "/covid": "health",
+    "/vaccine": "health",
+    "/disease": "health",
+    "/สุขภาพ": "health",
+    "/สาธารณสุข": "health",
+    "/การแพทย์": "health",
+    "/อนามัย": "health",
+
+    # ── Environment ───────────────────────────────────────────────────
+    "/environment": "environment",
+    "-environment": "environment",
+    "environment-": "environment",
+    "/climate": "environment",
+    "-climate": "environment",
+    "climate-": "environment",
+    "/green": "environment",
+    "-green": "environment",
+    "green-": "environment",
+    "/eco": "environment",
+    "-eco": "environment",
+    "eco-": "environment",
+    "/sustainability": "environment",
+    "/nature": "environment",
+    "/pollution": "environment",
+    "/wildlife": "environment",
+    "/pm25": "environment",
+    "/pm2-5": "environment",
+    "/สิ่งแวดล้อม": "environment",
+    "/สภาพภูมิอากาศ": "environment",
+    "/โลกร้อน": "environment",
+    "/มลพิษ": "environment",
+
+    # ── Society ───────────────────────────────────────────────────────
+    "/society": "society",
+    "-society": "society",
+    "society-": "society",
+    "/social": "society",
+    "-social": "society",
+    "social-": "society",
+    "/education": "society",
+    "-education": "society",
+    "education-": "society",
+    "/crime": "society",
+    "-crime": "society",
+    "crime-": "society",
+    "/community": "society",
+    "/culture": "society",
+    "/lifestyle": "society",
+    "-lifestyle": "society",
+    "lifestyle-": "society",
+    "/life": "society",
+    "-life": "society",
+    "life-": "society",
+    "/living": "society",
+    "/quality-of-life": "society",
+    "/quality-life": "society",
+    "/local": "society",
+    "-local": "society",
+    "local-": "society",
+    "/สังคม": "society",
+    "/การศึกษา": "society",
+    "/อาชญากรรม": "society",
+    "/คุณภาพชีวิต": "society",
+    "/ไลฟ์สไตล์": "society",
+    "/วัฒนธรรม": "society",
+    "/ชุมชน": "society",
+    "/ท้องถิ่น": "society",
+
+    # ── Sports ────────────────────────────────────────────────────────
+    "/sports": "sports",
+    "-sports": "sports",
+    "sports-": "sports",
     "/sport": "sports",
     "-sport": "sports",
     "sport-": "sports",
+    "/football": "sports",
+    "-football": "sports",
+    "football-": "sports",
+    "/soccer": "sports",
+    "/premier-league": "sports",
+    "/olympics": "sports",
+    "/motorsport": "sports",
+    "/tennis": "sports",
+    "/golf": "sports",
+    "/boxing": "sports",
+    "/กีฬา": "sports",
+    "/ฟุตบอล": "sports",
+    "/มวย": "sports",
+    "/ผลบอล": "sports",
+
+    # ── Entertainment ─────────────────────────────────────────────────
     "/entertainment": "entertainment",
-    "/foreign": "world",
+    "-entertainment": "entertainment",
+    "entertainment-": "entertainment",
+    "/entertain": "entertainment",
+    "-entertain": "entertainment",
+    "entertain-": "entertainment",
+    "/pop/": "entertainment",
+    "/pop-culture": "entertainment",
+    "/pop-music": "entertainment",
+    "/k-pop": "entertainment",
+    "/kpop": "entertainment",
+    "/t-pop": "entertainment",
+    "/j-pop": "entertainment",
+    "/movie": "entertainment",
+    "/movies": "entertainment",
+    "/music": "entertainment",
+    "/celebrity": "entertainment",
+    "/celeb": "entertainment",
+    "/drama": "entertainment",
+    "/series": "entertainment",
+    "/showbiz": "entertainment",
+    "/บันเทิง": "entertainment",
+    "/ดารา": "entertainment",
+    "/ละคร": "entertainment",
+    "/ซีรีส์": "entertainment",
+    "/เพลง": "entertainment",
+    "/ภาพยนตร์": "entertainment",
+
+    # ── World ─────────────────────────────────────────────────────────
     "/world": "world",
-    "/tech": "technology",
-    "/health": "health",
-    "/society": "society",
-    "/environment": "environment"
+    "-world": "world",
+    "world-": "world",
+    "/foreign": "world",
+    "-foreign": "world",
+    "foreign-": "world",
+    "/international": "world",
+    "-international": "world",
+    "international-": "world",
+    "/global": "world",
+    "-global": "world",
+    "global-": "world",
+    "/around-the-world": "world",
+    "/overseas": "world",
+    "/ต่างประเทศ": "world",
+    "/รอบโลก": "world",
+    "/อินเตอร์": "world",
+    "/ข่าวต่างประเทศ": "world",
 }
 
 # ── Keyword rules ─────────────────────────────────────────────────
@@ -36,6 +247,7 @@ _RULES: dict[str, list[str]] = {
         "พรรค","เลือกตั้ง","ผู้สมัคร","ส.ส.","ส.ว.","กฎหมาย","ราชกิจจา",
         "กระทรวง","ทบวง","กรม","ปฏิวัติ","รัฐประหาร","ประชาธิปไตย",
         "นโยบาย","มติ","ร่าง พ.ร.บ.","พ.ร.บ.","สิทธิ","เสรีภาพ",
+        "กอ.รมน.","ความมั่นคง","ฝ่ายความมั่นคง","กองทัพ","ทหาร",
         # English
         "politics","parliament","government","minister","election",
         "senator","congress","vote","policy","legislation","bill",
@@ -73,7 +285,7 @@ _RULES: dict[str, list[str]] = {
         # Thai
         "สุขภาพ","โรค","วัคซีน","โรงพยาบาล","แพทย์","ยา","ระบาด","ผู้ป่วย",
         "มะเร็ง","เบาหวาน","ความดัน","สาธารณสุข","อนามัย","กระทรวงสาธารณสุข",
-        "หมอ","พยาบาล","คลินิก","รักษา","ผ่าตัด","วิจัย","ยา",
+        "หมอ","พยาบาล","คลินิก","การรักษา","รักษาพยาบาล","ยารักษาโรค","วิธีรักษา","ผ่าตัด","วิจัย",
         "โควิด","ไข้หวัด","ไวรัส","แบคทีเรีย","เชื้อ","กักกัน",
         # English
         "health","disease","vaccine","hospital","doctor","medicine",
@@ -189,13 +401,13 @@ for cat, rules in _COMPOUND_RULES.items():
         _TOKENIZED_COMPOUND_RULES[cat].append([word_tokenize(w.lower()) for w in rule])
 
 
-# ── ML Models Loading ─────────────────────────────────────────────
+# ── ML & Transformer Models Loading ──────────────────────────────
 from pathlib import Path
-import joblib
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 
 try:
+    import joblib  # type: ignore[import-untyped]
     _TFIDF = joblib.load(_BASE_DIR / "model" / "tfidf_vectorizer.pkl")
     _SVM = joblib.load(_BASE_DIR / "model" / "svm_classifier.pkl")
 except Exception as e:
@@ -203,22 +415,173 @@ except Exception as e:
     _SVM = None
     print(f"Warning: ML model not loaded: {e}")
 
+_WANGCHAN_DIR = _BASE_DIR / "model" / "wangchanberta_classifier"
+_WANGCHAN_TOKENIZER = None
+_WANGCHAN_MODEL = None
+
+
+def get_wangchanberta():
+    """Lazy load WangchanBERTa model safely by verifying all required files exist."""
+    global _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
+    if _WANGCHAN_MODEL is not None and _WANGCHAN_TOKENIZER is not None:
+        return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
+
+    if not _WANGCHAN_DIR.exists():
+        return None, None
+
+    # 1. ตรวจสอบไฟล์ Config
+    has_config = (_WANGCHAN_DIR / "config.json").exists()
+
+    # 2. ตรวจสอบไฟล์ Model Weights (ต้องมี safetensors หรือ bin)
+    has_weights = (
+        (_WANGCHAN_DIR / "model.safetensors").exists()
+        or (_WANGCHAN_DIR / "pytorch_model.bin").exists()
+    )
+
+    # 3. ตรวจสอบไฟล์ Tokenizer (ต้องมี SentencePiece หรือ tokenizer.json)
+    has_tokenizer = (
+        (_WANGCHAN_DIR / "sentencepiece.bpe.model").exists()
+        or (_WANGCHAN_DIR / "tokenizer.json").exists()
+    )
+
+    # หากไฟล์ไม่ครบ ให้ข้ามทันทีโดยไม่ต้องเสียเวลาเสี่ยงรัน from_pretrained
+    if not (has_config and has_weights and has_tokenizer):
+        return None, None
+
+    try:
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        _WANGCHAN_TOKENIZER = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
+        _WANGCHAN_MODEL = AutoModelForSequenceClassification.from_pretrained(str(_WANGCHAN_DIR))
+        _WANGCHAN_MODEL.eval()
+        return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
+    except Exception as e:
+        print(f"Warning: WangchanBERTa failed to load: {e}")
+        return None, None
+
+
 _ML_MAPPING = {
-    "economics": "economy",
     "politics": "politics",
-    "social": "society"
+    "economy": "economy",
+    "economics": "economy",
+    "technology": "technology",
+    "health": "health",
+    "environment": "environment",
+    "sports": "sports",
+    "entertainment": "entertainment",
+    "society": "society",
+    "social": "society",
+    "world": "world",
 }
-_ML_EXPERTISE = set(_ML_MAPPING.values())
+_ML_EXPERTISE = set(_RULES.keys())
+
+
+def predict_with_wangchanberta(text: str) -> tuple[str, str, float] | None:
+    """ทำนายหมวดหมู่ด้วยโมเดล Fine-tuned WangchanBERTa (Deep Learning Transformer)"""
+    tokenizer, model = get_wangchanberta()
+    if tokenizer is None or model is None:
+        return None
+
+    try:
+        import torch
+
+        inputs = tokenizer(
+            text,
+            truncation=True,
+            max_length=128,
+            padding=True,
+            return_tensors="pt",
+        )
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probs = torch.softmax(logits, dim=1)[0]
+            max_idx = int(torch.argmax(probs).item())
+            conf = float(probs[max_idx].item())
+            pred_label = model.config.id2label[max_idx]
+
+        category = _ML_MAPPING.get(pred_label, _DEFAULT_CATEGORY)
+        return category, f"WangchanBERTa ({pred_label})", conf
+    except Exception:
+        return None
+
+
+# ── Denoising phrases for ML ───────────────────────────────────────
+# คำบอกเล่าข่าวโซเชียลทั่วไปที่ชอบเบี่ยงคะแนน TF-IDF เข้า Technology โดยไม่ตั้งใจ
+_DENOISE_PHRASES = (
+    "ในโลกออนไลน์",
+    "โลกออนไลน์",
+    "ชาวเน็ต",
+    "โซเชียลมีเดีย",
+    "โลกโซเชียล",
+    "เพจดัง",
+    "เพจเฟซบุ๊ก",
+    "คลิปไวรัล",
+    "แชร์ว่อน",
+    "แห่แชร์",
+    "คอมเมนต์",
+)
+
+# ── High-Specificity Domain Cues ──────────────────────────────────
+# คำเฉพาะทางระดับสูงที่ระบุหมวดหมู่ชัดเจนในหัวข้อข่าว (Title Priority)
+_HIGH_SPECIFICITY_CUES: dict[str, tuple[str, ...]] = {
+    "politics": (
+        "กอ.รมน.", "กอ.รมน.ภาค", "ความมั่นคง", "ชายแดนใต้", "ศอ.บต.",
+        "รัฐสภา", "สภาผู้แทนราษฎร", "วุฒิสภา", "อภิปรายไม่ไว้วางใจ",
+        "นายกรัฐมนตรี", "คณะรัฐมนตรี", "ยุบสภา", "เลือกตั้งซ่อม",
+        "พรรคการเมือง", "กฎหมายประชามติ", "ศาลรัฐธรรมนูญ", "ป.ป.ช.",
+    ),
+    "environment": (
+        "น้ำท่วม", "อุทกภัย", "น้ำป่าไหลหลาก", "น้ำป่า", "แม่น้ำเอ่อล้น", "น้ำล้นตลิ่ง",
+        "ดินถล่ม", "โคลนถล่ม", "พายุหมุน", "พายุดีเปรสชัน", "ไต้ฝุ่น", "สึนามิ",
+        "แผ่นดินไหว", "pm2.5", "pm 2.5", "มลพิษทางอากาศ", "วิกฤตโลกร้อน", "ภาวะโลกร้อน",
+        "ก๊าซเรือนกระจก", "ปะการังฟอกขาว", "ไฟป่า", "ภัยแล้ง", "ภัยพิบัติ",
+    ),
+    "technology": (
+        "ยานยนต์ไฟฟ้า", "รถยนต์ไฟฟ้า", "รถ ev", "รถยนต์ ev", "วิศวกรรมยานยนต์ไฟฟ้า",
+        "ปัญญาประดิษฐ์", "generative ai", "chatgpt", "ชิปเซ็ต", "เซมิคอนดักเตอร์",
+        "ไมโครชิป", "ไซเบอร์ซีเคียวริตี้", "แฮกเกอร์", "ควอนตัมคอมพิวเตอร์",
+        "บล็อกเชน", "สมาร์ทโฟนเรือธง", "ระบบ 5g", "ปัญญาประดิษฐ์ ai",
+    ),
+    "entertainment": (
+        "นักแสดง", "ดาราสาว", "ดาราชาย", "นักร้อง", "วงการบันเทิง", "คู่รักดารา",
+        "เตียงหัก", "แฉแหลก", "เมียน้อย", "ละครดัง", "ซีรีส์ดัง",
+        "แฟนมีตติ้ง", "คอนเสิร์ต", "ภาพยนตร์ใหม่", "บ็อกซ์ออฟฟิศ", "เพลงฮิต",
+        "อัลบั้มใหม่", "เปิดตัวภาพยนตร์", "เปิดตัวซีรีส์", "นางเอก", "พระเอก",
+        "ดาราดัง", "เปิ้ล ไอริณ", "ไอริณ",
+    ),
+    "sports": (
+        "ฟุตบอล", "พรีเมียร์ลีก", "ไทยลีก", "ผลบอล", "ยูฟ่า", "แชมเปียนส์ลีก",
+        "วอลเลย์บอล", "โอลิมปิก", "ซีเกมส์", "เอเชียนเกมส์", "เหรียญทอง",
+        "มวยไทย", "ฟอร์มูล่าวัน", "formula 1", "แบดมินตัน",
+    ),
+    "health": (
+        "กระทรวงสาธารณสุข", "กรมควบคุมโรค", "องค์การอนามัยโลก", "วัคซีน",
+        "โรคระบาด", "ไข้หวัดใหญ่", "ติดเชื้อ", "มะเร็ง", "ยารักษาโรค",
+        "แพทย์เตือน", "โรงพยาบาล", "ผู้ป่วย",
+    ),
+}
+
 
 def predict_with_ml(text: str) -> tuple[str, str, float]:
-    """ฟังก์ชันเรียกใช้โมเดล SVM และคืนค่า (หมวด, วิธีคิด, ความมั่นใจ)"""
+    """ฟังก์ชันเรียกใช้โมเดล SVM/LinearSVC และคืนค่า (หมวด, วิธีคิด, ความมั่นใจ)"""
     if _TFIDF is None or _SVM is None:
         return _DEFAULT_CATEGORY, "ML (Failed to load)", 0.0
     try:
-        # ตัดข้อความให้เหลือแค่ 500 คำแรก (ป้องกัน Max Sequence Length และการตีความไกลกู่ไม่กลับ)
-        cropped_text = " ".join(text.split()[:500])
-        vec = _TFIDF.transform([cropped_text])
-        
+        lower = text.lower().strip()
+        # กรองคำเล่าเรื่องโซเชียลมีเดียทั่วไปออก เพื่อไม่ให้บิดเบือนคะแนนไปหมวด technology
+        for phrase in _DENOISE_PHRASES:
+            lower = lower.replace(phrase, " ")
+
+        tokens = word_tokenize(lower, engine="newmm")
+        cleaned_tokens = [
+            tok.strip()
+            for tok in tokens
+            if tok.strip() and len(tok.strip()) > 1 and not tok.strip().isnumeric()
+        ]
+        token_str = " ".join(cleaned_tokens[:500])
+        vec = _TFIDF.transform([token_str])
+
         # 1. ลองหาความมั่นใจ (Confidence Score)
         if hasattr(_SVM, "predict_proba"):
             probs = _SVM.predict_proba(vec)[0]
@@ -226,10 +589,8 @@ def predict_with_ml(text: str) -> tuple[str, str, float]:
             conf = float(probs[max_idx])
             pred_label = _SVM.classes_[max_idx]
         elif hasattr(_SVM, "decision_function"):
-            # สำหรับ LinearSVC ที่ไม่มี proba เราใช้ Softmax แปลงจาก Decision Score
             import numpy as np
             scores = _SVM.decision_function(vec)[0]
-            # กรณี Binary class (1 score) vs Multi-class (n scores)
             if hasattr(scores, "__len__"):
                 e_x = np.exp(scores - np.max(scores))
                 probs = e_x / e_x.sum()
@@ -237,133 +598,227 @@ def predict_with_ml(text: str) -> tuple[str, str, float]:
                 conf = float(probs[max_idx])
                 pred_label = _SVM.classes_[max_idx]
             else:
-                # Binary class
                 conf = 1.0 / (1.0 + np.exp(-abs(scores)))
                 pred_label = _SVM.classes_[1] if scores > 0 else _SVM.classes_[0]
         else:
             pred_label = _SVM.predict(vec)[0]
-            conf = 0.6 # หรือตั้งค่ากลางๆ ไว้
-            
-        return _ML_MAPPING.get(pred_label, _DEFAULT_CATEGORY), f"ML ({pred_label})", conf
+            conf = 0.6
+
+        category = _ML_MAPPING.get(pred_label, _DEFAULT_CATEGORY)
+        return category, f"ML ({pred_label})", conf
     except Exception:
         return _DEFAULT_CATEGORY, "ML (Error)", 0.0
 
-# ── Main classifier ───────────────────────────────────────────────
+# ── URL and Main Classifier ───────────────────────────────────────
 
-def classify_article(title: str, summary: str = "", url: str = "") -> tuple[str, str]:
+def get_category_from_url(url: str) -> tuple[str, str] | None:
     """
-    ใช้งานง่ายแบบ one-stop: โยน (title, summary, url) เข้ามา
-    ให้ความสำคัญกับ URL ก่อน (Fast-path Priority)
-    ถ้าไม่มีก็เอา title + summary มารวมกันแบบถ่วงน้ำหนัก (title * 3)
-    และคืนค่า (category_id, classification_method)
+    ตรวจจับหมวดหมู่จาก URL (Fast-path Tier 1)
+    - รองรับการ decode percent-encoded (เช่น %E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%87)
+    - ตรวจ path segment ที่ตรงกับ cue หรือหมวดหมู่ตรงๆ
+    - ตรวจ substring patterns ใน URL path + query
+    คืนค่า (category_id, method_description) หรือ None ถ้าไม่ตรงกับหมวดใด
     """
-    if url:
-        url_lower = url.lower()
+    if not url or not isinstance(url, str):
+        return None
+
+    try:
+        decoded_url = unquote(url).lower().strip()
+        parsed = urlparse(decoded_url)
+
+        # 0. Domain Lock / Priority (e.g. techhub.in.th -> technology)
+        if "techhub.in.th" in decoded_url or "techhub.in.th" in (parsed.netloc or ""):
+            return "technology", "Domain Priority (techhub.in.th)"
+
+        path = parsed.path.rstrip("/")
+
+        # 1. เช็ก exact path segment จากขวาไปซ้าย (leaf category สำคัญที่สุด เช่น /category/culture/entertainment -> entertainment)
+        segments = [s.strip() for s in path.split("/") if s.strip()]
+        for seg in reversed(segments):
+            seg_slash = f"/{seg}"
+            if seg_slash in _URL_CUES:
+                return _URL_CUES[seg_slash], f"URL Priority ({seg_slash})"
+            if seg in _URL_CUES:
+                return _URL_CUES[seg], f"URL Priority ({seg})"
+
+        # 2. เช็ก pattern cues ใน decoded URL path + query
+        path_query = f"{parsed.path}?{parsed.query}" if parsed.query else parsed.path
         for cue, cat in _URL_CUES.items():
-            if cue in url_lower:
+            if cue in path_query:
                 return cat, f"URL Priority ({cue})"
 
-    combined = f"{title} {title} {title} {summary}"
-    return classify(combined)
+        # 3. เช็กใน decoded_url ทั้งหมดเป็น fallback
+        for cue, cat in _URL_CUES.items():
+            if cue in decoded_url:
+                return cat, f"URL Priority ({cue})"
+    except Exception:
+        pass
+
+    return None
+
 
 def classify(text: str) -> tuple[str, str]:
     """
     จำแนกข้อความเป็น 1 ใน 9 หมวด พร้อมบอกว่าแยกด้วยวิธีไหน
-    คืนค่า (category_id, classification_method)
+    Flow การทำงานแบบ Hybrid Architecture:
+    1. Fast Primary Engine (Calibrated LinearSVC): ประมวลผลรวดเร็ว (~2ms)
+       - ถ้า LinearSVC มั่นใจสูง (conf >= 0.50) -> คืนผลลัพธ์ของ LinearSVC ทันที
+    2. Deep Learning Escalation (WangchanBERTa):
+       - ถ้า LinearSVC มั่นใจน้อย (< 0.50) -> ส่งต่อให้ WangchanBERTa วิเคราะห์บริบทเชิงลึก
+       - ถ้า WangchanBERTa โหลดได้และมั่นใจ (conf >= 0.35) -> คืนผลลัพธ์ของ WangchanBERTa
+    3. Fallback to LinearSVC:
+       - ถ้า WangchanBERTa ไม่พร้อมหรือมั่นใจต่ำ -> ใช้ LinearSVC (ถ้า conf >= 0.25)
+    4. Fallback Engine: Keyword & Compound Rules (กรณีทุกโมเดลไม่มั่นใจ < 0.25)
+    5. Default Fallback: 'society'
     """
     if not text or not text.strip():
         return _DEFAULT_CATEGORY, "Fallback (Empty Text)"
 
+    # 1. รัน Fast Primary Engine (Calibrated LinearSVC)
+    ml_cat, ml_method, ml_conf = predict_with_ml(text)
+
+    # ก) ถ้า LinearSVC มั่นใจสูง (>= 0.50) ให้ใช้ผลของ LinearSVC ทันที (Fast-path ~2ms)
+    if ml_conf >= 0.50 and not ml_method.startswith("ML (Failed") and not ml_method.startswith("ML (Error"):
+        return ml_cat, f"{ml_method} (conf={ml_conf:.2f})"
+
+    # 2. ถ้า LinearSVC มั่นใจน้อย (< 0.50) ส่งต่อให้ WangchanBERTa ช่วยตัดสินแบบ Hybrid
+    wb_result = predict_with_wangchanberta(text)
+    if wb_result is not None:
+        wb_cat, wb_method, wb_conf = wb_result
+        if wb_conf >= 0.35:
+            return wb_cat, f"Hybrid: {wb_method} (conf={wb_conf:.2f}, SVC={ml_conf:.2f})"
+
+    # 3. ถ้า WangchanBERTa ไม่พร้อมหรือมั่นใจต่ำ แต่ LinearSVC ยังพอมีความมั่นใจ (>= 0.25)
+    if ml_conf >= 0.25 and not ml_method.startswith("ML (Failed") and not ml_method.startswith("ML (Error"):
+        return ml_cat, f"{ml_method} (conf={ml_conf:.2f})"
+
+    # 4. Fallback Engine: Keyword & Compound Rules
     lower = text.lower()
-    # ตัดคำเพื่อแก้ปัญหา Substring matching (เช่น "น้ำ" ไปตรงกับใน "น้ำมัน")
     tokens = word_tokenize(lower)
     tokens_set = set(tokens)
-    
-    scores: dict[str, float] = {}
 
+    scores: dict[str, float] = {}
     for category, tokenized_kws in _TOKENIZED_RULES.items():
         score = 0.0
-        
-        # 1. ให้คะแนนจาก Keyword เดี่ยว หรือ N-gram แบบติดกัน
         for kl, kw_tokens in tokenized_kws:
             count = 0
             if len(kw_tokens) == 1:
-                # เช็กแบบ Exact Match เป็นชิ้นๆ
                 count = tokens.count(kw_tokens[0])
             elif len(kw_tokens) > 1:
-                # เช็กแบบ Exact Match สำหรับกลุ่มคำ (phrase)
                 kw_len = len(kw_tokens)
                 for i in range(len(tokens) - kw_len + 1):
                     if tokens[i:i+kw_len] == kw_tokens:
                         count += 1
-                        
             if count > 0:
-                # คำยาวกว่า 4 ตัวอักษร → น้ำหนัก 2x
                 weight = 2.0 if len(kl) > 4 else 1.0
                 score += count * weight
-                
-        # 2. ให้คะแนนจาก Compound Rules (บริบทร่วม - ไม่จำเป็นต้องอยู่ติดกัน)
+
         if category in _TOKENIZED_COMPOUND_RULES:
             for rule_tokens_list in _TOKENIZED_COMPOUND_RULES[category]:
                 valid = True
                 for word_parts in rule_tokens_list:
-                    # ตรวจว่าทุก token ในคำย่อยนั้นอยู่ใน text ที่ถูกตัดคำแล้วหรือไม่
                     if not all(p in tokens_set for p in word_parts):
                         valid = False
                         break
-                
                 if valid:
-                    # ตรงตามเงื่อนไข AND จับคู่ได้ทุกคำ จะได้คะแนนพิเศษ
-                    score += 5.0  # ให้คะแนนสูงพิเศษเพราะบริบทชัดเจน
-                    
+                    score += 5.0
+
         scores[category] = score
 
-    # 3. Routing Logic (ระบบจราจรที่ "ดีขึ้นจริง" - รองรับ Full Text Markdown)
-    
-    # หาหมวดอันดับ 1 และอันดับ 2
     sorted_cats = sorted(scores.keys(), key=lambda c: scores[c], reverse=True)
     top1 = sorted_cats[0]
-    top2 = sorted_cats[1] if len(sorted_cats) > 1 else None
-    
     score1 = scores[top1]
-    score2 = scores[top2] if top2 else 0.0
 
-    # --- ด่านที่ 1: ตรวจสอบหมวดนอกเหนือจาก ML (Fast-Track) ---
-    # ถ้า Rule-based บอกว่าเป็นหมวดที่ ML ไม่รู้จัก (Sports, Entertainment, World, ฯลฯ)
-    # และคะแนนห่างจากที่ 2 พอสมควร (>= 5.0 เพื่อกันคะแนนเฟ้อจากข่าวที่เนื้อหายาว) 
-    # ห้ามส่งให้ ML ตรวจเด็ดขาด! เพราะ ML จะพาออกทะเล
-    if top1 not in _ML_EXPERTISE and (score1 - score2) >= 5.0:
-        return top1, f"Rule-based (Domain Expert: {top1}, score={score1:.1f})"
-
-    # --- ด่านที่ 2: ตรวจสอบหมวดที่ ML เชี่ยวชาญ หรือกรณีหา Keyword ไม่เจอ ---
-    # เราจะเรียก ML เฉพาะเมื่อ:
-    # 1. Rule-based บอกว่าเป็น Politics, Economy, Society (เพื่อให้ ML Verified บริบท)
-    # 2. Rule-based หา Keyword ไม่เจอเลย (score1 == 0)
-    
-    ml_cat, ml_method, ml_conf = predict_with_ml(text)
-
-    # กฎการตัดสินใจสุดท้าย:
-    # ก) ถ้า ML มั่นใจพอ (>= 0.5) ให้เชื่อ ML (เพราะ ML เข้าใจบริบท 3 หมวดนี้ดีกว่า Rule-based)
-    if ml_conf >= 0.5:
-        return ml_cat, f"{ml_method} (conf={ml_conf:.2f})"
-    
-    # ข) ถ้า ML ไม่มั่นใจ (< 0.5) ให้กลับมาใช้ Rule-based ดั้งเดิม (ถ้ามีคะแนน) หรือ Default
     if score1 > 0:
-        return top1, f"Rule-based (ML Low Confidence: {ml_conf:.2f})"
+        return top1, f"Rule-based (ML Low Confidence Fallback: {ml_conf:.2f})"
 
     return _DEFAULT_CATEGORY, f"Fallback (Default, ML conf: {ml_conf:.2f})"
 
 
-def classify_article(title: str, summary: str = "", url: str = "") -> tuple[str, str]:
+def get_category_from_cues(cues: list[str] | str | None) -> tuple[str, str] | None:
     """
-    จำแนกบทความโดยเช็ก URL ก่อน ถ้าไม่มีค่อยรวม title + summary
-    คืนค่า (category, method)
+    ตรวจจับหมวดหมู่จาก Category Cues (เช่น hidden URLs ใน DOM, breadcrumbs, RSS categories)
+    คืนค่า (category_id, method_description) หรือ None ถ้าไม่ตรง
     """
+    if not cues:
+        return None
+
+    cue_list = [cues] if isinstance(cues, str) else list(cues)
+
+    for raw_cue in cue_list:
+        if not raw_cue or not isinstance(raw_cue, str):
+            continue
+        cue = raw_cue.strip()
+        if not cue:
+            continue
+
+        # 1. ถ้า cue เป็น URL หรือ path (เช่น https://thestandard.co/category/pop/ หรือ /category/politics)
+        if "/" in cue or "." in cue:
+            url_match = get_category_from_url(cue)
+            if url_match:
+                cat, _ = url_match
+                return cat, f"Category Cue ({cue})"
+
+        # 2. ตรวจสอบชื่อหมวดหมู่ภาษาไทย / ภาษาอังกฤษตรงๆ
+        cue_lower = cue.lower()
+        if cue_lower in _VALID_CATEGORIES:
+            return cue_lower, f"Category Cue ({cue})"
+
+        # Check in _URL_CUES (e.g. "การเมือง", "บันเทิง", "เศรษฐกิจ", "politics")
+        if cue_lower in _URL_CUES:
+            return _URL_CUES[cue_lower], f"Category Cue ({cue})"
+        cue_slash = f"/{cue_lower}"
+        if cue_slash in _URL_CUES:
+            return _URL_CUES[cue_slash], f"Category Cue ({cue})"
+
+        # 3. ตรวจสอบ High Specificity Cues ก่อนเสมอ
+        for cat, h_cues in _HIGH_SPECIFICITY_CUES.items():
+            for h_cue in h_cues:
+                if h_cue in cue_lower:
+                    return cat, f"Category Cue ({cue})"
+
+        # 4. Check if cue matches keywords in _RULES (exact or specific phrase length >= 6)
+        for cat, kws in _RULES.items():
+            for kw in kws:
+                kw_l = kw.lower()
+                if kw_l == cue_lower or (len(kw_l) >= 6 and kw_l in cue_lower):
+                    return cat, f"Category Cue ({cue})"
+
+    return None
+
+
+def classify_article(
+    title: str,
+    summary: str = "",
+    url: str = "",
+    category_cues: list[str] | str | None = None,
+) -> tuple[str, str]:
+    """
+    จำแนกบทความโดยเช็ก:
+    1. URL Priority (Tier 1: Fast-path จาก Main Article URL)
+    2. Hidden Category Cues (Tier 1.5: จาก Hidden URLs ใน DOM, breadcrumbs, RSS categories)
+    3. High-Specificity Domain Cues ในหัวข้อข่าว (Title Domain Cues)
+    4. Primary ML Classifier (Tier 2: LinearSVC / WangchanBERTa)
+    5. Fallback Keyword Rules (Tier 3)
+    """
+    # 1. Main Article URL
     if url:
-        url_lower = url.lower()
-        for cue, cat in _URL_CUES.items():
-            if cue in url_lower:
-                return cat, f"URL Priority ({cue})"
+        url_match = get_category_from_url(url)
+        if url_match:
+            return url_match
+
+    # 2. Hidden Category URLs & DOM/RSS Cues
+    if category_cues:
+        cue_match = get_category_from_cues(category_cues)
+        if cue_match:
+            return cue_match
+
+    # 3. ตรวจสอบ High-Specificity Cues ในหัวข้อข่าว (Title Priority)
+    title_lower = (title or "").lower()
+    for cat, cues in _HIGH_SPECIFICITY_CUES.items():
+        for cue in cues:
+            if cue in title_lower:
+                return cat, f"Rule ({cat})"
 
     combined = f"{title} {title} {title} {summary}"
     return classify(combined)
@@ -385,12 +840,14 @@ def ensure_categories(news: list[dict], *, force: bool = False) -> int:
         if not isinstance(item, dict):
             continue
         current = item.get("category")
-        if not force and current in _VALID_CATEGORIES:
+        has_method = bool(item.get("classification_method"))
+        if not force and current in _VALID_CATEGORIES and has_method:
             continue
         title = (item.get("title") or "").strip()
         summary = (item.get("summary") or "").strip()
         url = item.get("url", "")
-        cat, method = classify_article(title, summary, url=url)
+        category_cues = item.get("category_cues")
+        cat, method = classify_article(title, summary, url=url, category_cues=category_cues)
         item["category"] = cat
         item["classification_method"] = method
         updated += 1

@@ -1,0 +1,139 @@
+\documentclass{cskkuproject}
+
+% ==========================================
+% ข้อมูลโครงงาน — กรอกข้อมูลที่นี่
+% ==========================================
+
+\titleTH{ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติด้วยเทคนิคการประมวลผล ภาษาธรรมชาติแบบเฉพาะประเภท}
+\titleEN{Category-Specific News Classification and NLP Analytics Pipeline}
+
+% ข้อมูลนักศึกษาคนที่ 1 (กรอกข้อมูลจริงก่อนส่ง)
+\firstStudentID{663380214-4}
+\firstStudentPrefixTH{นาย}
+\firstStudentPrefixEN{Mr.}
+\firstStudentNameTH{นราวิชญ์ ศิริพล}
+\firstStudentNameEN{Narawit Siripol}
+
+% ข้อมูลนักศึกษาคนที่ 2
+% *** ถ้าทำโครงงานคนเดียว ให้เว้นว่างไว้ทั้งหมด (เหมือนด้านล่าง) ***
+% *** ถ้ามี 2 คน ให้กรอกข้อมูลเหมือนคนที่ 1 ***
+\secondStudentID{663380028-1}
+\secondStudentPrefixTH{นาย}
+\secondStudentPrefixEN{Mr.}
+\secondStudentNameTH{อัสดาวุฒิ เอื้อวงค์}
+\secondStudentNameEN{Ausadawut Aueawong}
+
+% ข้อมูลหลักสูตร
+\degreeTH{วิทยาศาสตรบัณฑิต}
+\degreeEN{Bachelor of Science}
+\majorTH{วิทยาการคอมพิวเตอร์}
+\majorEN{Computer Science}
+
+% อาจารย์ที่ปรึกษา (กรอกข้อมูลจริงก่อนส่ง)
+\advisorTH{อ.ดร.พบพร ด่านวิรุทัย}
+\advisorEN{Dr. Pobporn Danvirutai}
+
+% ปีการศึกษา
+\academicYearTH{2569}
+\academicYearEN{2026}
+
+% รหัสวิชา (CP354 771 = โครงงาน 1, CP354 772 = โครงงาน 2)
+\courseCode{CP354 771}
+\courseName{โครงงานคอมพิวเตอร์ 1}
+\semester{1}
+
+% คำสำคัญ
+\keywordsTH{การจำแนกข่าว, การวิเคราะห์ข้อความ, การประมวลผลภาษาธรรมชาติ, เว็บสแครปปิง, โมเดลภาษาขนาดใหญ่, อัลกอริทึมแนะนำข่าว}
+\keywordsEN{News classification, Text analytics, Natural language processing, Web scraping, Large language model, Recommendation algorithm}
+
+
+\begin{document}
+
+% ==========================================
+% หน้าปก
+% ==========================================
+% คำสั่งด้านล่างสร้างหน้าปกอัตโนมัติจากข้อมูลที่กรอกด้านบน
+% ไม่ต้องแก้ไขส่วนนี้
+\maketitlepage
+
+% ตั้งค่าเลขหน้าส่วนต้นเป็นอักษรไทย (ก, ข, ค, ...)
+\pagenumbering{arabic}
+\setcounter{page}{0}
+\renewcommand{\thepage}{\ThaiAlph{\value{page}}}
+
+% ==========================================
+% บทคัดย่อ
+% ==========================================
+\begin{abstractTH}
+\input{abstractTH}
+\end{abstractTH}
+
+\begin{abstractEN}
+\input{abstractEN}
+\end{abstractEN}
+
+% ==========================================
+% กิตติกรรมประกาศ
+% ==========================================
+\begin{acknowledgement}
+\input{acknowledgement}
+\end{acknowledgement}
+
+% ==========================================
+% สารบัญ
+% ==========================================
+\tableofcontents
+\clearpage
+\listoffigures
+\clearpage
+\listoftables
+\clearpage
+
+% ==========================================
+% สัญลักษณ์และคำย่อ (ถ้ามี — uncomment ด้านล่าง)
+% ==========================================
+% \begin{symbolpage}
+% \input{symbols}
+% \end{symbolpage}
+
+% ==========================================
+% เนื้อเรื่อง 5 บท
+% ==========================================
+% เริ่มนับเลขหน้าใหม่เป็นเลขอารบิก (1, 2, 3, ...)
+% ไม่ต้องแก้ไขส่วนนี้
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\chapterone
+\chaptertwo
+\chapterthree
+
+% ==========================================
+% ข้อเสนอโครงงาน (Proposal) — นำเสนอถึงบทที่ 3
+% บทที่ 4 และ 5 เป็นการวิเคราะห์/พัฒนาระบบและสรุปผล
+% จะเขียนในรายงานฉบับสมบูรณ์
+% *** ถ้าต้องการแสดงในไฟล์ ให้ uncomment สองบรรทัดด้านล่าง ***
+% ==========================================
+% \chapterfour
+% \chapterfive
+
+% ==========================================
+% เอกสารอ้างอิง
+% ==========================================
+% *** ไม่ต้องแก้ไขส่วนนี้ ***
+% ระบบจะดึงรายการอ้างอิงจากไฟล์ references.bib อัตโนมัติ
+% ให้แก้ไขรายการอ้างอิงในไฟล์ references.bib แทน
+\clearpage
+\addcontentsline{toc}{chapter}{เอกสารอ้างอิง}
+\makeatletter
+\let\ps@plain\ps@empty
+\makeatother
+\bibliographystyle{ieeetr}
+\bibliography{references}
+
+% ==========================================
+% ภาคผนวก
+% ==========================================
+\input{appendices}
+
+\end{document}

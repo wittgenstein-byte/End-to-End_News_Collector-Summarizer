@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="tech-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070B19"/>
+      <stop offset="50%" stop-color="#0D153A"/>
+      <stop offset="100%" stop-color="#030611"/>
+    </linearGradient>
+    <radialGradient id="tech-bloom" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chip-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#tech-bg)"/>
+  <rect width="800" height="450" fill="url(#tech-bloom)"/>
+
+  <!-- Isometric Cyber Grid Ground -->
+  <g opacity="0.25" stroke="#38BDF8" stroke-width="1">
+    <line x1="400" y1="240" x2="0" y2="450"/>
+    <line x1="400" y1="240" x2="180" y2="450"/>
+    <line x1="400" y1="240" x2="360" y2="450"/>
+    <line x1="400" y1="240" x2="440" y2="450"/>
+    <line x1="400" y1="240" x2="620" y2="450"/>
+    <line x1="400" y1="240" x2="800" y2="450"/>
+    <line x1="280" y1="290" x2="520" y2="290"/>
+    <line x1="190" y1="335" x2="610" y2="335"/>
+    <line x1="90" y1="390" x2="710" y2="390"/>
+  </g>
+
+  <!-- Circuit Trace Lines & Neural Nodes -->
+  <g opacity="0.4" stroke="#818CF8" stroke-width="1.5" fill="none">
+    <path d="M120 120 H220 L270 170 H320"/>
+    <circle cx="120" cy="120" r="3" fill="#22D3EE"/>
+    <path d="M680 120 H580 L530 170 H480"/>
+    <circle cx="680" cy="120" r="3" fill="#A855F7"/>
+  </g>
+
+  <!-- Hero Central Glass Badge with Microchip AI Core -->
+  <g transform="translate(400, 185)">
+    <rect x="-140" y="-48" width="280" height="96" rx="20" fill="#FFFFFF" fill-opacity="0.04" stroke="#22D3EE" stroke-opacity="0.3" stroke-width="1.2"/>
+    
+    <rect x="-22" y="-22" width="44" height="44" rx="8" fill="none" stroke="url(#chip-grad)" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="8" fill="#22D3EE" fill-opacity="0.8"/>
+    
+    <path d="M-30 -12 H-22 M-30 0 H-22 M-30 12 H-22 M22 -12 H30 M22 0 H30 M22 12 H30" stroke="#818CF8" stroke-width="2" stroke-linecap="round"/>
+    <path d="M-12 -30 V-22 M0 -30 V-22 M12 -30 V-22 M-12 22 V30 M0 22 V30 M12 22 V30" stroke="#818CF8" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="400" y="325" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#CFFAFE" text-anchor="middle" letter-spacing="4">TECH &amp; INNOVATION</text>
+  <text x="400" y="348" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#818CF8" text-anchor="middle" letter-spacing="2">ARTIFICIAL INTELLIGENCE • CYBERNETICS</text>
+</svg>

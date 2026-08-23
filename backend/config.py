@@ -7,9 +7,11 @@ GRASP  Information Expert — รู้จักทุก setting ของร�
 ─────────────────────────────────────────────────────────────────
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
-
+from typing import ClassVar
 
 # ── Resolve base paths ───────────────────────────────────────────
 _HERE = Path(__file__).resolve().parent          # backend/
@@ -32,7 +34,7 @@ def _load_env_file(path: Path) -> dict[str, str]:
                 continue
             k, _, v = line.partition("=")
             result[k.strip()] = v.strip().strip('"').strip("'")
-    except Exception:
+    except OSError:
         pass
     return result
 
@@ -53,6 +55,10 @@ class Settings:
     llm_model: str          = _get("LLM_MODEL",    "gemini-3.1-flash-lite-preview")
     llm_temperature: float  = float(_get("LLM_TEMPERATURE", "0.3"))
 
+    # Caching
+    summary_cache_ttl_seconds: int = int(_get("SUMMARY_CACHE_TTL_SECONDS", "86400"))
+    summary_cache_max_size: int    = int(_get("SUMMARY_CACHE_MAX_SIZE", "1000"))
+
     # Scraper
     interval_minutes: int           = int(_get("INTERVAL_MINUTES",         "15"))
     max_articles_per_source: int    = int(_get("MAX_ARTICLES_PER_SOURCE",  "10"))
@@ -62,12 +68,15 @@ class Settings:
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
+    engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")
     port: int               = int(_get("PORT", "5000"))
     playwright_service_url: str = _get("PLAYWRIGHT_SERVICE_URL", "http://playwright:8001/scrape")
+    obscura_service_url: str    = _get("OBSCURA_SERVICE_URL", "ws://localhost:9222")
+    cors_origins: ClassVar[list[str]] = [x.strip() for x in _get("CORS_ORIGINS", "*").split(",") if x.strip()]
 
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"

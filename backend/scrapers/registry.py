@@ -15,8 +15,9 @@ GRASP  Information Expert — รู้จัก SOURCES collection ทั้ง
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Callable, Coroutine, Any
+from typing import Any
 
 
 @dataclass

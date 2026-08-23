@@ -1,0 +1,26 @@
+﻿{
+  "name": "NEWSROOM — AI News Briefing",
+  "short_name": "NEWSROOM",
+  "description": "Safe PWA news reader with AI summaries, snippets, and clean external navigation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8f9fa",
+  "theme_color": "#1a3a6b",
+  "icons": [
+    {
+      "src": "/frontend/static/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/frontend/static/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["news", "magazines", "productivity"]
+}

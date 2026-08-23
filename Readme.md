@@ -1,162 +1,193 @@
-# 📰 NEWSROOM — Thai News Aggregator
+# 📰 NEWSROOM — Thai News Aggregator & Summarizer
 
-ระบบดึงข่าวอัตโนมัติและสรุปจากหลายสำนักข่าวไทย แสดงผลแบบ Real-time บนเว็บ
+ระบบดึงข่าวอัตโนมัติ จัดหมวดหมู่อัจฉริยะ (Multi-tier Classification + Fast-Path URL Priority) และสรุปเนื้อหาข่าวจาก 12 สำนักข่าวชั้นนำในประเทศไทย แสดงผลแบบ Real-time บนเว็บด้วย FastAPI และ Socket.IO
 
 ---
 
-## 🗂️ โครงสร้างไฟล์
+## 🗂️ โครงสร้างโปรเจกต์
 
 ```
 backend/
-├── main.py              — FastAPI app factory
-├── config.py            — Settings (env vars, paths)
+├── main.py              — FastAPI app factory & Socket.IO mounting
+├── config.py            — Settings (env vars, paths, defaults)
 ├── .env / .env.example  — API keys, adjustable params
 ├── core/
-│   ├── browser.py       — Playwright HTML fetcher
-│   ├── constants.py      — BROWSER_HEADERS
-│   ├── fetcher_service.py
-│   └── socket_manager.py — Socket.IO singleton
+│   ├── browser.py       — Playwright fetcher (Service + Local Fallback)
+│   ├── constants.py     — BROWSER_HEADERS, constants
+│   ├── fetcher_service.py — HTML to Markdown extraction
+│   └── socket_manager.py — Socket.IO singleton manager
 ├── schemas/
-│   └── news_schema.py   — Pydantic models (ArticleRecord, NewsSummary, ...)
+│   └── news_schema.py   — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
 ├── repo/
 │   └── news_repo.py     — JSON persistence (NewsRepositoryPort)
 ├── routers/
-│   ├── news_router.py   — /news, /sources, /status
-│   └── collect_router.py — /collect-md
+│   ├── news_router.py   — Endpoints: /api/news, /api/sources, /api/categories, /api/status
+│   └── collect_router.py — Endpoint: /api/collect-md (LLM Summarization)
 ├── services/
-│   ├── scraper_service.py  — background loop
-│   ├── summarizer_service.py — LLM summarizer
-│   ├── classifier_service.py — keyword-based categorizer
-│   └── fetcher_service.py
+│   ├── scraper_service.py    — Background loop for periodic scraping
+│   ├── summarizer_service.py — LLM summarizer service
+│   └── classifier_service.py — 3-Tier Multi-strategy Category Classifier
 ├── scrapers/
-│   ├── registry.py   — @register_source decorator
-│   ├── helpers.py    — HTML parse, image, URL utilities
-│   └── sources.py    — source scrapers (ThaiPBS, Bangkok Post, Matichon, ...)
+│   ├── registry.py      — @register_source decorator & SOURCES collection
+│   ├── helpers.py       — HTML/RSS parsing, image, URL, article builder
+│   └── sources.py       — 12 news source scrapers
+├── model/
+│   ├── tfidf_vectorizer.pkl — TF-IDF text vectorizer
+│   └── svm_classifier.pkl   — Pre-trained SVM model for category classification
+├── tests/
+│   ├── conftest.py                — Test configuration & path setup
+│   ├── test_classifier_service.py — URL Priority & classification test suite
+│   └── test_sources.py            — News sources registration test suite
 └── sockets/
-    └── events.py     — connect / disconnect
+    └── events.py        — WebSocket event handlers
 
 frontend/
 ├── index.html
 ├── package.json
 └── static/
-    ├── app.css    — all styles (CSS variables)
-    ├── config.js  — API_BASE, CATEGORIES, SOURCE_COLORS
-    ├── api.js     — fetch/socket helpers
-    ├── ui.js      — render, DOM only
-    └── main.js    — controller, module-level state
+    ├── app.css          — Styles & CSS variables
+    ├── config.js        — API_BASE, CATEGORIES, SOURCE_COLORS
+    ├── api.js           — REST & Socket.IO client helpers
+    ├── UI.js            — Pure DOM manipulation & UI rendering
+    └── main.js          — Application controller & state management
 
-data/                  — created at runtime
-├── news_data.json     — persisted articles
-└── collected_md/      — downloaded Markdown files
+data/                    — Runtime generated directory
+├── news_data.json       — Persisted news articles
+└── collected_md/        — Downloaded Markdown files
 ```
+
+---
+
+## 🧠 ระบบจำแนกหมวดหมู่ข่าว (3-Tier Classification Engine)
+
+1. **Tier 1: Fast-Path URL Priority (< 0.1ms)**
+   - ตรวจจับหมวดหมู่จาก URL path / slug อัตโนมัติ (เช่น `/politics`, `/business`, `/sport`, `/tech`, `/foreign`, `/local` รวมถึง URL ภาษาไทยแบบ Percent-encoded)
+   - หากตรงกับเงื่อนไข จะจัดหมวดหมู่ทันทีโดยไม่ต้องผ่านกระบวนการ NLP หรือ Machine Learning ประหยัดทรัพยากรและเร็วที่สุด
+2. **Tier 2: Rule-based Domain Expert Scoring**
+   - ตัดคำด้วย PyThaiNLP และคำนวณคะแนน Keyword + Compound Rules แบบถ่วงน้ำหนัก สำหรับกรณีที่ URL ไม่ระบุหมวด
+3. **Tier 3: Machine Learning Model (TF-IDF + SVM)**
+   - ใช้โมเดล Machine Learning ในการวิเคราะห์บริบทเชิงลึกสำหรับหมวดที่มีความคาบเกี่ยวสูง (การเมือง, เศรษฐกิจ, สังคม)
+
+---
+
+## 📡 สำนักข่าวที่รองรับ (12 สำนักข่าว)
+
+| สำนักข่าว | Base URL | รูปแบบการดึงข้อมูล | หมวดหมู่หลักผ่าน URL Priority |
+| :--- | :--- | :--- | :--- |
+| **ไทยรัฐ (Thairath)** | `https://www.thairath.co.th` | RSS Feed | การเมือง, เศรษฐกิจ, ต่างประเทศ, ท้องถิ่น |
+| **ไทยโพสต์ (Thai Post)** | `https://www.thaipost.net` | RSS Feed | การเมือง, เศรษฐกิจ, ทั่วไป |
+| **มติชน (Matichon)** | `https://www.matichon.co.th` | RSS Feed | การเมือง, เศรษฐกิจ, บันเทิง, กีฬา, ต่างประเทศ |
+| **เดลินิวส์ (Daily News)** | `https://www.dailynews.co.th` | HTTP Scraping | ทั่วไป, อาชญากรรม, การเมือง, กีฬา |
+| **ข่าวสด (Khaosod)** | `https://www.khaosod.co.th` | RSS Feed (กรอง EN ออก) | การเมือง, กีฬา, บันเทิง, รอบโลก |
+| **The Standard** | `https://thestandard.co` | RSS Feed | การเมือง, ธุรกิจ, เทคโนโลยี, สิ่งแวดล้อม |
+| **101 World (The 101 World)** | `https://www.the101.world` | RSS + Playwright Fallback | สังคม, การเมือง, ความคิดเห็น |
+| **ThaiPBS** | `https://www.thaipbs.or.th` | HTTP Scraping | การเมือง, เศรษฐกิจ, กีฬา, วิทยาศาสตร์ |
+| **Bangkok Post** | `https://www.bangkokpost.com` | HTTP Scraping | Politics, Business, Sports, Tech, World |
+| **คมชัดลึก (Komchadluek)** | `https://www.komchadluek.net` | Playwright Browser Fetch | กีฬา, บันเทิง, การเมือง, อาชญากรรม |
+| **เนชั่นออนไลน์ (Nation Online)** | `https://www.nationtv.tv` | HTTP Scraping | สังคม, กีฬา, การเมือง |
+| **กรุงเทพธุรกิจ (Bangkokbiznews)** | `https://www.bangkokbiznews.com` | HTTP Scraping | ธุรกิจ, การเงิน, เทคโนโลยี, ตลาดหุ้น |
+
+---
+
+## 🏷️ หมวดหมู่ข่าว (Categories)
+
+- 🏛️ **politics** (การเมือง)
+- 📈 **economy** (เศรษฐกิจ / ธุรกิจ / การเงิน)
+- 💻 **technology** (เทคโนโลยี / ไอที / AI)
+- 💊 **health** (สุขภาพ / สาธารณสุข)
+- 🌿 **environment** (สิ่งแวดล้อม / สภาพภูมิอากาศ)
+- 👥 **society** (สังคม / คุณภาพชีวิต / การศึกษา)
+- ⚽ **sports** (กีฬา / ฟุตบอล)
+- 🎬 **entertainment** (บันเทิง / ดารา / ภาพยนตร์)
+- 🌍 **world** (ต่างประเทศ / รอบโลก)
 
 ---
 
 ## ✅ ความต้องการของระบบ
 
-- Python **3.10** ขึ้นไป
-- Node.js **18+** (for frontend dev server)
-- Chromium / Chrome (for Playwright)
+- **Python**: 3.10 ขึ้นไป
+- **Package Manager**: [uv](https://docs.astral.sh/uv/) (แนะนำ)
+- **Browser**: Chromium (ติดตั้งผ่าน Playwright)
 
 ---
 
-## 📦 ติดตั้ง Dependencies
+## 📦 การติดตั้ง (Installation)
 
 ```bash
-# Python
-pip install requests beautifulsoup4 playwright fastapi trafilatura uvicorn \
-  socketio httpx openai pythainlp pydantic
+# ติดตั้ง dependencies ผ่าน uv
+uv sync
 
-# Playwright browser
-playwright install chromium
-
-# Frontend
-cd frontend && npm install && cd ..
+# ติดตั้ง Chromium สำหรับ Playwright
+uv run playwright install chromium
 ```
 
 ---
 
 ## ⚙️ Environment Setup
 
-Copy `backend/.env.example` → `backend/.env` แล้วกำหนดค่าตามต้องการ:
+คัดลอก `backend/.env.example` เป็น `backend/.env` แล้วกำหนดค่าตามต้องการ:
 
 ```env
-# LLM (required for summarization)
+# LLM (สำหรับสรุปข่าวใน /api/collect-md)
 LLM_API=your_api_key_here
 LLM_BASE_URL=https://gen.ai.kku.ac.th/api/v1
 LLM_MODEL=gemini-3.1-flash-lite-preview
 LLM_TEMPERATURE=0.3
 
-# Scraper
+# Scraper Settings
 INTERVAL_MINUTES=15
 MAX_ARTICLES_PER_SOURCE=10
 SUMMARY_SENTENCES=3
 PAGE_SIZE=20
 
-# Server (optional)
+# Server
 HOST=0.0.0.0
 PORT=5000
 ```
 
 ---
 
-## 🚀 วิธีรัน
+## 🚀 วิธีรันระบบ (Run Server)
 
 ```bash
-python backend/main.py
+# รัน backend server (FastAPI + Socket.IO)
+uv run python backend/main.py
 ```
 
-เปิดเบราว์เซอร์ → http://localhost:5000
+เปิดเบราว์เซอร์ที่: **`http://localhost:5000`**
 
 ---
 
-## 📡 สำนักข่าวที่รองรับ
-
-| สำนัก | URL | วิธีดึงข่าว |
-|---|---|---|
-| ThaiPBS | https://www.thaipbs.or.th/news | HTML |
-| Bangkok Post | https://www.bangkokpost.com/thailand/general | HTML |
-| Matichon | https://www.matichon.co.th/news | RSS |
-| 101 World | https://www.the101.world | Playwright |
-| The Standard | https://thestandard.co | RSS |
-
----
-
-## 🏷️ Categories
-
-politics, economy, technology, health, environment, society, sports, entertainment, world
-
----
-
-## 🔍 Lint / Type Check
+## 🧪 การทดสอบ (Testing)
 
 ```bash
-ruff check backend/
-mypy backend/
+# รันชุดทดสอบทั้งหมด
+uv run pytest -v
+
+# รันเฉพาะทดสอบ URL Priority และ Classifier
+uv run pytest backend/tests/test_classifier_service.py -v
+
+# รันเฉพาะทดสอบการลงทะเบียนของสำนักข่าว
+uv run pytest backend/tests/test_sources.py -v
 ```
 
 ---
 
-## 🧪 Test
+## 🔍 ตรวจสอบ Code Style & Type Safety
 
 ```bash
-# ติดตั้ง pytest ก่อน (ถ้ายังไม่มี)
-pip install pytest
+# Linting ด้วย Ruff
+uv run ruff check backend/
 
-# รันทุก test
-pytest backend/tests/ -v
-
-# รันไฟล์เดียว
-pytest backend/tests/test_news_repo.py -v
-
-# รัน test ที่มีชื่อตรงกับ pattern
-pytest -k "test_load" -v
+# Type Checking ด้วย MyPy
+uv run mypy backend/ --ignore-missing-imports --explicit-package-bases
 ```
 
 ---
 
 ## 📝 หมายเหตุ
 
-- รอบแรกใช้เวลา **2-5 นาที** สำหรับการดึงข่าวครั้งแรก
-- โฟลเดอร์ `data/` ถูกสร้างอัตโนมัติเมื่อรัน อย่า push ขึ้น git
-- ดู `AGENTS.md` สำหรับ code style และ guidelines สำหรับ agentic coding
+- โฟลเดอร์ `data/` จะถูกสร้างขึ้นอัตโนมัติเมื่อรันระบบ เพื่อเก็บข้อมูลข่าว (`news_data.json`) และไฟล์ Markdown ที่ดาวน์โหลดมา
+- ระบบมีการบันทึก Seen URLs เพื่อป้องกันการดึงข่าวซ้ำซ้อนในแต่ละรอบ
+- ศึกษารายละเอียดแนวทางการเขียนโค้ดและ SOLID / GRASP architecture ได้ใน `AGENTS.md`
+

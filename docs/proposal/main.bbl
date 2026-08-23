@@ -1,0 +1,46 @@
+\begin{thebibliography}{1}
+
+\bibitem{trafilatura2021}
+A.~Barbaresi, ``Trafilatura: A python package for text and web scraping,'' in
+  {\em Proceedings of the 59th Annual Meeting of the Association for
+  Computational Linguistics and the 11th International Joint Conference on
+  Natural Language Processing: System Demonstrations}, pp.~105--112,
+  Association for Computational Linguistics, 2021.
+
+\bibitem{rss2009}
+D.~Winer, ``Rss 2.0 specification.''
+  \url{https://www.rssboard.org/rss-specification}, 2009.
+\newblock Accessed: 2025-01-10.
+
+\bibitem{allahyari2017}
+M.~Allahyari, S.~Pouriyeh, M.~Assefi, S.~Safaei, E.~D. Trippe, J.~B. Gutierrez,
+  and K.~Kochut, ``Text summarization techniques: A brief survey,'' {\em arXiv
+  preprint arXiv:1707.02268}, 2017.
+
+\bibitem{gemini2024}
+G.~D.~G. Team, ``Gemini: A family of highly capable multimodal models,'' {\em
+  arXiv preprint arXiv:2312.11805}, 2024.
+
+\bibitem{openai2024}
+{OpenAI}, ``Openai platform documentation.''
+  \url{https://platform.openai.com/docs}, 2024.
+\newblock Accessed: 2025-01-10.
+
+\bibitem{pythainlp2021}
+W.~Phatthiyaphaibun, K.~Chaovavanich, {\em et~al.}, ``Pythainlp: Thai natural
+  language processing in python framework.''
+  \url{https://doi.org/10.5281/zenodo.3519354}, 2021.
+\newblock Accessed: 2025-01-10.
+
+\bibitem{scikit2024}
+F.~Pedregosa, G.~Varoquaux, A.~Gramfort, V.~Michel, B.~Thirion, O.~Grisel,
+  M.~Blondel, P.~Prettenhofer, R.~Weiss, V.~Dubourg, {\em et~al.},
+  ``Scikit-learn: Machine learning in {Python},'' {\em Journal of Machine
+  Learning Research}, vol.~12, pp.~2825--2830, 2011.
+
+\bibitem{playwright2024}
+{Microsoft}, ``Playwright: Fast and reliable cross-browser testing.''
+  \url{https://playwright.dev}, 2024.
+\newblock Accessed: 2025-01-10.
+
+\end{thebibliography}

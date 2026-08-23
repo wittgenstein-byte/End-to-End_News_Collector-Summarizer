@@ -1,0 +1,196 @@
+% *** ก่อนส่ง: ลบข้อความตัวอย่าง (\ldots) ทั้งหมด แล้วเขียนเนื้อหาของตนเอง ***
+% =============================================================
+% บทที่ 4 - การวิเคราะห์ระบบ และพัฒนาโปรแกรม
+% แก้ไขเนื้อหาในบทนี้ได้ที่ไฟล์ chapter4.tex
+% =============================================================
+
+% -----------------------------------------------------------
+\section{การวิเคราะห์ระบบ}
+% -----------------------------------------------------------
+
+\subsection{ผังแสดงทิศทางของกิจกรรม}
+
+จากการวิเคราะห์ปัญหา สามารถแสดงผังทิศทางกิจกรรมของระบบได้ดังนี้\ldots{}
+
+\subsection{รายการความต้องการ}
+
+\subsubsection{ความต้องการเชิงฟังก์ชัน}
+
+ความต้องการเชิงฟังก์ชันของระบบแสดงดังตารางที่ \ref{tab:func_req}
+
+\begin{table}[H]
+\centering
+\caption{ความต้องการเชิงฟังก์ชัน (Functional Requirements)}
+\label{tab:func_req}
+\begin{tabular}{|c|l|l|}
+\hline
+\textbf{รหัส} & \textbf{ชื่อ Requirement} & \textbf{รายละเอียด} \\
+\hline
+FR-01 & \ldots & ระบบต้องสามารถ\ldots \\ \hline
+FR-02 & \ldots & ระบบต้องสามารถ\ldots \\ \hline
+FR-03 & \ldots & ระบบต้องสามารถ\ldots \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{ความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
+
+ระบบต้องรองรับ\ldots{}
+
+\begin{enumerate}[label=\arabic*)]
+    \item \textbf{ด้านประสิทธิภาพ (Performance):} ระบบต้องตอบสนองภายใน\ldots{} วินาที
+    \item \textbf{ด้านความปลอดภัย (Security):} ระบบต้องเข้ารหัสรหัสผ่านด้วย\ldots{}
+    \item \textbf{ด้านความสามารถใช้งาน (Usability):} ระบบต้องใช้งานง่ายโดย\ldots{}
+\end{enumerate}
+
+\subsection{Use Case Diagram}
+
+จากการวิเคราะห์ความต้องการ สามารถสร้าง Use Case Diagram ได้ดังภาพที่ \ref{fig:usecase}
+
+% *** uncomment ด้านล่างเมื่อมีภาพ Use Case แล้ว ***
+% *** เปลี่ยนชื่อไฟล์จาก usecase.png เป็นชื่อไฟล์ของคุณ ***
+\begin{figure}[H]
+\centering
+% \includegraphics[width=0.9\textwidth]{images/usecase.png}
+\fbox{\parbox{0.8\textwidth}{\centering\vspace{3cm}\textit{แทรกภาพ Use Case Diagram ที่นี่}\\ใช้คำสั่ง \texttt{\textbackslash includegraphics}\vspace{3cm}}}
+\caption{Use Case Diagram ของระบบ}
+\label{fig:usecase}
+\end{figure}
+
+\subsection{System Sequence Diagram}
+
+ภาพรวมการทำงานของระบบแสดงด้วย System Sequence Diagram ดังภาพที่\ldots{}
+
+\subsection{Conceptual Class Diagram}
+
+ความสัมพันธ์เชิงแนวคิดของคลาสในระบบแสดงดังภาพที่\ldots{}
+
+% -----------------------------------------------------------
+\section{การออกแบบระบบ}
+% -----------------------------------------------------------
+
+\subsection{สถาปัตยกรรมของระบบ}
+
+ระบบออกแบบด้วยสถาปัตยกรรมแบบ\ldots{} แสดงด้วย Package Diagram ดังภาพที่\ldots{}
+
+\subsection{Class Diagram}
+
+รายละเอียดคลาสและความสัมพันธ์แสดงดังภาพที่\ldots{}
+
+\subsection{Sequence Diagram}
+
+พฤติกรรมเชิงพลวัตของระบบแสดงด้วย Sequence Diagram ดังภาพที่\ldots{}
+
+\subsection{การออกแบบฐานข้อมูล}
+
+ออกแบบฐานข้อมูลเชิงสัมพันธ์ โดยแสดง E-R Diagram ดังภาพที่\ldots{}
+
+% ตัวอย่างตารางโครงสร้างฐานข้อมูล
+รายละเอียดโครงสร้างของตารางแต่ละตารางแสดงดังตารางที่ \ref{tab:db_users}
+
+\begin{table}[H]
+\centering
+\caption{โครงสร้างตาราง users}
+\label{tab:db_users}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{คำอธิบาย} \\
+\hline
+id & INT & PK & รหัสผู้ใช้ \\ \hline
+username & VARCHAR(50) & UQ & ชื่อผู้ใช้ \\ \hline
+email & VARCHAR(100) & & อีเมล \\ \hline
+password & VARCHAR(255) & & รหัสผ่าน (hashed) \\ \hline
+created\_at & DATETIME & & วันที่สร้าง \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Mockup User Interface}
+
+ต้นแบบส่วนติดต่อผู้ใช้ออกแบบดังภาพที่\ldots{}
+
+% -----------------------------------------------------------
+\section{การพัฒนาโปรแกรม}
+% -----------------------------------------------------------
+
+\subsection{ภาษาและเครื่องมือที่ใช้ในการพัฒนา}
+
+ระบบพัฒนาด้วยภาษา\ldots{} ร่วมกับเฟรมเวิร์ค\ldots{} ใช้ฐานข้อมูล\ldots{}
+
+\subsection{โครงสร้างของโปรแกรม}
+
+โครงสร้างโปรแกรมแบ่งออกเป็น\ldots{} ส่วน ดังนี้\ldots{}
+
+\subsection{ข้อกำหนดเฉพาะของแต่ละส่วน}
+
+รายละเอียดข้อกำหนดของแต่ละส่วน (Program Specification) มีดังนี้\ldots{}
+
+\subsection{การติดต่อกับฐานข้อมูลและ Services}
+
+ระบบติดต่อกับฐานข้อมูลผ่าน\ldots{}
+
+% -----------------------------------------------------------
+\section{การทดสอบระบบ}
+% -----------------------------------------------------------
+
+\subsection{วิธีการทดสอบ}
+
+ทดสอบด้วยวิธี User Acceptance Testing โดยมี Test Case ดังตารางที่ \ref{tab:test_result}
+
+\subsection{ผลการทดสอบ}
+
+ผลการทดสอบระบบแสดงดังตารางที่ \ref{tab:test_result}
+
+\begin{table}[H]
+\centering
+\caption{ผลการทดสอบระบบ (User Acceptance Testing)}
+\label{tab:test_result}
+\begin{tabular}{|c|l|l|c|}
+\hline
+\textbf{TC} & \textbf{รายการทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผล} \\
+\hline
+TC-01 & เข้าสู่ระบบด้วยข้อมูลถูกต้อง & เข้าสู่หน้าหลักได้ & ผ่าน \\ \hline
+TC-02 & เข้าสู่ระบบด้วยรหัสผ่านผิด & แสดง error message & ผ่าน \\ \hline
+TC-03 & \ldots & \ldots & ผ่าน \\ \hline
+TC-04 & \ldots & \ldots & ผ่าน \\ \hline
+TC-05 & \ldots & \ldots & ผ่าน \\
+\hline
+\end{tabular}
+\end{table}
+
+% ถ้าตารางยาวเกิน 1 หน้า ใช้ \captioncont ดังนี้:
+% \begin{table}[H]
+% \centering
+% \captioncont{ผลการทดสอบระบบ (User Acceptance Testing)}
+% \begin{tabular}{|c|l|l|c|}
+% ...ข้อมูลส่วนที่เหลือ...
+% \end{tabular}
+% \end{table}
+
+\subsection{รายละเอียดกรณีทดสอบ (Test Case Detail)}
+
+% ตัวอย่าง Test Case แบบละเอียดพร้อมขั้นตอน
+% *** คัดลอก template ด้านล่างไปใช้ แล้วเปลี่ยนข้อมูล ***
+รายละเอียดกรณีทดสอบ TC-01 แสดงดังตารางที่ \ref{tab:tc01}
+
+\begin{table}[H]
+\caption{กรณีทดสอบ TC-01: เข้าสู่ระบบด้วยข้อมูลถูกต้อง}
+\label{tab:tc01}
+\noindent
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Test Case ID} & TC-01 \\ \hline
+\textbf{ชื่อกรณีทดสอบ} & เข้าสู่ระบบด้วยข้อมูลถูกต้อง \\ \hline
+\textbf{วัตถุประสงค์} & ทดสอบว่าผู้ใช้สามารถเข้าสู่ระบบได้เมื่อกรอกข้อมูลถูกต้อง \\ \hline
+\textbf{เงื่อนไขก่อนทดสอบ} & มี account ในระบบอยู่แล้ว \\ \hline
+\textbf{ขั้นตอนการทดสอบ} & 1. เปิดหน้า Login \\ \cline{2-2}
+ & 2. กรอก Username: \texttt{testuser} \\ \cline{2-2}
+ & 3. กรอก Password: \texttt{P@ssw0rd} \\ \cline{2-2}
+ & 4. กดปุ่ม ``เข้าสู่ระบบ'' \\ \hline
+\textbf{ผลที่คาดหวัง} & ระบบแสดงหน้าหลัก (Dashboard) พร้อมชื่อผู้ใช้ \\ \hline
+\textbf{ผลการทดสอบจริง} & ระบบแสดงหน้า Dashboard ถูกต้อง \\ \hline
+\textbf{สถานะ} & \textbf{ผ่าน} \\
+\hline
+\end{tabular}
+\end{table}
+

@@ -11,10 +11,9 @@ GRASP  Creator — สร้างและจัดการ news / seen-url co
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
-from datetime import datetime
-
 
 # ── Port (abstract interface) ─────────────────────────────────────
 # SOLID D — high-level modules (services) พึ่ง abstraction นี้
@@ -44,7 +43,7 @@ class FileNewsRepository:
     def save_news(self, articles: list[dict]) -> None:
         data = self._read_data()
         data["articles"] = articles
-        data["metadata"]["last_updated"] = datetime.now().isoformat()
+        data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
         data["metadata"]["total_articles"] = len(articles)
         self._write_data(data)
 
@@ -57,7 +56,7 @@ class FileNewsRepository:
     def save_seen(self, seen: set[str]) -> None:
         data = self._read_data()
         data["seen_urls"] = list(seen)
-        data["metadata"]["last_updated"] = datetime.now().isoformat()
+        data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
         self._write_data(data)
 
     # ── Private helpers ──────────────────────────────────────────
@@ -83,7 +82,7 @@ class FileNewsRepository:
         return {
             "metadata": {
                 "version": "1.0",
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "total_articles": 0,
                 "total_sources": 0
             },
