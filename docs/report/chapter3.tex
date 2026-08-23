@@ -206,23 +206,28 @@ WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & 
 \section{แผนการดำเนินงาน}
 % -----------------------------------------------------------
 
-แผนการดำเนินงานตลอดระยะเวลาการทำโครงงานแสดงดังตารางที่ \ref{tab:gantt}
+แผนการดำเนินงานตลอดระยะเวลาการทำโครงงานตั้งแต่เดือนมิถุนายนถึงตุลาคม แบ่งออกเป็นช่วงการพัฒนาวิศวกรรมระบบจริง (มิถุนายน -- สิงหาคม) และช่วงการประเมินผล แบบสำรวจความพึงพอใจ และสรุปผลโครงงาน (กันยายน -- ตุลาคม) แสดงดังตารางที่ \ref{tab:gantt}
 
 \begin{table}[H]
 \centering
-\caption{แผนการดำเนินงาน (Gantt Chart)}
+\caption{แผนการดำเนินงานและไทม์ไลน์ของโครงงาน (Gantt Chart)}
 \label{tab:gantt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|p{5.5cm}|c|c|c|c|c|c|}
+\begin{tabular}{|c|p{7.5cm}|c|c|c|c|c|}
 \hline
-\textbf{ลำดับ} & \textbf{กิจกรรม} & \textbf{เดือน 1} & \textbf{เดือน 2} & \textbf{เดือน 3} & \textbf{เดือน 4} & \textbf{เดือน 5} & \textbf{เดือน 6} \\ \hline
-1 & ศึกษาปัญหาและความต้องการของระบบ & $\bullet$ & & & & & \\ \hline
-2 & ออกแบบสถาปัตยกรรมและโครงสร้างข้อมูล & & $\bullet$ & & & & \\ \hline
-3 & พัฒนาระบบ Scraper และ Playwright Service & & $\bullet$ & $\bullet$ & & & \\ \hline
-4 & พัฒนาโมเดลจำแนกหมวดหมู่และสรุปด้วย LLM & & & $\bullet$ & $\bullet$ & & \\ \hline
-5 & พัฒนาระบบ Real-time WebSocket และ Frontend & & & & $\bullet$ & $\bullet$ & \\ \hline
-6 & ทดสอบระบบ (Unit Test, Stress Test, UAT) & & & & & $\bullet$ & $\bullet$ \\ \hline
-7 & ปรับปรุงประสิทธิภาพและจัดทำรายงานฉบับสมบูรณ์ & & & & & & $\bullet$ \\ \hline
+\textbf{ลำดับ} & \textbf{กิจกรรม / ขั้นตอนการดำเนินงาน} & \textbf{มิ.ย.} & \textbf{ก.ค.} & \textbf{ส.ค.} & \textbf{ก.ย.} & \textbf{ต.ค.} \\ \hline
+\multicolumn{7}{|l|}{\textbf{ส่วนที่ 1: การศึกษา ออกแบบ และพัฒนาวิศวกรรมระบบ (ดำเนินการแล้วเสร็จ)}} \\ \hline
+1 & ศึกษาปัญหา รวบรวมความต้องการ และออกแบบสถาปัตยกรรมระบบ & $\bullet$ & & & & \\ \hline
+2 & พัฒนาระบบ Scraper Pipeline, Playwright Service และ Multi-tier Cache & $\bullet$ & $\bullet$ & & & \\ \hline
+3 & ฝึกสอน/ปรับจูนโมเดลจำแนกข่าว 9 หมวดหมู่ และเชื่อมต่อ KKU Gen.AI API & & $\bullet$ & $\bullet$ & & \\ \hline
+4 & พัฒนาเว็บแอปพลิเคชัน Single Page Application (SPA), PWA และ WebSocket & & $\bullet$ & $\bullet$ & & \\ \hline
+5 & พัฒนาระบบจัดอันดับ Trending/Hot News, ความปลอดภัย และ PDPA & & & $\bullet$ & & \\ \hline
+6 & ทดสอบระบบเชิงเทคนิคอัตโนมัติ (Automated Unit Tests, Stress Tests) & & & $\bullet$ & & \\ \hline
+\multicolumn{7}{|l|}{\textbf{ส่วนที่ 2: การประเมินผล แบบสำรวจ และจัดทำเอกสารปิดโครงงาน (แผนการดำเนินงาน)}} \\ \hline
+7 & ออกแบบและจัดทำแบบสำรวจความพึงพอใจการใช้งาน (User Survey / Questionnaire) & & & & $\bullet$ & \\ \hline
+8 & ดำเนินการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing: UAT) และเก็บข้อมูล & & & & $\bullet$ & $\bullet$ \\ \hline
+9 & วิเคราะห์ข้อมูลสถิติผลการประเมิน สรุปข้อเสนอแนะ และปรับแต่งระบบขั้นสุดท้าย & & & & & $\bullet$ \\ \hline
+10 & จัดทำเอกสารรายงานโครงงานฉบับสมบูรณ์และเตรียมการนำเสนอโครงงาน & & & & & $\bullet$ \\ \hline
 \end{tabular}%
 }
 \end{table}

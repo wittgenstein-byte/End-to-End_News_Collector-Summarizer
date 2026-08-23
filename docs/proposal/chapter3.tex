@@ -88,21 +88,28 @@
 \section{แผนการดำเนินงาน}
 % -----------------------------------------------------------
 
-แผนการดำเนินงานตลอดระยะเวลาการทำโครงงาน 1 ภาคการศึกษา (6 เดือน) แสดงดังตารางที่ \ref{tab:gantt}
+แผนการดำเนินงานตลอดระยะเวลาการทำโครงงานตั้งแต่เดือนมิถุนายนถึงตุลาคม แบ่งออกเป็นช่วงการพัฒนาวิศวกรรมระบบจริง (มิถุนายน -- สิงหาคม) และช่วงการประเมินผล แบบสำรวจความพึงพอใจ และสรุปผลโครงงาน (กันยายน -- ตุลาคม) แสดงดังตารางที่ \ref{tab:gantt}
 
 \begin{table}[H]
 \centering
-\caption{แผนการดำเนินงาน (Gantt Chart)}
+\caption{แผนการดำเนินงานและไทม์ไลน์ของโครงงาน (Gantt Chart)}
 \label{tab:gantt}
-\begin{tabular}{|c|p{3.0cm}|c|c|c|c|c|c|}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|p{7.5cm}|c|c|c|c|c|}
 \hline
-\textbf{ลำดับ} & \textbf{กิจกรรม} & \textbf{เดือน 1} & \textbf{เดือน 2} & \textbf{เดือน 3} & \textbf{เดือน 4} & \textbf{เดือน 5} & \textbf{เดือน 6} \\ \hline
-1 & ศึกษาปัญหา/ความต้องการ & $\bullet$ & & & & & \\ \hline
-2 & วิเคราะห์และออกแบบ & & $\bullet$ & $\bullet$ & & & \\ \hline
-3 & ออกแบบอัลกอริทึมกำหนดคุกกี้ & & $\bullet$ & & & & \\ \hline
-4 & พัฒนา Backend/Scraper & & & $\bullet$ & $\bullet$ & & \\ \hline
-5 & พัฒนา Frontend+Realtime & & & & $\bullet$ & $\bullet$ & \\ \hline
-6 & ทดสอบและประเมินผล & & & & & $\bullet$ & $\bullet$ \\ \hline
-7 & ปรับปรุงและจัดทำรายงาน & & & & & & $\bullet$ \\ \hline
-\end{tabular}
+\textbf{ลำดับ} & \textbf{กิจกรรม / ขั้นตอนการดำเนินงาน} & \textbf{มิ.ย.} & \textbf{ก.ค.} & \textbf{ส.ค.} & \textbf{ก.ย.} & \textbf{ต.ค.} \\ \hline
+\multicolumn{7}{|l|}{\textbf{ส่วนที่ 1: การศึกษา ออกแบบ และพัฒนาวิศวกรรมระบบ (ดำเนินการแล้วเสร็จ)}} \\ \hline
+1 & ศึกษาปัญหา รวบรวมความต้องการ และออกแบบสถาปัตยกรรมระบบ & $\bullet$ & & & & \\ \hline
+2 & พัฒนาระบบ Scraper Pipeline, Playwright Service และ Multi-tier Cache & $\bullet$ & $\bullet$ & & & \\ \hline
+3 & ฝึกสอน/ปรับจูนโมเดลจำแนกข่าว 9 หมวดหมู่ และเชื่อมต่อ KKU Gen.AI API & & $\bullet$ & $\bullet$ & & \\ \hline
+4 & พัฒนาเว็บแอปพลิเคชัน Single Page Application (SPA), PWA และ WebSocket & & $\bullet$ & $\bullet$ & & \\ \hline
+5 & พัฒนาระบบจัดอันดับ Trending/Hot News, ความปลอดภัย และ PDPA & & & $\bullet$ & & \\ \hline
+6 & ทดสอบระบบเชิงเทคนิคอัตโนมัติ (Automated Unit Tests, Stress Tests) & & & $\bullet$ & & \\ \hline
+\multicolumn{7}{|l|}{\textbf{ส่วนที่ 2: การประเมินผล แบบสำรวจ และจัดทำเอกสารปิดโครงงาน (แผนการดำเนินงาน)}} \\ \hline
+7 & ออกแบบและจัดทำแบบสำรวจความพึงพอใจการใช้งาน (User Survey / Questionnaire) & & & & $\bullet$ & \\ \hline
+8 & ดำเนินการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing: UAT) และเก็บข้อมูล & & & & $\bullet$ & $\bullet$ \\ \hline
+9 & วิเคราะห์ข้อมูลสถิติผลการประเมิน สรุปข้อเสนอแนะ และปรับแต่งระบบขั้นสุดท้าย & & & & & $\bullet$ \\ \hline
+10 & จัดทำเอกสารรายงานโครงงานฉบับสมบูรณ์และเตรียมการนำเสนอโครงงาน & & & & & $\bullet$ \\ \hline
+\end{tabular}%
+}
 \end{table}
