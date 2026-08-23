@@ -11,7 +11,7 @@ services:
       OBSCURA_SERVICE_URL: ws://obscura:9222
     volumes:
       - ./backend/.env:/app/.env:ro
-      - app-data:/app/data
+      - ./data:/app/data
     depends_on:
       playwright:
         condition: service_healthy
@@ -62,5 +62,3 @@ services:
     healthcheck:
       disable: true
 
-volumes:
-  app-data:

@@ -17,13 +17,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copy project dependencies and install
-COPY pyproject.toml uv.lock* requirements.txt ./
+# Copy project dependencies and install CPU-only PyTorch + packages
+COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev || uv pip install --system -r requirements.txt
+    uv pip install --system --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-# Ensure virtual environment binaries are on PATH if created by uv sync
-ENV PATH="/app/.venv/bin:$PATH"
 
 
 # Copy only runtime files
