@@ -230,3 +230,83 @@ curl -X POST "http://localhost:5000/api/collect-md" \
 - Socket.IO is exposed through the same application server.
 - The background scraper starts automatically with the backend lifespan.
 - Default scrape interval is controlled by `INTERVAL_MINUTES` and defaults to `15`.
+
+---
+
+## Option 4: AWS EC2 + S3 Deployment (Recommended: `c7i-flex.large`)
+
+### 1. Architecture Overview
+- **EC2 Instance (`c7i-flex.large`)**: 2 vCPU, 4GB RAM — เหมาะสำหรับรัน FastAPI, Playwright (Chromium) และ WangchanBERTa Transformer ในตัว พร้อมตั้ง Swap 4GB ป้องกัน OOM
+- **AWS S3**: เก็บไฟล์ Model (`/models/`) และระบบสำรองข้อมูลอัตโนมัติ (`/backups/data/`)
+- **IAM Role**: เชื่อมต่อ EC2 กับ S3 ได้อย่างปลอดภัยโดยไม่ต้องระบุ Credentials ในไฟล์ `.env`
+
+### 2. AWS Setup
+1. **S3 Bucket**: สร้าง Bucket เช่น `news-collector-storage-prod`
+2. **Upload Models ขึ้น S3**:
+   ```bash
+   aws s3 sync ./backend/model s3://news-collector-storage-prod/models/
+   ```
+3. **IAM Role**: สร้าง Role ที่มีสิทธิ์อ่าน/เขียน S3 Bucket และ Attach เข้ากับ EC2 Instance
+
+### 3. Server Setup (`c7i-flex.large`)
+```bash
+# 1. Setup Swap Memory 4GB (Safety Buffer สำหรับ WangchanBERTa + Chromium)
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# 2. Update และติดตั้ง Docker, Compose, AWS CLI, Nginx, Certbot
+sudo apt-get update && sudo apt-get upgrade -y
+curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh
+sudo usermod -aG docker ubuntu
+sudo apt-get install -y docker-compose-plugin awscli nginx certbot python3-certbot-nginx
+
+# 3. Clone repo & ดึง Model (รวม WangchanBERTa) จาก S3
+git clone <YOUR_REPO_URL> /home/ubuntu/app
+cd /home/ubuntu/app
+mkdir -p backend/model
+aws s3 sync s3://news-collector-storage-prod/models/ ./backend/model/
+
+# 4. ตั้งค่า backend/.env
+cp backend/.env.example backend/.env
+# ปรับ LLM_API, LLM_BASE_URL, LLM_MODEL, PLAYWRIGHT_SERVICE_URL=http://playwright:8001/scrape
+
+# 5. สตาร์ทเซอร์วิส
+docker compose up -d --build
+```
+
+### 4. Nginx Reverse Proxy & SSL Configuration
+Create `/etc/nginx/sites-available/news-collector`:
+```nginx
+server {
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+Enable site and get SSL certificate:
+```bash
+sudo ln -s /etc/nginx/sites-available/news-collector /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl restart nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+### 5. Automated Data Backup to S3
+Add daily cron job (`crontab -e`):
+```cron
+0 0 * * * aws s3 sync /home/ubuntu/app/data/ s3://news-collector-storage-prod/backups/data/ --delete
+```
+

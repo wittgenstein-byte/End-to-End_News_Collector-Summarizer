@@ -1,0 +1,102 @@
+% =============================
+% ภาคผนวก
+% =============================
+
+% =============================
+% ภาคผนวก ก
+% =============================
+\setcounter{chapter}{-1}
+\appendiceschapter{คู่มือการติดตั้งและการใช้งานระบบ}
+
+\section*{ข้อกำหนดเบื้องต้นของสภาพแวดล้อม (Prerequisites)}
+
+\begin{itemize}
+    \item ระบบปฏิบัติการ: Windows 10/11, macOS หรือ Linux (Ubuntu 20.04+)
+    \item Python เวอร์ชัน 3.11 หรือใหม่กว่า
+    \item เครื่องมือจัดการสภาพแวดล้อม \texttt{uv} (Fast Python Package Installer)
+    \item การเชื่อมต่ออินเทอร์เน็ตสำหรับดาวน์โหลด Dependencies และเรียกใช้ KKU Gen.AI API
+\end{itemize}
+
+\section*{ขั้นตอนการติดตั้งระบบ (Installation Steps)}
+
+\begin{enumerate}[label=\arabic*.]
+    \item โคลน Repository โครงการจาก GitHub:
+    \begin{lstlisting}[language=bash]
+git clone https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer.git
+cd End-to-End_News_Collector-Summarizer
+    \end{lstlisting}
+
+    \item ติดตั้ง Dependencies ทั้งหมดผ่าน \texttt{uv}:
+    \begin{lstlisting}[language=bash]
+uv sync
+    \end{lstlisting}
+
+    \item ติดตั้ง Playwright Chromium Headless Browser:
+    \begin{lstlisting}[language=bash]
+uv run playwright install chromium
+    \end{lstlisting}
+
+    \item กำหนดค่า Environment Variables โดยคัดลอกไฟล์ตัวอย่าง:
+    \begin{lstlisting}[language=bash]
+copy backend\.env.example backend\.env
+    \end{lstlisting}
+    จากนั้นแก้ไขไฟล์ \texttt{backend/.env} โดยกรอก API Key สำหรับ LLM Service:
+    \begin{lstlisting}[language=bash]
+LLM_API=your_kku_genai_api_key_here
+    \end{lstlisting}
+
+    \item เริ่มต้นทำงานเซิร์ฟเวอร์ Backend:
+    \begin{lstlisting}[language=bash]
+uv run python backend/main.py
+    \end{lstlisting}
+
+    \item เปิดเว็บเบราว์เซอร์และเข้าสู่ระบบที่: \url{http://localhost:5000}
+\end{enumerate}
+
+% =============================
+% ภาคผนวก ข
+% =============================
+\appendiceschapter{ข้อกำหนด REST API และ WebSocket Events}
+
+\section*{รายการ REST API Endpoints}
+
+\begin{table}[H]
+\centering
+\caption{รายละเอียด REST API Endpoints ของระบบ}
+\label{tab:api_specs}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|p{5cm}|p{4.5cm}|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
+\hline
+\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} \\ \hline
+\texttt{GET} & \texttt{/api/news/\{id\}} & ดึงรายละเอียดข่าวรายชิ้นพร้อมบทสรุป & คืนค่า JSON \texttt{NewsArticle} \\ \hline
+\texttt{GET} & \texttt{/api/categories} & ดึงรายการหมวดหมู่ข่าวทั้งหมด & คืนค่า List ของ Category Metadata \\ \hline
+\texttt{GET} & \texttt{/api/trending} & ดึงรายการข่าวที่เป็นกระแสความนิยม & คืนค่า List ของ \texttt{TrendingArticle} \\ \hline
+\texttt{POST} & \texttt{/api/engagement} & บันทึกสถิติการปฏิสัมพันธ์ของผู้ใช้ & รับ \texttt{article\_id}, \texttt{action\_type} \\ \hline
+\texttt{POST} & \texttt{/api/collect} & สั่งให้ระบบเริ่มรอบการสเกรปข่าวทันที & คืนค่าสถานะ \texttt{status: started} \\ \hline
+\texttt{GET} & \texttt{/health} & ตรวจสอบสถานะความพร้อมของเซิร์ฟเวอร์ & คืนค่าสถานะ Storage และ Playwright \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\section*{รายการ WebSocket Events (Socket.IO)}
+
+\begin{table}[H]
+\centering
+\caption{รายละเอียด WebSocket Events สำหรับการสื่อสารแบบ Real-time}
+\label{tab:ws_events}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|p{8cm}|}
+\hline
+\textbf{Event Name} & \textbf{ทิศทาง} & \textbf{คำอธิบายและข้อมูลที่ส่ง (Payload)} \\
+\hline
+\texttt{news:new} & Server $\rightarrow$ Client & ส่งข้อมูลข่าวใหม่ที่เพิ่งผ่านการประมวลผลเสร็จสิ้น เพื่อแสดงผลบนหน้าจอทันที \\ \hline
+\texttt{scraper:status} & Server $\rightarrow$ Client & แจ้งสถานะความคืบหน้าของกระบวนการสเกรปข่าว (เช่น เริ่มต้น, จำนวนที่ดึงได้, เสร็จสิ้น) \\ \hline
+\texttt{news:updated} & Server $\rightarrow$ Client & ส่งข้อมูลการอัปเดตบทความ เช่น เมื่อการสรุป LLM เสร็จสมบูรณ์ \\ \hline
+\texttt{connect} / \texttt{disconnect} & ทั้งสองทิศทาง & ตรวจจับการเชื่อมต่อและการตัดการเชื่อมต่อของผู้ใช้ \\
+\hline
+\end{tabular}%
+}
+\end{table}

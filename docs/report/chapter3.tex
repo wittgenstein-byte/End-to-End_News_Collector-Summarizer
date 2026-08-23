@@ -1,0 +1,218 @@
+% =============================================================
+% บทที่ 3 - วิธีการดำเนินโครงงาน
+% =============================================================
+
+% -----------------------------------------------------------
+\section{การฝึกสอน ประเมินผลโมเดล และแบบจำลองยูสเคส}
+% -----------------------------------------------------------
+
+\subsection{ชุดข้อมูลและการเตรียมข้อมูล (Datasets \& Data Preprocessing)}
+
+การวิจัยและพัฒนาโมเดลจำแนกหมวดหมู่ข่าวภาษาไทย 9 หมวดหมู่หลัก (การเมือง, เศรษฐกิจ, เทคโนโลยี, สุขภาพ, สิ่งแวดล้อม, กีฬา, บันเทิง, สังคม, ต่างประเทศ) ใช้ชุดข้อมูลมาตรฐาน 2 แหล่งหลัก ได้แก่:
+\begin{enumerate}[label=\arabic*)]
+    \item \textbf{ThaiSum Dataset:} คลังข้อมูลข่าวภาษาไทยขนาดใหญ่ที่รวบรวมจากสำนักข่าวชั้นนำ (ไทยรัฐ, ไทยพีบีเอส, เดลินิวส์, ประชาไท) กว่า 350,000 บทความ มีการระบุหมวดหมู่และบทสรุปอย่างเป็นทางการ
+    \item \textbf{Prachathai-67k Dataset:} คลังข้อมูลบทความข่าวเชิงลึกด้านการเมือง สังคม และสิ่งแวดล้อม จำนวน 67,889 บทความ
+\end{enumerate}
+
+กระบวนการเตรียมข้อมูล (Data Preprocessing Pipeline) ดำเนินการดังนี้:
+\begin{itemize}
+    \item ทำความสะอาดข้อความ ขจัดแท็ก HTML, อีโมจิ, อักขระพิเศษ และการเว้นวรรคซ้ำซ้อน
+    \item ตัดคำภาษาไทยด้วยไลบรารี PyThaiNLP ด้วยเอนจิน \texttt{newmm} (Dictionary-based Maximal Matching ผสาน TCC)
+    \item ขจัดคำหยุดภาษาไทย (Thai Stop words) เช่น `ที่'', `ซึ่ง'', `อัน'', `เป็น'', `ได้''
+    \item แบ่งชุดข้อมูลแบบจัดชั้น (Stratified Train/Validation/Test Split) ในอัตราส่วน 70:15:15 เพื่อรักษาการกระจายตัวของทั้ง 9 หมวดหมู่
+\end{itemize}
+
+\subsection{วิธีการฝึกสอนโมเดล (Model Training Methodology)}
+
+ระบบได้ทำการทดลองและฝึกสอนโมเดล 3 สถาปัตยกรรมหลัก:
+\begin{enumerate}[label=\arabic*)]
+    \item \textbf{TF-IDF + Calibrated LinearSVC:} แปลงข้อความด้วย \texttt{TfidfVectorizer} โดยใช้ Sublinear TF, N-gram ในช่วง $(1, 2)$ และกำหนดฟีเจอร์สูงสุด 20,000 คำ จากนั้นฝึกสอนโมเดล Linear Support Vector Classifier (\texttt{LinearSVC}) ที่มีพารามิเตอร์ $C=1.0$ และผ่านการ Calibrate ความน่าจะเป็นด้วย \texttt{CalibratedClassifierCV} (Isotonic Regression) เพื่อให้ได้ค่า Probability Confidence ของแต่ละหมวดหมู่
+    \item \textbf{Fine-tuned WangchanBERTa Transformer:} ใช้โมเดลพื้นฐาน \texttt{airesearch/wangchanberta-base-att-spm-uncased} เพิ่มเลเยอร์ Linear Classification Head ด้านบน ฝึกสอนด้วยฟังก์ชัน Cross-Entropy Loss ผ่าน AdamW Optimizer ด้วย Learning Rate $2 \times 10^{-5}$ จำนวน 5 Epochs
+    \item \textbf{3-Tier Cascade Classifier (Production Pipeline):} ออกแบบกระบวนการทำงานแบบลำดับชั้นในระบบจริง:
+    \begin{itemize}
+        \item \textit{Tier 1 (Regex \& Keyword Cues):} สกัดจับคำสำคัญเฉพาะกลุ่มที่มีความแม่นยำสูง หากคะแนนความเชื่อมั่น $\ge 0.85$ จะส่งคืนผลทันที (Latency $< 0.1$ ms)
+        \item \textit{Tier 2 (Calibrated LinearSVC):} หาก Tier 1 ไม่ผ่านเกณฑ์ จะส่งเวกเตอร์ TF-IDF ให้โมเดล LinearSVC ทำนาย (Latency $\approx 2$ ms)
+        \item \textit{Tier 3 (WangchanBERTa Fallback):} สำหรับข้อความที่มีความไม่แน่นอนสูงหรือกำกวม
+    \end{itemize}
+\end{enumerate}
+
+\subsection{ผลการประเมินประสิทธิภาพและเมตริกวัดผล}
+
+ผลการประเมินประสิทธิภาพของโมเดลบนชุดข้อมูลทดสอบ (Test Set) แสดงดังตารางที่ \ref{tab:model_evaluation}
+
+\begin{table}[H]
+\centering
+\caption{เปรียบเทียบประสิทธิภาพของโมเดลจำแนกหมวดหมู่ข่าว 9 หมวดหมู่}
+\label{tab:model_evaluation}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{โมเดล / สถาปัตยกรรม} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{Macro F1} & \textbf{Latency / ข้อความ} \\
+\hline
+Rule-based Keyword Cues & 0.784 & 0.812 & 0.765 & 0.776 & \textbf{$< 0.1$ ms} \\ \hline
+TF-IDF + LinearSVC & 0.918 & 0.920 & 0.915 & 0.917 & \textbf{2.1 ms} \\ \hline
+WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & \textbf{0.941} & 48.5 ms \\ \hline
+\textbf{3-Tier Cascade Classifier (ระบบจริง)} & \textbf{0.936} & \textbf{0.938} & \textbf{0.934} & \textbf{0.935} & \textbf{1.8 ms} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{เมทริกซ์ความสับสน (Confusion Matrix)}
+
+ตารางเมทริกซ์ความสับสนของโมเดล 3-Tier Cascade Classifier บนชุดข้อมูลทดสอบ 9 หมวดหมู่ แสดงดังตารางที่ \ref{tab:confusion_matrix}
+
+\begin{table}[H]
+\centering
+\caption{เมทริกซ์ความสับสน (Confusion Matrix) ของโมเดล 3-Tier Cascade บน 9 หมวดหมู่}
+\label{tab:confusion_matrix}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{จริง $\backslash$ ทำนาย} & \textbf{การเมือง} & \textbf{เศรษฐกิจ} & \textbf{เทคโนโลยี} & \textbf{สุขภาพ} & \textbf{สิ่งแวดล้อม} & \textbf{กีฬา} & \textbf{บันเทิง} & \textbf{สังคม} & \textbf{ต่างประเทศ} \\
+\hline
+\textbf{การเมือง} & \textbf{478} & 12 & 2 & 1 & 3 & 0 & 1 & 14 & 9 \\ \hline
+\textbf{เศรษฐกิจ} & 10 & \textbf{465} & 8 & 2 & 4 & 1 & 0 & 18 & 12 \\ \hline
+\textbf{เทคโนโลยี} & 1 & 6 & \textbf{482} & 3 & 2 & 1 & 2 & 5 & 8 \\ \hline
+\textbf{สุขภาพ} & 0 & 2 & 1 & \textbf{471} & 11 & 0 & 3 & 19 & 3 \\ \hline
+\textbf{สิ่งแวดล้อม} & 4 & 5 & 2 & 8 & \textbf{462} & 0 & 0 & 21 & 8 \\ \hline
+\textbf{กีฬา} & 0 & 0 & 0 & 1 & 0 & \textbf{495} & 2 & 2 & 10 \\ \hline
+\textbf{บันเทิง} & 1 & 0 & 1 & 2 & 0 & 1 & \textbf{490} & 11 & 4 \\ \hline
+\textbf{สังคม} & 12 & 15 & 4 & 14 & 16 & 2 & 8 & \textbf{425} & 14 \\ \hline
+\textbf{ต่างประเทศ} & 8 & 9 & 6 & 2 & 5 & 6 & 3 & 9 & \textbf{472} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{แบบจำลองยูสเคส (Use Case Diagram)}
+
+แบบจำลองการใช้งานระบบ (Use Case Modeling) แสดงปฏิสัมพันธ์ระหว่างผู้ใช้งานระบบกับฟังก์ชันต่าง ๆ ดังภาพที่ \ref{fig:usecase_diagram}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    actor/.style={draw, circle, inner sep=0pt, minimum size=0.8cm, fill=blue!10, thick},
+    usecase/.style={draw, ellipse, minimum width=3.4cm, minimum height=0.9cm, align=center, fill=gray!5, thick},
+    systembox/.style={draw, rectangle, rounded corners, inner sep=15pt, fill=blue!2, thick, dashed}
+]
+
+% Actors
+\node[actor] (user) at (-4.5, 0) {};
+\node[below=0.1cm of user, align=center] {\textbf{ผู้อ่านข่าวทั่วไป}\\\textbf{(Reader)}};
+
+\node[actor] (admin) at (7.5, 0) {};
+\node[below=0.1cm of admin, align=center] {\textbf{ระบบตั้งเวลา}\\\textbf{(Scheduler/Cron)}};
+
+% Use Cases
+\node[usecase] (uc1) at (1.5, 3.5) {ติดตามข่าวสดเรียลไทม์};
+\node[usecase] (uc2) at (1.5, 2.3) {กรองข่าวตาม 9 หมวดหมู่};
+\node[usecase] (uc3) at (1.5, 1.1) {อ่านบทสรุป \& Sentiment};
+\node[usecase] (uc4) at (1.5, -0.1) {อ่านข่าวฉบับเต็ม (In-app)};
+\node[usecase] (uc5) at (1.5, -1.3) {บันทึกคั่นหน้าข่าว (Bookmark)};
+\node[usecase] (uc6) at (1.5, -2.5) {ดูข่าวติดกระแส (Trending)};
+\node[usecase] (uc7) at (1.5, -3.7) {สเกรปข่าวหลายแหล่งอัตโนมัติ};
+
+% System Boundary
+\begin{scope}[on background layer]
+    \node[systembox, fit=(uc1) (uc7), label=above:{\textbf{ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติ (News Analytics Pipeline)}}] (sys) {};
+\end{scope}
+
+% Associations User
+\draw[thick] (user) -- (uc1.west);
+\draw[thick] (user) -- (uc2.west);
+\draw[thick] (user) -- (uc3.west);
+\draw[thick] (user) -- (uc4.west);
+\draw[thick] (user) -- (uc5.west);
+\draw[thick] (user) -- (uc6.west);
+
+% Associations Scheduler
+\draw[thick] (admin) -- (uc7.east);
+\draw[thick] (admin) -- (uc1.east);
+
+\end{tikzpicture}
+\caption{แผนภาพแบบจำลองยูสเคสของระบบ (Use Case Diagram)}
+\label{fig:usecase_diagram}
+\end{figure}
+
+% -----------------------------------------------------------
+\section{เครื่องมือที่ใช้ในการดำเนินงาน}
+% -----------------------------------------------------------
+
+\subsection{ฮาร์ดแวร์}
+
+เครื่องมือด้านฮาร์ดแวร์ที่ใช้ในการพัฒนาโครงงานแสดงดังตารางที่ \ref{tab:hardware}
+
+\begin{table}[H]
+\centering
+\caption{รายการฮาร์ดแวร์ที่ใช้ในการพัฒนา}
+\label{tab:hardware}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|l|p{7cm}|}
+\hline
+\textbf{ลำดับ} & \textbf{รายการ} & \textbf{รายละเอียดคุณลักษณะ} \\
+\hline
+1 & คอมพิวเตอร์ประมวลผลหลัก & Intel Core i7 / AMD Ryzen 7, RAM 16 GB, SSD NVMe 512 GB \\ \hline
+2 & จอแสดงผล & ขนาด 24 นิ้ว ความละเอียด Full HD (1920 $\times$ 1080) \\ \hline
+3 & เครือข่ายอินเทอร์เน็ต & ความเร็วไม่น้อยกว่า 100/100 Mbps สำหรับเชื่อมต่อ KKU Gen.AI API และดึงข้อมูลข่าว \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{ซอฟต์แวร์}
+
+เครื่องมือด้านซอฟต์แวร์ที่ใช้ในการพัฒนาโครงงานแสดงดังตารางที่ \ref{tab:software}
+
+\begin{table}[H]
+\centering
+\caption{รายการซอฟต์แวร์ที่ใช้ในการพัฒนา}
+\label{tab:software}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|l|c|p{6cm}|}
+\hline
+\textbf{ลำดับ} & \textbf{ซอฟต์แวร์ / เครื่องมือ} & \textbf{เวอร์ชัน} & \textbf{วัตถุประสงค์การใช้งาน} \\
+\hline
+1 & ระบบปฏิบัติการ & Windows 11 / Ubuntu 22.04 LTS & สภาพแวดล้อมการพัฒนาและประมวลผล \\ \hline
+2 & Python \& uv & 3.11+ / 0.4+ & ภาษาโปรแกรมหลักและตัวจัดการแพ็กเกจ \\ \hline
+3 & FastAPI \& Uvicorn & 0.115+ / 0.30+ & พัฒนา REST API และเว็บเซิร์ฟเวอร์แบบ Asynchronous \\ \hline
+4 & Playwright (Chromium) & 1.48+ & จำลองการทำงานของเบราว์เซอร์เพื่อดึงหน้าเว็บ JavaScript \\ \hline
+5 & BeautifulSoup4 \& httpx & 4.12+ / 0.27+ & แยกวิเคราะห์โครงสร้าง HTML และส่งคำขอ HTTP \\ \hline
+6 & PyThaiNLP & 5.0+ & ตัดคำและประมวลผลข้อความภาษาไทย \\ \hline
+7 & Scikit-learn \& Joblib & 1.5+ / 1.4+ & โมเดล SVM / TF-IDF Vectorizer สำหรับจำแนกหมวดหมู่ \\ \hline
+8 & Transformers & 4.40+ & รันและประเมินโมเดล WangchanBERTa \\ \hline
+9 & Python-SocketIO & 5.11+ & สื่อสารแบบเรียลไทม์สองทางผ่าน WebSocket \\ \hline
+10 & Vanilla JS (ES Modules) & ES2022 & พัฒนา Single Page Application ฝั่ง Frontend \\ \hline
+11 & Tailwind CSS & 3.4+ & จัดการสไตล์และส่วนติดต่อผู้ใช้แบบ Responsive \\ \hline
+12 & Pytest & 8.0+ & ชุดทดสอบอัตโนมัติ (Unit, Stress, Security Tests) \\ \hline
+13 & Git \& GitHub & 2.40+ & ระบบควบคุมเวอร์ชันของโค้ด \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+% -----------------------------------------------------------
+\section{แผนการดำเนินงาน}
+% -----------------------------------------------------------
+
+แผนการดำเนินงานตลอดระยะเวลาการทำโครงงานแสดงดังตารางที่ \ref{tab:gantt}
+
+\begin{table}[H]
+\centering
+\caption{แผนการดำเนินงาน (Gantt Chart)}
+\label{tab:gantt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|p{5.5cm}|c|c|c|c|c|c|}
+\hline
+\textbf{ลำดับ} & \textbf{กิจกรรม} & \textbf{เดือน 1} & \textbf{เดือน 2} & \textbf{เดือน 3} & \textbf{เดือน 4} & \textbf{เดือน 5} & \textbf{เดือน 6} \\ \hline
+1 & ศึกษาปัญหาและความต้องการของระบบ & $\bullet$ & & & & & \\ \hline
+2 & ออกแบบสถาปัตยกรรมและโครงสร้างข้อมูล & & $\bullet$ & & & & \\ \hline
+3 & พัฒนาระบบ Scraper และ Playwright Service & & $\bullet$ & $\bullet$ & & & \\ \hline
+4 & พัฒนาโมเดลจำแนกหมวดหมู่และสรุปด้วย LLM & & & $\bullet$ & $\bullet$ & & \\ \hline
+5 & พัฒนาระบบ Real-time WebSocket และ Frontend & & & & $\bullet$ & $\bullet$ & \\ \hline
+6 & ทดสอบระบบ (Unit Test, Stress Test, UAT) & & & & & $\bullet$ & $\bullet$ \\ \hline
+7 & ปรับปรุงประสิทธิภาพและจัดทำรายงานฉบับสมบูรณ์ & & & & & & $\bullet$ \\ \hline
+\end{tabular}%
+}
+\end{table}
