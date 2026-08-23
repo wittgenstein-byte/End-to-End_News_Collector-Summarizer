@@ -1,0 +1,43 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="spo-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#180A04"/>
+      <stop offset="50%" stop-color="#271008"/>
+      <stop offset="100%" stop-color="#0C0502"/>
+    </linearGradient>
+    <radialGradient id="spo-bloom" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#EA580C" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="speed-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#EF4444"/>
+      <stop offset="50%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#FACC15"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#spo-bg)"/>
+  <rect width="800" height="450" fill="url(#spo-bloom)"/>
+
+  <!-- High-Velocity Kinetic Track & Slicing Curves -->
+  <g opacity="0.3" stroke="url(#speed-grad)" fill="none">
+    <path d="M-50 380 C 250 380, 480 280, 850 80" stroke-width="4" stroke-linecap="round"/>
+    <path d="M-50 420 C 270 420, 510 310, 850 120" stroke-width="2" stroke-dasharray="12 6"/>
+    <path d="M-50 450 C 290 450, 540 340, 850 160" stroke-width="1"/>
+    
+    <polyline points="620,60 660,100 620,140" stroke-width="2.5" opacity="0.6"/>
+    <polyline points="650,60 690,100 650,140" stroke-width="2.5" opacity="0.4"/>
+  </g>
+
+  <!-- Hero Central Glass Badge -->
+  <g transform="translate(400, 190)">
+    <rect x="-140" y="-45" width="280" height="90" rx="20" fill="#FFFFFF" fill-opacity="0.04" stroke="#F97316" stroke-opacity="0.3" stroke-width="1.2"/>
+    
+    <path d="M-18 16 C-8 16, 0 10, 4 0 C6 -6, 2 -16, -2 -22 C14 -14, 22 2, 14 14 C10 18, 2 22, -18 16 Z" fill="url(#speed-grad)"/>
+    <circle cx="16" cy="-12" r="3.5" fill="#FACC15"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="400" y="325" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#FFF7ED" text-anchor="middle" letter-spacing="4">SPORTS &amp; ATHLETICS</text>
+  <text x="400" y="348" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#FB923C" text-anchor="middle" letter-spacing="2">VELOCITY • COMPETITIVE LEAGUES</text>
+</svg>

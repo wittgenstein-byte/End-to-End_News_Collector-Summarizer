@@ -39,6 +39,7 @@ from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
 from backend.routers.collect_router import router as collect_router
 from backend.routers.news_router import router as news_router
+from backend.routers.trending_router import router as trending_router
 from backend.services.scraper_service import ScraperService
 
 
@@ -110,6 +111,7 @@ app.add_middleware(
 
 app.include_router(news_router)
 app.include_router(collect_router)
+app.include_router(trending_router)
 
 
 # ── Frontend static files ─────────────────────────────────────────
@@ -122,6 +124,29 @@ async def index() -> FileResponse | JSONResponse:
     if _INDEX.exists():
         return FileResponse(str(_INDEX))
     return JSONResponse({"error": f"index.html not found at {_INDEX}"}, status_code=404)
+
+
+@app.get("/manifest.webmanifest", response_model=None)
+async def manifest() -> FileResponse | JSONResponse:
+    manifest_path = settings.frontend_dir / "manifest.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(
+            str(manifest_path),
+            media_type="application/manifest+json",
+        )
+    return JSONResponse({"error": "manifest.webmanifest not found"}, status_code=404)
+
+
+@app.get("/sw.js", response_model=None)
+async def service_worker() -> FileResponse | JSONResponse:
+    sw_path = settings.frontend_dir / "sw.js"
+    if sw_path.exists():
+        return FileResponse(
+            str(sw_path),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/"},
+        )
+    return JSONResponse({"error": "sw.js not found"}, status_code=404)
 
 
 @app.get("/livez", response_model=None)

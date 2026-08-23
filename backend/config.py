@@ -68,6 +68,7 @@ class Settings:
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
+    engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
 
     # Server

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="pol-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="50%" stop-color="#1E1B4B"/>
+      <stop offset="100%" stop-color="#090D1A"/>
+    </linearGradient>
+    <radialGradient id="pol-gold-glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#pol-bg)"/>
+  <rect width="800" height="450" fill="url(#pol-gold-glow)"/>
+
+  <!-- Diplomatic Arch Rays -->
+  <g opacity="0.18" stroke="#FBBF24" stroke-width="1" fill="none">
+    <ellipse cx="400" cy="450" rx="360" ry="260"/>
+    <ellipse cx="400" cy="450" rx="280" ry="200"/>
+    <ellipse cx="400" cy="450" rx="200" ry="140"/>
+    <line x1="400" y1="450" x2="140" y2="180"/>
+    <line x1="400" y1="450" x2="660" y2="180"/>
+  </g>
+
+  <!-- Hero: Classical Capitol Pediment & Balanced Scales of Justice -->
+  <g transform="translate(400, 190)">
+    <!-- Glass Badge Base -->
+    <rect x="-150" y="-55" width="300" height="110" rx="24" fill="#FFFFFF" fill-opacity="0.04" stroke="#FBBF24" stroke-opacity="0.25" stroke-width="1.2"/>
+
+    <!-- Pediment Roof Triangle -->
+    <polygon points="0,-38 -34,-20 34,-20" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 4 Modern Minimalist Columns -->
+    <line x1="-24" y1="-18" x2="-24" y2="12" stroke="#E2E8F0" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-8" y1="-18" x2="-8" y2="12" stroke="#E2E8F0" stroke-width="2" stroke-linecap="round"/>
+    <line x1="8" y1="-18" x2="8" y2="12" stroke="#E2E8F0" stroke-width="2" stroke-linecap="round"/>
+    <line x1="24" y1="-18" x2="24" y2="12" stroke="#E2E8F0" stroke-width="2" stroke-linecap="round"/>
+    <!-- Base Plinth -->
+    <line x1="-38" y1="14" x2="38" y2="14" stroke="#FBBF24" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Balance Scale Beam -->
+    <line x1="-60" y1="-6" x2="60" y2="-6" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="0" cy="-6" r="3" fill="#FBBF24"/>
+    <!-- Left / Right Hanging Scale Pans -->
+    <path d="M-60 -6 L-72 16 H-48 Z" fill="none" stroke="#94A3B8" stroke-width="1.2"/>
+    <path d="M60 -6 L48 16 H72 Z" fill="none" stroke="#94A3B8" stroke-width="1.2"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="400" y="325" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#FEF3C7" text-anchor="middle" letter-spacing="4">POLICY &amp; GOVERNANCE</text>
+  <text x="400" y="348" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#94A3B8" text-anchor="middle" letter-spacing="2">DIPLOMATIC AFFAIRS • PUBLIC SECTOR</text>
+</svg>

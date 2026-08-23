@@ -29,12 +29,75 @@ from backend.services.classifier_service import classify_article
 # คำที่บ่งว่า src นั้นไม่ใช่รูปข่าวจริง
 _IMAGE_SKIP_KEYWORDS = frozenset(["logo", "icon", "avatar", "ads", "banner", "pixel"])
 
+# ── YouTube Video Thumbnail extraction ────────────────────────────
+
+def extract_youtube_video_id(text_or_url: str) -> str | None:
+    """
+    Extracts an 11-character YouTube video ID from various URL/embed patterns.
+    """
+    if not text_or_url:
+        return None
+    patterns = [
+        r"(?:youtube\.com/(?:embed/|v/|watch\?v=|watch\?.+&v=)|youtu\.be/|ytimg\.com/vi/)([a-zA-Z0-9_-]{11})",
+        r'data-src=["\']https?://(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+        r'src=["\']https?://(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+        r'data-id=["\']https?://(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text_or_url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def extract_youtube_thumbnail(soup: BeautifulSoup) -> str | None:
+    """
+    Extracts YouTube video thumbnail from iframes, perfmatters lazy video wrappers,
+    wp-block embeds, or direct ytimg image tags in the page.
+    """
+    # 1. Check perfmatters-lazy-video or video wrapper divs
+    for div in soup.select(".perfmatters-lazy-video, [data-provider='youtube'], [data-src*='youtube'], [data-id*='youtube']"):
+        data_src = div.get("data-src") or div.get("data-id") or ""
+        val = data_src[0] if isinstance(data_src, list) else str(data_src)
+        yt_id = extract_youtube_video_id(val)
+        if yt_id:
+            return f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+
+    # 2. Check iframes
+    for iframe in soup.select("iframe[src*='youtube.com'], iframe[data-src*='youtube.com'], iframe[src*='youtu.be']"):
+        src = iframe.get("src") or iframe.get("data-src") or ""
+        val = src[0] if isinstance(src, list) else str(src)
+        yt_id = extract_youtube_video_id(val)
+        if yt_id:
+            return f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+
+    # 3. Check YouTube images directly
+    for img in soup.select("img[src*='ytimg.com/vi/'], img[data-src*='ytimg.com/vi/']"):
+        src = _pick_img_url(img)
+        yt_id = extract_youtube_video_id(src)
+        if yt_id:
+            return f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+
+    # 4. Check WordPress embed wrappers
+    for embed in soup.select(".wp-block-embed-youtube, .jetpack-video-wrapper"):
+        yt_id = extract_youtube_video_id(str(embed))
+        if yt_id:
+            return f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+
+    return None
+
+
 # ── Image extraction ──────────────────────────────────────────────
 
 def find_image(soup: BeautifulSoup, base_url: str) -> str:
     """
-    หารูป og:image ก่อน ถ้าไม่มีค่อยหา img แรกที่ไม่ใช่ icon/logo
+    หารูปจาก YouTube embed ก่อน (สำหรับบทความวิดีโอ/พอดแคสต์)
+    แล้วหารูป og:image ถ้าไม่มีค่อยหา img แรกที่ไม่ใช่ icon/logo
     """
+    yt_thumb = extract_youtube_thumbnail(soup)
+    if yt_thumb:
+        return yt_thumb
+
     og = soup.find("meta", property="og:image")
     if not og:
         og = soup.find("meta", property="og:image:secure_url")
@@ -56,14 +119,29 @@ def find_image(soup: BeautifulSoup, base_url: str) -> str:
 
 
 def _pick_img_url(img: Tag) -> str:
-    for key in ("src", "data-src", "data-lazy-src", "data-original"):
+    for key in (
+        "data-lazy-src",
+        "data-src",
+        "data-original",
+        "data-orig-file",
+        "data-img-url",
+        "data-full-url",
+        "src",
+    ):
         val = img.get(key)
         if val:
-            return val[0] if isinstance(val, list) else str(val)
-    srcset = img.get("srcset") or img.get("data-srcset")
-    if srcset:
-        srcset_str = srcset[0] if isinstance(srcset, list) else str(srcset)
-        return srcset_str.split(",")[0].strip().split(" ")[0]
+            url_str = val[0] if isinstance(val, list) else str(val)
+            url_str = url_str.strip()
+            if url_str and not url_str.startswith("data:"):
+                return url_str
+
+    for key in ("srcset", "data-srcset"):
+        srcset = img.get(key)
+        if srcset:
+            srcset_str = srcset[0] if isinstance(srcset, list) else str(srcset)
+            candidate = srcset_str.split(",")[0].strip().split(" ")[0]
+            if candidate and not candidate.startswith("data:"):
+                return candidate
     return ""
 
 
@@ -101,10 +179,13 @@ def find_url(tag, base_url: str) -> str:
 def extract_category_cues(soup: BeautifulSoup, base_url: str = "") -> list[str]:
     """
     Extract hidden category URLs and category cues from HTML:
-    1. Meta tags (article:section, og:article:section, category, section)
-    2. Category link elements (span.category a, div.entry-meta a, a[href*="/category/"], .cat-links a, etc.)
-    3. Breadcrumbs (ol.breadcrumbs a, nav.breadcrumb a, .breadcrumb-item a, etc.)
-    4. JSON-LD structured data (articleSection, BreadcrumbList)
+    1. Meta tags (article:section, og:article:section, section, category, keywords)
+    2. Article Breadcrumbs & Tag Links (.elementor-icon-list-text a, a[rel="tag"],
+       a[rel="category tag"], a[rel="category"], ol.breadcrumb a, nav.breadcrumb a,
+       div.breadcrumb a, ul.breadcrumbs a, .breadcrumb-item a, .cat-links a,
+       .post-categories a, .entry-meta .category a, .category a, span.category a,
+       .badge-category a, .meta-category a, a[href*="/news_group/"], a[href*="/category/"])
+    3. JSON-LD structured data (articleSection, BreadcrumbList)
     """
     cues: list[str] = []
     seen: set[str] = set()
@@ -113,31 +194,62 @@ def extract_category_cues(soup: BeautifulSoup, base_url: str = "") -> list[str]:
         if not val or not isinstance(val, str):
             return
         cleaned = val.strip()
-        if cleaned and len(cleaned) < 200 and cleaned.lower() not in seen:
+        if cleaned and len(cleaned) < 250 and cleaned.lower() not in seen:
             seen.add(cleaned.lower())
             cues.append(cleaned)
 
     # 1. Meta tags
-    for meta_prop in ("article:section", "og:article:section", "section", "category"):
+    for meta_prop in ("article:section", "og:article:section", "section", "category", "keywords"):
         tag = soup.find("meta", property=meta_prop) or soup.find("meta", attrs={"name": meta_prop})
         if tag and tag.get("content"):
             content_val = tag["content"]
-            add_cue(content_val[0] if isinstance(content_val, list) else str(content_val))
+            content_str = content_val[0] if isinstance(content_val, list) else str(content_val)
+            # Support comma-separated keywords
+            if meta_prop == "keywords" and "," in content_str:
+                for kw in content_str.split(","):
+                    add_cue(kw.strip())
+            else:
+                add_cue(content_str)
 
-    # 2. Category links & Spans (.category a, span.category a, .entry-meta a, etc.)
+    # 2. Article Breadcrumbs & Targeted Category Links
     cat_selectors = [
-        "span.category a",
-        "div.category a",
-        ".entry-meta .category a",
-        ".entry-meta a",
-        ".category a",
+        # Breadcrumbs
+        "ol.breadcrumb a",
+        "nav.breadcrumb a",
+        "div.breadcrumb a",
+        "ul.breadcrumbs a",
+        ".entry-breadcrumbs a",
+        ".breadcrumb-item a",
+        ".breadcrumbs a",
+        "[class*='breadcrumb'] a",
+        "[aria-label*='breadcrumb'] a",
+        "[aria-label*='Breadcrumb'] a",
+        # Tags and Category pills in article
+        "a[rel='tag']",
+        "a[rel='category tag']",
+        "a[rel='category']",
+        ".elementor-icon-list-text a",
+        "span.elementor-icon-list-text a",
         ".cat-links a",
         ".post-categories a",
-        'a[rel="category tag"]',
-        'a[rel="category"]',
-        '.meta-category a',
-        '.badge-category a',
-        'a[href*="/category/"]',
+        ".entry-meta .category a",
+        ".category a",
+        "span.category a",
+        "div.category a",
+        ".meta-category a",
+        ".badge-category a",
+        ".cat-name a",
+        # Article header / entry tags
+        "header .entry-meta a",
+        "header .category a",
+        "header a[rel='tag']",
+        ".article-header a[rel='tag']",
+        ".article-meta a",
+        # Specific sub-URL paths inside article content / header
+        "article a[href*='/news_group/']",
+        "article a[href*='/category/']",
+        "header a[href*='/news_group/']",
+        "header a[href*='/category/']",
     ]
     for sel in cat_selectors:
         for a in soup.select(sel):
@@ -146,30 +258,10 @@ def extract_category_cues(soup: BeautifulSoup, base_url: str = "") -> list[str]:
                 href_str = raw_href[0] if isinstance(raw_href, list) else str(raw_href)
                 add_cue(_abs_url(href_str, base_url) if base_url else href_str)
             text = a.text.strip()
-            if text and text not in {"/", ">", "-", "|"}:
+            if text and text not in {"หน้าแรก", "home", "news", "ข่าว", "/", ">", "-", "|", ""}:
                 add_cue(text)
 
-    # 3. Breadcrumbs
-    bc_selectors = [
-        "ol.breadcrumbs a",
-        "nav.breadcrumb a",
-        "div.breadcrumb a",
-        "ul.breadcrumbs a",
-        ".entry-breadcrumbs a",
-        ".breadcrumb-item a",
-        ".breadcrumbs a",
-    ]
-    for sel in bc_selectors:
-        for a in soup.select(sel):
-            raw_href = a.get("href")
-            if raw_href:
-                href_str = raw_href[0] if isinstance(raw_href, list) else str(raw_href)
-                add_cue(_abs_url(href_str, base_url) if base_url else href_str)
-            text = a.text.strip()
-            if text and text not in {"หน้าแรก", "home", "news", "ข่าว", "/", ">", "-", "|"}:
-                add_cue(text)
-
-    # 4. JSON-LD structured data
+    # 3. JSON-LD structured data
     for script in soup.find_all("script", type="application/ld+json"):
         if not script.string:
             continue
@@ -184,10 +276,26 @@ def extract_category_cues(soup: BeautifulSoup, base_url: str = "") -> list[str]:
                             add_cue(str(s))
                     else:
                         add_cue(str(section))
+                # BreadcrumbList schema
+                if data.get("@type") == "BreadcrumbList" and "itemListElement" in data:
+                    for elem in data["itemListElement"]:
+                        if isinstance(elem, dict):
+                            item = elem.get("item")
+                            if isinstance(item, dict):
+                                add_cue(item.get("name"))
+                                add_cue(item.get("@id"))
+                            elif isinstance(item, str):
+                                add_cue(item)
+                            add_cue(elem.get("name"))
             elif isinstance(data, list):
                 for item in data:
-                    if isinstance(item, dict) and item.get("articleSection"):
-                        add_cue(str(item["articleSection"]))
+                    if isinstance(item, dict):
+                        if item.get("articleSection"):
+                            add_cue(str(item["articleSection"]))
+                        if item.get("@type") == "BreadcrumbList" and "itemListElement" in item:
+                            for elem in item["itemListElement"]:
+                                if isinstance(elem, dict):
+                                    add_cue(elem.get("name"))
         except Exception:
             pass
 
@@ -313,10 +421,18 @@ def parse_rss_items(
         # ── Extract Image from RSS XML ────────────────────────────────────
         image_url = ""
 
+        # 0. Check YouTube embed in content:encoded or description first (for video / podcast items)
+        encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
+        enc_text = encoded.text if encoded is not None and encoded.text else ""
+        yt_id = extract_youtube_video_id(enc_text) or extract_youtube_video_id(raw_desc)
+        if yt_id:
+            image_url = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+
         # 1. media:content namespace
-        media = item.find("{http://search.yahoo.com/mrss/}content")
-        if media is not None:
-            image_url = media.get("url", "")
+        if not image_url:
+            media = item.find("{http://search.yahoo.com/mrss/}content")
+            if media is not None:
+                image_url = media.get("url", "")
 
         # 2. enclosure tag
         if not image_url:
@@ -331,12 +447,10 @@ def parse_rss_items(
                 image_url = img_match.group(1)
 
         # 4. <img> in content:encoded namespace
-        if not image_url:
-            encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
-            if encoded is not None and encoded.text:
-                img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', encoded.text)
-                if img_match:
-                    image_url = img_match.group(1)
+        if not image_url and enc_text:
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', enc_text)
+            if img_match:
+                image_url = img_match.group(1)
 
         if image_url and base_url:
             image_url = _abs_url(image_url, base_url)

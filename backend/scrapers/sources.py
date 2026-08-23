@@ -13,6 +13,9 @@ GRASP  Low Coupling — ใช้แค่ registry + helpers ไม่รู้
 
 from __future__ import annotations
 
+import asyncio
+import re
+
 from bs4 import BeautifulSoup
 
 from backend.config import settings
@@ -115,6 +118,12 @@ async def scrape_101world() -> list[dict]:
         if text:
             items = parse_rss_items(text, "101 World", base_url=base, limit=_LIMIT)
             if items:
+                selectors = ["div.entry-content", "div.article-body", "div.post-content", "article"]
+                for item in items:
+                    if not item.get("image_url") and item.get("url"):
+                        _, img, _, _ = await fetch_summary_and_image(item["url"], selectors, base)
+                        if img:
+                            item["image_url"] = img
                 return items
     except Exception:
         pass
@@ -329,5 +338,70 @@ async def scrape_bangkokbiznews() -> list[dict]:
         return news_list
     except Exception:
         return []
+
+
+# ── PPTV HD 36 (พีพีทีวี เอชดี 36) ─────────────────────────────────
+
+@register_source("PPTV HD 36", "https://www.pptvhd36.com/news", "#0088cc")
+async def scrape_pptv() -> list[dict]:
+    base = "https://www.pptvhd36.com"
+    selectors = ["div.content-detail", "div.article-content", "div.detail", "article", ".news-detail"]
+    try:
+        text, not_modified = await http_cache.fetch(f"{base}/news", timeout=10)
+        if not_modified or not text:
+            return []
+        soup = BeautifulSoup(text, "html.parser")
+        news_list = []
+        seen_urls = set()
+        for h in soup.select("h3"):
+            title = h.text.strip()
+            if not title or len(title) < 10:
+                continue
+            url = find_url(h, base)
+            if not url or url in seen_urls:
+                continue
+            if not re.search(r'/\d+$', url.split("?")[0]):
+                continue
+            seen_urls.add(url)
+            summary, image_url, md, cues = await fetch_summary_and_image(url, selectors, base)
+            news_list.append(make_article(title, summary, "PPTV HD 36", url, image_url, md, category_cues=cues))
+            if len(news_list) >= _LIMIT:
+                break
+        return news_list
+    except Exception:
+        return []
+
+
+# ── Techhub (techhub.in.th) ───────────────────────────────────────
+
+@register_source("Techhub", "https://www.techhub.in.th", "#1abc9c")
+async def scrape_techhub() -> list[dict]:
+    rss_url = "https://www.techhub.in.th/feed"
+    base = "https://www.techhub.in.th"
+    selectors = [
+        ".td-post-content",
+        ".td-post-featured-image",
+        "div.entry-content",
+        "div.article-content",
+        "article",
+    ]
+    try:
+        text, not_modified = await http_cache.fetch(rss_url, timeout=10)
+        if not_modified or not text:
+            return []
+        items = parse_rss_items(text, "Techhub", base_url=base, limit=_LIMIT)
+        if items:
+            async def _fill_missing_image(item: dict) -> None:
+                if not item.get("image_url") and item.get("url"):
+                    _, img, _, _ = await fetch_summary_and_image(item["url"], selectors, base)
+                    if img:
+                        item["image_url"] = img
+
+            await asyncio.gather(*[_fill_missing_image(it) for it in items], return_exceptions=True)
+            return items
+        return []
+    except Exception:
+        return []
+
 
 
