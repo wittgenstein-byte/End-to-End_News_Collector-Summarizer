@@ -217,13 +217,48 @@ async def scrape_thaipost() -> list[dict]:
 
 @register_source("Daily News", "https://www.dailynews.co.th", "#e74c3c")
 async def scrape_dailynews() -> list[dict]:
+    rss_url = "https://www.dailynews.co.th/news/feed/"
     base = "https://www.dailynews.co.th"
     selectors = ["div.entry-content", "div.article-content", "article", "div.content-all"]
     try:
-        text, not_modified = await http_cache.fetch(f"{base}/news/", timeout=10)
-        if not_modified or not text:
+        text, not_modified = await http_cache.fetch(rss_url, timeout=10)
+        if not_modified:
             return []
-        soup = BeautifulSoup(text, "html.parser")
+        if text:
+            items = parse_rss_items(text, "Daily News", base_url=base, limit=_LIMIT)
+            if items:
+                async def _fill_missing_image(item: dict) -> None:
+                    if not item.get("image_url") and item.get("url"):
+                        try:
+                            _, img, _, _ = await fetch_summary_and_image(item["url"], selectors, base)
+                            if img:
+                                item["image_url"] = img
+                        except Exception:
+                            pass
+
+                await asyncio.gather(*[_fill_missing_image(it) for it in items], return_exceptions=True)
+                return items
+    except Exception:
+        pass
+
+    # Fallback to general feed
+    try:
+        text, not_modified = await http_cache.fetch(f"{base}/feed/", timeout=10)
+        if not_modified:
+            return []
+        if text:
+            items = parse_rss_items(text, "Daily News", base_url=base, limit=_LIMIT)
+            if items:
+                return items
+    except Exception:
+        pass
+
+    # Fallback to Playwright if RSS fails
+    try:
+        html = await fetch_html_playwright(f"{base}/news/", wait_tag="h3, article")
+        if not html:
+            return []
+        soup = BeautifulSoup(html, "html.parser")
         news_list = []
         seen = set()
         for h in soup.select("h3 a, .entry-title a, article h3, article a"):
@@ -239,6 +274,7 @@ async def scrape_dailynews() -> list[dict]:
         return news_list
     except Exception:
         return []
+
 
 
 # ── Komchadluek (คมชัดลึกออนไลน์) ──────────────────────────────────
