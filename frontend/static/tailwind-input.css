@@ -282,6 +282,10 @@ html.dark #browser-modal {
 html.dark #browser-modal .bg-white {
   background-color: #1c1d22 !important;
 }
+html.dark .hero-carousel-container {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.9) !important;
+}
 html.dark .bg-error\/10 {
   background-color: rgba(239, 68, 68, 0.15) !important;
 }
