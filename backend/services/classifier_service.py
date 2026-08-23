@@ -193,12 +193,13 @@ _URL_CUES: dict[str, str] = {
     "/entertain": "entertainment",
     "-entertain": "entertainment",
     "entertain-": "entertainment",
-    "/pop": "entertainment",
-    "-pop": "entertainment",
-    "pop-": "entertainment",
     "/pop/": "entertainment",
+    "/pop-culture": "entertainment",
+    "/pop-music": "entertainment",
     "/k-pop": "entertainment",
     "/kpop": "entertainment",
+    "/t-pop": "entertainment",
+    "/j-pop": "entertainment",
     "/movie": "entertainment",
     "/movies": "entertainment",
     "/music": "entertainment",
@@ -246,6 +247,7 @@ _RULES: dict[str, list[str]] = {
         "พรรค","เลือกตั้ง","ผู้สมัคร","ส.ส.","ส.ว.","กฎหมาย","ราชกิจจา",
         "กระทรวง","ทบวง","กรม","ปฏิวัติ","รัฐประหาร","ประชาธิปไตย",
         "นโยบาย","มติ","ร่าง พ.ร.บ.","พ.ร.บ.","สิทธิ","เสรีภาพ",
+        "กอ.รมน.","ความมั่นคง","ฝ่ายความมั่นคง","กองทัพ","ทหาร",
         # English
         "politics","parliament","government","minister","election",
         "senator","congress","vote","policy","legislation","bill",
@@ -283,7 +285,7 @@ _RULES: dict[str, list[str]] = {
         # Thai
         "สุขภาพ","โรค","วัคซีน","โรงพยาบาล","แพทย์","ยา","ระบาด","ผู้ป่วย",
         "มะเร็ง","เบาหวาน","ความดัน","สาธารณสุข","อนามัย","กระทรวงสาธารณสุข",
-        "หมอ","พยาบาล","คลินิก","รักษา","ผ่าตัด","วิจัย","ยา",
+        "หมอ","พยาบาล","คลินิก","การรักษา","รักษาพยาบาล","ยารักษาโรค","วิธีรักษา","ผ่าตัด","วิจัย",
         "โควิด","ไข้หวัด","ไวรัส","แบคทีเรีย","เชื้อ","กักกัน",
         # English
         "health","disease","vaccine","hospital","doctor","medicine",
@@ -523,6 +525,12 @@ _DENOISE_PHRASES = (
 # ── High-Specificity Domain Cues ──────────────────────────────────
 # คำเฉพาะทางระดับสูงที่ระบุหมวดหมู่ชัดเจนในหัวข้อข่าว (Title Priority)
 _HIGH_SPECIFICITY_CUES: dict[str, tuple[str, ...]] = {
+    "politics": (
+        "กอ.รมน.", "กอ.รมน.ภาค", "ความมั่นคง", "ชายแดนใต้", "ศอ.บต.",
+        "รัฐสภา", "สภาผู้แทนราษฎร", "วุฒิสภา", "อภิปรายไม่ไว้วางใจ",
+        "นายกรัฐมนตรี", "คณะรัฐมนตรี", "ยุบสภา", "เลือกตั้งซ่อม",
+        "พรรคการเมือง", "กฎหมายประชามติ", "ศาลรัฐธรรมนูญ", "ป.ป.ช.",
+    ),
     "environment": (
         "น้ำท่วม", "อุทกภัย", "น้ำป่าไหลหลาก", "น้ำป่า", "แม่น้ำเอ่อล้น", "น้ำล้นตลิ่ง",
         "ดินถล่ม", "โคลนถล่ม", "พายุหมุน", "พายุดีเปรสชัน", "ไต้ฝุ่น", "สึนามิ",
@@ -617,6 +625,11 @@ def get_category_from_url(url: str) -> tuple[str, str] | None:
     try:
         decoded_url = unquote(url).lower().strip()
         parsed = urlparse(decoded_url)
+
+        # 0. Domain Lock / Priority (e.g. techhub.in.th -> technology)
+        if "techhub.in.th" in decoded_url or "techhub.in.th" in (parsed.netloc or ""):
+            return "technology", "Domain Priority (techhub.in.th)"
+
         path = parsed.path.rstrip("/")
 
         # 1. เช็ก exact path segment จากขวาไปซ้าย (leaf category สำคัญที่สุด เช่น /category/culture/entertainment -> entertainment)
@@ -746,23 +759,29 @@ def get_category_from_cues(cues: list[str] | str | None) -> tuple[str, str] | No
                 cat, _ = url_match
                 return cat, f"Category Cue ({cue})"
 
-        # 2. ตรวจสอบชื่อหมวดหมู่ภาษาไทย / ภาษาอังกฤษตรงๆ หรือจาก _RULES
+        # 2. ตรวจสอบชื่อหมวดหมู่ภาษาไทย / ภาษาอังกฤษตรงๆ
         cue_lower = cue.lower()
         if cue_lower in _VALID_CATEGORIES:
             return cue_lower, f"Category Cue ({cue})"
 
-        # Check in _URL_CUES (e.g. "การเมือง", "บันเทิง", "เศรษฐกิจ", "pop", "politics")
+        # Check in _URL_CUES (e.g. "การเมือง", "บันเทิง", "เศรษฐกิจ", "politics")
         if cue_lower in _URL_CUES:
             return _URL_CUES[cue_lower], f"Category Cue ({cue})"
         cue_slash = f"/{cue_lower}"
         if cue_slash in _URL_CUES:
             return _URL_CUES[cue_slash], f"Category Cue ({cue})"
 
-        # Check if cue matches keywords in _RULES
+        # 3. ตรวจสอบ High Specificity Cues ก่อนเสมอ
+        for cat, h_cues in _HIGH_SPECIFICITY_CUES.items():
+            for h_cue in h_cues:
+                if h_cue in cue_lower:
+                    return cat, f"Category Cue ({cue})"
+
+        # 4. Check if cue matches keywords in _RULES (exact or specific phrase length >= 6)
         for cat, kws in _RULES.items():
             for kw in kws:
                 kw_l = kw.lower()
-                if kw_l == cue_lower or (len(kw_l) > 3 and kw_l in cue_lower):
+                if kw_l == cue_lower or (len(kw_l) >= 6 and kw_l in cue_lower):
                     return cat, f"Category Cue ({cue})"
 
     return None
