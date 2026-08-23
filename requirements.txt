@@ -18,3 +18,4 @@ transformers
 sentencepiece
 accelerate
 protobuf
+playwright
