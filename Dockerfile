@@ -2,9 +2,10 @@
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
 RUN npx tailwindcss -i static/tailwind-input.css -o static/app.css --minify
+
 
 # Stage 2: Base image with Python
 FROM python:3.11-slim
@@ -18,14 +19,12 @@ ENV PYTHONUNBUFFERED=1
 
 # Copy project dependencies and install
 COPY pyproject.toml uv.lock* requirements.txt ./
-RUN uv sync --frozen --no-cache --no-dev || uv pip install --system --no-cache -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev || uv pip install --system -r requirements.txt
 
 # Ensure virtual environment binaries are on PATH if created by uv sync
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install Playwright browsers (full chromium + headless shell) for the
-# in-app browser's BrowserService fallback engine
-RUN playwright install --with-deps chromium
 
 # Copy only runtime files
 COPY backend/ ./backend/
