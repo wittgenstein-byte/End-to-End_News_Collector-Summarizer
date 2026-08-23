@@ -343,17 +343,18 @@ html.dark .text-error {
   }
 }
 
-/* Dark Gradient Overlay for high-contrast readability */
+/* Natural Gradient Overlay: Clear vibrant center image, dark bottom for crisp text */
 .hero-gradient-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.96) 0%,
-    rgba(0, 0, 0, 0.88) 30%,
-    rgba(0, 0, 0, 0.65) 55%,
-    rgba(0, 0, 0, 0.2) 80%,
-    rgba(0, 0, 0, 0.45) 100%
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.78) 22%,
+    rgba(0, 0, 0, 0.35) 42%,
+    rgba(0, 0, 0, 0) 58%,
+    rgba(0, 0, 0, 0) 80%,
+    rgba(0, 0, 0, 0.3) 100%
   );
   display: flex;
   flex-direction: column;
@@ -426,22 +427,27 @@ html.dark .text-error {
   height: 4px;
   flex: 1;
   border-radius: 9999px;
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.25);
   overflow: hidden;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
   border: none;
   padding: 0;
 }
 
 .hero-progress-segment:hover {
-  background-color: rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.hero-progress-segment-active {
+  background-color: rgba(255, 255, 255, 0.35);
 }
 
 .hero-progress-bar-fill {
   height: 100%;
   background-color: #ffffff;
   border-radius: 9999px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
 }
 
 .hero-progress-active {

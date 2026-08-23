@@ -241,47 +241,49 @@ export function formatClassificationBadge(method) {
   const m = String(method);
   let icon = "label";
   let label = m;
-  let bgClass = "bg-surface-container text-outline border-outline-variant/30";
 
-  if (m.startsWith("URL Priority") || m.startsWith("URL")) {
-    icon = "bolt";
+  if (m.startsWith("Category Cue")) {
+    icon = "tag";
+    const match = m.match(/\((.*?)\)/);
+    let cue = match ? match[1] : "Cue";
+    if (cue.startsWith("http") || cue.startsWith("/")) {
+      const parts = cue.split("/").filter(Boolean);
+      cue = parts[parts.length - 1] || cue;
+    }
+    label = `Tag: ${cue}`;
+  } else if (m.startsWith("URL Priority") || m.startsWith("URL")) {
+    icon = "link";
     const match = m.match(/\((.*?)\)/);
     const cue = match ? match[1] : "URL";
     label = `URL: ${cue}`;
-    bgClass = "bg-blue-50 text-blue-700 border-blue-200";
   } else if (m.startsWith("Hybrid:") || m.includes("WangchanBERTa")) {
     icon = "smart_toy";
     const confMatch = m.match(/conf=([\d.]+)/);
     const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
     const isHybrid = m.startsWith("Hybrid");
-    label = isHybrid ? `Hybrid WangchanBERTa${pct}` : `WangchanBERTa${pct}`;
-    bgClass = "bg-amber-50 text-amber-800 border-amber-300";
+    label = isHybrid ? `Hybrid${pct}` : `WangchanBERTa${pct}`;
   } else if (m.startsWith("ML")) {
     icon = "memory";
     const confMatch = m.match(/conf=([\d.]+)/);
     const pct = confMatch ? ` ${Math.round(parseFloat(confMatch[1]) * 100)}%` : "";
     label = `LinearSVC${pct}`;
-    bgClass = "bg-purple-50 text-purple-700 border-purple-200";
   } else if (m.startsWith("Rule (") || m.startsWith("High-Specificity Rule")) {
     icon = "verified";
     const match = m.match(/\((.*?)\)/);
     const cue = match ? match[1] : "Rule";
     label = `Rule: ${cue}`;
-    bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
   } else if (m.startsWith("Rule-based") || m.startsWith("Rule")) {
     icon = "rule";
     label = "Rules";
-    bgClass = "bg-slate-100 text-slate-700 border-slate-300";
   } else {
     icon = "tune";
     label = "Default";
-    bgClass = "bg-gray-50 text-gray-600 border-gray-200";
   }
 
   return `
-    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-xs ${bgClass}" title="Classification Engine: ${esc(m)}">
-      <span class="material-symbols-outlined text-[12px] shrink-0">${icon}</span>
-      <span>${esc(label)}</span>
+    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-medium text-outline bg-surface-container/60 border border-outline-variant/20 shrink-0 max-w-[120px] truncate" title="วิธีจำแนกหมวดหมู่: ${esc(m)}">
+      <span class="material-symbols-outlined text-[11px] opacity-70 shrink-0">${icon}</span>
+      <span class="truncate">${esc(label)}</span>
     </span>
   `;
 }
@@ -531,16 +533,15 @@ function updateHeroTrendingSlide() {
     `;
   }
 
-  // Generate 7 indicator progress bars at the bottom with 3.5s animation
+  // Generate 7 indicator progress bars at the bottom with 3.5s animation only on the current slide
   const indicatorsHtml = heroTrendingArticles.map((_, idx) => {
-    const isPast = idx < heroCurrentIndex;
     const isCurrent = idx === heroCurrentIndex;
     return `
       <button type="button" 
-              class="hero-progress-segment" 
+              class="hero-progress-segment ${isCurrent ? 'hero-progress-segment-active' : ''}" 
               onclick="window.__goToTrendingSlide(${idx})" 
               title="อันดับที่ #${idx + 1}">
-        <div class="hero-progress-bar-fill ${isCurrent ? 'hero-progress-active' : (isPast ? 'w-full' : 'w-0')}"></div>
+        ${isCurrent ? '<div class="hero-progress-bar-fill hero-progress-active"></div>' : ''}
       </button>
     `;
   }).join("");
@@ -572,7 +573,7 @@ function updateHeroTrendingSlide() {
       <!-- Background Image -->
       <img src="${esc(imgSrc)}" 
            alt="${esc(n.title)}" 
-           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90 cursor-pointer"
+           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-100 cursor-pointer"
            onclick="window.__openPreview('${esc(n.url)}')"
            onerror="this.onerror=null; this.src='${getCategoryPlaceholder(n.category)}';" 
            loading="eager" />
@@ -727,10 +728,17 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
             </div>
           </div>
 
-          <!-- Card Content (Headlines only, no body text) -->
+          <!-- Card Content (Headlines + Source + Badges) -->
           <div class="p-4 pb-2 flex flex-col flex-1">
-            <div class="flex items-center gap-1.5 mb-2 flex-wrap">
-              ${renderArticleBadges(n, isNew)}
+            <!-- Source & Badges Row -->
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>
+                <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider truncate">${esc(n.source)}</span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+                ${renderArticleBadges(n, isNew)}
+              </div>
             </div>
 
             <h2 class="text-base sm:text-[17px] font-headline font-bold leading-snug transition-colors group-hover:text-primary line-clamp-2">
@@ -740,12 +748,12 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
         </div>
 
         <!-- Card Footer Actions -->
-        <div class="px-4 pb-3 pt-2 mt-auto border-t border-outline-variant/10 flex items-center justify-between gap-2">
-          <span class="text-[10px] font-bold text-outline uppercase">${esc(n.fetched_at ?? "")}</span>
-          <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+        <div class="px-4 pb-3 pt-2.5 mt-auto border-t border-outline-variant/10 flex items-center justify-between gap-2">
+          <span class="text-[10px] font-bold text-outline uppercase shrink-0">${esc(n.fetched_at ?? "")}</span>
+          <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
             ${n.url ? `
             <button type="button"
-                    class="flex items-center justify-center p-1.5 rounded-lg border border-outline-variant/30 ${isBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all"
+                    class="h-8 w-8 flex items-center justify-center rounded-lg border border-outline-variant/30 ${isBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all cursor-pointer"
                     onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')"
                     title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
               <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
@@ -754,7 +762,7 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
             </button>` : ""}
 
             <button type="button" 
-                    class="flex items-center justify-center gap-1 bg-surface-container text-on-surface hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg font-bold text-[11px] active:scale-95 transition-all"
+                    class="h-8 px-3 flex items-center justify-center gap-1.5 bg-surface-container text-on-surface hover:bg-surface-container-high rounded-lg font-bold text-xs active:scale-95 transition-all cursor-pointer"
                     data-url="${esc(n.url)}"
                     onclick="window.__openPreview(this.dataset.url)"
                     title="เปิดหน้า Preview">
@@ -763,7 +771,7 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
             </button>
 
             <button type="button" 
-                    class="flex items-center justify-center gap-1 bg-primary text-white hover:bg-primary-container px-3 py-1.5 rounded-lg font-bold text-[11px] shadow-xs active:scale-95 transition-all"
+                    class="h-8 px-3.5 flex items-center justify-center gap-1.5 bg-primary text-white hover:bg-primary-container rounded-lg font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
                     data-url="${esc(n.url)}"
                     onclick="window.__openPreviewAndSummarize(this.dataset.url)"
                     title="เปิด Preview พร้อมสรุป AI ทันที">

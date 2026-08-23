@@ -67,6 +67,8 @@ export const SOURCE_COLORS = {
   "Nation Online":  "#16a085",
   "Bangkokbiznews": "#1f3a93",
   "Thai Post":      "#d35400",
+  "PPTV HD 36":     "#0088cc",
+  "Techhub":        "#1abc9c",
 };
 
 /**
