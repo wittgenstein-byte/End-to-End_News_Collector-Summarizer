@@ -295,7 +295,7 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 \text{TrendingScore} = \left( F_E \times M(K) \times D(\Delta t) \right) + B
 \end{equation}
 
-โดยมีรายละเอียดองค์ประกอบย่อย ดังนี้:
+โดยมีรายละเอียดองค์ประกอบย่อยและหลักการทางทฤษฎีรองรับ ดังนี้:
 \begin{enumerate}[label=\arabic*)]
     \item \textbf{คะแนนปฏิสัมพันธ์ของผู้ใช้แบบลอการิทึม ($F_E$):}
     \begin{equation}
@@ -304,24 +304,25 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
     \begin{equation}
     F_E = 1.0 + 2.0 \cdot \ln(1.0 + E)
     \end{equation}
-    การใช้ฟังก์ชันลอการิทึม (Logarithmic scaling) ช่วยลดปัญหาการปั่นยอดคลิก (Anti-click spam) ทำให้ข่าวมียอดคลิกสูงมากไม่สามารถครอบครองหน้าเว็บได้ตลอดเวลา
+    \textit{หลักการและงานอ้างอิง:} ได้รับแรงบันดาลใจจากอัลกอริทึมจัดอันดับของ Reddit \cite{salihefendic2010} และ Hacker News \cite{graham2008} ซึ่งใช้ฟังก์ชันลอการิทึม ($\ln$) บีบอัดค่าคะแนนตามกฎประโยชน์ส่วนเพิ่มที่ลดน้อยถอยลง (Law of Diminishing Marginal Returns) และป้องกันการปั่นยอดคลิก (Anti-Click Spam) ข่าวที่มียอดคลิกสูงมากจะไม่สามารถครอบครองอันดับได้ตลอดเวลา
     
     \item \textbf{ตัวคูณฉันทามติหลายสำนักข่าว ($M(K)$):}
     \begin{equation}
     M(K) = 1.0 + 0.55 \times (K - 1)
     \end{equation}
-    โดยที่ $K$ คือจำนวนสำนักข่าวอิสระที่รายงานข่าวในกลุ่มประเด็นเดียวกัน (Text Cluster Consensus) ข่าวที่มีหลายสำนักข่าวรายงานตรงกันจะได้รับน้ำหนักเพิ่มขึ้น
+    \textit{หลักการและงานอ้างอิง:} อิงตามทฤษฎี Multi-Source Story Clustering ในระบบ Google News \cite{das2007} โดย $K$ คือจำนวนสำนักข่าวอิสระที่รายงานข่าวในกลุ่มประเด็นเดียวกัน (Text Cluster Consensus) การที่สำนักข่าวหลายแห่งรายงานตรงกันถือเป็นตัวบ่งชี้สำคัญว่าเป็นเหตุการณ์สำคัญระดับสาธารณะ (Major Public Event)
     
     \item \textbf{การลดทอนเวลาแบบเอกซ์โพเนนเชียล ($D(\Delta t)$):}
     \begin{equation}
     D(\Delta t) = 2^{-\frac{\Delta t}{T_{\text{half}}}}
     \end{equation}
-    โดยกำหนดค่าครึ่งชีวิต $T_{\text{half}} = 12.0$ ชั่วโมง และ $\Delta t$ คือจำนวนชั่วโมงที่ผ่านไปนับจากเผยแพร่ข่าว
+    \textit{หลักการและงานอ้างอิง:} อิงตามแบบจำลอง Time-Sensitive Ranking ในงานวิจัยด้าน News Search \cite{dong2010} โดยกำหนดค่าครึ่งชีวิต $T_{\text{half}} = 12.0$ ชั่วโมง ทำให้คะแนนความสดใหม่ลดลงเหลือ $50\%$ ทุก 12 ชั่วโมง เพื่อเปิดทางให้ข่าวใหม่ขึ้นมาแสดงแทนที่และป้องกันปัญหาข่าวเก่าตกค้าง
     
     \item \textbf{คะแนนโบนัสข่าวด่วน ($B$):}
     \begin{equation}
     B = \begin{cases} 4.0 & \text{ถ้า } \Delta t \le 3.0 \text{ ชั่วโมง และ } K \ge 2 \\ 0.0 & \text{กรณีอื่น ๆ} \end{cases}
     \end{equation}
+    \textit{หลักการ:} โบนัสเร่งความเร็วข่าวด่วน (Breaking News Velocity Boost) ทำหน้าที่ดันข่าวสำคัญที่เพิ่งเกิดขึ้นภายใน 3 ชั่วโมงแรกและมีสื่อยืนยันตั้งแต่ 2 แหล่งขึ้นไป ให้ขึ้นสู่แถบข่าวด่วนทันทีโดยไม่ต้องรอสะสมยอดคลิกจากผู้ใช้
 \end{enumerate}
 
 \subsubsection{เกณฑ์การกำหนดป้ายสถานะ (Badges Thresholds)}
