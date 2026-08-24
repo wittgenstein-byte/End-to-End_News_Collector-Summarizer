@@ -138,6 +138,14 @@ PyThaiNLP \cite{pythainlp2021} เป็นเครื่องมือปร�
 \subsection{Socket.IO}
 Socket.IO \cite{socketio2024} ถูกเลือกสำหรับการสื่อสารแบบ Real-time ระหว่างเซิร์ฟเวอร์กับเว็บเบราว์เซอร์ เนื่องจากมีฟีเจอร์การเชื่อมต่อใหม่โดยอัตโนมัติ (Auto-reconnection), ระบบ Fallback เป็น HTTP Long-polling กรณีที่เครือข่ายไม่อนุญาตให้ใช้ WebSocket และระบบจัดการ Event-driven architecture ที่เรียบง่ายและเสถียร
 
+\subsection{ระบบจำลองเบราว์เซอร์แยกส่วนและเทคโนโลยี Obscura (Isolated Obscura CDP Engine)}
+Obscura (\texttt{h4ckf0r0day/obscura}) ถูกนำมาใช้เป็นเอนจินจำลองเบราว์เซอร์แบบแยกส่วน (Isolated Headless Browser Container) โดยสื่อสารผ่านโปรโตคอล Chrome DevTools Protocol (CDP) ผ่านการเชื่อมต่อ WebSocket (\texttt{ws://obscura:9222}) ซึ่งมีประโยชน์เชิงวิศวกรรมที่สำคัญ 3 ประการ:
+\begin{enumerate}[label=\arabic*)]
+    \item \textbf{การแยกภาระทรัพยากร (Resource Isolation):} การประมวลผลเรนเดอร์หน้าเว็บข่าวที่ซับซ้อนและมี JavaScript ปริมาณมากจะถูกแยกไปทำงานใน Container ของ Obscura โดยไม่รบกวนหน่วยความจำและ CPU ของ FastAPI Backend ช่วยป้องกันปัญหาหน่วยความจำล้น (Out-of-Memory: OOM) ภายใต้ทรัพยากรที่จำกัดของ AWS EC2 \texttt{c7i-flex.large} (4 GiB Memory)
+    \item \textbf{การพรางตัวหลบเลี่ยงการตรวจจับบอต (Stealth Bypass \& Anti-Bot Evasion):} Obscura ถูกปรับแต่งโครงสร้าง Browser Fingerprinting และ Canvas/WebGL เพื่อลดโอกาสการถูกบล็อกคำขอจากเว็บไซต์ข่าวที่มีระบบตรวจจับบอตขั้นสูง
+    \item \textbf{กลไกสำรองการทำงานที่ไร้รอยต่อ (Fault-Tolerant Graceful Fallback):} คลาส \texttt{BrowserService} ถูกออกแบบให้เชื่อมต่อไปยัง Obscura CDP ก่อนเสมอ หากคอนเทนเนอร์ภายนอกไม่พร้อมใช้งาน ระบบจะสลับไปรัน Local Playwright Chromium Engine ภายในตัวโดยอัตโนมัติ ทำให้ระบบมีความต่อเนื่องในการให้บริการ (High Availability)
+\end{enumerate}
+
 \subsection{ระบบจัดเก็บข้อมูลตามหลัก SOLID/GRASP (NewsRepositoryPort)}
 การออกแบบระบบจัดเก็บข้อมูลใช้ Port and Adapter Pattern ผ่านโปรโตคอล \texttt{NewsRepositoryPort} ทำให้โค้ดส่วนบริการไม่ผูกติดกับเทคโนโลยีฐานข้อมูลใดฐานข้อมูลหนึ่ง โดยระบบเริ่มต้นพัฒนาด้วย \texttt{FileNewsRepository} ที่จัดเก็บเป็นไฟล์ JSON เพื่อความสะดวกรวดเร็วในการติดตั้งและทดสอบ และสามารถสลับไปใช้ฐานข้อมูล SQL หรือ NoSQL ได้ทันทีในอนาคตโดยไม่ต้องแก้ไข Business Logic
 

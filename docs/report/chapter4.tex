@@ -271,6 +271,16 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
     \item \textbf{Deep Learning Evaluation (WangchanBERTa):} รองรับการประมวลผลข้อความเชิงลึกสำหรับข่าวที่มีบริบทซับซ้อน
 \end{enumerate}
 
+\subsection{ระบบเปิดอ่านบทความในตัวเว็บ (In-App Reader) และการจำลองเบราว์เซอร์ด้วย Obscura}
+
+เพื่อยกระดับประสบการณ์การอ่านข่าวให้มีความต่อเนื่องและปลอดภัย ระบบได้พัฒนาหน้าต่างอ่านบทความฉบับเต็มภายในตัวเว็บ (In-App Modal Reader) โดยทำงานร่วมกับ \texttt{BrowserService} และคอนเทนเนอร์ \texttt{Obscura} (\texttt{h4ckf0r0day/obscura}) ซึ่งมีขั้นตอนการประมวลผลดังนี้:
+\begin{enumerate}[label=\arabic*)]
+    \item \textbf{การตรวจสอบแคชเนื้อหา (Reader Cache Check):} เมื่อผู้อ่านคลิกเปิดอ่านข่าว ระบบจะตรวจสอบว่ามีเนื้อหา HTML ที่ผ่านการทำความสะอาดแล้วใน \texttt{AsyncInMemoryCache} หรือไม่ หากมีจะส่งกลับทันทีภายในเวลา $< 10$ ms
+    \item \textbf{การเชื่อมต่อผ่าน Chrome DevTools Protocol (CDP):} กรณีที่ไม่พบในแคช (Cache Miss) ระบบจะส่งคำขอไปยังคอนเทนเนอร์ Obscura ผ่าน WebSocket (\texttt{ws://obscura:9222}) เพื่อสั่งให้ Chromium สกัดและเรนเดอร์หน้าเว็บเป้าหมาย
+    \item \textbf{การกรองและทำความสะอาดหน้าเว็บ (DOM Sanitization \& Ad-blocking):} ระบบจะตัดโฆษณา ป้ายแบนเนอร์ แทร็กเกอร์ และองค์ประกอบตกแต่งที่ไม่จำเป็นออกทั้งหมด พร้อมขจัดสคริปต์อันตราย (Anti-XSS) เพื่อความปลอดภัยสูงสุด
+    \item \textbf{กลไกสำรองการทำงานแบบอัตโนมัติ (High-Availability Fallback):} หากคอนเทนเนอร์ Obscura ไม่ตอบสนองภายในระยะเวลา Timeout ที่กำหนด ระบบจะสลับไปรัน Local Playwright Chromium Engine ภายในตัวแม่ข่ายโดยอัตโนมัติ ทำให้ผู้ใช้ยังสามารถอ่านข่าวได้ตามปกติ
+\end{enumerate}
+
 \subsection{ระบบสรุปข่าวอัตโนมัติด้วยโมเดลภาษาขนาดใหญ่ (LLM Summarization Pipeline)}
 
 ระบบส่งเนื้อหาข่าวในรูปแบบ Markdown ให้กับ KKU Gen.AI API โดยออกแบบ Prompt ให้ส่งคืนผลลัพธ์เป็นโครงสร้าง JSON ประกอบด้วย บทสรุปกระชับ 2--3 ประโยค ประเด็นสำคัญ 3--5 ข้อ และการวิเคราะห์อารมณ์ของข่าว (Sentiment: Positive, Neutral, Negative) ในภาษาเดียวกับเนื้อหาต้นฉบับ
