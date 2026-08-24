@@ -304,7 +304,7 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
     \begin{equation}
     F_E = 1.0 + 2.0 \cdot \ln(1.0 + E)
     \end{equation}
-    \textit{หลักการและงานอ้างอิง:} ได้รับแรงบันดาลใจจากอัลกอริทึมจัดอันดับของ Reddit \cite{salihefendic2010} และ Hacker News \cite{graham2008} ซึ่งใช้ฟังก์ชันลอการิทึม ($\ln$) บีบอัดค่าคะแนนตามกฎประโยชน์ส่วนเพิ่มที่ลดน้อยถอยลง (Law of Diminishing Marginal Returns) และป้องกันการปั่นยอดคลิก (Anti-Click Spam) ข่าวที่มียอดคลิกสูงมากจะไม่สามารถครอบครองอันดับได้ตลอดเวลา
+    \textit{หลักการและงานอ้างอิง:} ได้รับแรงบันดาลใจจากอัลกอริทึมจัดอันดับของ Reddit \cite{salihefendic2010, swartz2005} และ Hacker News \cite{graham2009} ซึ่งใช้ฟังก์ชันลอการิทึม ($\ln$) บีบอัดค่าคะแนนตามกฎประโยชน์ส่วนเพิ่มที่ลดน้อยถอยลง (Law of Diminishing Marginal Returns) และป้องกันการปั่นยอดคลิก (Anti-Click Spam) ข่าวที่มียอดคลิกสูงมากจะไม่สามารถครอบครองอันดับได้ตลอดเวลา
     
     \item \textbf{ตัวคูณฉันทามติหลายสำนักข่าว ($M(K)$):}
     \begin{equation}
