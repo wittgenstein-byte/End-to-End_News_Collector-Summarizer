@@ -149,7 +149,7 @@ WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & 
 
 \subsection{ฮาร์ดแวร์}
 
-เครื่องมือด้านฮาร์ดแวร์ที่ใช้ในการพัฒนาโครงงานแสดงดังตารางที่ \ref{tab:hardware}
+เครื่องมือด้านฮาร์ดแวร์ที่ใช้ในการพัฒนาโครงงานในปัจจุบันแสดงดังตารางที่ \ref{tab:hardware}
 
 \begin{table}[H]
 \centering
@@ -160,8 +160,8 @@ WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & 
 \hline
 \textbf{ลำดับ} & \textbf{รายการ} & \textbf{รายละเอียดคุณลักษณะ} \\
 \hline
-1 & คอมพิวเตอร์ประมวลผลหลัก & Intel Core i7 / AMD Ryzen 7, RAM 16 GB, SSD NVMe 512 GB \\ \hline
-2 & จอแสดงผล & ขนาด 24 นิ้ว ความละเอียด Full HD (1920 $\times$ 1080) \\ \hline
+1 & คอมพิวเตอร์ประมวลผลหลัก & Intel Core Ultra 5, RAM 16 GB, SSD 512 GB \\ \hline
+2 & จอแสดงผล & หน้าจอแล็ปท็อปขนาด 16 นิ้ว \\ \hline
 3 & เครือข่ายอินเทอร์เน็ต & ความเร็วไม่น้อยกว่า 100/100 Mbps สำหรับเชื่อมต่อ KKU Gen.AI API และดึงข้อมูลข่าว \\
 \hline
 \end{tabular}%
@@ -200,7 +200,7 @@ WangchanBERTa (Fine-tuned) & \textbf{0.942} & \textbf{0.945} & \textbf{0.940} & 
 17 & Python-SocketIO & 5.16.3 & จัดการการเชื่อมต่อ WebSocket สองทิศทางฝั่งเซิร์ฟเวอร์ \\ \hline
 18 & Socket.IO Client (JS) & 4.7.5 & รับส่งข้อมูลเหตุการณ์แบบเรียลไทม์ฝั่งเว็บเบราว์เซอร์ \\ \hline
 19 & Tailwind CSS & 3.4.1 & จัดการสไตล์และส่วนติดต่อผู้ใช้แบบ Responsive \\ \hline
-20 & Obscura (Container) & Latest & เอนจินจำลองเบราว์เซอร์ Chromium แบบแยกส่วนผ่าน CDP WebSocket \\ \hline
+20 & Obscura (Container) & Latest & เอนจินจำลองเบราว์เซอร์ Chromium ภายใน Container สำหรับดึงข่าวหลังบ้าน (ไม่ได้ใช้กับ In-App Browser) \\ \hline
 21 & Ruff & 0.16.1 & เครื่องมือตรวจสอบคุณภาพโค้ดและจัดรูปแบบ (Linter \& Formatter) \\ \hline
 22 & Mypy & 2.3.0 & ตรวจสอบความถูกต้องของ Type Annotation ภาษา Python \\ \hline
 23 & Pytest & 9.1.1 & ชุดทดสอบอัตโนมัติ (Unit Tests, Stress Tests, PDPA Tests) \\ \hline

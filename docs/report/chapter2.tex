@@ -155,6 +155,8 @@ Obscura (\texttt{h4ckf0r0day/obscura}) ถูกนำมาใช้เป็�
     \item \textbf{กลไกสำรองการทำงานที่ไร้รอยต่อ (Fault-Tolerant Graceful Fallback):} คลาส \texttt{BrowserService} ถูกออกแบบให้เชื่อมต่อไปยัง Obscura CDP ก่อนเสมอ หากคอนเทนเนอร์ภายนอกไม่พร้อมใช้งาน ระบบจะสลับไปรัน Local Playwright Chromium Engine ภายในตัวโดยอัตโนมัติ ทำให้ระบบมีความต่อเนื่องในการให้บริการ (High Availability)
 \end{enumerate}
 
+\noindent \textbf{หมายเหตุขอบเขตการใช้งานในปัจจุบัน:} ในระบบเวอร์ชันปัจจุบัน Obscura ถูกนำมาใช้ในลักษณะ Containerized Headless Browser เพื่อรองรับงานดึงและสกัดข้อมูลข่าวสารเบื้องหลัง (Background Web Scraping \& Extraction) ภายในระบบ Container เท่านั้น โดยยังไม่ได้นำไปเชื่อมต่อใช้งานกับระบบ In-App Browser หรือส่วนแสดงผลหน้าเว็บฝั่งไคลเอนต์
+
 \subsection{ระบบจัดเก็บข้อมูลตามหลัก SOLID/GRASP (NewsRepositoryPort)}
 การออกแบบระบบจัดเก็บข้อมูลใช้ Port and Adapter Pattern ผ่านโปรโตคอล \texttt{NewsRepositoryPort} ทำให้โค้ดส่วนบริการไม่ผูกติดกับเทคโนโลยีฐานข้อมูลใดฐานข้อมูลหนึ่ง โดยระบบเริ่มต้นพัฒนาด้วย \texttt{FileNewsRepository} ที่จัดเก็บเป็นไฟล์ JSON เพื่อความสะดวกรวดเร็วในการติดตั้งและทดสอบ และสามารถสลับไปใช้ฐานข้อมูล SQL หรือ NoSQL ได้ทันทีในอนาคตโดยไม่ต้องแก้ไข Business Logic
 
