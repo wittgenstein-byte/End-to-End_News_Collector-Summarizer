@@ -8,7 +8,7 @@
 % Ref: https://github.com/sekz-zz/kkuthesis/blob/master/kkuthesis.cls
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{cskkuproject}[2025/05/08 CS KKU Project Class]
+\ProvidesClass{cskkuproject}[2026/05/08 CS KKU Project Class]
 
 \newcommand{\ThaiAlph}[1]{%
   \ifcase#1\relax ก\or ข\or ค\or ง\or จ\or ฉ\or ช\or ซ\or ฌ\or ญ\or ฎ\or ฏ\or ฐ\or ฑ\or ฒ\or ณ\or ด\or ต\or ถ\or ท\or ธ\or น\or บ\or ป\or ผ\or ฝ\or พ\or ฟ\or ภ\or ม\or ย\or ร\or ล\or ว\or ศ\or ษ\or ส\or ห\or ฬ\or อ\or ฮ\else ?\fi
@@ -411,7 +411,9 @@
 
 \includegraphics[scale=0.5]{./theme/kku-logo.png}
 
-{\Large\bfseries เอกสารเค้าโครงโครงงาน 1}
+{\Large\bfseries CS3-7} \par
+\vspace{0.5cm}
+{\Large\bfseries รายงานทางความก้าวหน้าโครงงาน ครั้งที่ 1}
 
 \vfill
 
