@@ -65,7 +65,8 @@ def normalize_article_url(raw_url: str) -> str:
 # ── System prompt ─────────────────────────────────────────────────
 # แยกออกมาเป็น constant เพื่อ test ได้ง่าย และ modify โดยไม่แก้ logic
 
-SYSTEM_PROMPT = """You are a professional news summarizer. Your task is to read news articles written in Markdown format and produce structured summaries.
+SYSTEM_PROMPT = """You are a professional news summarizer. Your task is to read news articles written 
+in Markdown format and produce structured summaries.
 
 ## Language Rule
 Always respond in the SAME language as the article. Do not translate.
