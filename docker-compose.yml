@@ -6,12 +6,16 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    env_file:
+      - ./backend/.env
     environment:
       PLAYWRIGHT_SERVICE_URL: http://playwright:8001/scrape
       OBSCURA_SERVICE_URL: ws://obscura:9222
     volumes:
       - ./backend/.env:/app/.env:ro
       - ./data:/app/data
+      - ./backend:/app/backend
+
     depends_on:
       playwright:
         condition: service_healthy

@@ -43,7 +43,11 @@ _env = _load_env_file(ENV_PATH)
 
 
 def _get(key: str, default: str = "") -> str:
-    return os.environ.get(key) or _env.get(key, default)
+    # Prioritize .env file values over container ENV defaults
+    if key in _env and _env[key].strip():
+        return _env[key].strip()
+    return os.environ.get(key) or default
+
 
 
 # ── Settings ─────────────────────────────────────────────────────
