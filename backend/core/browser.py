@@ -71,7 +71,7 @@ async def fetch_html_playwright(
     """
     # 1. พยายามเรียก Playwright microservice (ถ้ามีรันใน Docker)
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(
                 settings.playwright_service_url,
                 params={"url": url, "wait_tag": wait_tag, "wait_ms": wait_ms}
@@ -81,8 +81,12 @@ async def fetch_html_playwright(
             html = data.get("html", "")
             if html:
                 return html
-    except Exception:
+    except Exception as exc:
+        # If playwright service failed and we don't have local chromium, don't crash
         pass
 
     # 2. Fallback to local Playwright via asyncio.to_thread
-    return await asyncio.to_thread(_fetch_html_sync, url, wait_tag, wait_ms)
+    try:
+        return await asyncio.to_thread(_fetch_html_sync, url, wait_tag, wait_ms)
+    except Exception:
+        return ""
