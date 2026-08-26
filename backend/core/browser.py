@@ -81,7 +81,7 @@ async def fetch_html_playwright(
             html = data.get("html", "")
             if html:
                 return html
-    except Exception as exc:
+    except Exception:
         # If playwright service failed and we don't have local chromium, don't crash
         pass
 

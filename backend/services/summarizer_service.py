@@ -13,12 +13,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from openai import OpenAI
 
 from backend.core.cache import AsyncInMemoryCache, CachePort
 from backend.schemas.news_schema import NewsSummary
+
+logger = logging.getLogger(__name__)
 
 # ── URL Normalization Helper ──────────────────────────────────────
 
@@ -105,19 +108,36 @@ Return ONLY a valid JSON object with this exact structure — no preamble, no ma
 # ── Service ───────────────────────────────────────────────────────
 
 class SummarizerService:
-    """ส่ง Markdown content ให้ LLM และแปลง JSON response เป็น NewsSummary พร้อม In-Memory Cache"""
+    """ส่ง Markdown content ให้ LLM และแปลง JSON response เป็น NewsSummary พร้อม Tier Cascade Fallback & In-Memory Cache"""
 
     def __init__(
         self,
         client: OpenAI,
-        model: str,
-        temperature: float,
+        model: str | None = None,
+        models: list[str] | None = None,
+        temperature: float = 0.3,
         cache: CachePort[NewsSummary] | None = None,
     ) -> None:
         self._client      = client
-        self._model       = model
         self._temperature = temperature
         self._cache       = cache
+
+        if models:
+            self._models = list(models)
+        elif model:
+            self._models = [model]
+        else:
+            self._models = ["qwen3-next-80b-a3b-instruct"]
+
+    @property
+    def model(self) -> str:
+        """Primary model (แรกสุดใน cascade)"""
+        return self._models[0] if self._models else ""
+
+    @property
+    def models(self) -> list[str]:
+        """Candidate models ทั้งหมดใน cascade"""
+        return list(self._models)
 
     async def summarize_async(
         self,
@@ -144,27 +164,66 @@ class SummarizerService:
 
     def summarize(self, markdown_content: str) -> NewsSummary:
         """
-        เรียก LLM แบบ sync (OpenAI SDK ไม่มี async ใน base class)
-        ถ้าต้องการ async ให้ wrap ด้วย asyncio.to_thread หรือใช้ summarize_async
+        เรียก LLM แบบ sync พร้อม Tiered Cascading Fallback
+        ถ้าโมเดลตัวแรกไม่พร้อม/Error จะ cascade ไปยังตัวถัดไปใน tier อัตโนมัติ
         """
         # Trimming content to speed up inference and avoid giant token counts
         max_chars = 4000
+        truncated_content = markdown_content
         if len(markdown_content) > max_chars:
-            markdown_content = markdown_content[:max_chars] + "\n\n...[Content Truncated]..."
+            truncated_content = markdown_content[:max_chars] + "\n\n...[Content Truncated]..."
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": markdown_content},
-            ],
-            stream=False,
-            temperature=self._temperature,
+        last_exception: Exception | None = None
+        errors: list[str] = []
+        for idx, current_model in enumerate(self._models):
+            try:
+                response = self._client.chat.completions.create(
+                    model=current_model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user",   "content": truncated_content},
+                    ],
+                    stream=False,
+                    temperature=self._temperature,
+                    timeout=30.0,
+                )
+
+                content = response.choices[0].message.content or ""
+                raw = content.strip()
+                if not raw:
+                    raise ValueError(f"Model '{current_model}' returned empty response content.")
+
+                summary = self._parse_output(raw)
+                if idx > 0:
+                    logger.info(
+                        "Cascade Fallback: Successfully summarized using fallback model '%s' (attempt %d/%d)",
+                        current_model,
+                        idx + 1,
+                        len(self._models),
+                    )
+                return summary
+            except Exception as exc:
+                last_exception = exc
+                err_msg = f"Model '{current_model}' failed: {exc}"
+                errors.append(err_msg)
+                logger.warning(
+                    "⚠️ LLM Cascade: %s. Trying next candidate...",
+                    err_msg,
+                )
+
+        error_summary = " | ".join(errors)
+        logger.error(
+            "❌ All %d models in LLM cascade failed. Details: %s",
+            len(self._models),
+            error_summary,
         )
 
-        content = response.choices[0].message.content or ""
-        raw = content.strip()
-        return self._parse_output(raw)
+        if len(self._models) == 1 and last_exception is not None:
+            raise last_exception
+
+        if last_exception is not None:
+            raise RuntimeError(f"All LLM models in cascade failed: {error_summary}") from last_exception
+        raise RuntimeError(f"All LLM models in cascade failed: {error_summary}")
 
     # ── Private ───────────────────────────────────────────────────
 
@@ -206,7 +265,7 @@ def get_summarizer_service() -> SummarizerService:
     client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
     return SummarizerService(
         client=client,
-        model=settings.llm_model,
+        models=settings.llm_cascade_models,
         temperature=settings.llm_temperature,
         cache=get_summary_cache(),
     )

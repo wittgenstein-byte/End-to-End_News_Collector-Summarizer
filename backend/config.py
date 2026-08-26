@@ -50,14 +50,73 @@ def _get(key: str, default: str = "") -> str:
 
 
 
+# ── Tiered Model Defaults (KKU OpenSDK / OpenAI-compatible endpoint) ──
+# จัดลำดับโดยนำโมเดลที่เปิดให้บริการจริงและตอบสนองเร็วที่สุดขึ้นก่อน เพื่อความเร็วสูงสุด
+DEFAULT_TIER1_MODELS: list[str] = [
+    "qwen3-next-80b-a3b-instruct",
+    "qwen3-coder-flash",
+    "mistral-small-2603",
+    "qwen3-coder",
+    "nova-2-lite-v1",
+    "llama-4-maverick",
+]
+
+DEFAULT_TIER2_MODELS: list[str] = [
+    "llama-4-scout",
+    "mistral-medium-3",
+    "nova-pro-v1",
+    "qwen3-235b-a22b-2507",
+    "grok-4.3",
+    "deepseek-chat-v3.1",
+]
+
+DEFAULT_TIER3_MODELS: list[str] = [
+    "deepseek-v3.2-exp",
+    "deepseek-v3.2",
+    "grok-4.5",
+    "mistral-large-2512",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gpt-5.4-mini",
+    "claude-haiku-4.5",
+]
+
+
+def _build_cascade_models(primary_model: str, custom_cascade_env: str) -> list[str]:
+    """สร้างลำดับ Model Cascade โดยเริ่มจาก Primary Model และเติมโมเดล Tier ต่างๆ โดยไม่ซ้ำ"""
+    if custom_cascade_env.strip():
+        models = [m.strip() for m in custom_cascade_env.split(",") if m.strip()]
+    else:
+        models = [primary_model] + DEFAULT_TIER1_MODELS + DEFAULT_TIER2_MODELS + DEFAULT_TIER3_MODELS
+
+    # Deduplicate while preserving order, ensuring primary model is first
+    seen: set[str] = set()
+    result: list[str] = []
+    if primary_model:
+        result.append(primary_model)
+        seen.add(primary_model)
+
+    for m in models:
+        if m not in seen:
+            seen.add(m)
+            result.append(m)
+
+    return result
+
+
 # ── Settings ─────────────────────────────────────────────────────
 
 class Settings:
     # LLM
-    llm_api_key: str        = _get("LLM_API")
+    llm_api_key: str        = _get("LLM_API_KEY", _get("LLM_API"))
     llm_base_url: str       = _get("LLM_BASE_URL", "https://gen.ai.kku.ac.th/api/v1")
-    llm_model: str          = _get("LLM_MODEL",    "gemini-3.1-flash-lite-preview")
+    llm_model: str          = _get("LLM_MODEL",    "qwen3-next-80b-a3b-instruct")
     llm_temperature: float  = float(_get("LLM_TEMPERATURE", "0.3"))
+    llm_cascade_models: ClassVar[list[str]] = _build_cascade_models(
+        _get("LLM_MODEL", "qwen3-next-80b-a3b-instruct"),
+        _get("LLM_CASCADE_MODELS", _get("LLM_FALLBACK_MODELS", "")),
+    )
 
     # Caching
     summary_cache_ttl_seconds: int = int(_get("SUMMARY_CACHE_TTL_SECONDS", "86400"))
