@@ -37,7 +37,7 @@ COPY --from=frontend-builder /app/frontend/static/app.css ./frontend/static/app.
 ENV PORT=5000
 ENV HOST=0.0.0.0
 ENV LLM_BASE_URL=https://gen.ai.kku.ac.th/api/v1
-ENV LLM_MODEL=gemini-3.1-flash-lite-preview
+ENV LLM_MODEL=qwen3-next-80b-a3b-instruct
 
 # Expose the default port (runtime may override with PORT env)
 EXPOSE 5000
