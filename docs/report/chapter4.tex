@@ -133,12 +133,8 @@ FR-08 & In-app Reading Experience & ระบบมีหน้าต่าง�
 
 \subsubsection{ความต้องการที่ไม่ใช่เชิงฟังก์ชัน (Non-Functional Requirements)}
 
-\begin{enumerate}[label=\arabic*)]
-    \item \textbf{ด้านประสิทธิภาพ (Performance):} เวลาในการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (\texttt{GET /api/news}) เฉลี่ยต่ำกว่า 150 มิลลิวินาที เมื่อมีข้อมูลในแคช และการกระจายข่าวใหม่ผ่าน WebSocket มีความหน่วงเวลา (Latency) น้อยกว่า 500 มิลลิวินาที นับจากข่าวถูกบันทึกลงระบบ
-    \item \textbf{ด้านความคงทนและการรองรับข้อผิดพลาด (Reliability \& Fault Tolerance):} ความล้มเหลวในการดึงข้อมูลจากแหล่งข่าวใดแหล่งข่าวหนึ่งจะไม่ส่งผลกระทบต่อรอบการทำงานของแหล่งข่าวอื่น (Isolation of Failures) และระบบสามารถทำงานทดแทนได้ด้วยกฎพื้นฐาน (Fallback mechanism) หากบริการ LLM ภายนอกขัดข้องหรือไม่ตอบสนอง
-    \item \textbf{ด้านสถาปัตยกรรมและการขยายตัว (Maintainability \& Extensibility):} ออกแบบโค้ดตามหลัก SOLID และ GRASP โดยแยกเลเยอร์การทำงานชัดเจน (Routers, Services, Scrapers, Repositories, Core utilities) และใช้งาน Protocol Interface (Port/Adapter Pattern) ในการเข้าถึงหน่วยจัดเก็บข้อมูล
-    \item \textbf{ด้านความเป็นส่วนตัวและการรักษาความปลอดภัย (Privacy \& Usability):} ข้อมูลพฤติกรรมการใช้งานถูกจัดเก็บในลักษณะ Non-PII (ไม่มีการระบุตัวตนส่วนบุคคล) และมีแถบแจ้งเตือนความยินยอมการใช้คุกกี้ (Cookie Consent Banner)
-\end{enumerate}
+ในด้านความต้องการที่ไม่ใช่เชิงฟังก์ชัน ระบบได้รับการออกแบบให้ตอบสนองข้อกำหนดสำคัญ 4 ประการ ได้แก่ ประการแรก ด้านประสิทธิภาพ (Performance) กำหนดให้เวลาการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (\texttt{GET /api/news}) เฉลี่ยต่ำกว่า 150 มิลลิวินาทีเมื่อมีข้อมูลจัดเก็บในหน่วยความจำแคช และมีอัตราความหน่วงเวลา (Latency) ในการกระจายข่าวสารใหม่ผ่าน WebSocket ต่ำกว่า 500 มิลลิวินาทีนับจากช่วงเวลาที่ข่าวถูกบันทึกลงระบบสำเร็จ ประการที่สอง ด้านความคงทนและการรองรับข้อผิดพลาด (Reliability \& Fault Tolerance) ความล้มเหลวในการดึงข้อมูลจากแหล่งข่าวใดแหล่งข่าวหนึ่งต้องไม่ส่งผลกระทบต่อรอบการทำงานของแหล่งข่าวอื่น (Isolation of Failures) พร้อมทั้งมีกลไกสำรอง (Fallback Mechanism) รองรับการแสดงผลข้อความสรุปพื้นฐานในกรณีที่บริการ LLM ภายนอกขัดข้อง ประการที่สาม ด้านสถาปัตยกรรมและการขยายตัว (Maintainability \& Extensibility) ออกแบบโครงสร้างซอฟต์แวร์ตามหลักการ SOLID และ GRASP โดยแยกชั้นความรับผิดชอบอย่างชัดเจน ตลอดจนการประยุกต์ใช้ Protocol Interface ตามรูปแบบ Port and Adapter Pattern ในการเข้าถึงคลังข้อมูล และประการสุดท้าย ด้านความเป็นส่วนตัวและการรักษาความปลอดภัย (Privacy \& Usability) ระบบยึดหลักการไม่เก็บข้อมูลระบุตัวตนส่วนบุคคล (Non-PII) และมีแถบขอความยินยอมการใช้งานคุกกี้ตามมาตรฐานการคุ้มครองข้อมูลส่วนบุคคล
+
 
 % -----------------------------------------------------------
 \section{การออกแบบระบบ}
@@ -268,22 +264,11 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 
 \subsection{ระบบจำแนกหมวดหมู่และการตัดคำภาษาไทย (Thai NLP Classifier)}
 
-การจำแนกหมวดหมู่ข่าวใช้แนวทางไฮบริด (Hybrid Classification Pipeline):
-\begin{enumerate}[label=\arabic*)]
-    \item \textbf{Rule-based Keyword Matching:} สกัดคำสำคัญจากหัวข้อข่าวด้วย PyThaiNLP (\texttt{engine="newmm"}) และเทียบกับชุดคำศัพท์เฉพาะกลุ่มทั้ง 7 หมวดหมู่ โดยให้ค่าน้ำหนักตามตำแหน่งและความยาวของคำ
-    \item \textbf{Machine Learning Fallback (SVM / TF-IDF):} ในกรณีที่คะแนนจากกฎคำสำคัญไม่ถึงเกณฑ์ความเชื่อมั่นที่กำหนด ระบบจะส่งเวกเตอร์ TF-IDF ของข้อความเข้าสู่โมเดล Support Vector Machine (SVM) ที่ผ่านการเทรนล่วงหน้า
-    \item \textbf{Deep Learning Evaluation (WangchanBERTa):} รองรับการประมวลผลข้อความเชิงลึกสำหรับข่าวที่มีบริบทซับซ้อน
-\end{enumerate}
+การจำแนกหมวดหมู่ข่าวใช้แนวทางไฮบริด (Hybrid Classification Pipeline) โดยเริ่มต้นจากการสกัดคำสำคัญจากหัวข้อข่าวด้วย PyThaiNLP (\texttt{engine="newmm"}) เพื่อเทียบกับชุดคำศัพท์เฉพาะกลุ่มทั้ง 9 หมวดหมู่หลัก โดยให้ค่าน้ำหนักตามตำแหน่งและความยาวของคำ ในกรณีที่คะแนนจากกฎคำสำคัญไม่ถึงเกณฑ์ความเชื่อมั่นที่กำหนด ระบบจะส่งเวกเตอร์ TF-IDF ของข้อความเข้าสู่โมเดล Support Vector Machine (LinearSVC) ที่ผ่านการเทรนล่วงหน้า และมีโมเดล WangchanBERTa รองรับการประมวลผลข้อความเชิงลึกสำหรับข่าวที่มีบริบทซับซ้อน
 
 \subsection{ระบบเปิดอ่านบทความในตัวเว็บ (In-App Reader) และเอนจินจำลองเบราว์เซอร์ Obscura}
 
-เพื่อยกระดับประสบการณ์การอ่านข่าวให้มีความต่อเนื่องและปลอดภัย ระบบได้พัฒนาหน้าต่างอ่านบทความฉบับเต็มภายในตัวเว็บ (In-App Modal Reader) เพื่อแสดงผลเนื้อหาข่าวที่ผ่านการสกัดและทำความสะอาดแล้ว โดยทำงานร่วมกับ \texttt{BrowserService} และคอนเทนเนอร์ \texttt{Obscura} (\texttt{h4ckf0r0day/obscura}) ซึ่งมีขั้นตอนการประมวลผลดังนี้:
-\begin{enumerate}[label=\arabic*)]
-    \item \textbf{การตรวจสอบแคชเนื้อหา (Reader Cache Check):} เมื่อผู้อ่านคลิกเปิดอ่านข่าว ระบบจะตรวจสอบว่ามีเนื้อหา HTML ที่ผ่านการทำความสะอาดแล้วใน \texttt{AsyncInMemoryCache} หรือไม่ หากมีจะส่งกลับทันทีภายในเวลา $< 10$ ms
-    \item \textbf{การทำงานของ Obscura ในฐานะ Background Container Engine:} ในกรณีที่เป็นเว็บไซต์ที่เรนเดอร์ด้วย JavaScript ซับซ้อน คอนเทนเนอร์ Obscura จะทำหน้าที่เป็น Headless Browser แยกส่วนเพื่อสกัดเนื้อหาข่าวเบื้องหลัง (Background Content Extraction) ผ่าน Chrome DevTools Protocol (CDP WebSocket \texttt{ws://obscura:9222}) โดยไม่ได้ถูกนำไปรันเป็น In-App Browser ฝั่งผู้ใช้โดยตรง
-    \item \textbf{การกรองและทำความสะอาดหน้าเว็บ (DOM Sanitization \& Ad-blocking):} ระบบ Backend จะตัดโฆษณา ป้ายแบนเนอร์ แทร็กเกอร์ และองค์ประกอบตกแต่งที่ไม่จำเป็นออกทั้งหมด พร้อมขจัดสคริปต์อันตราย (Anti-XSS) เพื่อความปลอดภัยสูงสุดก่อนส่งไปแสดงผลบน Modal
-    \item \textbf{กลไกสำรองการทำงานแบบอัตโนมัติ (High-Availability Fallback):} หากคอนเทนเนอร์ Obscura ไม่ตอบสนองภายในระยะเวลา Timeout ที่กำหนด ระบบจะสลับไปรัน Local Playwright Chromium Engine ภายในตัวแม่ข่ายโดยอัตโนมัติ ทำให้กระบวนการดึงเนื้อหาไม่หยุดชะงัก
-\end{enumerate}
+เพื่อยกระดับประสบการณ์การอ่านข่าวให้มีความต่อเนื่องและปลอดภัย ระบบได้พัฒนาหน้าต่างอ่านบทความฉบับเต็มภายในตัวเว็บ (In-App Modal Reader) สำหรับแสดงผลเนื้อหาข่าวที่ผ่านการสกัดและทำความสะอาดแล้ว โดยทำงานร่วมกับ \texttt{BrowserService} และคอนเทนเนอร์ Obscura เมื่อผู้อ่านคลิกเปิดอ่านข่าว ระบบจะตรวจสอบว่ามีเนื้อหา HTML ที่ผ่านการทำความสะอาดแล้วใน \texttt{AsyncInMemoryCache} หรือไม่ หากมีจะส่งกลับทันทีภายในเวลาต่ำกว่า 10 มิลลิวินาที ในกรณีที่เป็นเว็บไซต์ที่เรนเดอร์ด้วย JavaScript ซับซ้อน คอนเทนเนอร์ Obscura จะทำหน้าที่เป็น Headless Browser แยกส่วนเพื่อสกัดเนื้อหาข่าวเบื้องหลังผ่าน Chrome DevTools Protocol (CDP WebSocket \texttt{ws://obscura:9222}) โดยไม่ได้ถูกนำไปรันเป็น In-App Browser ฝั่งผู้ใช้โดยตรง จากนั้นระบบ Backend จะตัดโฆษณา ป้ายแบนเนอร์ แทร็กเกอร์ และองค์ประกอบตกแต่งที่ไม่จำเป็นออกทั้งหมด พร้อมขจัดสคริปต์อันตราย (Anti-XSS) เพื่อความปลอดภัยก่อนส่งไปแสดงผลบนหน้าต่างอ่านข่าว และหากคอนเทนเนอร์ Obscura ไม่ตอบสนองภายในระยะเวลา Timeout ที่กำหนด ระบบจะสลับไปรัน Local Playwright Chromium Engine ภายในตัวแม่ข่ายโดยอัตโนมัติ ทำให้กระบวนการดึงเนื้อหาดำเนินไปได้อย่างต่อเนื่อง
 
 \subsection{ระบบสรุปข่าวอัตโนมัติด้วยโมเดลภาษาขนาดใหญ่ (LLM Summarization Pipeline)}
 
@@ -299,42 +284,36 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 \text{TrendingScore} = \left( F_E \times M(K) \times D(\Delta t) \right) + B
 \end{equation}
 
-โดยมีรายละเอียดองค์ประกอบย่อยและหลักการทางทฤษฎีรองรับ ดังนี้:
-\begin{enumerate}[label=\arabic*)]
-    \item \textbf{คะแนนปฏิสัมพันธ์ของผู้ใช้แบบลอการิทึม ($F_E$):}
-    \begin{equation}
-    E = (1.0 \times N_{\text{clicks}}) + (3.0 \times N_{\text{summaries}}) + (5.0 \times N_{\text{bookmarks}})
-    \end{equation}
-    \begin{equation}
-    F_E = 1.0 + 2.0 \cdot \ln(1.0 + E)
-    \end{equation}
-    \textit{หลักการและงานอ้างอิง:} ได้รับแรงบันดาลใจจากอัลกอริทึมจัดอันดับของ Reddit \cite{salihefendic2010, swartz2005} และ Hacker News \cite{graham2009} ซึ่งใช้ฟังก์ชันลอการิทึม ($\ln$) บีบอัดค่าคะแนนตามกฎประโยชน์ส่วนเพิ่มที่ลดน้อยถอยลง (Law of Diminishing Marginal Returns) และป้องกันการปั่นยอดคลิก (Anti-Click Spam) ข่าวที่มียอดคลิกสูงมากจะไม่สามารถครอบครองอันดับได้ตลอดเวลา
-    
-    \item \textbf{ตัวคูณฉันทามติหลายสำนักข่าว ($M(K)$):}
-    \begin{equation}
-    M(K) = 1.0 + 0.55 \times (K - 1)
-    \end{equation}
-    \textit{หลักการและงานอ้างอิง:} อิงตามทฤษฎี Multi-Source Story Clustering ในระบบ Google News \cite{das2007} โดย $K$ คือจำนวนสำนักข่าวอิสระที่รายงานข่าวในกลุ่มประเด็นเดียวกัน (Text Cluster Consensus) การที่สำนักข่าวหลายแห่งรายงานตรงกันถือเป็นตัวบ่งชี้สำคัญว่าเป็นเหตุการณ์สำคัญระดับสาธารณะ (Major Public Event)
-    
-    \item \textbf{การลดทอนเวลาแบบเอกซ์โพเนนเชียล ($D(\Delta t)$):}
-    \begin{equation}
-    D(\Delta t) = 2^{-\frac{\Delta t}{T_{\text{half}}}}
-    \end{equation}
-    \textit{หลักการและงานอ้างอิง:} อิงตามแบบจำลอง Time-Sensitive Ranking ในงานวิจัยด้าน News Search \cite{dong2010} โดยกำหนดค่าครึ่งชีวิต $T_{\text{half}} = 12.0$ ชั่วโมง ทำให้คะแนนความสดใหม่ลดลงเหลือ $50\%$ ทุก 12 ชั่วโมง เพื่อเปิดทางให้ข่าวใหม่ขึ้นมาแสดงแทนที่และป้องกันปัญหาข่าวเก่าตกค้าง
-    
-    \item \textbf{คะแนนโบนัสข่าวด่วน ($B$):}
-    \begin{equation}
-    B = \begin{cases} 4.0 & \text{ถ้า } \Delta t \le 3.0 \text{ ชั่วโมง และ } K \ge 2 \\ 0.0 & \text{กรณีอื่น ๆ} \end{cases}
-    \end{equation}
-    \textit{หลักการ:} โบนัสเร่งความเร็วข่าวด่วน (Breaking News Velocity Boost) ทำหน้าที่ดันข่าวสำคัญที่เพิ่งเกิดขึ้นภายใน 3 ชั่วโมงแรกและมีสื่อยืนยันตั้งแต่ 2 แหล่งขึ้นไป ให้ขึ้นสู่แถบข่าวด่วนทันทีโดยไม่ต้องรอสะสมยอดคลิกจากผู้ใช้
-\end{enumerate}
+รายละเอียดองค์ประกอบย่อยและหลักการทางทฤษฎีรองรับของแต่ละพจน์ มีดังนี้
+
+พจน์แรกคือ คะแนนปฏิสัมพันธ์ของผู้ใช้แบบลอการิทึม ($F_E$) คำนวณจากผลรวมถ่วงน้ำหนักของพฤติกรรมการอ่าน:
+\begin{equation}
+E = (1.0 \times N_{\text{clicks}}) + (3.0 \times N_{\text{summaries}}) + (5.0 \times N_{\text{bookmarks}})
+\end{equation}
+\begin{equation}
+F_E = 1.0 + 2.0 \cdot \ln(1.0 + E)
+\end{equation}
+การคำนวณดังกล่าวได้รับแรงบันดาลใจจากอัลกอริทึมจัดอันดับของ Reddit \cite{salihefendic2010, swartz2005} และ Hacker News \cite{graham2009} ซึ่งใช้ฟังก์ชันลอการิทึมบีบอัดค่าคะแนนตามกฎประโยชน์ส่วนเพิ่มที่ลดน้อยถอยลง (Law of Diminishing Marginal Returns) และป้องกันการปั่นยอดคลิก ทำให้ข่าวที่มียอดคลิกสูงมากจะไม่สามารถครอบครองอันดับได้ตลอดเวลา
+
+พจน์ที่สองคือ ตัวคูณฉันทามติหลายสำนักข่าว ($M(K)$) คำนวณจากจำนวนสำนักข่าวอิสระ $K$ ที่รายงานข่าวในกลุ่มประเด็นเดียวกัน:
+\begin{equation}
+M(K) = 1.0 + 0.55 \times (K - 1)
+\end{equation}
+ซึ่งอิงตามทฤษฎี Multi-Source Story Clustering ในระบบ Google News \cite{das2007} โดยถือว่าการที่สำนักข่าวหลายแห่งรายงานตรงกันเป็นตัวบ่งชี้สำคัญว่าเป็นเหตุการณ์สำคัญระดับสาธารณะ
+
+พจน์ที่สามคือ การลดทอนเวลาแบบเอกซ์โพเนนเชียล ($D(\Delta t)$) คำนวณจากระยะเวลา $\Delta t$ ที่ผ่านไปนับจากเวลาเผยแพร่ข่าว:
+\begin{equation}
+D(\Delta t) = 2^{-\frac{\Delta t}{T_{\text{half}}}}
+\end{equation}
+โดยอิงตามแบบจำลอง Time-Sensitive Ranking ในงานวิจัยด้าน News Search \cite{dong2010} กำหนดค่าครึ่งชีวิต $T_{\text{half}} = 12.0$ ชั่วโมง ทำให้คะแนนความสดใหม่ลดลงเหลือร้อยละ 50 ทุก 12 ชั่วโมง เพื่อเปิดทางให้ข่าวใหม่ขึ้นมาแสดงแทนที่
+
+และพจน์ที่สี่คือ คะแนนโบนัสข่าวด่วน ($B$) กำหนดขึ้นเพื่อทำหน้าที่เร่งความเร็วข่าวด่วน (Breaking News Velocity Boost) ให้ขึ้นสู่แถบข่าวด่วนทันทีโดยไม่ต้องรอสะสมยอดคลิก:
+\begin{equation}
+B = \begin{cases} 4.0 & \text{ถ้า } \Delta t \le 3.0 \text{ ชั่วโมง และ } K \ge 2 \\ 0.0 & \text{กรณีอื่น ๆ} \end{cases}
+\end{equation}
 
 \subsubsection{เกณฑ์การกำหนดป้ายสถานะ (Badges Thresholds)}
-\begin{itemize}
-    \item \textbf{[Breaking]:} ข่าวที่มีอายุ $\Delta t \le 3.0$ ชม. และมีสำนักข่าวรายงานตรงกันตั้งแต่ 2 แหล่งขึ้นไป ($K \ge 2$)
-    \item \textbf{[Top Story]:} ข่าวที่มีสำนักข่าวรายงานตรงกันตั้งแต่ 3 แหล่งขึ้นไป ($K \ge 3$)
-    \item \textbf{[Trending] / Hot News:} ข่าวที่มีคะแนนรวม $\text{TrendingScore} \ge 4.5$
-\end{itemize}
+ในการแสดงผลบนส่วนต่อประสานผู้ใช้ ระบบกำหนดเกณฑ์การมอบป้ายสถานะ ได้แก่ ข่าวจะได้รับป้าย [Breaking] เมื่อมีอายุ $\Delta t \le 3.0$ ชั่วโมง และมีสำนักข่าวรายงานตรงกันตั้งแต่ 2 แหล่งขึ้นไป ($K \ge 2$) ได้รับป้าย [Top Story] เมื่อมีสำนักข่าวรายงานตรงกันตั้งแต่ 3 แหล่งขึ้นไป ($K \ge 3$) และได้รับป้าย [Trending] หรือ Hot News เมื่อมีคะแนนรวม $\text{TrendingScore} \ge 4.5$
 
 \subsubsection{ตัวอย่างการคำนวณจริงทีละขั้นตอน (Step-by-Step Numerical Examples)}
 
@@ -415,43 +394,22 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 \begin{equation}
 \text{Sim}(d_i, d_j) = w_1 \cdot \text{Sim}_{\text{Title}} + w_2 \cdot \text{Sim}_{\text{Summary}} + w_3 \cdot \text{Sim}_{\text{Entities}} + w_4 \cdot \text{Sim}_{\text{Keywords}}
 \end{equation}
-โดยกำหนดน้ำหนัก $w_1 = 0.35$ (หัวข้อข่าว), $w_2 = 0.30$ (บทสรุปย่อจาก LLM), $w_3 = 0.20$ (เอนทิตีชื่อเฉพาะ), และ $w_4 = 0.15$ (คำสำคัญ) ซึ่งมีรายละเอียดดังนี้:
-\begin{itemize}
-    \item \textbf{$\text{Sim}_{\text{Title}}$ และ $\text{Sim}_{\text{Summary}}$:} คำนวณความคล้ายคลึงเชิงความหมาย (Semantic Cosine Similarity) ของเวกเตอร์ TF-IDF หรือ Sentence Embeddings เพื่อจับคู่เนื้อหาแม้จะใช้สำนวนภาษาที่แตกต่างกัน
-    \item \textbf{$\text{Sim}_{\text{Entities}}$ (Named Entity Jaccard Similarity):} สกัดชื่อบุคคล สถานที่ และองค์กรที่เกี่ยวข้องผ่านเอนจิน NER ของ PyThaiNLP และคำนวณสัดส่วนการทับซ้อน:
-    \begin{equation}
-    \text{Sim}_{\text{Entities}} = \frac{|E_i \cap E_j|}{|E_i \cup E_j|}
-    \end{equation}
-    หากมีชื่อบุคคลสำคัญ (เช่น ชื่อรัฐมนตรี, ผู้ว่าฯ) หรือสถานที่เกิดเหตุเดียวกัน ปัจจัยนี้จะช่วยยืนยันความถูกต้องว่าเป็นเหตุการณ์เดียวกันอย่างแม่นยำ
-    \item \textbf{$\text{Sim}_{\text{Keywords}}$:} เปรียบเทียบสัดส่วนของชุดคำสำคัญเฉพาะประเด็น (Domain Keywords)
-\end{itemize}
-หากค่าความคล้ายคลึงรวม $\text{Sim}(d_i, d_j) \ge \theta_{\text{cluster}}$ (โดยกำหนดค่าขีดเริ่มเปลี่ยน $\theta_{\text{cluster}} = 0.65$) ระบบจะรวมบทความทั้งสองเข้าเป็นกลุ่มข่าวเดียวกัน ($Cluster$)
+โดยกำหนดน้ำหนัก $w_1 = 0.35$ (หัวข้อข่าว), $w_2 = 0.30$ (บทสรุปย่อจาก LLM), $w_3 = 0.20$ (เอนทิตีชื่อเฉพาะ) และ $w_4 = 0.15$ (คำสำคัญ) ในส่วนของ $\text{Sim}_{\text{Title}}$ และ $\text{Sim}_{\text{Summary}}$ จะคำนวณความคล้ายคลึงเชิงความหมาย (Semantic Cosine Similarity) ของเวกเตอร์ TF-IDF หรือ Sentence Embeddings เพื่อจับคู่เนื้อหาแม้จะใช้สำนวนภาษาที่แตกต่างกัน สำหรับ $\text{Sim}_{\text{Entities}}$ อาศัยการสกัดชื่อบุคคล สถานที่ และองค์กรที่เกี่ยวข้องผ่านเอนจิน NER ของ PyThaiNLP และคำนวณสัดส่วนการทับซ้อนตามสมการ:
+\begin{equation}
+\text{Sim}_{\text{Entities}} = \frac{|E_i \cap E_j|}{|E_i \cup E_j|}
+\end{equation}
+หากมีชื่อบุคคลสำคัญหรือสถานที่เกิดเหตุเดียวกัน ปัจจัยนี้จะช่วยยืนยันความถูกต้องว่าเป็นเหตุการณ์เดียวกันอย่างแม่นยำ และ $\text{Sim}_{\text{Keywords}}$ เปรียบเทียบสัดส่วนของชุดคำสำคัญเฉพาะประเด็น ทั้งนี้ หากค่าความคล้ายคลึงรวม $\text{Sim}(d_i, d_j) \ge \theta_{\text{cluster}}$ (โดยกำหนดค่าขีดเริ่มเปลี่ยน $\theta_{\text{cluster}} = 0.65$) ระบบจะรวมบทความทั้งสองเข้าเป็นกลุ่มข่าวเดียวกัน
 
 \subsubsection{ขั้นตอนที่ 3: การคัดเลือกข่าวตัวแทนกลุ่มและการแสดงผล (Representative Selection \& UI Display)}
-เมื่อจัดกลุ่มบทความสำเร็จ ระบบจะดำเนินการคัดเลือกและนำเสนอดังนี้:
-\begin{enumerate}[label=\alph*)]
-    \item \textbf{คัดเลือกข่าวตัวแทนหลัก (Cluster Representative):} ระบบจะเลือกบทความข่าวที่มีคะแนน $\text{TrendingScore}$ สูงสุดในกลุ่ม ($\arg\max_{d \in \text{Cluster}} \text{TrendingScore}(d)$) ขึ้นมาเป็นข่าวตัวแทนหลักสำหรับแสดงบนการ์ดข่าวหน้าแรก
-    \item \textbf{การแสดงตัวบ่งชี้จำนวนสำนักข่าว ($K$ Sources Indicator):} บนการ์ดข่าวจะแสดงป้ายระบุจำนวนสำนักข่าวที่รายงานร่วมกันอย่างเด่นชัด เช่น \texttt{[รายงานโดย 4 สำนักข่าว]} พร้อมแสดงรายชื่อสำนักข่าวต้นทางทั้งหมด และเมื่อผู้ใช้คลิกเปิดอ่าน จะสามารถเลือกอ่านมุมมองข่าวฉบับเต็มของแต่ละสำนักได้ทันที
-\end{enumerate}
+เมื่อจัดกลุ่มบทความสำเร็จ ระบบจะคัดเลือกบทความข่าวที่มีคะแนน $\text{TrendingScore}$ สูงสุดในกลุ่มขึ้นมาเป็นข่าวตัวแทนหลักสำหรับแสดงบนการ์ดข่าวหน้าแรก พร้อมทั้งแสดงป้ายระบุจำนวนสำนักข่าวที่รายงานร่วมกันอย่างเด่นชัด เช่น \texttt{[รายงานโดย 4 สำนักข่าว]} และระบุรายชื่อสำนักข่าวต้นทางทั้งหมด เพื่อให้ผู้ใช้สามารถคลิกเปิดอ่านมุมมองข่าวฉบับเต็มของแต่ละสำนักได้อย่างสะดวก
 
 \subsection{การแก้ไขความขัดแย้งของหมวดหมู่ข่าวและการหาฉันทามติระดับกลุ่ม (Cluster-Level Category Consensus)}
 
-ปัญหาสำคัญประการหนึ่งในการรวมข่าวสารจากหลายสำนัก คือความไม่สอดคล้องของหมวดหมู่ข่าว (Category Discrepancy) เนื่องจากแต่ละสำนักข่าวอาจกำหนดโครงสร้าง URL หรือ Tag หมวดหมู่ต่างกันสำหรับข่าวเหตุการณ์เดียวกัน (เช่น สำนักหนึ่งจัดเป็น ``การเมือง'' แต่อีกสำนักจัดเป็น ``สังคม'' หรือ ``เศรษฐกิจ'') เพื่อแก้ไขปัญหานี้ ระบบได้ออกแบบกลไกการหาฉันทามติหมวดหมู่ระดับกลุ่ม (Cluster-Level Category Consensus) ดังนี้:
-
-\begin{enumerate}[label=\arabic*)]
-    \item \textbf{กลไกฉันทามติเสียงข้างมาก (Majority Voting Consensus):}
-    ระบบจะทำการนับคะแนนหมวดหมู่ที่ทำนายได้จากทุกบทความภายในกลุ่มข่าวเดียวกัน:
-    \begin{equation}
-    C^* = \arg\max_{c \in \mathcal{C}} \sum_{d_k \in \text{Cluster}} \mathbb{I}(\text{category}(d_k) = c)
-    \end{equation}
-    โดยหมวดหมู่ $c$ ที่ได้รับเสียงสนับสนุนจากสำนักข่าวมากที่สุด จะถูกกำหนดให้เป็นหมวดหมู่ทางการของกลุ่มข่าว (\texttt{consensus\_category}) เพื่อใช้ในการจัดหมวดหมู่และกรองข่าวบนหน้าเว็บ
-    
-    \item \textbf{กลไกตัดสินเมื่อคะแนนเสียงเท่ากัน (Tie-Breaking Re-Classification):}
-    ในกรณีที่คะแนนเสียงข้างมากมีค่าเท่ากัน (เช่น ข่าวจาก 2 สำนัก หมวดละ 1 เสียง) ระบบจะนำข้อความสรุปย่อรวมของทั้งกลุ่มส่งเข้าสู่โมเดล 3-Tier Cascade Classifier (TF-IDF + LinearSVC / WangchanBERTa) เพื่อวิเคราะห์บริบทของเนื้อหาทั้งหมดและตัดสินหมวดหมู่ที่แท้จริง
-    
-    \item \textbf{การจัดเก็บหมวดหมู่ต้นฉบับเพื่อการตรวจสอบย้อนกลับ (Auditing Traceability):}
-    ระบบบันทึกค่า \texttt{consensus\_category} สำหรับการนำเสนอข้อมูล แต่ยังคงเก็บรักษาฟิลด์ \texttt{original\_source\_category} ของแต่ละสำนักข่าวไว้ในฐานข้อมูล เพื่อความโปร่งใส ตรวจสอบความถูกต้องย้อนหลังได้ (Audit Trail) และใช้เป็นข้อมูลสำหรับปรับจูนกฎการจำแนกประเภทในอนาคต
-\end{enumerate}
+ปัญหาสำคัญประการหนึ่งในการรวมข่าวสารจากหลายสำนัก คือความไม่สอดคล้องของหมวดหมู่ข่าว (Category Discrepancy) เนื่องจากแต่ละสำนักข่าวอาจกำหนดโครงสร้าง URL หรือ Tag หมวดหมู่ต่างกันสำหรับข่าวเหตุการณ์เดียวกัน เพื่อแก้ไขปัญหานี้ ระบบได้ออกแบบกลไกการหาฉันทามติหมวดหมู่ระดับกลุ่ม โดยเริ่มต้นจากการใช้มติเสียงข้างมาก (Majority Voting Consensus) เพื่อนับคะแนนหมวดหมู่ที่ทำนายได้จากทุกบทความภายในกลุ่มข่าวเดียวกัน:
+\begin{equation}
+C^* = \arg\max_{c \in \mathcal{C}} \sum_{d_k \in \text{Cluster}} \mathbb{I}(\text{category}(d_k) = c)
+\end{equation}
+โดยหมวดหมู่ $c$ ที่ได้รับเสียงสนับสนุนจากสำนักข่าวมากที่สุด จะถูกกำหนดให้เป็นหมวดหมู่ทางการของกลุ่มข่าว (\texttt{consensus\_category}) เพื่อใช้ในการจัดหมวดหมู่และกรองข่าวบนหน้าเว็บ และในกรณีที่คะแนนเสียงข้างมากมีค่าเท่ากัน ระบบจะนำข้อความสรุปย่อรวมของทั้งกลุ่มส่งเข้าสู่โมเดล 3-Tier Cascade Classifier (TF-IDF + LinearSVC / WangchanBERTa) เพื่อวิเคราะห์บริบทของเนื้อหาทั้งหมดและตัดสินหมวดหมู่ที่แท้จริง ทั้งนี้ ระบบยังคงเก็บรักษาฟิลด์ \texttt{original\_source\_category} ดั้งเดิมของแต่ละสำนักข่าวไว้ในฐานข้อมูล เพื่อความโปร่งใสและสามารถตรวจสอบย้อนหลังได้ (Audit Trail)
 
 \subsection{การติดต่อสื่อสารแบบเรียลไทม์ผ่าน WebSocket}
 
@@ -465,29 +423,18 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 
 \subsection{ความมั่นคงปลอดภัยระดับเครือข่ายและเว็บเซิร์ฟเวอร์ (Network \& Gateway Security)}
 
-\begin{itemize}
-    \item \textbf{การเข้ารหัสช่องทางการสื่อสาร (TLS/SSL Encryption):} ระบบติดตั้ง Nginx Reverse Proxy ทำหน้าที่เป็น Gateway จัดการเข้ารหัสข้อมูลทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) เพื่อป้องกันการดักฟังข้อมูลระหว่างทาง (Eavesdropping / Man-in-the-Middle Attack)
-    \item \textbf{การจำกัดอัตราการเรียกใช้งาน (API Rate Limiting):} กำหนดค่านโยบาย Rate Limiting บน Nginx และ FastAPI เพื่อจำกัดจำนวนคำขอต่อหมายเลข IP ช่วยป้องกันการโจมตีแบบปฏิเสธการให้บริการ (Denial of Service: DoS) และการยิงคำขอเพื่อดึงข้อมูลซ้ำซ้อน
-    \item \textbf{นโยบายการเข้าถึงข้ามโดเมน (Cross-Origin Resource Sharing: CORS):} กำหนด Whitelist เฉพาะโดเมนของระบบที่ได้รับอนุญาตในการเรียกใช้งาน REST API และ WebSocket เพื่อป้องกันการนำ API ไปใช้งานโดยไม่ได้รับอนุญาตจากเว็บไซต์ภายนอก
-    \item \textbf{การติดตั้ง HTTP Security Headers:} ติดตั้งส่วนหัวความปลอดภัยมาตรฐาน ได้แก่ \texttt{X-Content-Type-Options: nosniff}, \texttt{X-Frame-Options: SAMEORIGIN} และ \texttt{Content-Security-Policy (CSP)} เพื่อป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
-\end{itemize}
+ในระดับเครือข่าย ระบบได้ติดตั้ง Nginx Reverse Proxy ทำหน้าที่เป็น Gateway จัดการเข้ารหัสช่องทางการสื่อสาร (TLS/SSL Encryption) ทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) เพื่อป้องกันการดักฟังข้อมูลระหว่างทาง (Man-in-the-Middle Attack) พร้อมทั้งกำหนดนโยบายจำกัดอัตราการเรียกใช้งาน (API Rate Limiting) เพื่อจำกัดจำนวนคำขอต่อหมายเลข IP ช่วยป้องกันการโจมตีแบบปฏิเสธการให้บริการ (DoS) นอกจากนี้ยังได้กำหนดนโยบายการเข้าถึงข้ามโดเมน (CORS Whitelist) เฉพาะโดเมนของระบบที่ได้รับอนุญาต และติดตั้งส่วนหัวความปลอดภัยมาตรฐาน (HTTP Security Headers) ได้แก่ \texttt{X-Content-Type-Options: nosniff}, \texttt{X-Frame-Options: SAMEORIGIN} และ \texttt{Content-Security-Policy (CSP)} เพื่อป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
 
 \subsection{การป้องกันการฉีดโค้ดอันตรายและการตรวจสอบข้อมูล (Data Sanitization \& Injection Defense)}
 
-\begin{itemize}
-    \item \textbf{การป้องกัน Cross-Site Scripting (XSS):} ข้อมูลเนื้อหาข่าวที่สกัดได้จากเว็บต้นทางอาจมีแท็ก HTML หรือสคริปต์อันตรายแฝงมา ระบบจึงใช้กระบวนการแปลงและกรองข้อมูล (Sanitization) โดยตัดแท็ก \texttt{<script>}, \texttt{<iframe>}, แอตทริบิวต์ \texttt{onload}, \texttt{onerror} ออกทั้งหมด และแปลงเนื้อหาให้อยู่ในรูป Plain Markdown ก่อนส่งไปแสดงผลบนหน้าจอ In-app Modal
-    \item \textbf{การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic (Strict Schema Validation):} ข้อมูลนำเข้าและส่งออกทุกจุดของระบบต้องผ่านการตรวจสอบชนิดข้อมูลและโครงสร้างตามโมเดล Pydantic ช่วยป้องกันข้อผิดพลาดจาก Malformed Input และ Parameter Tampering
-    \item \textbf{การป้องกัน Server-Side Request Forgery (SSRF):} ส่วนงาน Scraper และ Playwright Service จะรับคำขอและดึงข้อมูลเฉพาะจากรายการสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) โดยไม่อนุญาตให้ผู้ใช้ภายนอกส่ง URL ภายในเครือข่ายเซิร์ฟเวอร์เข้ามาสกัดข้อมูลได้โดยตรง
-    \item \textbf{การป้องกัน Indirect Prompt Injection บนโมเดลภาษาขนาดใหญ่ (LLM Safety):} ในกระบวนการส่งเนื้อหาข่าวไปยัง KKU Gen.AI API ระบบได้ออกแบบ System Prompt และโครงสร้าง Delimiter กั้นระหว่างคำสั่งหลักกับเนื้อหาข่าวอย่างชัดเจน ป้องกันไม่ให้ข้อความภายในข่าวสามารถลบล้างคำสั่งเดิม (Prompt Jailbreak) ของระบบสรุปข่าวได้
-\end{itemize}
+ในด้านการป้องกันการโจมตีเชิงความปลอดภัยและการจัดการข้อมูลอันตราย ระบบมีมาตรการป้องกันที่ครอบคลุมหลายระดับ โดยสำหรับการป้องกัน Cross-Site Scripting (XSS) ข้อมูลเนื้อหาข่าวที่สกัดได้จากเว็บต้นทางอาจมีแท็ก HTML หรือสคริปต์อันตรายแฝงมา ระบบจึงใช้กระบวนการแปลงและกรองข้อมูล (Sanitization) เพื่อกำจัดแท็ก \texttt{<script>}, \texttt{<iframe>}, รวมถึงแอตทริบิวต์ \texttt{onload}, \texttt{onerror} ออกทั้งหมด และแปลงเนื้อหาให้อยู่ในรูป Plain Markdown ก่อนส่งไปแสดงผลบนหน้าจอ In-app Modal นอกจากนี้ เพื่อป้องกันข้อผิดพลาดจาก Malformed Input และ Parameter Tampering ระบบได้บังคับใช้การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic (Strict Schema Validation) ในทุกจุดรับเข้าและส่งออกของ REST API
+
+สำหรับการป้องกัน Server-Side Request Forgery (SSRF) ส่วนงาน Scraper และ Playwright Service จะรับคำขอและดึงข้อมูลเฉพาะจากรายการสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) เท่านั้น โดยไม่อนุญาตให้ผู้ใช้ภายนอกส่ง URL เครือข่ายภายในเข้ามาประมวลผลโดยตรง และในส่วนการประมวลผลร่วมกับโมเดลภาษาขนาดใหญ่ (LLM Safety) ระบบได้ออกแบบ System Prompt และโครงสร้าง Delimiter กั้นระหว่างคำสั่งหลักกับเนื้อหาข่าวอย่างรัดกุม เพื่อป้องกันปัญหา Indirect Prompt Injection ไม่ให้ข้อความข่าวลบล้างคำสั่งเดิม (Prompt Jailbreak) ของระบบสรุปข่าวได้
 
 \subsection{การคุ้มครองข้อมูลส่วนบุคคลและความปลอดภัยของคุกกี้ (Privacy \& Cookie Security)}
 
-\begin{itemize}
-    \item \textbf{หลักการไม่เก็บข้อมูลระบุตัวบุคคล (Privacy by Design \& Zero PII):} ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลระบุตัวตน (Personally Identifiable Information) เช่น ชื่อ, เบอร์โทร, อีเมล หรือหมายเลขประจำเครื่อง โดยข้อมูลพฤติกรรมของผู้ใช้จะถูกเก็บเป็นเพียงคะแนนรวมแบบนิรนาม (Anonymous Aggregate Engagement)
-    \item \textbf{การกำหนดแอตทริบิวต์คุกกี้ที่ปลอดภัย (Secure Cookie Attributes):} คุกกี้ที่ใช้ในระบบมีการกำหนดคุณสมบัติ \texttt{SameSite=Lax} และ \texttt{Path=/} เพื่อป้องกันการโจมตีแบบ Cross-Site Request Forgery (CSRF) พร้อมกำหนดอายุการหมดอายุ (Max-Age) ที่เหมาะสม
-    \item \textbf{ความยินยอมและการควบคุมโดยผู้ใช้ (Consent \& Transparent Control):} มีแถบแจ้งเตือนขอความยินยอมการใช้งานคุกกี้ (Cookie Consent Banner) ตามมาตรฐาน PDPA และมีฟังก์ชันให้ผู้ใช้สามารถกดล้างสถิติพฤติกรรม (Clear Preference Data) บนเบราว์เซอร์ได้ตลอดเวลา
-\end{itemize}
+การคุ้มครองความเป็นส่วนตัวของผู้ใช้งานถูกออกแบบตามหลัก Privacy by Design \& Zero PII กล่าวคือ ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลที่สามารถระบุตัวตนได้ (Personally Identifiable Information) เช่น ชื่อ ที่อยู่อีเมล หรือหมายเลขประจำเครื่อง โดยข้อมูลพฤติกรรมความสนใจของผู้ใช้จะถูกประมวลผลเป็นเพียงคะแนนรวมแบบนิรนาม (Anonymous Aggregate Engagement) บนฐานข้อมูลเท่านั้น ในระดับเบราว์เซอร์ คุกกี้ที่ใช้ในระบบมีการกำหนดคุณสมบัติความปลอดภัยเข้มงวด ได้แก่ \texttt{SameSite=Lax} และ \texttt{Path=/} เพื่อป้องกันการโจมตีแบบ Cross-Site Request Forgery (CSRF) พร้อมกำหนดอายุการหมดอายุ (Max-Age) ที่เหมาะสม ตลอดจนติดตั้งแถบแจ้งเตือนขอความยินยอมการใช้งานคุกกี้ (Cookie Consent Banner) ตามมาตรฐาน PDPA และมีฟังก์ชันให้ผู้ใช้สามารถกดล้างสถิติพฤติกรรม (Clear Preference Data) บนเบราว์เซอร์ได้ด้วยตนเองตลอดเวลา
+
 
 \subsection{การจัดการความลับและการตั้งค่าระบบ (Secrets \& Configuration Management)}
 
@@ -499,12 +446,7 @@ API Key สำหรับเชื่อมต่อกับบริการ
 
 \subsection{การทดสอบอัตโนมัติ (Automated Test Suite)}
 
-ระบบมีชุดทดสอบอัตโนมัติครอบคลุมการทำงานทุกเลเยอร์ด้วย \texttt{pytest} ประกอบด้วย:
-\begin{itemize}
-    \item \textbf{Unit Tests (\texttt{test\_classifier\_service.py}, \texttt{test\_sources.py}):} ตรวจสอบความถูกต้องของการตัดคำ การจับคู่หมวดหมู่ และการสกัดฟิลด์ข่าว
-    \item \textbf{Caching \& Stress Tests (\texttt{test\_caching.py}, \texttt{test\_http\_cache.py}, \texttt{test\_browser\_cache.py}):} ทดสอบการทำงานของหน่วยความจำแคชภายใต้ภาระงานสูง และตรวจสอบการส่ง HTTP 304 Not Modified
-    \item \textbf{Security \& PDPA Tests (\texttt{test\_storage\_pdpa.py}):} ตรวจสอบว่าไม่มีการบันทึกข้อมูลระบุตัวตนส่วนบุคคล (PII) ลงในฐานข้อมูล
-\end{itemize}
+ระบบมีชุดทดสอบอัตโนมัติครอบคลุมการทำงานทุกระดับด้วยเฟรมเวิร์ค \texttt{pytest} โดยประกอบด้วย การทดสอบระดับหน่วย (Unit Tests เช่น \texttt{test\_classifier\_service.py} และ \texttt{test\_sources.py}) เพื่อตรวจสอบความถูกต้องของการตัดคำภาษาไทย การจับคู่หมวดหมู่ และการสกัดฟิลด์ข้อมูลข่าว การทดสอบประสิทธิภาพของแคช (Caching \& Stress Tests เช่น \texttt{test\_caching.py}, \texttt{test\_http\_cache.py} และ \texttt{test\_browser\_cache.py}) เพื่อประเมินความคงทนของหน่วยความจำแคชภายใต้ภาระงานสูงและตรวจสอบการตอบสนองสถานะ HTTP 304 และการทดสอบความมั่นคงปลอดภัยและความเป็นส่วนตัว (Security \& PDPA Tests เช่น \texttt{test\_storage\_pdpa.py}) เพื่อรับประกันว่าไม่มีการบันทึกข้อมูลระบุตัวตนส่วนบุคคลลงในระบบ
 
 \subsection{ผลการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing)}
 
