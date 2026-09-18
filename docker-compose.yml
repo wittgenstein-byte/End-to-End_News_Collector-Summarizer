@@ -11,6 +11,8 @@ services:
     environment:
       PLAYWRIGHT_SERVICE_URL: http://playwright:8001/scrape
       OBSCURA_SERVICE_URL: ws://obscura:9222
+      MONGO_URI: mongodb://mongodb:27017
+      MONGO_DB_NAME: news_collector
     volumes:
       - ./backend/.env:/app/.env:ro
       - ./data:/app/data
@@ -65,4 +67,21 @@ services:
     # local Chromium when obscura is unreachable.
     healthcheck:
       disable: true
+
+  mongodb:
+    image: mongo:latest
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mongo_data:
 
