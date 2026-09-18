@@ -133,6 +133,9 @@ class Settings:
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
     engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
+    db_type: str            = _get("DB_TYPE", "json").lower().strip()
+    mongo_uri: str          = _get("MONGO_URI", "mongodb://localhost:27017")
+    mongo_db_name: str      = _get("MONGO_DB_NAME", "news_collector")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")
