@@ -71,7 +71,16 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   const activeClasses = "bg-primary text-white border-primary shadow-sm";
   const inactiveClasses = "bg-white border-outline-variant/30 text-on-surface-variant hover:bg-surface-container";
 
-  let html = CATEGORIES.map(cat => {
+  const isForYouActive = activeId === "for-you";
+  let html = `
+    <button class="cat-pill flex items-center gap-2 px-5 py-2 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${isForYouActive ? activeClasses : inactiveClasses}"
+            data-id="for-you"
+            onclick="__categoryClick('for-you')">
+      <span class="material-symbols-outlined text-lg">auto_awesome</span>
+      <span>สำหรับคุณ</span>
+    </button>`;
+
+  html += CATEGORIES.map(cat => {
     const rawCount = cat.id === "all" ? (counts.all ?? "") : counts[cat.id];
     const hasCount = rawCount !== undefined && rawCount !== "";
     const isActive = cat.id === activeId;
@@ -99,6 +108,40 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   `;
 
   nav.innerHTML = html;
+}
+
+/** Render the privacy-first topic picker used to start a For You feed. */
+export function renderForYouOnboarding(categories = []) {
+  const container = document.getElementById("for-you-onboarding");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="mb-8 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+        <div>
+          <h2 class="font-headline text-xl font-bold text-on-surface">ฟีดสำหรับคุณ</h2>
+          <p class="mt-1 text-sm text-on-surface-variant">เลือกอย่างน้อย 3 หมวดเพื่อเริ่มต้น เราประมวลผลความสนใจบนอุปกรณ์นี้เท่านั้น</p>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        ${categories.map(cat => `
+          <button type="button" data-topic-id="${esc(cat.id)}" onclick="__toggleForYouTopic('${esc(cat.id)}')"
+            class="for-you-topic rounded-full border border-primary/25 bg-white px-3 py-1.5 text-sm font-medium text-on-surface transition-colors hover:bg-primary/10">
+            ${esc(cat.icon)} ${esc(cat.label)}
+          </button>`).join("")}
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" onclick="__saveForYouTopics()" class="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm">สร้างฟีดของฉัน</button>
+        <button type="button" onclick="__skipForYouOnboarding()" class="text-sm font-medium text-primary hover:underline">ข้ามและดูข่าวเด่น</button>
+        <span id="for-you-topic-count" class="text-xs text-outline">เลือกแล้ว 0/3 หมวด</span>
+      </div>
+    </div>`;
+}
+
+export function hideForYouOnboarding() {
+  const container = document.getElementById("for-you-onboarding");
+  if (container) container.innerHTML = "";
 }
  
 /** อัปเดต count badges โดยไม่ redraw ทั้งหมด */
@@ -759,6 +802,14 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
               <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
                 ${isBookmarked ? 'bookmark' : 'bookmark_border'}
               </span>
+            </button>` : ""}
+
+            ${n.url ? `
+            <button type="button"
+                    class="h-8 w-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-error active:scale-95 transition-all cursor-pointer"
+                    onclick="window.__showLessLikeThis(event, '${articleJsonEncoded}')"
+                    title="สนใจน้อยลง">
+              <span class="material-symbols-outlined text-[16px]">visibility_off</span>
             </button>` : ""}
 
             <button type="button" 
