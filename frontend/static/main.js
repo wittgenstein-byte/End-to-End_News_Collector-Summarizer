@@ -7,7 +7,7 @@
  */
 
 import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, recordEngagement } from "./api.js";
-import { TRENDING_LIMIT } from "./config.js";
+import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
 import * as UI from "./UI.js";
 
 // ── PDPA & Personalization ────────────────────────────────────────
@@ -16,6 +16,9 @@ const PDPA_PERMISSIONS_KEY = "pdpa_permissions";
 const PERSONALIZATION_KEY = "personalization";
 const SEARCH_HISTORY_KEY = "search_history";
 const NEWS_CACHE_KEY = "news_cache";
+const AFFINITY_VERSION = "1.0";
+const FOR_YOU_POOL_PAGES = 5;
+const FOR_YOU_LIMIT = 20;
 
 let hasConsent = localStorage.getItem(PDPA_KEY) === "true";
 let privacyPermissions = {
@@ -66,12 +69,73 @@ function savePersonalization() {
         if (personalizationData.bookmarks) dataToSave.bookmarks = personalizationData.bookmarks;
         if (personalizationData.preferredCategory) dataToSave.preferredCategory = personalizationData.preferredCategory;
         if (personalizationData.preferredSource) dataToSave.preferredSource = personalizationData.preferredSource;
+        if (personalizationData.affinity) dataToSave.affinity = personalizationData.affinity;
       }
       localStorage.setItem(PERSONALIZATION_KEY, JSON.stringify(dataToSave));
     } catch (e) {
       console.warn("Failed to save personalization to localStorage:", e);
     }
   }
+}
+
+function canPersonalizeFeed() {
+  return hasConsent && privacyPermissions.bookmarks;
+}
+
+function getAffinity() {
+  if (!canPersonalizeFeed()) return null;
+  const current = personalizationData.affinity;
+  if (current && current.affinity_version === AFFINITY_VERSION) return current;
+  const affinity = {
+    affinity_version: AFFINITY_VERSION,
+    categories: {}, preferred_sources: {}, frequent_keywords: [],
+    read_article_urls: [], hidden_article_urls: [], last_active: new Date().toISOString(),
+  };
+  personalizationData.affinity = affinity;
+  return affinity;
+}
+
+function articleTokens(article) {
+  const text = `${article.title || ""} ${article.summary || ""}`.toLowerCase();
+  try {
+    if ("Segmenter" in Intl) {
+      return [...new Intl.Segmenter("th", { granularity: "word" }).segment(text)]
+        .filter(part => part.isWordLike && part.segment.length > 1)
+        .map(part => part.segment.trim())
+        .filter(word => !/^\d+$/.test(word));
+    }
+  } catch (error) {
+    console.warn("Thai word segmentation unavailable:", error);
+  }
+  return text.match(/[a-z0-9]+|[\u0E00-\u0E7F]{2,}/g) || [];
+}
+
+function updateAffinity(article, weight) {
+  const affinity = getAffinity();
+  if (!affinity || !article) return;
+  const category = article.category;
+  const source = article.source;
+  if (category) affinity.categories[category] = (affinity.categories[category] || 0) + weight;
+  if (source) affinity.preferred_sources[source] = (affinity.preferred_sources[source] || 0) + weight;
+
+  const keywords = new Map((affinity.frequent_keywords || []).map(item => [item.word, item.weight]));
+  [...new Set(articleTokens(article))].slice(0, 12).forEach(word => {
+    keywords.set(word, (keywords.get(word) || 0) + (weight * 0.35));
+  });
+  affinity.frequent_keywords = [...keywords.entries()]
+    .map(([word, keywordWeight]) => ({ word, weight: Math.round(keywordWeight * 10) / 10 }))
+    .sort((a, b) => b.weight - a.weight).slice(0, 60);
+  affinity.last_active = new Date().toISOString();
+  savePersonalization();
+}
+
+function markArticleRead(article, weight = 1.5) {
+  const affinity = getAffinity();
+  if (!affinity || !article?.url) return;
+  const urls = affinity.read_article_urls || [];
+  const wasRead = urls.includes(article.url);
+  affinity.read_article_urls = [article.url, ...urls.filter(url => url !== article.url)].slice(0, 250);
+  updateAffinity(article, wasRead ? 2.0 : weight);
 }
 
 window.__acceptCookies = () => {
@@ -105,7 +169,7 @@ window.__declineCookies = () => {
   document.documentElement.style.fontSize = "";
   delete document.body.dataset.density;
 
-  if (activeCategory === "bookmarks") {
+  if (activeCategory === "bookmarks" || activeCategory === "for-you") {
     activeCategory = "all";
   }
   UI.renderCategoryNav(activeCategory, {}, {});
@@ -165,7 +229,8 @@ window.__saveCustomPrivacy = () => {
     delete personalizationData.bookmarks;
     delete personalizationData.preferredCategory;
     delete personalizationData.preferredSource;
-    if (activeCategory === "bookmarks") activeCategory = "all";
+    delete personalizationData.affinity;
+    if (activeCategory === "bookmarks" || activeCategory === "for-you") activeCategory = "all";
   }
   if (!privacyPermissions.cache) {
     searchHistory = [];
@@ -499,7 +564,7 @@ function renderBrowserTabs() {
   const container = document.getElementById("browser-tabs");
   // Keep the add button
   const addButtonHtml = `<button class="p-1 hover:bg-surface-container rounded" onclick="window.__browserNewTab()"><span class="material-symbols-outlined text-sm">add</span></button>`;
-  
+
   let tabsHtml = browserTabs.map((id, index) => {
     const isActive = id === currentTabId;
     return `
@@ -509,7 +574,7 @@ function renderBrowserTabs() {
       </div>
     `;
   }).join("");
-  
+
   container.innerHTML = tabsHtml + addButtonHtml;
 }
 
@@ -537,6 +602,140 @@ let searchQuery   = "";
 let searchTimer   = null;
 let totalNew      = 0;
 let newArticleSet = new Set();   // Set<url> ของข่าวใหม่ใน session
+let selectedForYouTopics = new Set();
+
+function syncForYouTopicPicker() {
+  document.querySelectorAll(".for-you-topic").forEach(button => {
+    const selected = selectedForYouTopics.has(button.dataset.topicId);
+    button.classList.toggle("bg-primary", selected);
+    button.classList.toggle("text-white", selected);
+    button.classList.toggle("border-primary", selected);
+    button.classList.toggle("bg-white", !selected);
+    button.classList.toggle("text-on-surface", !selected);
+  });
+  const count = document.getElementById("for-you-topic-count");
+  if (count) count.textContent = `เลือกแล้ว ${selectedForYouTopics.size}/3 หมวด`;
+}
+
+window.__toggleForYouTopic = (category) => {
+  if (selectedForYouTopics.has(category)) selectedForYouTopics.delete(category);
+  else selectedForYouTopics.add(category);
+  syncForYouTopicPicker();
+};
+
+window.__saveForYouTopics = () => {
+  if (selectedForYouTopics.size < 3) {
+    UI.showToast("เลือกอย่างน้อย 3 หมวดเพื่อเริ่มต้นฟีดสำหรับคุณ");
+    return;
+  }
+  const affinity = getAffinity();
+  if (!affinity) return;
+  selectedForYouTopics.forEach(category => {
+    affinity.categories[category] = Math.max(3, affinity.categories[category] || 0);
+  });
+  savePersonalization();
+  UI.hideForYouOnboarding();
+  loadPage(1);
+};
+
+window.__skipForYouOnboarding = () => {
+  const affinity = getAffinity();
+  if (affinity) {
+    affinity.onboarding_skipped = true;
+    savePersonalization();
+  }
+  UI.hideForYouOnboarding();
+  loadPage(1);
+};
+
+function articleAgeHours(article) {
+  const parsed = Date.parse(article.fetched_at || "");
+  return Number.isNaN(parsed) ? 0 : Math.max(0, (Date.now() - parsed) / 3600000);
+}
+
+function tokenSimilarity(article, keywords) {
+  const tokens = new Set(articleTokens(article));
+  return (keywords || []).reduce((score, item) => (
+    tokens.has(item.word) ? score + Math.max(0, item.weight || 0) : score
+  ), 0);
+}
+
+function isNearDuplicate(article, picked) {
+  const tokens = new Set(articleTokens(article));
+  return picked.some(existing => {
+    const other = new Set(articleTokens(existing));
+    const union = new Set([...tokens, ...other]).size;
+    return union > 0 && [...tokens].filter(token => other.has(token)).length / union >= 0.55;
+  });
+}
+
+function rankForYou(articles, trendingUrls) {
+  const affinity = getAffinity();
+  if (!affinity) return [];
+  const seen = new Set(affinity.read_article_urls || []);
+  const hidden = new Set(affinity.hidden_article_urls || []);
+  const ranked = articles.filter(article => article?.url && !seen.has(article.url) && !hidden.has(article.url)).map(article => {
+    const categoryScore = affinity.categories[article.category] || 0;
+    const sourceScore = affinity.preferred_sources[article.source] || 0;
+    const keywordScore = tokenSimilarity(article, affinity.frequent_keywords);
+    const freshness = Math.pow(2, -articleAgeHours(article) / 18);
+    const trendingBoost = trendingUrls.has(article.url) ? 3 : 0;
+    return { article, score: ((categoryScore * 1.2) + (sourceScore * 0.8) + (keywordScore * 0.35)) * freshness + trendingBoost };
+  }).sort((a, b) => b.score - a.score);
+
+  const result = [];
+  const personalCount = Math.max(1, Math.ceil(FOR_YOU_LIMIT * 0.8));
+  for (const item of ranked) {
+    if (result.length >= personalCount) break;
+    if (!isNearDuplicate(item.article, result)) result.push(item.article);
+  }
+
+  // Reserve ~20% for strong, fresh stories outside the user's usual categories.
+  const discovery = ranked.filter(item => (affinity.categories[item.article.category] || 0) <= 0);
+  for (const item of discovery) {
+    if (result.length >= FOR_YOU_LIMIT) break;
+    if (!result.some(article => article.url === item.article.url) && !isNearDuplicate(item.article, result)) {
+      result.push({ ...item.article, for_you_discovery: true });
+    }
+  }
+  for (const item of ranked) {
+    if (result.length >= FOR_YOU_LIMIT) break;
+    if (!result.some(article => article.url === item.article.url) && !isNearDuplicate(item.article, result)) result.push(item.article);
+  }
+  return result;
+}
+
+async function loadForYouFeed() {
+  document.getElementById("hero-trending")?.classList.add("hidden");
+  UI.showGridLoading();
+  const affinity = getAffinity();
+  if (!affinity) {
+    UI.showGridError("กรุณายินยอมการจัดเก็บข้อมูลการตั้งค่า เพื่อใช้ฟีดสำหรับคุณ");
+    return;
+  }
+  if (!Object.keys(affinity.categories || {}).length && !affinity.onboarding_skipped) {
+    UI.renderForYouOnboarding(CATEGORIES.filter(category => category.id !== "all"));
+    syncForYouTopicPicker();
+  } else {
+    UI.hideForYouOnboarding();
+  }
+  try {
+    const [pages, trendingData] = await Promise.all([
+      Promise.all(Array.from({ length: FOR_YOU_POOL_PAGES }, (_, i) => fetchNews(i + 1, activeSource, searchQuery))),
+      fetchTrendingNews(FOR_YOU_LIMIT),
+    ]);
+    const articles = pages.flatMap(data => data.news || []);
+    const trending = (trendingData.trending || trendingData.articles || []);
+    const feed = rankForYou(articles, new Set(trending.map(article => article.url)));
+    feed.forEach(article => currentArticleMap.set(article.url, article));
+    UI.renderGrid(feed, newArticleSet, personalizationData.bookmarkedArticles || {});
+    UI.renderPagination({ page: 1, total_pages: 1, total: feed.length });
+    UI.updateStats({ total: feed.length, updated: "จัดอันดับบนอุปกรณ์นี้" });
+    UI.updateTicker(feed.slice(0, 15).map(article => article.title));
+  } catch (error) {
+    UI.showGridError(error.message);
+  }
+}
 
 // ── Browser loading guard ────────────────────────────────────────
 // ถ้า server ไม่ตอบกลับ snapshot ในเวลา X → ซ่อน spinner กันค้าง forever
@@ -582,6 +781,7 @@ window.__toggleArticleBookmark = (event, articleJsonStr) => {
       article.bookmarked_at = new Date().toISOString();
       personalizationData.bookmarkedArticles[article.url] = article;
       savePersonalization();
+      updateAffinity(article, 5.0);
       recordEngagement(article.url, "bookmark");
       UI.showToast("บันทึกบทความเรียบร้อย 🔖");
     }
@@ -596,6 +796,32 @@ window.__toggleArticleBookmark = (event, articleJsonStr) => {
     }
   } catch (err) {
     console.error("Failed to toggle article bookmark:", err);
+  }
+};
+
+window.__showLessLikeThis = (event, articleJsonStr) => {
+  event?.preventDefault();
+  event?.stopPropagation();
+  try {
+    const article = typeof articleJsonStr === "string" ? JSON.parse(decodeURIComponent(articleJsonStr)) : articleJsonStr;
+    const affinity = getAffinity();
+    if (!affinity || !article?.url) {
+      UI.showToast("กรุณายินยอมการจัดเก็บข้อมูลการตั้งค่าเพื่อปรับฟีด");
+      return;
+    }
+    affinity.hidden_article_urls = [article.url, ...(affinity.hidden_article_urls || []).filter(url => url !== article.url)].slice(0, 250);
+    // "Less like this" expresses a topic preference, not distrust of a publisher.
+    // Keep the source and keyword affinities intact so other Thai Post topics can
+    // still appear when they match the reader's interests.
+    if (article.category) {
+      affinity.categories[article.category] = (affinity.categories[article.category] || 0) - 10.0;
+    }
+    affinity.last_active = new Date().toISOString();
+    savePersonalization();
+    UI.showToast("จะลดข่าวลักษณะนี้ในฟีดสำหรับคุณ");
+    if (activeCategory === "for-you") loadPage(1);
+  } catch (error) {
+    console.warn("Failed to update For You feedback:", error);
   }
 };
 
@@ -668,6 +894,12 @@ async function loadPage(page = 1) {
     renderBookmarkedArticles();
     return;
   }
+  if (activeCategory === "for-you") {
+    await loadForYouFeed();
+    return;
+  }
+
+  UI.hideForYouOnboarding();
 
   currentPage = page;
 
@@ -767,6 +999,10 @@ function handleCategoryClick(id) {
     window.__showBookmarks();
     return;
   }
+  if (id === "for-you" && !canPersonalizeFeed()) {
+    UI.showToast("กรุณายินยอมการจัดเก็บข้อมูลการตั้งค่า เพื่อใช้ฟีดสำหรับคุณ");
+    return;
+  }
   activeCategory = id;
   if (hasConsent && privacyPermissions.bookmarks) {
     personalizationData.preferredCategory = id;
@@ -798,6 +1034,7 @@ async function handleSummarize(event, url) {
   event.stopPropagation();
 
   recordEngagement(url, "summary");
+  updateAffinity(currentArticleMap.get(url), 3.5);
 
   UI.openModal();
   UI.showModalLoading();
@@ -1055,6 +1292,7 @@ function showPreviewByUrl(url, autoSummarize = false) {
   if (!article) {
     article = readingHistory.find(h => h.url === url);
   }
+
   if (!article) {
     article = {
       url: url,
@@ -1065,6 +1303,11 @@ function showPreviewByUrl(url, autoSummarize = false) {
       category: "general"
     };
   }
+
+  markArticleRead(article, 1.5);
+  window.setTimeout(() => {
+    if (window.location.hash.includes(encodeURIComponent(url))) updateAffinity(article, 1.0);
+  }, 15000);
 
   // Record to reading history
   const historyItem = {
@@ -1139,6 +1382,7 @@ window.__runPreviewAiSummary = async (url) => {
   if (!url) return;
   UI.showInlineSummaryLoading();
   recordEngagement(url, "summary");
+  updateAffinity(currentArticleMap.get(url), 3.5);
 
   try {
     const data = await summarizeArticle(url);
@@ -1264,4 +1508,4 @@ refreshSourceFilters();
 checkPDPA();
 
 // Handle initial route on startup
-handleHashRouting();
+handleHashRouting();
