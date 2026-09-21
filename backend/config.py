@@ -43,10 +43,13 @@ _env = _load_env_file(ENV_PATH)
 
 
 def _get(key: str, default: str = "") -> str:
-    # Prioritize .env file values over container ENV defaults
+    # Explicit container/system environment variables take precedence over .env defaults
+    val = os.environ.get(key)
+    if val is not None and val.strip():
+        return val.strip()
     if key in _env and _env[key].strip():
         return _env[key].strip()
-    return os.environ.get(key) or default
+    return default
 
 
 
@@ -127,6 +130,14 @@ class Settings:
     max_articles_per_source: int    = int(_get("MAX_ARTICLES_PER_SOURCE",  "10"))
     summary_sentences: int          = int(_get("SUMMARY_SENTENCES",        "3"))
     page_size: int                  = int(_get("PAGE_SIZE",                "20"))
+
+    # Trending
+    trending_window_hours: float                = float(_get("TRENDING_WINDOW_HOURS",                "48.0"))
+    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.92"))
+    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.88"))
+    trending_cluster_time_window_hours: float   = float(_get("TRENDING_CLUSTER_TIME_WINDOW_HOURS",   "36.0"))
+    embedding_cache_max_size: int              = int(_get("EMBEDDING_CACHE_MAX_SIZE",              "2000"))
+    trending_result_cache_ttl_seconds: int     = int(_get("TRENDING_RESULT_CACHE_TTL_SECONDS",     "600"))
 
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"

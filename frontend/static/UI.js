@@ -561,15 +561,19 @@ function updateHeroTrendingSlide() {
 
   let multiSourcePill = "";
   if (n.cluster_sources && Array.isArray(n.cluster_sources) && n.cluster_sources.length > 1) {
+    const srcCount = n.cluster_sources.length;
+    const displayedSources = srcCount > 3
+      ? `${n.cluster_sources.slice(0, 3).join(", ")} +${srcCount - 3} สำนักข่าว`
+      : n.cluster_sources.join(", ");
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg" title="${esc(n.cluster_sources.join(', '))}">
         <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
-        <span class="text-white">รายงานจาก ${n.cluster_sources.length} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(n.cluster_sources.join(", "))}</span></span>
+        <span class="text-white">รายงานจาก ${srcCount} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(displayedSources)}</span></span>
       </div>
     `;
   } else if (n.cluster_size && n.cluster_size > 1) {
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
         <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
         <span class="text-white">ประเด็นตรงกัน ${n.cluster_size} สำนักข่าว</span>
       </div>
@@ -647,7 +651,7 @@ function updateHeroTrendingSlide() {
               🔥 Trending • ${scoreVal}
             </span>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg border border-white/30 shadow-md">
             <span class="w-2.5 h-2.5 rounded-full shadow-xs" style="background:${color}"></span>
             <span class="text-xs font-bold text-white uppercase tracking-wider drop-shadow-md">${esc(n.source)}</span>
           </div>
@@ -656,11 +660,31 @@ function updateHeroTrendingSlide() {
         <!-- Bottom Content Row -->
         <div class="space-y-3 pointer-events-auto pb-4">
           <div class="space-y-2">
-            ${multiSourcePill}
+            <div class="flex items-center gap-2 flex-wrap">
+              ${multiSourcePill}
+              ${n.topic_title && n.topic_title !== n.title ? `
+                <div class="inline-flex items-center gap-1 text-xs text-amber-300 font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-amber-400/40 w-fit shadow-lg">
+                  <span class="material-symbols-outlined text-[14px]">topic</span>
+                  <span>ประเด็น: ${esc(n.topic_title)}</span>
+                </div>
+              ` : ""}
+            </div>
             <h1 class="text-lg sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight drop-shadow-lg group-hover:text-amber-200 transition-colors line-clamp-2 cursor-pointer"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
+            ${n.hashtags && Array.isArray(n.hashtags) && n.hashtags.length > 0 ? `
+              <div class="flex items-center gap-1.5 flex-wrap pt-1">
+                ${n.hashtags.map(h => `
+                  <button type="button" 
+                          class="text-[11px] font-bold text-amber-200 bg-black/60 hover:bg-amber-400 hover:text-black border border-amber-300/40 px-2.5 py-0.5 rounded-full transition-all cursor-pointer backdrop-blur-sm shadow-xs"
+                          onclick="event.stopPropagation(); window.__filterByHashtag('${esc(h)}')"
+                          title="กรองข่าวประเด็น ${esc(h)}">
+                    ${esc(h)}
+                  </button>
+                `).join("")}
+              </div>
+            ` : ""}
           </div>
 
           <div class="flex items-center justify-between gap-4 flex-wrap pt-2">

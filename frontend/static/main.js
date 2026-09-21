@@ -1495,6 +1495,18 @@ window.__dismissPwaInstall = () => {
   UI.hidePwaInstallBanner();
 };
 
+window.__filterByHashtag = (tag) => {
+  if (!tag) return;
+  const cleanTag = tag.startsWith("#") ? tag.slice(1) : tag;
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.value = cleanTag;
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    UI.showToast(`กำลังกรองข่าวประเด็น #${cleanTag}`);
+  }
+};
+
 // ── Init: draw category nav & source filters ──────────────────────
 
 if (hasConsent) {
