@@ -43,43 +43,41 @@ _env = _load_env_file(ENV_PATH)
 
 
 def _get(key: str, default: str = "") -> str:
-    # Prioritize .env file values over container ENV defaults
+    # Explicit container/system environment variables take precedence over .env defaults
+    val = os.environ.get(key)
+    if val is not None and val.strip():
+        return val.strip()
     if key in _env and _env[key].strip():
         return _env[key].strip()
-    return os.environ.get(key) or default
+    return default
 
 
 
 # ── Tiered Model Defaults (KKU OpenSDK / OpenAI-compatible endpoint) ──
-# จัดลำดับโดยนำโมเดลที่เปิดให้บริการจริงและตอบสนองเร็วที่สุดขึ้นก่อน เพื่อความเร็วสูงสุด
+# อ้างอิงจากโมเดลที่เปิดใช้งานจริงและตอบสนองได้สมบูรณ์ในระบบ KKU OpenSDK ล่าสุด
 DEFAULT_TIER1_MODELS: list[str] = [
-    "qwen3-next-80b-a3b-instruct",
-    "qwen3-coder-flash",
-    "mistral-small-2603",
-    "qwen3-coder",
+    "gemini-3.5-flash-lite",
     "nova-2-lite-v1",
     "llama-4-maverick",
+    "nova-pro-v1",
 ]
 
 DEFAULT_TIER2_MODELS: list[str] = [
-    "llama-4-scout",
+    "gpt-5.6-luna",
     "mistral-medium-3",
-    "nova-pro-v1",
-    "qwen3-235b-a22b-2507",
-    "grok-4.3",
-    "deepseek-chat-v3.1",
+    "llama-4-scout",
+    "gpt-5.6-terra",
+    "grok-4.5",
 ]
 
 DEFAULT_TIER3_MODELS: list[str] = [
-    "deepseek-v3.2-exp",
-    "deepseek-v3.2",
-    "grok-4.5",
+    "claude-sonnet-5",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "qwen3.7-plus",
+    "qwen3.7-max",
+    "mistral-small-2603",
     "mistral-large-2512",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gpt-5.4-mini",
-    "claude-haiku-4.5",
 ]
 
 
@@ -111,10 +109,10 @@ class Settings:
     # LLM
     llm_api_key: str        = _get("LLM_API_KEY", _get("LLM_API"))
     llm_base_url: str       = _get("LLM_BASE_URL", "https://gen.ai.kku.ac.th/api/v1")
-    llm_model: str          = _get("LLM_MODEL",    "qwen3-next-80b-a3b-instruct")
+    llm_model: str          = _get("LLM_MODEL",    "gemini-3.5-flash-lite")
     llm_temperature: float  = float(_get("LLM_TEMPERATURE", "0.3"))
     llm_cascade_models: ClassVar[list[str]] = _build_cascade_models(
-        _get("LLM_MODEL", "qwen3-next-80b-a3b-instruct"),
+        _get("LLM_MODEL", "gemini-3.5-flash-lite"),
         _get("LLM_CASCADE_MODELS", _get("LLM_FALLBACK_MODELS", "")),
     )
 
@@ -128,11 +126,22 @@ class Settings:
     summary_sentences: int          = int(_get("SUMMARY_SENTENCES",        "3"))
     page_size: int                  = int(_get("PAGE_SIZE",                "20"))
 
+    # Trending
+    trending_window_hours: float                = float(_get("TRENDING_WINDOW_HOURS",                "48.0"))
+    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.92"))
+    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.88"))
+    trending_cluster_time_window_hours: float   = float(_get("TRENDING_CLUSTER_TIME_WINDOW_HOURS",   "36.0"))
+    embedding_cache_max_size: int              = int(_get("EMBEDDING_CACHE_MAX_SIZE",              "2000"))
+    trending_result_cache_ttl_seconds: int     = int(_get("TRENDING_RESULT_CACHE_TTL_SECONDS",     "600"))
+
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
     engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
+    db_type: str            = _get("DB_TYPE", "json").lower().strip()
+    mongo_uri: str          = _get("MONGO_URI", "mongodb://localhost:27017")
+    mongo_db_name: str      = _get("MONGO_DB_NAME", "news_collector")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")

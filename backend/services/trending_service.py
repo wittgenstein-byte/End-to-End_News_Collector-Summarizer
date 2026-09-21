@@ -1,29 +1,30 @@
 """
 services/trending_service.py
 ─────────────────────────────────────────────────────────────────
-SOLID  S — Trending scoring, text clustering, and ranking algorithm only.
-SOLID  O — Configurable similarity thresholds, half-life decay, and weights.
-SOLID  D — Depends on NewsRepositoryPort and EngagementRepositoryPort abstractions.
+SOLID  S — Semantic vector clustering, trend scoring, and ranking only.
+SOLID  O — Configurable cosine similarity, cohesion thresholds, and weights.
+SOLID  D — Injects NewsRepositoryPort, EngagementRepositoryPort, and LLMEnricher.
 GRASP  Information Expert — Computes multi-source consensus, time decay,
-          reader engagement, and visual status badges.
-GRASP  Pure Fabrication — TextClusterer isolates Thai NLP & similarity logic.
+           reader engagement, and visual status badges.
+GRASP  Pure Fabrication — WangchanEmbedder and SemanticClusterer isolate
+           neural representations and graph clustering.
+POLICY STRICTLY ZERO JACCARD — Zero token-set intersection, zero lexical overlap.
 ─────────────────────────────────────────────────────────────────
 """
 
 from __future__ import annotations
 
+import hashlib
 import math
-import re
+import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
 
-try:
-    from pythainlp.tokenize import word_tokenize
-    _PYTHAINLP_AVAILABLE = True
-except ImportError:
-    _PYTHAINLP_AVAILABLE = False
+import numpy as np
 
+from backend.config import settings
 from backend.repo.engagement_repo import (
     EngagementRepositoryPort,
     get_engagement_repository,
@@ -31,21 +32,12 @@ from backend.repo.engagement_repo import (
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.schemas.trending_schema import (
     TrendingArticle,
+    TrendingCluster,
     TrendingListResponse,
     TrendingScoreBreakdown,
 )
 from backend.services.classifier_service import _VALID_CATEGORIES, classify_article
-
-# Curated Thai stopwords for news titles (preserving key topic nouns like 'ราคา', 'ทองคำ', 'หุ้น')
-_FALLBACK_THAI_STOPWORDS = {
-    "ที่", "และ", "ใน", "เป็น", "มี", "ของ", "ให้", "ได้", "การ", "ความ",
-    "จะ", "ไป", "มา", "จาก", "กับ", "ว่า", "นี้", "นั้น", "ผู้", "โดย",
-    "ก็", "ไม่", "แต่", "เพื่อ", "ถูก", "ยัง", "อีก", "แล้ว", "ถึง", "ถ้า",
-    "คน", "เมื่อ", "เลย", "ตาม", "อย่าง", "พบ", "เผย", "ชี้", "เร่ง", "แจง",
-    "ฮือฮา", "สุด", "หลัง", "ก่อน", "เตรียม", "ยัน", "หวั่น", "วอน", "ลั่น",
-    "วัน", "วันนี้", "ขึ้น", "ลง", "ใหม่", "เก่า", "ต่อ", "เนื่อง", "ทั่ว", "บาท",
-    "แห่ง", "ด้าน", "ร่วม", "เข้า", "ออก", "รับ", "แรง",
-}
+from backend.services.llm_grouper import LLMBatchEnricher
 
 _ALLOWED_IMAGE_HOSTS = {"thestandard.co", "www.thestandard.co"}
 
@@ -109,152 +101,311 @@ def _resolve_category(article: dict[str, Any]) -> str:
     return cat_computed
 
 
-# ── Text Clusterer ────────────────────────────────────────────────
+# ── WangchanBERTa Embedder (Thread-Safe Lazy Singleton) ────────────
 
-class TextClusterer:
+class WangchanEmbedder:
     """
-    Groups news articles into story clusters based on Thai/multilingual
-    title token Jaccard similarity and publication time proximity.
+    Extracts L2-normalized dense embeddings using WangchanBERTa.
+    Features:
+    - Thread-safe lazy singleton loading
+    - Dynamic hidden size (model.config.hidden_size)
+    - Masked Mean Pooling excluding padding tokens
+    - L2 Normalization (so dot product equals cosine similarity)
+    - Tier 1 LRU Embedding Cache
+    """
+
+    _instance: WangchanEmbedder | None = None
+    _lock: threading.Lock = threading.Lock()
+
+    def __init__(self, model_dir: Path | None = None, cache_max_size: int = 2000) -> None:
+        self._model_dir = model_dir or (
+            Path(__file__).resolve().parent.parent / "model" / "wangchanberta_classifier"
+        )
+        self._tokenizer: Any = None
+        self._model: Any = None
+        self._hidden_size: int = 768
+        self._init_lock = threading.Lock()
+        self._cache_lock = threading.Lock()
+        self._cache_max_size = cache_max_size
+        self._embedding_cache: dict[str, np.ndarray] = {}
+
+    @classmethod
+    def get_instance(cls) -> WangchanEmbedder:
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls(cache_max_size=settings.embedding_cache_max_size)
+            return cls._instance
+
+    def _ensure_loaded(self) -> bool:
+        if self._model is not None and self._tokenizer is not None:
+            return True
+
+        with self._init_lock:
+            if self._model is not None and self._tokenizer is not None:
+                return True
+
+            if not self._model_dir.exists():
+                return False
+
+            try:
+                import torch
+                from transformers import AutoModel, AutoTokenizer
+
+                device = torch.device("cpu")
+                tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                model = AutoModel.from_pretrained(str(self._model_dir))
+                model.to(device)
+                model.eval()
+
+                self._tokenizer = tokenizer
+                self._model = model
+                self._hidden_size = int(getattr(model.config, "hidden_size", 768))
+                return True
+            except Exception as e:
+                # If torch or transformers fails to load, gracefully return False
+                print(f"Warning: WangchanEmbedder failed to initialize: {e}")
+                return False
+
+    @property
+    def hidden_size(self) -> int:
+        self._ensure_loaded()
+        return self._hidden_size
+
+    def get_canonical_text(self, article: dict[str, Any]) -> str:
+        """Standardized text representation: Title + '\n' + Summary."""
+        title = str(article.get("title") or "").strip()
+        summary = str(article.get("summary") or "").strip()
+        return f"{title}\n{summary}".strip()
+
+    def encode_articles(self, articles: list[dict[str, Any]]) -> np.ndarray:
+        """
+        Encodes a list of article dicts into an (N, hidden_size) L2-normalized matrix.
+        Utilizes Tier 1 Embedding Cache so existing articles are not re-computed.
+        """
+        n = len(articles)
+        if n == 0:
+            return np.empty((0, self.hidden_size), dtype=np.float32)
+
+        canonical_texts = [self.get_canonical_text(a) for a in articles]
+        hashes = [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in canonical_texts]
+
+        embeddings: list[np.ndarray | None] = [None] * n
+        miss_indices: list[int] = []
+
+        with self._cache_lock:
+            for idx, h in enumerate(hashes):
+                if h in self._embedding_cache:
+                    embeddings[idx] = self._embedding_cache[h]
+                else:
+                    miss_indices.append(idx)
+
+        # If all hit the cache, return immediately
+        if not miss_indices:
+            return np.vstack([emb for emb in embeddings if emb is not None])
+
+        # Compute embeddings for cache misses
+        if not self._ensure_loaded():
+            # Fallback random deterministic unit vectors if model cannot load
+            dim = self.hidden_size
+            for idx in miss_indices:
+                h_int = int(hashes[idx][:8], 16)
+                rng = np.random.RandomState(h_int)
+                vec = rng.randn(dim).astype(np.float32)
+                vec /= float(max(float(np.linalg.norm(vec)), 1e-9))
+                embeddings[idx] = vec
+            return np.vstack([emb for emb in embeddings if emb is not None])
+
+        import torch
+
+        miss_texts = [canonical_texts[i] for i in miss_indices]
+        batch_inputs = self._tokenizer(
+            miss_texts,
+            padding=True,
+            truncation=True,
+            max_length=128,
+            return_tensors="pt",
+        )
+
+        with torch.inference_mode():
+            outputs = self._model(**batch_inputs)
+            hidden = outputs.last_hidden_state
+            mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
+            summed = torch.sum(hidden * mask, dim=1)
+            counts = torch.clamp(mask.sum(dim=1), min=1e-9)
+            raw_embs = summed / counts
+            normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
+            computed_numpy = normalized.cpu().numpy().astype(np.float32)
+
+        with self._cache_lock:
+            for i, miss_idx in enumerate(miss_indices):
+                vec = computed_numpy[i]
+                embeddings[miss_idx] = vec
+                if len(self._embedding_cache) < self._cache_max_size:
+                    self._embedding_cache[hashes[miss_idx]] = vec
+
+        return np.vstack([emb for emb in embeddings if emb is not None])
+
+
+# ── Semantic Clusterer (Strictly Zero Jaccard, Cohesion Validated) ─
+
+class SemanticClusterer:
+    """
+    Clusters articles using WangchanBERTa embeddings and Cosine Distance.
+    Features:
+    - Matrix dot product: S = E @ E.T
+    - Pairwise temporal constraint (|t_i - t_j| <= window_hours)
+    - Configurable similarity threshold
+    - Anti-Chain Clustering: Intra-Cluster Cohesion Validation
+    - Strictly ZERO Jaccard or lexical overlap
     """
 
     def __init__(
         self,
-        similarity_threshold: float = 0.35,
-        window_hours: float = 36.0,
+        cosine_threshold: float = 0.92,
+        cohesion_threshold: float = 0.88,
+        time_window_hours: float = 36.0,
     ) -> None:
-        self.similarity_threshold = similarity_threshold
-        self.window_hours = window_hours
-
-        # Load Thai stopwords
-        self._stopwords = set(_FALLBACK_THAI_STOPWORDS)
-
-    def tokenize_title(self, title: str) -> set[str]:
-        """
-        Tokenize Thai/English news title into a clean set of salient keywords.
-        """
-        if not title:
-            return set()
-
-        text = title.strip().lower()
-
-        tokens: list[str]
-        if _PYTHAINLP_AVAILABLE:
-            try:
-                tokens = word_tokenize(text, engine="newmm")
-            except Exception:
-                tokens = re.findall(r"[\w\u0E00-\u0E7F]+", text)
-        else:
-            tokens = re.findall(r"[\w\u0E00-\u0E7F]+", text)
-
-        cleaned_tokens: set[str] = set()
-        for tok in tokens:
-            t = tok.strip()
-            if not t:
-                continue
-            # Remove punctuation, pure digits, single characters, and stopwords
-            if len(t) <= 1:
-                continue
-            if t.isdigit():
-                continue
-            if t in self._stopwords:
-                continue
-            if re.fullmatch(r"[^\w\u0E00-\u0E7F]+", t):
-                continue
-            cleaned_tokens.add(t)
-
-        return cleaned_tokens
-
-    def jaccard_similarity(self, tokens_a: set[str], tokens_b: set[str]) -> float:
-        """Compute Jaccard similarity score between two token sets."""
-        if not tokens_a or not tokens_b:
-            return 0.0
-        intersection = len(tokens_a & tokens_b)
-        union = len(tokens_a | tokens_b)
-        if union == 0:
-            return 0.0
-        return intersection / union
+        self.cosine_threshold = cosine_threshold
+        self.cohesion_threshold = cohesion_threshold
+        self.time_window_hours = time_window_hours
 
     def cluster_articles(
         self,
         articles: list[dict[str, Any]],
-        now: datetime,
+        embeddings: np.ndarray,
+        article_times: list[datetime],
     ) -> list[dict[str, Any]]:
         """
-        Groups articles into clusters and attaches cluster metadata:
-        - cluster_id (int)
+        Clusters articles and attaches:
+        - cluster_id (str)
         - cluster_size (int)
         - cluster_sources (list[str])
         - distinct_source_count (int)
+        - is_multi_source (bool)
+        - avg_similarity (float)
         """
         n = len(articles)
         if n == 0:
             return []
 
-        # Precompute tokens and times
-        article_tokens: list[set[str]] = [
-            self.tokenize_title(a.get("title", "")) for a in articles
-        ]
-        article_times: list[datetime] = [
-            parse_article_time(a.get("fetched_at", ""), now) for a in articles
-        ]
+        # 1. Cosine similarity matrix via matrix multiplication (since E is L2-normalized)
+        sim_matrix = np.clip(embeddings @ embeddings.T, -1.0, 1.0)
 
-        # Union-Find Disjoint Set for clustering
-        parent = list(range(n))
-
-        def find(i: int) -> int:
-            path = []
-            while parent[i] != i:
-                path.append(i)
-                i = parent[i]
-            for node in path:
-                parent[node] = i
-            return i
-
-        def union(i: int, j: int) -> None:
-            root_i = find(i)
-            root_j = find(j)
-            if root_i != root_j:
-                parent[root_i] = root_j
-
-        # Pairwise comparison within time window
+        # 2. Pairwise adjacency candidate edges with temporal constraint
+        adj: list[set[int]] = [set() for _ in range(n)]
         for i in range(n):
             for j in range(i + 1, n):
-                time_diff_hours = abs((article_times[i] - article_times[j]).total_seconds()) / 3600.0
-                if time_diff_hours > self.window_hours:
+                dt_hours = abs((article_times[i] - article_times[j]).total_seconds()) / 3600.0
+                if dt_hours > self.time_window_hours:
                     continue
+                if sim_matrix[i, j] >= self.cosine_threshold:
+                    adj[i].add(j)
+                    adj[j].add(i)
 
-                sim = self.jaccard_similarity(article_tokens[i], article_tokens[j])
-                if sim >= self.similarity_threshold:
-                    union(i, j)
+        # 3. Find connected components (initial candidate clusters)
+        visited = [False] * n
+        initial_clusters: list[list[int]] = []
 
-        # Build clusters
-        clusters_map: dict[int, list[int]] = {}
         for i in range(n):
-            root = find(i)
-            clusters_map.setdefault(root, []).append(i)
+            if not visited[i]:
+                comp: list[int] = []
+                queue = [i]
+                visited[i] = True
+                while queue:
+                    curr = queue.pop(0)
+                    comp.append(curr)
+                    for neighbor in adj[curr]:
+                        if not visited[neighbor]:
+                            visited[neighbor] = True
+                            queue.append(neighbor)
+                initial_clusters.append(comp)
 
-        # Build result list with cluster metadata
+        # 4. Anti-Chain Clustering: Intra-Cluster Cohesion Validation
+        validated_clusters: list[list[int]] = []
+        for comp in initial_clusters:
+            current_comp = list(comp)
+            pruned: list[int] = []
+
+            # Iteratively prune outliers dragging down intra-cluster cohesion
+            while len(current_comp) > 2:
+                k = len(current_comp)
+                total_sim = 0.0
+                pair_count = 0
+                for a_idx in range(k):
+                    for b_idx in range(a_idx + 1, k):
+                        total_sim += float(sim_matrix[current_comp[a_idx], current_comp[b_idx]])
+                        pair_count += 1
+
+                avg_sim = (total_sim / pair_count) if pair_count > 0 else 1.0
+                if avg_sim >= self.cohesion_threshold:
+                    break
+
+                # Not cohesive: find member with lowest sum of similarities to other members in current_comp
+                member_scores = [
+                    sum(
+                        float(sim_matrix[current_comp[m], current_comp[other]])
+                        for other in range(k)
+                        if other != m
+                    )
+                    for m in range(k)
+                ]
+                worst_idx_in_comp = int(np.argmin(member_scores))
+                pruned.append(current_comp.pop(worst_idx_in_comp))
+
+            # If down to 2 members, verify they satisfy cohesion threshold
+            if len(current_comp) == 2:
+                pair_sim = float(sim_matrix[current_comp[0], current_comp[1]])
+                if pair_sim < self.cohesion_threshold:
+                    pruned.append(current_comp.pop())
+
+            if current_comp:
+                validated_clusters.append(current_comp)
+            for p in pruned:
+                validated_clusters.append([p])
+
+        # 5. Format clustered results and calculate cluster metadata
         clustered_results: list[dict[str, Any]] = []
-        for i, article in enumerate(articles):
-            root = find(i)
-            member_indices = clusters_map[root]
-            member_sources = sorted(
+        cluster_counter = 1
+
+        for comp in validated_clusters:
+            cid = f"cluster_{cluster_counter}"
+            cluster_counter += 1
+
+            # Compute average intra-cluster similarity
+            k = len(comp)
+            if k <= 1:
+                cluster_avg_sim = 1.0
+            else:
+                sub_matrix = sim_matrix[np.ix_(comp, comp)]
+                # Average of upper triangle
+                cluster_avg_sim = float(
+                    (np.sum(sub_matrix) - k) / (k * (k - 1))
+                )
+
+            comp_sources = sorted(
                 {
-                    articles[idx].get("source", "").strip()
-                    for idx in member_indices
-                    if articles[idx].get("source", "").strip()
+                    str(articles[idx].get("source", "")).strip()
+                    for idx in comp
+                    if str(articles[idx].get("source", "")).strip()
                 }
             )
-            clustered_results.append(
-                {
-                    "article": article,
-                    "tokens": article_tokens[i],
-                    "time": article_times[i],
-                    "cluster_size": len(member_indices),
-                    "cluster_sources": member_sources,
-                    "distinct_source_count": max(1, len(member_sources)),
-                }
-            )
+            is_multi_source = len(comp_sources) >= 2
+
+            for idx in comp:
+                clustered_results.append(
+                    {
+                        "article": articles[idx],
+                        "index": idx,
+                        "time": article_times[idx],
+                        "cluster_id": cid,
+                        "cluster_size": len(comp),
+                        "cluster_sources": comp_sources,
+                        "distinct_source_count": max(1, len(comp_sources)),
+                        "is_multi_source": is_multi_source,
+                        "avg_similarity": round(cluster_avg_sim, 4),
+                        "cluster_indices": comp,
+                    }
+                )
 
         return clustered_results
 
@@ -263,28 +414,41 @@ class TextClusterer:
 
 class TrendingService:
     """
-    Trending & Hot News ranking engine.
-    Calculates multi-source consensus multiplier, half-life time decay,
-    and reader engagement telemetry to compute ranking scores.
+    Trending & Hot News ranking engine with WangchanBERTa embeddings,
+    strictly zero Jaccard clustering, and batch LLM enrichment.
     """
 
     def __init__(
         self,
         news_repo: NewsRepositoryPort,
         engagement_repo: EngagementRepositoryPort,
-        clusterer: TextClusterer | None = None,
+        embedder: WangchanEmbedder | None = None,
+        clusterer: SemanticClusterer | None = None,
+        llm_enricher: LLMBatchEnricher | None = None,
         half_life_hours: float = 12.0,
         breaking_window_hours: float = 3.0,
         breaking_boost: float = 4.0,
         consensus_weight: float = 0.55,
+        trending_window_hours: float = 48.0,
     ) -> None:
         self._news_repo = news_repo
         self._engagement_repo = engagement_repo
-        self._clusterer = clusterer or TextClusterer()
+        self._embedder = embedder or WangchanEmbedder.get_instance()
+        self._clusterer = clusterer or SemanticClusterer(
+            cosine_threshold=settings.trending_cosine_threshold,
+            cohesion_threshold=settings.trending_cohesion_threshold,
+            time_window_hours=settings.trending_cluster_time_window_hours,
+        )
+        self._llm_enricher = llm_enricher or LLMBatchEnricher()
         self._half_life_hours = half_life_hours
         self._breaking_window_hours = breaking_window_hours
         self._breaking_boost = breaking_boost
         self._consensus_weight = consensus_weight
+        self._trending_window_hours = trending_window_hours
+
+        # Tier 2 Result Cache
+        self._result_cache_lock = threading.Lock()
+        self._result_cache: dict[str, tuple[float, TrendingListResponse]] = {}
 
     def calculate_score(
         self,
@@ -294,14 +458,7 @@ class TrendingService:
     ) -> tuple[float, TrendingScoreBreakdown, list[str]]:
         """
         Calculates trending score, breakdown metrics, and visual status badges.
-
-        Formula:
-          Score = [1.0 + ln(1.0 + E) * 2.0] * M(K) * D(dt) + B
-          where:
-            E = 1.0*clicks + 3.0*summaries + 5.0*bookmarks
-            M(K) = 1.0 + 0.55 * (K - 1)
-            D(dt) = 2^(-dt / 12.0)
-            B = 4.0 if dt <= 3.0 and K >= 2 else 0.0
+        Deterministic scoring based on measurable factors.
         """
         dt = max(0.0, elapsed_hours)
         k = max(1, distinct_sources_count)
@@ -338,7 +495,6 @@ class TrendingService:
         if final_score >= 4.5:
             badges.append("🔥 Trending")
 
-        # Deduplicate badges while maintaining order
         unique_badges = list(dict.fromkeys(badges))
 
         breakdown = TrendingScoreBreakdown(
@@ -360,23 +516,74 @@ class TrendingService:
     ) -> TrendingListResponse:
         """
         Computes trending articles across all sources with optional category filtering.
-        Read-only query: does not modify or save to disk.
+        Utilizes 48h pre-filtering, WangchanBERTa embeddings, strict zero-Jaccard
+        cohesion clustering, Tier 2 result caching, and batched LLM enrichment.
         """
         current_time = now or datetime.now(timezone.utc)
         raw_news = self._news_repo.load_news()
 
-        # Resolve categories in memory without modifying or saving the repository
-        cat_filter = category.strip().lower() if category and category.strip().lower() not in {"", "all"} else None
+        if not raw_news:
+            return TrendingListResponse(
+                total=0,
+                updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                trending=[],
+                articles=[],
+                clusters=[],
+                trending_hashtags=[],
+                hero=None,
+            )
 
-        filtered_news: list[dict[str, Any]] = []
+        cat_filter = (
+            category.strip().lower()
+            if category and category.strip().lower() not in {"", "all"}
+            else None
+        )
+        window_hours = self._trending_window_hours
+
+        # 1. Parse article timestamps and find candidate window
+        candidates: list[tuple[dict[str, Any], datetime]] = []
+        parsed_times: list[datetime] = []
         for n in raw_news:
             if not isinstance(n, dict):
                 continue
+            t = parse_article_time(n.get("fetched_at", ""), current_time)
+            candidates.append((n, t))
+            parsed_times.append(t)
+
+        if not candidates:
+            return TrendingListResponse(
+                total=0,
+                updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                trending=[],
+                articles=[],
+                clusters=[],
+                trending_hashtags=[],
+                hero=None,
+            )
+
+        if now is not None:
+            ref_time = now
+        else:
+            latest_time = max(parsed_times)
+            if (current_time - latest_time).total_seconds() / 3600.0 <= window_hours:
+                ref_time = current_time
+            else:
+                ref_time = latest_time
+
+        # 2. Pre-filter articles by 48h window and category
+        filtered_news: list[dict[str, Any]] = []
+        filtered_times: list[datetime] = []
+        for n, art_time in candidates:
+            elapsed = (ref_time - art_time).total_seconds() / 3600.0
+            if window_hours > 0 and (elapsed > window_hours or elapsed < -2.0):
+                continue
+
             cat = _resolve_category(n)
             if cat_filter is None or cat == cat_filter:
                 n_copy = dict(n)
                 n_copy["category"] = cat
                 filtered_news.append(n_copy)
+                filtered_times.append(art_time)
 
         if not filtered_news:
             return TrendingListResponse(
@@ -384,15 +591,32 @@ class TrendingService:
                 updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
                 trending=[],
                 articles=[],
+                clusters=[],
+                trending_hashtags=[],
                 hero=None,
             )
 
-        # Cluster articles
-        clustered = self._clusterer.cluster_articles(filtered_news, current_time)
+        # 3. Check Tier 2 Result Cache using composite hash key
+        content_hash = hashlib.sha256(
+            "".join(str(a.get("url", "")) + str(a.get("title", "")) for a in filtered_news).encode("utf-8")
+        ).hexdigest()
+        cache_key = f"{cat_filter}:{limit}:{self._clusterer.cosine_threshold}:{content_hash}"
 
-        # Fetch all engagement stats
+        now_epoch = current_time.timestamp()
+        with self._result_cache_lock:
+            if cache_key in self._result_cache:
+                cached_time, cached_resp = self._result_cache[cache_key]
+                if now_epoch - cached_time < settings.trending_result_cache_ttl_seconds:
+                    return cached_resp
+
+        # 4. Generate/Fetch WangchanBERTa Embeddings (Tier 1 Cache internally)
+        embeddings = self._embedder.encode_articles(filtered_news)
+
+        # 5. Semantic Clustering (Zero Jaccard, Cohesion Validated)
+        clustered = self._clusterer.cluster_articles(filtered_news, embeddings, filtered_times)
+
+        # 6. Score each article deterministically
         all_engagements = self._engagement_repo.get_all_engagements()
-
         scored_articles: list[TrendingArticle] = []
 
         for item in clustered:
@@ -400,10 +624,12 @@ class TrendingService:
             url = str(article.get("url") or "").strip()
             article_time: datetime = item["time"]
 
-            elapsed_hours = (current_time - article_time).total_seconds() / 3600.0
+            elapsed_hours = (ref_time - article_time).total_seconds() / 3600.0
             k_sources = item["distinct_source_count"]
             cluster_size = item["cluster_size"]
             cluster_sources = item["cluster_sources"]
+            cid = item["cluster_id"]
+            is_multi = item["is_multi_source"]
 
             engagement = all_engagements.get(url, {"clicks": 0, "summaries": 0, "bookmarks": 0})
 
@@ -428,8 +654,10 @@ class TrendingService:
                     category=article.get("category"),
                     fetched_at=str(article.get("fetched_at") or ""),
                     trending_score=score,
+                    cluster_id=cid,
                     cluster_size=cluster_size,
                     cluster_sources=cluster_sources,
+                    is_multi_source=is_multi,
                     badges=badges,
                     breakdown=breakdown,
                 )
@@ -446,17 +674,92 @@ class TrendingService:
             if "🔥 Trending" not in scored_articles[idx].badges:
                 scored_articles[idx].badges.append("🔥 Trending")
 
+        # 7. Group scored articles into TrendingCluster objects
+        clusters_map: dict[str, list[TrendingArticle]] = {}
+        for a in scored_articles:
+            if a.cluster_id:
+                clusters_map.setdefault(a.cluster_id, []).append(a)
+
+        trending_clusters: list[TrendingCluster] = []
+        cluster_enrichment_payload: list[dict[str, Any]] = []
+
+        for cid, arts in clusters_map.items():
+            sources = sorted({a.source for a in arts if a.source})
+            is_multi = len(sources) >= 2
+            top_score = max(a.trending_score for a in arts)
+
+            t_cluster = TrendingCluster(
+                cluster_id=cid,
+                topic_title=arts[0].title,
+                source_count=len(sources),
+                article_count=len(arts),
+                avg_similarity=1.0,
+                trend_score=top_score,
+                is_multi_source=is_multi,
+                articles=arts,
+            )
+            trending_clusters.append(t_cluster)
+
+            # Send multi-source clusters to LLM enrichment batch
+            if is_multi or len(arts) >= 2:
+                cluster_enrichment_payload.append(
+                    {
+                        "cluster_id": cid,
+                        "articles": [
+                            {
+                                "title": a.title,
+                                "summary": a.summary,
+                                "source": a.source,
+                                "fetched_at": a.fetched_at,
+                            }
+                            for a in arts
+                        ],
+                    }
+                )
+
+        # 8. Batched LLM Metadata Enrichment (Decoupled, Metadata Only)
+        if cluster_enrichment_payload:
+            enriched_meta = self._llm_enricher.enrich_clusters(cluster_enrichment_payload)
+            for tc in trending_clusters:
+                if tc.cluster_id in enriched_meta:
+                    meta = enriched_meta[tc.cluster_id]
+                    tc.topic_title = meta.topic_title
+                    tc.hashtags = meta.hashtags
+                    tc.cluster_summary = meta.cluster_summary
+                    # Denormalize onto articles
+                    for art in tc.articles:
+                        art.topic_title = meta.topic_title
+                        art.hashtags = meta.hashtags
+                        art.cluster_summary = meta.cluster_summary
+
+        # Sort clusters by trend_score descending
+        trending_clusters.sort(key=lambda c: c.trend_score, reverse=True)
+
+        # Aggregate unique trending hashtags across top clusters
+        all_hashtags: list[str] = []
+        for tc in trending_clusters[:10]:
+            all_hashtags.extend(tc.hashtags)
+        trending_hashtags = list(dict.fromkeys(all_hashtags))
+
         hero = scored_articles[0] if scored_articles else None
         effective_limit = max(1, min(limit, 50))
         top_trending = scored_articles[:effective_limit]
 
-        return TrendingListResponse(
+        response = TrendingListResponse(
             total=len(scored_articles),
             updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
             trending=top_trending,
             articles=top_trending,
+            clusters=trending_clusters[:effective_limit],
+            trending_hashtags=trending_hashtags,
             hero=hero,
         )
+
+        # Save to Tier 2 Result Cache
+        with self._result_cache_lock:
+            self._result_cache[cache_key] = (now_epoch, response)
+
+        return response
 
 
 # ── Factory / DI helper ───────────────────────────────────────────
@@ -468,4 +771,6 @@ def get_trending_service() -> TrendingService:
     return TrendingService(
         news_repo=news_repo,
         engagement_repo=engagement_repo,
+        half_life_hours=12.0,
+        trending_window_hours=settings.trending_window_hours,
     )

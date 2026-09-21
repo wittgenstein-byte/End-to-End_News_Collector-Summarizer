@@ -127,7 +127,7 @@ class SummarizerService:
         elif model:
             self._models = [model]
         else:
-            self._models = ["qwen3-next-80b-a3b-instruct"]
+            self._models = ["gemini-3.5-flash-lite"]
 
     @property
     def model(self) -> str:

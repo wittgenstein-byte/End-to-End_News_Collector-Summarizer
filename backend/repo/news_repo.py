@@ -24,6 +24,16 @@ class NewsRepositoryPort(Protocol):
     def save_news(self, data: list[dict]) -> None: ...
     def load_seen(self)  -> set[str]: ...
     def save_seen(self, seen: set[str]) -> None: ...
+    def query_news(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        source: str = "",
+        category: str | None = None,
+        query: str = "",
+    ) -> tuple[list[dict], int]: ...
+    def get_category_counts(self) -> dict[str, int]: ...
+    def get_source_counts(self) -> dict[str, int]: ...
 
 
 # ── Concrete implementation ───────────────────────────────────────
@@ -46,6 +56,54 @@ class FileNewsRepository:
         data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
         data["metadata"]["total_articles"] = len(articles)
         self._write_data(data)
+
+    def query_news(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        source: str = "",
+        category: str | None = None,
+        query: str = "",
+    ) -> tuple[list[dict], int]:
+        news = self.load_news()
+        news.sort(key=lambda x: x.get("fetched_at", ""), reverse=True)
+
+        if source:
+            source_lower = source.strip().lower()
+            news = [n for n in news if n.get("source", "").lower() == source_lower]
+        if query:
+            query_lower = query.strip().lower()
+            news = [
+                n
+                for n in news
+                if query_lower in n.get("title", "").lower()
+                or query_lower in n.get("summary", "").lower()
+            ]
+        if category and category != "all":
+            news = [n for n in news if n.get("category") == category]
+
+        total = len(news)
+        page = max(1, page)
+        start = (page - 1) * page_size
+        return news[start : start + page_size], total
+
+    def get_category_counts(self) -> dict[str, int]:
+        news = self.load_news()
+        counts: dict[str, int] = {"all": len(news)}
+        for n in news:
+            cat = n.get("category")
+            if cat:
+                counts[cat] = counts.get(cat, 0) + 1
+        return counts
+
+    def get_source_counts(self) -> dict[str, int]:
+        news = self.load_news()
+        counts: dict[str, int] = {}
+        for n in news:
+            src = n.get("source")
+            if src:
+                counts[src] = counts.get(src, 0) + 1
+        return counts
 
     # ── Seen URLs ────────────────────────────────────────────────
 
@@ -84,19 +142,43 @@ class FileNewsRepository:
                 "version": "1.0",
                 "last_updated": datetime.now(timezone.utc).isoformat(),
                 "total_articles": 0,
-                "total_sources": 0
+                "total_sources": 0,
             },
             "sources": {},
             "articles": [],
-            "seen_urls": []
+            "seen_urls": [],
         }
 
 
 # ── Factory / DI helper ───────────────────────────────────────────
 
-def get_news_repository() -> FileNewsRepository:
+_REPO_INSTANCE: NewsRepositoryPort | None = None
+
+
+def get_news_repository() -> NewsRepositoryPort:
     """FastAPI Depends() factory — inject settings ที่นี่เดียว"""
+    global _REPO_INSTANCE
+    if _REPO_INSTANCE is not None:
+        return _REPO_INSTANCE
+
     from backend.config import settings
-    return FileNewsRepository(
-        data_file=settings.data_file,
-    )
+
+    if settings.db_type == "mongodb":
+        try:
+            from backend.repo.mongo_news_repo import MongoNewsRepository
+
+            _REPO_INSTANCE = MongoNewsRepository(
+                mongo_uri=settings.mongo_uri,
+                db_name=settings.mongo_db_name,
+            )
+            return _REPO_INSTANCE
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to initialize MongoNewsRepository (%s), falling back to FileNewsRepository",
+                exc,
+            )
+
+    _REPO_INSTANCE = FileNewsRepository(data_file=settings.data_file)
+    return _REPO_INSTANCE

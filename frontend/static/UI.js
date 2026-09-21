@@ -71,7 +71,16 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   const activeClasses = "bg-primary text-white border-primary shadow-sm";
   const inactiveClasses = "bg-white border-outline-variant/30 text-on-surface-variant hover:bg-surface-container";
 
-  let html = CATEGORIES.map(cat => {
+  const isForYouActive = activeId === "for-you";
+  let html = `
+    <button class="cat-pill flex items-center gap-2 px-5 py-2 rounded-full border text-sm font-medium transition-colors flex-shrink-0 ${isForYouActive ? activeClasses : inactiveClasses}"
+            data-id="for-you"
+            onclick="__categoryClick('for-you')">
+      <span class="material-symbols-outlined text-lg">auto_awesome</span>
+      <span>สำหรับคุณ</span>
+    </button>`;
+
+  html += CATEGORIES.map(cat => {
     const rawCount = cat.id === "all" ? (counts.all ?? "") : counts[cat.id];
     const hasCount = rawCount !== undefined && rawCount !== "";
     const isActive = cat.id === activeId;
@@ -99,6 +108,40 @@ export function renderCategoryNav(activeId, counts = {}, bookmarkedMap = {}) {
   `;
 
   nav.innerHTML = html;
+}
+
+/** Render the privacy-first topic picker used to start a For You feed. */
+export function renderForYouOnboarding(categories = []) {
+  const container = document.getElementById("for-you-onboarding");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="mb-8 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+        <div>
+          <h2 class="font-headline text-xl font-bold text-on-surface">ฟีดสำหรับคุณ</h2>
+          <p class="mt-1 text-sm text-on-surface-variant">เลือกอย่างน้อย 3 หมวดเพื่อเริ่มต้น เราประมวลผลความสนใจบนอุปกรณ์นี้เท่านั้น</p>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        ${categories.map(cat => `
+          <button type="button" data-topic-id="${esc(cat.id)}" onclick="__toggleForYouTopic('${esc(cat.id)}')"
+            class="for-you-topic rounded-full border border-primary/25 bg-white px-3 py-1.5 text-sm font-medium text-on-surface transition-colors hover:bg-primary/10">
+            ${esc(cat.icon)} ${esc(cat.label)}
+          </button>`).join("")}
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" onclick="__saveForYouTopics()" class="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm">สร้างฟีดของฉัน</button>
+        <button type="button" onclick="__skipForYouOnboarding()" class="text-sm font-medium text-primary hover:underline">ข้ามและดูข่าวเด่น</button>
+        <span id="for-you-topic-count" class="text-xs text-outline">เลือกแล้ว 0/3 หมวด</span>
+      </div>
+    </div>`;
+}
+
+export function hideForYouOnboarding() {
+  const container = document.getElementById("for-you-onboarding");
+  if (container) container.innerHTML = "";
 }
  
 /** อัปเดต count badges โดยไม่ redraw ทั้งหมด */
@@ -518,15 +561,19 @@ function updateHeroTrendingSlide() {
 
   let multiSourcePill = "";
   if (n.cluster_sources && Array.isArray(n.cluster_sources) && n.cluster_sources.length > 1) {
+    const srcCount = n.cluster_sources.length;
+    const displayedSources = srcCount > 3
+      ? `${n.cluster_sources.slice(0, 3).join(", ")} +${srcCount - 3} สำนักข่าว`
+      : n.cluster_sources.join(", ");
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg" title="${esc(n.cluster_sources.join(', '))}">
         <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
-        <span class="text-white">รายงานจาก ${n.cluster_sources.length} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(n.cluster_sources.join(", "))}</span></span>
+        <span class="text-white">รายงานจาก ${srcCount} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(displayedSources)}</span></span>
       </div>
     `;
   } else if (n.cluster_size && n.cluster_size > 1) {
     multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
         <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
         <span class="text-white">ประเด็นตรงกัน ${n.cluster_size} สำนักข่าว</span>
       </div>
@@ -604,7 +651,7 @@ function updateHeroTrendingSlide() {
               🔥 Trending • ${scoreVal}
             </span>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg border border-white/30 shadow-md">
             <span class="w-2.5 h-2.5 rounded-full shadow-xs" style="background:${color}"></span>
             <span class="text-xs font-bold text-white uppercase tracking-wider drop-shadow-md">${esc(n.source)}</span>
           </div>
@@ -613,11 +660,31 @@ function updateHeroTrendingSlide() {
         <!-- Bottom Content Row -->
         <div class="space-y-3 pointer-events-auto pb-4">
           <div class="space-y-2">
-            ${multiSourcePill}
+            <div class="flex items-center gap-2 flex-wrap">
+              ${multiSourcePill}
+              ${n.topic_title && n.topic_title !== n.title ? `
+                <div class="inline-flex items-center gap-1 text-xs text-amber-300 font-bold bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-amber-400/40 w-fit shadow-lg">
+                  <span class="material-symbols-outlined text-[14px]">topic</span>
+                  <span>ประเด็น: ${esc(n.topic_title)}</span>
+                </div>
+              ` : ""}
+            </div>
             <h1 class="text-lg sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight drop-shadow-lg group-hover:text-amber-200 transition-colors line-clamp-2 cursor-pointer"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
+            ${n.hashtags && Array.isArray(n.hashtags) && n.hashtags.length > 0 ? `
+              <div class="flex items-center gap-1.5 flex-wrap pt-1">
+                ${n.hashtags.map(h => `
+                  <button type="button" 
+                          class="text-[11px] font-bold text-amber-200 bg-black/60 hover:bg-amber-400 hover:text-black border border-amber-300/40 px-2.5 py-0.5 rounded-full transition-all cursor-pointer backdrop-blur-sm shadow-xs"
+                          onclick="event.stopPropagation(); window.__filterByHashtag('${esc(h)}')"
+                          title="กรองข่าวประเด็น ${esc(h)}">
+                    ${esc(h)}
+                  </button>
+                `).join("")}
+              </div>
+            ` : ""}
           </div>
 
           <div class="flex items-center justify-between gap-4 flex-wrap pt-2">
@@ -759,6 +826,14 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
               <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
                 ${isBookmarked ? 'bookmark' : 'bookmark_border'}
               </span>
+            </button>` : ""}
+
+            ${n.url ? `
+            <button type="button"
+                    class="h-8 w-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-error active:scale-95 transition-all cursor-pointer"
+                    onclick="window.__showLessLikeThis(event, '${articleJsonEncoded}')"
+                    title="สนใจน้อยลง">
+              <span class="material-symbols-outlined text-[16px]">visibility_off</span>
             </button>` : ""}
 
             <button type="button" 

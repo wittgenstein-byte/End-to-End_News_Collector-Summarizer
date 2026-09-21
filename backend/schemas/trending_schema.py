@@ -41,10 +41,29 @@ class TrendingArticle(BaseModel):
     category: str | None = None
     fetched_at: str
     trending_score: float
+    cluster_id: str | None = None
     cluster_size: int = 1
     cluster_sources: list[str] = Field(default_factory=list)
+    is_multi_source: bool = False
     badges: list[str] = Field(default_factory=list)
     breakdown: TrendingScoreBreakdown | None = None
+    topic_title: str | None = None
+    hashtags: list[str] = Field(default_factory=list)
+    cluster_summary: str | None = None
+
+
+class TrendingCluster(BaseModel):
+    """Semantic story cluster aggregating articles across publishers."""
+    cluster_id: str
+    topic_title: str | None = None
+    hashtags: list[str] = Field(default_factory=list)
+    cluster_summary: str | None = None
+    source_count: int = 1
+    article_count: int = 1
+    avg_similarity: float = 1.0
+    trend_score: float = 0.0
+    is_multi_source: bool = False
+    articles: list[TrendingArticle] = Field(default_factory=list)
 
 
 class TrendingListResponse(BaseModel):
@@ -53,6 +72,8 @@ class TrendingListResponse(BaseModel):
     updated: str
     trending: list[TrendingArticle] = Field(default_factory=list)
     articles: list[TrendingArticle] = Field(default_factory=list)
+    clusters: list[TrendingCluster] = Field(default_factory=list)
+    trending_hashtags: list[str] = Field(default_factory=list)
     hero: TrendingArticle | None = None
 
     @model_validator(mode="before")

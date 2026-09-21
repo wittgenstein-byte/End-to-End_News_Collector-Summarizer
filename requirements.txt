@@ -19,3 +19,4 @@ sentencepiece
 accelerate
 protobuf
 playwright
+pymongo
