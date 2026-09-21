@@ -54,35 +54,30 @@ def _get(key: str, default: str = "") -> str:
 
 
 # ── Tiered Model Defaults (KKU OpenSDK / OpenAI-compatible endpoint) ──
-# จัดลำดับโดยนำโมเดลที่เปิดให้บริการจริงและตอบสนองเร็วที่สุดขึ้นก่อน เพื่อความเร็วสูงสุด
+# อ้างอิงจากโมเดลที่เปิดใช้งานจริงและตอบสนองได้สมบูรณ์ในระบบ KKU OpenSDK ล่าสุด
 DEFAULT_TIER1_MODELS: list[str] = [
-    "qwen3-next-80b-a3b-instruct",
-    "qwen3-coder-flash",
-    "mistral-small-2603",
-    "qwen3-coder",
+    "gemini-3.5-flash-lite",
     "nova-2-lite-v1",
     "llama-4-maverick",
+    "nova-pro-v1",
 ]
 
 DEFAULT_TIER2_MODELS: list[str] = [
-    "llama-4-scout",
+    "gpt-5.6-luna",
     "mistral-medium-3",
-    "nova-pro-v1",
-    "qwen3-235b-a22b-2507",
-    "grok-4.3",
-    "deepseek-chat-v3.1",
+    "llama-4-scout",
+    "gpt-5.6-terra",
+    "grok-4.5",
 ]
 
 DEFAULT_TIER3_MODELS: list[str] = [
-    "deepseek-v3.2-exp",
-    "deepseek-v3.2",
-    "grok-4.5",
+    "claude-sonnet-5",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "qwen3.7-plus",
+    "qwen3.7-max",
+    "mistral-small-2603",
     "mistral-large-2512",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gpt-5.4-mini",
-    "claude-haiku-4.5",
 ]
 
 
@@ -114,10 +109,10 @@ class Settings:
     # LLM
     llm_api_key: str        = _get("LLM_API_KEY", _get("LLM_API"))
     llm_base_url: str       = _get("LLM_BASE_URL", "https://gen.ai.kku.ac.th/api/v1")
-    llm_model: str          = _get("LLM_MODEL",    "qwen3-next-80b-a3b-instruct")
+    llm_model: str          = _get("LLM_MODEL",    "gemini-3.5-flash-lite")
     llm_temperature: float  = float(_get("LLM_TEMPERATURE", "0.3"))
     llm_cascade_models: ClassVar[list[str]] = _build_cascade_models(
-        _get("LLM_MODEL", "qwen3-next-80b-a3b-instruct"),
+        _get("LLM_MODEL", "gemini-3.5-flash-lite"),
         _get("LLM_CASCADE_MODELS", _get("LLM_FALLBACK_MODELS", "")),
     )
 
