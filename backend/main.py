@@ -38,6 +38,7 @@ from backend.config import settings
 from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
 from backend.routers.collect_router import router as collect_router
+from backend.routers.monitoring_router import router as monitoring_router
 from backend.routers.news_router import router as news_router
 from backend.routers.trending_router import router as trending_router
 from backend.services.scraper_service import ScraperService
@@ -112,11 +113,13 @@ app.add_middleware(
 app.include_router(news_router)
 app.include_router(collect_router)
 app.include_router(trending_router)
+app.include_router(monitoring_router)
 
 
 # ── Frontend static files ─────────────────────────────────────────
 
 _INDEX = settings.frontend_dir / "index.html"
+_MONITORING_PAGE = settings.frontend_dir / "monitoring.html"
 
 
 @app.get("/", response_model=None)
@@ -124,6 +127,14 @@ async def index() -> FileResponse | JSONResponse:
     if _INDEX.exists():
         return FileResponse(str(_INDEX))
     return JSONResponse({"error": f"index.html not found at {_INDEX}"}, status_code=404)
+
+
+@app.get("/monitoring", response_model=None)
+@app.get("/monitoring.html", response_model=None)
+async def monitoring() -> FileResponse | JSONResponse:
+    if _MONITORING_PAGE.exists():
+        return FileResponse(str(_MONITORING_PAGE))
+    return JSONResponse({"error": f"monitoring.html not found at {_MONITORING_PAGE}"}, status_code=404)
 
 
 @app.get("/manifest.webmanifest", response_model=None)

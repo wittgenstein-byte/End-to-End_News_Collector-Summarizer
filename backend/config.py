@@ -153,6 +153,10 @@ class Settings:
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"
 
+    # Monitoring & Admin Auth
+    monitoring_admin_key: str           = _get("MONITORING_ADMIN_KEY", "admin-dev-secret-2026")
+    monitoring_session_ttl_seconds: int = int(_get("MONITORING_SESSION_TTL_SECONDS", "86400"))
+
 
 # Singleton ใช้ได้ทั่วทั้ง app
 settings = Settings()

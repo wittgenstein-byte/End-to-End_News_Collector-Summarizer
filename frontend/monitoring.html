@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEWSROOM — System Ops & Monitoring</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:ital,wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+  <!-- Styles — Tailwind -->
+  <link rel="stylesheet" href="/frontend/static/app.css">
+
+  <style>
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace, Consolas, Courier, monospace;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+    .terminal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terminal-scroll::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased font-body min-h-screen">
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       1. AUTH GATE (Shown only when unauthenticated)
+       ════════════════════════════════════════════════════════════════════════ -->
+  <div id="auth-view" class="flex min-h-screen items-center justify-center p-4">
+    <div class="w-full max-w-md bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-8 shadow-xl">
+      <div class="flex flex-col items-center text-center mb-6">
+        <div class="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-on-surface">NEWSROOM OPS</h1>
+        <p class="text-xs text-outline font-semibold tracking-wider uppercase mt-1">Admin & Developer Console</p>
+        <p class="text-sm text-outline mt-2">โปรดระบุ Secret Key เพื่อเข้าถึงระบบ Monitoring และสั่งการระบบ</p>
+      </div>
+
+      <form id="auth-form" class="space-y-4" onsubmit="return false;">
+        <div>
+          <label for="admin-key-input" class="block text-xs font-bold uppercase tracking-wider text-outline mb-1.5">
+            Admin / Dev Secret Key
+          </label>
+          <div class="relative">
+            <input
+              type="password"
+              id="admin-key-input"
+              class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono"
+              placeholder="ระบุรหัสผ่านลับ..."
+              autocomplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              id="toggle-pwd-btn"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
+              title="แสดง/ซ่อนรหัสผ่าน"
+            >
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="auth-error" class="hidden p-3 bg-error-container text-on-error-container text-xs rounded-xl flex items-center gap-2 border border-error/20">
+          <span class="material-symbols-outlined text-[16px] text-error">error</span>
+          <span id="auth-error-msg">รหัสผ่านไม่ถูกต้อง</span>
+        </div>
+
+        <button
+          type="submit"
+          id="auth-submit-btn"
+          class="w-full py-3 bg-primary text-on-primary font-semibold text-sm rounded-xl shadow-md hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+        >
+          <span class="material-symbols-outlined text-[18px]">lock_open</span>
+          <span>เข้าสู่ระบบคอนโซล</span>
+        </button>
+
+        <div class="pt-2 text-center">
+          <a href="/" class="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium">
+            <span class="material-symbols-outlined text-[14px]">arrow_back</span>
+            กลับสู่หน้าอ่านข่าว NEWSROOM
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       2. DASHBOARD VIEW (Shown only when authenticated)
+       ════════════════════════════════════════════════════════════════════════ -->
+  <div id="dashboard-view" class="hidden flex-col min-h-screen">
+
+    <!-- Top Ops Header -->
+    <header class="bg-white/95 backdrop-blur-xl border-b border-outline-variant/30 sticky top-0 z-40">
+      <div class="max-w-[1920px] mx-auto flex items-center justify-between px-6 py-3.5">
+        
+        <!-- Left Brand -->
+        <div class="flex items-center gap-3">
+          <a href="/" class="flex items-center gap-2 text-on-surface hover:text-primary transition-colors" title="กลับหน้าแรก">
+            <span class="text-xl font-headline font-extrabold tracking-tighter">NEWSROOM</span>
+          </a>
+          <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider rounded-full">
+            OPS MONITORING
+          </span>
+          <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-low text-xs border border-outline-variant/20">
+            <span id="ws-indicator-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="ws-indicator-label" class="font-medium text-[11px]">WebSocket Live</span>
+          </div>
+        </div>
+
+        <!-- Right Controls -->
+        <div class="flex items-center gap-3 sm:gap-4">
+          <!-- Auto-refresh switch -->
+          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input type="checkbox" id="auto-refresh-toggle" checked class="rounded border-outline-variant text-primary focus:ring-primary w-4 h-4 cursor-pointer" />
+            <span class="text-outline font-medium hidden sm:inline">Auto (5s)</span>
+          </label>
+
+          <!-- Manual Refresh Button -->
+          <button
+            id="manual-refresh-btn"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-xs font-semibold rounded-lg border border-outline-variant/40 transition-colors"
+            title="อัปเดตข้อมูลเดี๋ยวนี้"
+          >
+            <span class="material-symbols-outlined text-[16px]" id="refresh-icon">sync</span>
+            <span class="hidden sm:inline">รีเฟรช</span>
+          </button>
+
+          <!-- Back to Reader -->
+          <a
+            href="/"
+            class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            title="เปิดหน้าอ่านข่าว"
+          >
+            <span class="material-symbols-outlined text-[16px]">newspaper</span>
+            <span class="hidden sm:inline">หน้าข่าว</span>
+          </a>
+
+          <!-- Logout Button -->
+          <button
+            id="logout-btn"
+            class="flex items-center gap-1 px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error text-xs font-semibold rounded-lg transition-colors"
+            title="ออกจากระบบ"
+          >
+            <span class="material-symbols-outlined text-[16px]">logout</span>
+            <span class="hidden sm:inline">ออก</span>
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- Notification Toast Bar -->
+    <div id="toast-bar" class="fixed top-16 right-6 z-50 transform translate-y-[-100px] opacity-0 transition-all duration-300 pointer-events-none">
+      <div id="toast-box" class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold bg-surface-container-lowest text-on-surface border-outline-variant/40">
+        <span class="material-symbols-outlined text-[18px]" id="toast-icon">info</span>
+        <span id="toast-text">ข้อความแจ้งเตือน</span>
+      </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="max-w-[1920px] mx-auto px-4 sm:px-6 py-6 w-full flex-1 space-y-6">
+
+      <!-- Action & Control Bar -->
+      <section class="bg-surface-container-low rounded-2xl p-5 border border-outline-variant/30 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-base font-bold text-on-surface">การควบคุมการทำงาน (Interactive Operations)</h2>
+          <p class="text-xs text-outline mt-0.5">สั่งการ Background Scraper และจัดการแคชของระบบโดยตรง</p>
+        </div>
+        <div class="flex items-center flex-wrap gap-3">
+          <button
+            id="trigger-scrape-btn"
+            class="px-4 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow hover:opacity-95 active:scale-95 transition-all flex items-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[18px]" id="scrape-btn-icon">bolt</span>
+            <span>สั่งดึงข่าวทันที (Trigger Scrape Now)</span>
+          </button>
+          <button
+            id="clear-cache-btn"
+            class="px-4 py-2.5 bg-surface-container-highest hover:bg-error-container hover:text-on-error-container text-on-surface text-xs font-bold rounded-xl border border-outline-variant/40 active:scale-95 transition-all flex items-center gap-2"
+          >
+            <span class="material-symbols-outlined text-[18px]">cached</span>
+            <span>ล้างแคชทั้งหมด (Clear Caches)</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 4 Key Metrics Cards -->
+      <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <!-- Card 1: System & Storage -->
+        <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-outline">ระบบ & จัดเก็บ</span>
+            <span class="p-2 bg-emerald-500/10 text-emerald-600 rounded-xl material-symbols-outlined text-[20px]">dns</span>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-headline font-bold text-on-surface" id="metric-uptime">—</span>
+              <span class="text-xs text-outline font-medium">Uptime</span>
+            </div>
+            <div class="mt-3 pt-3 border-t border-outline-variant/20 space-y-1 text-xs">
+              <div class="flex justify-between text-outline">
+                <span>บทความในฐานข้อมูล:</span>
+                <span class="font-bold text-on-surface" id="metric-total-news">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>URL ที่ผ่านการตรวจ (Seen):</span>
+                <span class="font-bold text-on-surface" id="metric-total-seen">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>ไฟล์ Markdown ที่บันทึก:</span>
+                <span class="font-bold text-on-surface" id="metric-total-md">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Scraper Engine -->
+        <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-outline">Scraper Engine</span>
+            <span class="p-2 bg-blue-500/10 text-blue-600 rounded-xl material-symbols-outlined text-[20px]">travel_explore</span>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-headline font-bold text-on-surface flex items-center gap-2" id="metric-scraper-status">
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <span class="text-lg">พร้อมทำงาน</span>
+              </span>
+            </div>
+            <div class="mt-3 pt-3 border-t border-outline-variant/20 space-y-1 text-xs">
+              <div class="flex justify-between text-outline">
+                <span>รอบที่ทำงานสำเร็จ:</span>
+                <span class="font-bold text-on-surface" id="metric-cycles-count">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>รอบการดึงทุกๆ:</span>
+                <span class="font-bold text-on-surface" id="metric-interval">15 นาที</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>ดึงเสร็จสิ้นล่าสุด:</span>
+                <span class="font-bold text-on-surface text-[11px]" id="metric-last-cycle">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Cache Performance -->
+        <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-outline">ประสิทธิภาพแคช</span>
+            <span class="p-2 bg-amber-500/10 text-amber-600 rounded-xl material-symbols-outlined text-[20px]">speed</span>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-headline font-bold text-on-surface" id="metric-cache-rate">0%</span>
+              <span class="text-xs text-outline font-medium">304 Hit Rate</span>
+            </div>
+            <div class="mt-3 pt-3 border-t border-outline-variant/20 space-y-1 text-xs">
+              <div class="flex justify-between text-outline">
+                <span>HTTP 304 Not Modified:</span>
+                <span class="font-bold text-on-surface" id="metric-cache-304">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>HTTP 200 Fresh Fetch:</span>
+                <span class="font-bold text-on-surface" id="metric-cache-200">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>LLM Summary Hits/Misses:</span>
+                <span class="font-bold text-on-surface" id="metric-summary-hits">0 / 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: Reader Engagement -->
+        <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-outline">สถิติผู้อ่าน (Engagement)</span>
+            <span class="p-2 bg-purple-500/10 text-purple-600 rounded-xl material-symbols-outlined text-[20px]">trending_up</span>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-headline font-bold text-on-surface" id="metric-total-clicks">0</span>
+              <span class="text-xs text-outline font-medium">คลิกอ่านข่าว</span>
+            </div>
+            <div class="mt-3 pt-3 border-t border-outline-variant/20 space-y-1 text-xs">
+              <div class="flex justify-between text-outline">
+                <span>ขอกดสรุปด้วย AI:</span>
+                <span class="font-bold text-on-surface" id="metric-total-summaries">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>จำนวนการบันทึก (Bookmark):</span>
+                <span class="font-bold text-on-surface" id="metric-total-bookmarks">0</span>
+              </div>
+              <div class="flex justify-between text-outline">
+                <span>บทความที่มี Engagement:</span>
+                <span class="font-bold text-on-surface" id="metric-engaged-count">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Scraper Sources Table -->
+      <section class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-on-surface">สถานะสำนักข่าวรายแหล่ง (News Sources)</h3>
+            <p class="text-xs text-outline mt-0.5">ตรวจสอบการทำงานและทดสอบการดึงข้อมูลจากแต่ละสำนักข่าว</p>
+          </div>
+          <span class="text-xs text-outline" id="sources-summary-count">ทั้งหมด 14 สำนัก</span>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-surface-container-low text-outline font-bold uppercase tracking-wider border-b border-outline-variant/20">
+                <th class="py-3 px-5">สำนักข่าว (Source)</th>
+                <th class="py-3 px-4">สถานะการทำงาน</th>
+                <th class="py-3 px-4">เวลาดึงล่าสุด</th>
+                <th class="py-3 px-4 text-center">ข่าวใหม่ล่าสุด</th>
+                <th class="py-3 px-4 text-center">ความเร็ว (Latency)</th>
+                <th class="py-3 px-4">รายละเอียด / ข้อผิดพลาด</th>
+                <th class="py-3 px-5 text-right">ดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody id="sources-table-body" class="divide-y divide-outline-variant/10 text-on-surface">
+              <!-- Rendered via monitoring.js -->
+              <tr>
+                <td colspan="7" class="py-8 text-center text-outline">กำลังโหลดข้อมูลสถานะ...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Live Terminal / Console Event Stream -->
+      <section class="bg-gray-950 text-gray-100 rounded-2xl border border-gray-800 shadow-xl overflow-hidden flex flex-col">
+        <!-- Terminal Header -->
+        <div class="bg-gray-900/90 px-5 py-3 border-b border-gray-800 flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+              <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
+              <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+            </div>
+            <span class="font-mono text-xs font-bold text-gray-300 ml-2">Console Live Stream (WebSocket)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              id="clear-logs-btn"
+              class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-mono rounded transition-colors"
+              title="ล้างบันทึกบนหน้าจอ"
+            >
+              Clear Logs
+            </button>
+            <label class="flex items-center gap-1.5 text-[11px] font-mono text-gray-400 cursor-pointer select-none">
+              <input type="checkbox" id="auto-scroll-toggle" checked class="rounded bg-gray-800 border-gray-700 text-primary w-3.5 h-3.5" />
+              <span>Auto-scroll</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Terminal Body -->
+        <div
+          id="terminal-logs"
+          class="p-4 font-mono text-xs h-72 overflow-y-auto terminal-scroll space-y-1.5 bg-gray-950 select-text"
+        >
+          <div class="text-gray-500 italic">[Waiting for real-time events...]</div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-4 px-6 border-t border-outline-variant/20 text-center text-xs text-outline">
+      NEWSROOM Operations Monitor & Telemetry Dashboard &bull; FastAPI + Playwright + LLM Cascade
+    </footer>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <script type="module" src="/frontend/static/monitoring.js"></script>
+</body>
+</html>
