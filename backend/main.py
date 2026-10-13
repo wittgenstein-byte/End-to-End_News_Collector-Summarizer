@@ -159,7 +159,10 @@ async def service_worker() -> FileResponse | JSONResponse:
         return FileResponse(
             str(sw_path),
             media_type="application/javascript",
-            headers={"Service-Worker-Allowed": "/"},
+            headers={
+                "Service-Worker-Allowed": "/",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
         )
     return JSONResponse({"error": "sw.js not found"}, status_code=404)
 

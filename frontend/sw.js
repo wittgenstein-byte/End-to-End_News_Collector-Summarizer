@@ -8,8 +8,8 @@
  * 4. Offline Fallback: Serves cached app shell and cached API data seamlessly
  */
 
-const CACHE_NAME = "newsroom-pwa-v2.4.1";
-const API_CACHE_NAME = "newsroom-api-v2.4.1";
+const CACHE_NAME = "newsroom-pwa-v3.1.0";
+const API_CACHE_NAME = "newsroom-api-v3.1.0";
 
 const PRECACHE_ASSETS = [
   "/",
@@ -117,7 +117,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 5. Static Assets (CSS, JS, SVGs) -> Cache First, Network Fallback
+  // 5. Static JS/CSS Assets -> Network First (always fresh code when online), Fallback to Cache
+  if (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") || url.search.includes("v=")) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request, { ignoreSearch: true });
+          return cached || new Response("", { status: 404, statusText: "Offline Not Found" });
+        })
+    );
+    return;
+  }
+
+  // 6. Other Static Assets (SVGs, Images) -> Cache First, Network Fallback
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {
       if (cached) {
