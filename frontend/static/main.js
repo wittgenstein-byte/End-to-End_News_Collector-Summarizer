@@ -1514,6 +1514,62 @@ window.__dismissPwaInstall = () => {
   UI.hidePwaInstallBanner();
 };
 
+window.__openOutletArticle = (outlet) => {
+  if (!outlet) return;
+
+  const currentStory = (typeof UI.getCurrentHeroTrendingStory === "function")
+    ? UI.getCurrentHeroTrendingStory()
+    : null;
+
+  let targetUrl = "";
+
+  if (currentStory) {
+    // 1. Direct match in story.articles
+    const matchingArt = (currentStory.articles || []).find(a =>
+      a.source && a.source.toLowerCase() === outlet.toLowerCase()
+    );
+    if (matchingArt && matchingArt.url) {
+      targetUrl = matchingArt.url;
+    }
+
+    // 2. Direct match in story.child_events
+    if (!targetUrl && Array.isArray(currentStory.child_events)) {
+      for (const ce of currentStory.child_events) {
+        const ceArt = (ce.articles || []).find(a =>
+          a.source && a.source.toLowerCase() === outlet.toLowerCase()
+        );
+        if (ceArt && ceArt.url) {
+          targetUrl = ceArt.url;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback match in cached article map
+  if (!targetUrl && currentStory) {
+    const rawHeadline = (currentStory.headline || currentStory.title || "").toLowerCase();
+    for (const [u, art] of currentArticleMap.entries()) {
+      if (art.source && art.source.toLowerCase() === outlet.toLowerCase()) {
+        const artTitle = (art.title || "").toLowerCase();
+        if (rawHeadline && artTitle && (rawHeadline.includes(artTitle.slice(0, 10)) || artTitle.includes(rawHeadline.slice(0, 10)))) {
+          targetUrl = u;
+          break;
+        }
+      }
+    }
+  }
+
+  if (targetUrl) {
+    UI.showToast(`กำลังเปิดรายงานข่าวจาก ${outlet}`);
+    window.__openPreview(targetUrl);
+  } else {
+    // Fallback: filter news feed by this source
+    UI.showToast(`กำลังกรองข่าวจาก ${outlet}`);
+    window.__sourceFilterClick(outlet);
+  }
+};
+
 window.__filterByHashtag = (tag) => {
   if (!tag) return;
   const cleanTag = tag.startsWith("#") ? tag.slice(1) : tag;

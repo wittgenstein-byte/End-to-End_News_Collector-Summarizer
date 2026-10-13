@@ -483,7 +483,7 @@ function startHeroAutoPlay() {
     heroAutoPlayTimer = setInterval(() => {
       heroCurrentIndex = (heroCurrentIndex + 1) % heroTrendingArticles.length;
       updateHeroTrendingSlide();
-    }, 3500);
+    }, 4500);
   }
 }
 
@@ -492,6 +492,13 @@ function stopHeroAutoPlay() {
     clearInterval(heroAutoPlayTimer);
     heroAutoPlayTimer = null;
   }
+}
+
+export function getCurrentHeroTrendingStory() {
+  if (heroTrendingArticles && heroTrendingArticles.length > 0) {
+    return heroTrendingArticles[heroCurrentIndex] || heroTrendingArticles[0];
+  }
+  return null;
 }
 
 export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
@@ -506,7 +513,70 @@ export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
   }
 
   container.classList.remove("hidden");
-  heroTrendingArticles = articles.slice(0, 7);
+
+  // Deduplicate storylines into 1 trending item per topic (No duplicate ranks)
+  const seenKeys = new Map();
+  const deduped = [];
+  for (const item of (articles || [])) {
+    const mId = item.macro_event_id || item.story_id;
+    const rawT = (item.headline || item.topic_title || item.title || "").trim();
+    const normT = rawT.replace(/[\s"\'“”‘’\(\)\[\]\-]+/g, "").toLowerCase();
+
+    let matchKey = null;
+    if (mId && seenKeys.has(mId)) {
+      matchKey = mId;
+    } else {
+      for (const [k, prev] of seenKeys.entries()) {
+        const prevRaw = (prev.headline || prev.topic_title || prev.title || "").trim();
+        const prevNorm = prevRaw.replace(/[\s"\'“”‘’\(\)\[\]\-]+/g, "").toLowerCase();
+        if (normT && prevNorm && (normT.includes(prevNorm) || prevNorm.includes(normT) || (normT.length >= 10 && normT.slice(0, 10) === prevNorm.slice(0, 10)))) {
+          matchKey = k;
+          break;
+        }
+      }
+    }
+
+    if (matchKey) {
+      const existing = seenKeys.get(matchKey);
+      // Combine outlets
+      const outletSet = new Set(existing.outlets || existing.cluster_sources || []);
+      (item.outlets || item.cluster_sources || [item.source]).filter(Boolean).forEach(o => outletSet.add(o));
+      existing.outlets = Array.from(outletSet);
+      existing.cluster_sources = existing.outlets;
+      // Combine articles
+      const existUrls = new Set((existing.articles || []).map(a => a.url));
+      (item.articles || (item.url ? [item] : [])).forEach(a => {
+        if (a && a.url && !existUrls.has(a.url)) {
+          existUrls.add(a.url);
+          if (!existing.articles) existing.articles = [];
+          existing.articles.push(a);
+        }
+      });
+      existing.article_count = (existing.articles || []).length;
+      // Combine hashtags
+      const tagSet = new Set(existing.hashtags || []);
+      (item.hashtags || []).forEach(h => tagSet.add(h));
+      existing.hashtags = Array.from(tagSet);
+      // Combine child_events
+      if (Array.isArray(item.child_events)) {
+        if (!existing.child_events) existing.child_events = [];
+        const existCids = new Set(existing.child_events.map(c => c.story_id).filter(Boolean));
+        for (const ce of item.child_events) {
+          if (!ce.story_id || !existCids.has(ce.story_id)) {
+            existing.child_events.push(ce);
+            if (ce.story_id) existCids.add(ce.story_id);
+          }
+        }
+      }
+    } else {
+      const key = mId || normT;
+      seenKeys.set(key, item);
+      deduped.push(item);
+    }
+  }
+
+  // Unlimited rank: No .slice(0, 7)! Display all macro storylines
+  heroTrendingArticles = deduped;
   heroBookmarkedMap = bookmarkedMap || {};
   heroCurrentIndex = 0;
 
@@ -743,122 +813,75 @@ function updateHeroTrendingSlide() {
     </div>
   ` : "";
 
-  // 6. Cross-Publisher Perspective Matrix (3 มิติมุมมองสื่อ)
-  const childEvents = Array.isArray(n.child_events) ? n.child_events : [];
-  let perspectiveMatrixHtml = "";
-  if (childEvents.length > 0) {
-    const cardsHtml = childEvents.slice(0, 4).map((ce, idx) => {
-      const ceTitle = esc(ce.headline || ce.title || `มุมมอง #${idx + 1}`);
-      const ceSummary = esc(ce.summary || "รายงานความคืบหน้าสถานการณ์จากสำนักข่าว");
-      const ceOutlets = Array.isArray(ce.outlets) ? ce.outlets : [];
-      const primaryOutlet = ceOutlets[0] || (ce.articles && ce.articles[0] && ce.articles[0].source) || "สำนักข่าว";
-      const outletColor = SOURCE_COLORS[primaryOutlet] ?? "#7c3aed";
-      const ceCount = ce.article_count || (ce.articles ? ce.articles.length : 1);
-      const ceId = esc(ce.story_id || `ce_${idx}`);
-      const firstArt = (ce.articles && ce.articles[0]) || null;
-      const firstArtUrl = firstArt ? (firstArt.url || "") : ((ce.article_urls && ce.article_urls[0]) || "");
-      const perspectiveLabel = getPerspectiveLabel(ce.headline || ce.title, primaryOutlet, ce.summary);
-      const ceCitation = ce.citation || (firstArt && firstArt.summary && firstArt.summary !== ceSummary ? firstArt.summary : null);
-
-      return `
-        <div class="perspective-matrix-card p-5 rounded-2xl border border-outline-variant/30 bg-white/95 dark:bg-surface-container-low shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between gap-4 relative overflow-hidden group/pm"
-             id="perspective-card-${ceId}">
-          <div class="absolute top-0 left-0 right-0 h-1.5" style="background: ${outletColor}"></div>
-
-          <div class="space-y-3 pt-1">
-            <!-- Header: Outlet Badge + Sub-event tag -->
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold text-white shadow-2xs" style="background: ${outletColor}">
-                <span class="material-symbols-outlined text-[14px]">newspaper</span>
-                <span>${esc(primaryOutlet)}</span>
-              </span>
-              <span class="px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] tracking-wider uppercase border border-purple-200 dark:border-purple-800/40">
-                มุมมอง #${idx + 1}
-              </span>
-            </div>
-
-            <!-- Perspective Angle Chip -->
-            <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-bold border border-amber-500/20">
-              <span class="material-symbols-outlined text-[14px] text-amber-600">visibility</span>
-              <span>${esc(perspectiveLabel)}</span>
-            </div>
-
-            <!-- Sub-event Headline -->
-            <h4 class="text-sm sm:text-base font-headline font-bold text-on-surface line-clamp-2 leading-snug group-hover/pm:text-purple-700 dark:group-hover/pm:text-purple-300 transition-colors cursor-pointer"
-                onclick="window.__openPreview('${esc(firstArtUrl)}')">
-              ${ceTitle}
-            </h4>
-
-            <!-- Perspective Excerpt -->
-            <p class="text-xs text-on-surface-variant line-clamp-3 leading-relaxed font-body">
-              ${ceSummary}
-            </p>
-
-            <!-- Inline Citation Box -->
-            ${ceCitation ? `
-              <div id="perspective-quote-${idx}" class="perspective-quote-box hidden p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border-l-2 border-purple-500 text-xs italic text-on-surface-variant font-serif">
-                <span class="material-symbols-outlined text-[13px] text-purple-600 align-middle not-italic">format_quote</span>
-                <span>“${esc(ceCitation)}”</span>
-              </div>
-            ` : ""}
-          </div>
-
-          <!-- Card Footer Actions -->
-          <div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2">
-              <button type="button" 
-                      class="flex items-center gap-1 text-xs font-bold text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors cursor-pointer"
-                      onclick="window.__openPreview('${esc(firstArtUrl)}')">
-                <span>อ่านรายงานฉบับเต็ม</span>
-                <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
-              </button>
-              ${ceCitation ? `
-                <button type="button"
-                        class="text-[11px] font-semibold text-outline hover:text-on-surface flex items-center gap-0.5 ml-1 cursor-pointer"
-                        onclick="window.__togglePerspectiveQuote(${idx})">
-                  <span class="material-symbols-outlined text-[13px]">chat_bubble_outline</span>
-                  <span id="perspective-quote-btn-${idx}">โควต</span>
-                </button>
-              ` : ""}
-            </div>
-            <span class="text-[11px] font-semibold text-outline flex items-center gap-1">
-              <span class="material-symbols-outlined text-[13px] text-purple-500">feed</span>
-              <span>${ceCount} ข่าว</span>
-            </span>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    perspectiveMatrixHtml = `
-      <div class="perspective-matrix-container mt-6 space-y-3.5">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
-              <span class="material-symbols-outlined text-[18px]">view_column</span>
-            </div>
-            <div>
-              <h3 class="font-headline font-extrabold text-sm sm:text-base text-on-surface flex items-center gap-2">
-                <span>3 มิติมุมมองจาก 3 สำนักข่าว (Cross-Publisher Perspective Matrix)</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-extrabold">${childEvents.length} มุมมอง</span>
-              </h3>
-              <p class="text-xs text-outline">เปรียบเทียบจุดเน้นและรายงานข่าวเชิงลึกในมหากาพย์เหตุการณ์เดียวกัน</p>
-            </div>
-          </div>
-          <button type="button" 
-                  class="text-xs font-bold text-purple-700 dark:text-purple-300 hover:text-purple-900 bg-white dark:bg-surface-container px-3.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 flex items-center gap-1.5 shadow-2xs hover:shadow-xs transition-all cursor-pointer" 
-                  onclick="window.__toggleTimelinePanel()">
-            <span class="material-symbols-outlined text-[15px]">timeline</span>
-            <span>เปิดดูไทม์ไลน์ & คะแนนวิเคราะห์</span>
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          ${cardsHtml}
-        </div>
-      </div>
-    `;
+  // 5. Publisher Outlets Bar (แหล่งข่าวที่รายงานในมหากาพย์นี้)
+  const outletMap = new Map();
+  (n.articles || []).forEach(a => {
+    if (a && a.source) {
+      if (!outletMap.has(a.source)) outletMap.set(a.source, []);
+      outletMap.get(a.source).push(a);
+    }
+  });
+  (n.child_events || []).forEach(ce => {
+    (ce.articles || []).forEach(a => {
+      if (a && a.source) {
+        if (!outletMap.has(a.source)) outletMap.set(a.source, []);
+        if (!outletMap.get(a.source).some(ea => ea.url === a.url)) {
+          outletMap.get(a.source).push(a);
+        }
+      }
+    });
+  });
+  if (outletMap.size === 0 && n.source) {
+    outletMap.set(n.source, n.url ? [n] : []);
   }
+  (n.outlets || n.cluster_sources || []).forEach(src => {
+    if (!outletMap.has(src)) outletMap.set(src, []);
+  });
+
+  const publisherPillsHtml = Array.from(outletMap.entries()).map(([outlet, arts]) => {
+    const brandColor = SOURCE_COLORS[outlet] ?? "#6366f1";
+    const count = arts.length;
+    return `
+      <button type="button"
+              class="hero-publisher-pill flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/95 text-white border border-white/30 hover:border-white/60 backdrop-blur-md shadow-md text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 group/pub shrink-0"
+              onclick="event.stopPropagation(); window.__openOutletArticle('${esc(outlet)}')"
+              title="คลิกอ่านรายงานข่าวจาก ${esc(outlet)} (${count} ข่าว)">
+        <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" style="background:${brandColor}"></span>
+        <span class="group-hover/pub:text-amber-300 transition-colors">${esc(outlet)}</span>
+        ${count > 0 ? `<span class="text-[10px] px-1.5 py-0.2 rounded-md font-extrabold bg-white/20 text-white/90">${count}</span>` : ""}
+        <span class="material-symbols-outlined text-[13px] opacity-60 group-hover/pub:opacity-100 transition-opacity">open_in_new</span>
+      </button>
+    `;
+  }).join("");
+
+  // 6. Consolidated Hashtags for this Storyline
+  const storylineHashtags = Array.from(new Set([
+    ...(Array.isArray(n.hashtags) ? n.hashtags : []),
+    ...((n.child_events || []).flatMap(ce => Array.isArray(ce.hashtags) ? ce.hashtags : [])),
+    ...((n.articles || []).flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
+  ])).filter(Boolean).slice(0, 10);
+
+  const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
+    <div class="flex items-center gap-1.5 flex-wrap pt-1">
+      <span class="text-xs font-extrabold text-amber-300 flex items-center gap-1 shrink-0 drop-shadow-sm">
+        <span class="material-symbols-outlined text-[14px]">tag</span>
+        <span>#แฮชแท็ก:</span>
+      </span>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        ${storylineHashtags.map(tag => {
+          const clean = tag.startsWith("#") ? tag.slice(1) : tag;
+          return `
+            <button type="button"
+                    class="hero-hashtag-pill text-xs font-bold text-amber-200 bg-black/65 hover:bg-amber-400 hover:text-black hover:border-amber-400 border border-amber-300/40 px-3 py-1 rounded-full transition-all duration-200 cursor-pointer backdrop-blur-md shadow-xs active:scale-95 flex items-center gap-0.5"
+                    onclick="event.stopPropagation(); window.__filterByHashtag('${esc(clean)}')"
+                    title="กรองข่าวประเด็น #${esc(clean)}">
+              <span>#</span><span>${esc(clean)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  ` : "";
 
   container.innerHTML = `
     <!-- 1. Quick-Switch Trending Strip -->
@@ -877,7 +900,7 @@ function updateHeroTrendingSlide() {
           <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">⚡ มหากาพย์ประเด็นข่าวร้อน & เรื่องเด่น (Macro Storylines & Trending)</h2>
           <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-bold border border-purple-200 dark:border-purple-800/40">
             <span class="material-symbols-outlined text-[13px]">schema</span>
-            <span>Macro-Events Perspective</span>
+            <span>Macro Storyline Hub</span>
           </span>
         </div>
       </div>
@@ -889,7 +912,7 @@ function updateHeroTrendingSlide() {
       </div>
     </div>
 
-    <!-- 4. Single Frame Bento Dossier Banner -->
+    <!-- 4. Single Clean Hero Card Banner -->
     <div class="hero-carousel-container group"
          onmouseenter="window.__pauseTrendingAutoPlay()"
          onmouseleave="window.__resumeTrendingAutoPlay()">
@@ -952,31 +975,34 @@ function updateHeroTrendingSlide() {
                 </div>
               ` : ""}
             </div>
+            
             <h1 class="text-lg sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight drop-shadow-lg group-hover:text-amber-200 transition-colors line-clamp-2 cursor-pointer"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
+
             ${n.summary ? `
               <p class="text-xs sm:text-sm text-white/90 line-clamp-2 leading-relaxed drop-shadow-md hidden sm:block font-body max-w-4xl"
                  onclick="window.__openPreview('${esc(n.url)}')">
                 <span class="text-amber-300 font-bold">บทสรุปสังเคราะห์:</span> ${esc(n.summary)}
               </p>
             ` : ""}
-            ${n.hashtags && Array.isArray(n.hashtags) && n.hashtags.length > 0 ? `
-              <div class="flex items-center gap-1.5 flex-wrap pt-1">
-                <span class="text-[11px] font-bold text-amber-300 flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[13px]">tag</span>
+
+            <!-- Publisher Outlets Row (แหล่งข่าวให้กดดู) -->
+            ${publisherPillsHtml ? `
+              <div class="flex items-center gap-2 flex-wrap pt-1">
+                <span class="text-xs font-extrabold text-amber-300 flex items-center gap-1 shrink-0 drop-shadow-sm">
+                  <span class="material-symbols-outlined text-[15px]">newspaper</span>
+                  <span>แหล่งข่าว:</span>
                 </span>
-                ${n.hashtags.map(h => `
-                  <button type="button" 
-                          class="trending-hashtag-pill text-xs font-bold text-amber-200 bg-black/70 hover:bg-amber-400 hover:text-black hover:scale-105 border border-amber-300/40 px-3 py-1 rounded-full transition-all cursor-pointer backdrop-blur-md shadow-xs active:scale-95"
-                          onclick="event.stopPropagation(); window.__filterByHashtag('${esc(h)}')"
-                          title="กรองข่าวประเด็น ${esc(h)}">
-                    ${esc(h)}
-                  </button>
-                `).join("")}
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  ${publisherPillsHtml}
+                </div>
               </div>
             ` : ""}
+
+            <!-- Consolidated Hashtags Row (รวม # ไว้) -->
+            ${storylineHashtagsHtml}
           </div>
 
           <div class="flex items-center justify-between gap-4 flex-wrap pt-2">
@@ -1003,12 +1029,6 @@ function updateHeroTrendingSlide() {
                 <span class="text-white font-bold">ดูข่าวทั้งหมดในประเด็นนี้</span>
               </button>
               <button type="button" 
-                      class="flex items-center gap-1.5 bg-slate-900/80 hover:bg-black text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/30 backdrop-blur-md" 
-                      onclick="window.__toggleTimelinePanel()">
-                <span class="material-symbols-outlined text-[16px] text-amber-400">timeline</span>
-                <span class="text-white font-bold">ไทม์ไลน์ & คะแนน</span>
-              </button>
-              <button type="button" 
                       class="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/20" 
                       onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[16px] text-amber-300" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
@@ -1024,513 +1044,16 @@ function updateHeroTrendingSlide() {
         ${indicatorsHtml}
       </div>
     </div>
-
-    <!-- 5. Cross-Publisher Perspective Matrix (3 มิติมุมมองสื่อ) -->
-    ${perspectiveMatrixHtml}
-
-    <!-- 6. Trending Story Detail, Timeline & Score Breakdown Panel -->
-    ${renderTrendingStoryDetailPanel(n)}
   `;
 }
 
-// ── Milestone 5: Trending Story View & Timeline Renderer ──────────
-
-export function renderTrendingStoryDetailPanel(story) {
-  if (!story) return "";
-
-  const headline = esc(story.headline || story.topic_title || story.title || "ประเด็นข่าวร้อนแรง");
-  const summary = esc(story.summary || story.cluster_summary || "รวบรวมรายงานความคืบหน้าสถานการณ์จากสำนักข่าวที่เกี่ยวข้อง");
-  const category = story.category ? esc(story.category) : "";
-  const updatedTime = esc(story.updated_at || story.fetched_at || "");
-
-  // 1. Score Breakdown data
-  const bd = story.breakdown || {};
-  const finalScore = (typeof story.trending_score === "number" && !isNaN(story.trending_score))
-    ? story.trending_score
-    : (typeof bd.final_score === "number" ? bd.final_score : 9.8);
-
-  const volScore = typeof bd.volume_score === "number" ? bd.volume_score : 1.0;
-  const velScore = typeof bd.velocity_score === "number" ? bd.velocity_score : 1.0;
-  const divScore = typeof bd.diversity_score === "number" ? bd.diversity_score : (story.outlet_count || 1);
-  const recScore = typeof bd.recency_score === "number" ? bd.recency_score : (typeof bd.time_decay === "number" ? bd.time_decay : 1.0);
-  const novScore = typeof bd.novelty_score === "number" ? bd.novelty_score : 0.95;
-  const engScore = typeof bd.engagement_score === "number" ? bd.engagement_score : 0.0;
-
-  // 2. Timeline developments
-  let timeline = Array.isArray(story.timeline) ? story.timeline : [];
-  let memberArticles = Array.isArray(story.articles) ? story.articles : [];
-
-  // Fallback: if timeline is empty, build from member articles
-  if (!timeline.length) {
-    if (memberArticles.length) {
-      timeline = memberArticles.map(a => ({
-        timestamp: a.fetched_at || a.published_at || updatedTime,
-        event: a.summary || a.title || "",
-        title: a.title || "",
-        source: a.source || "สำนักข่าว",
-        url: a.url || "",
-        citation: a.summary || null,
-      }));
-    } else {
-      timeline = [{
-        timestamp: updatedTime,
-        event: story.summary || story.title || "",
-        title: story.title || "",
-        source: story.source || (story.outlets && story.outlets[0]) || "สำนักข่าว",
-        url: story.url || (story.article_urls && story.article_urls[0]) || "",
-        citation: null,
-      }];
-    }
-  }
-
-  // 3. Outbound member article sources
-  const sourceArticles = memberArticles.length > 0 ? memberArticles : (
-    story.url ? [{ title: story.title, url: story.url, source: story.source, fetched_at: updatedTime }] : []
-  );
-
-  const timelineHtml = timeline.map((evt) => {
-    const ts = esc(evt.timestamp || "");
-    const desc = esc(evt.event || evt.event_description || evt.title || "");
-    const evtTitle = esc(evt.title || evt.source_title || "");
-    const src = esc(evt.source || evt.source_name || "สำนักข่าว");
-    const u = evt.url || evt.source_url || "";
-    const color = SOURCE_COLORS[evt.source || evt.source_name] ?? "#1a3a6b";
-    const citation = evt.citation ? esc(evt.citation) : "";
-
-    return `
-      <div class="timeline-milestone relative pl-6 pb-6 last:pb-0">
-        <div class="timeline-dot"></div>
-        <div class="space-y-1.5">
-          <div class="flex items-center gap-2 flex-wrap text-xs">
-            <span class="font-bold text-outline uppercase">${ts}</span>
-            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold text-white flex items-center gap-1" style="background:${color}">
-              <span>${src}</span>
-            </span>
-            ${u ? `
-              <a href="${esc(u)}" target="_blank" rel="noopener noreferrer" 
-                 class="inline-flex items-center gap-1 text-primary hover:underline font-bold text-[11px] ml-auto">
-                <span>อ่านข่าวต้นฉบับ</span>
-                <span class="material-symbols-outlined text-[13px]">open_in_new</span>
-              </a>
-            ` : ""}
-          </div>
-          ${evtTitle && evtTitle !== desc ? `<h4 class="font-bold text-sm text-on-surface">${evtTitle}</h4>` : ""}
-          <p class="text-sm text-on-surface-variant leading-relaxed">${desc}</p>
-          ${citation ? `
-            <blockquote class="timeline-quote text-xs mt-2 pl-3 py-1 bg-surface-container-low rounded-r-lg">
-              "${citation}"
-            </blockquote>
-          ` : ""}
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  const sourcesHtml = sourceArticles.slice(0, 6).map(art => {
-    const artTitle = esc(art.title || "");
-    const artSrc = esc(art.source || "สำนักข่าว");
-    const artUrl = art.url || "";
-    const artTime = esc(art.fetched_at || "");
-    const color = SOURCE_COLORS[art.source] ?? "#1a3a6b";
-
-    return `
-      <div class="p-3 bg-surface-container-low hover:bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-between gap-2 transition-all">
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[10px] font-bold text-outline">
-            <span class="flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full" style="background:${color}"></span>
-              <span class="text-on-surface-variant">${artSrc}</span>
-            </span>
-            <span>${artTime}</span>
-          </div>
-          <p class="text-xs font-bold text-on-surface line-clamp-2">${artTitle}</p>
-        </div>
-        ${artUrl ? `
-          <a href="${esc(artUrl)}" target="_blank" rel="noopener noreferrer"
-             class="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-primary hover:text-white hover:bg-primary px-2.5 py-1 rounded-lg border border-primary/30 transition-all mt-1">
-            <span>ไปยังเว็บไซต์ต้นฉบับ</span>
-            <span class="material-symbols-outlined text-[13px]">open_in_new</span>
-          </a>
-        ` : ""}
-      </div>
-    `;
-  }).join("");
-
-  // Child Sub-events (if Macro-Event)
-  const childEvents = Array.isArray(story.child_events) ? story.child_events : [];
-  let subEventsHtml = "";
-  if (childEvents.length > 0) {
-    const subCardsHtml = childEvents.map((ce, idx) => {
-      const ceTitle = esc(ce.headline || ce.title || `เหตุการณ์ย่อย #${idx + 1}`);
-      const ceSummary = esc(ce.summary || "");
-      const ceOutlets = Array.isArray(ce.outlets) ? ce.outlets : [];
-      const ceArticles = Array.isArray(ce.articles) ? ce.articles : [];
-      const ceCount = ce.article_count || ceArticles.length || 1;
-      const ceId = esc(ce.story_id || `ce_${idx}`);
-
-      const outletBadges = ceOutlets.map(src => {
-        const c = SOURCE_COLORS[src] ?? "#2e4d83";
-        return `
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white shadow-2xs" style="background:${c}">
-            <span>${esc(src)}</span>
-          </span>
-        `;
-      }).join("");
-
-      const articlesListHtml = ceArticles.map(art => {
-        const aTitle = esc(art.title || "");
-        const aSrc = esc(art.source || "สำนักข่าว");
-        const aUrl = art.url || "";
-        const aTime = esc(art.fetched_at || "");
-        const aColor = SOURCE_COLORS[art.source] ?? "#2e4d83";
-
-        return `
-          <div class="subevent-article-item p-3 rounded-xl bg-white dark:bg-surface-container border border-outline-variant/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 transition-all hover:border-primary/40 shadow-2xs">
-            <div class="space-y-1 flex-1 min-w-0">
-              <div class="flex items-center gap-2 text-[10px] font-bold text-outline">
-                <span class="flex items-center gap-1">
-                  <span class="w-2 h-2 rounded-full" style="background:${aColor}"></span>
-                  <span class="text-on-surface-variant font-semibold">${aSrc}</span>
-                </span>
-                <span>•</span>
-                <span>${aTime}</span>
-              </div>
-              <h5 class="text-xs sm:text-sm font-bold text-on-surface line-clamp-2 hover:text-primary cursor-pointer" onclick="window.__openPreview('${esc(aUrl)}')">
-                ${aTitle}
-              </h5>
-            </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <button type="button" 
-                      class="px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                      onclick="window.__openPreview('${esc(aUrl)}')">
-                <span class="material-symbols-outlined text-[13px]">visibility</span>
-                <span>อ่านย่อ</span>
-              </button>
-              <button type="button" 
-                      class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                      onclick="window.__openPreviewAndSummarize('${esc(aUrl)}')">
-                <span class="material-symbols-outlined text-[13px]">auto_awesome</span>
-                <span>สรุป AI</span>
-              </button>
-              ${aUrl ? `
-                <a href="${esc(aUrl)}" target="_blank" rel="noopener noreferrer" 
-                   class="p-1 rounded-lg hover:bg-surface-container text-outline hover:text-primary transition-all" title="เปิดเว็บต้นฉบับ">
-                  <span class="material-symbols-outlined text-[16px]">open_in_new</span>
-                </a>
-              ` : ""}
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      return `
-        <div id="subevent-card-${ceId}" class="macro-subevent-card p-4 sm:p-5 rounded-2xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-br from-purple-50/40 to-white dark:from-purple-950/10 dark:to-surface-container-low shadow-xs space-y-3">
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="space-y-1.5 flex-1 min-w-[260px]">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="px-2.5 py-0.5 rounded-full bg-purple-600 text-white font-extrabold text-[10px] tracking-wider uppercase shadow-2xs">
-                  Sub-event #${idx + 1}
-                </span>
-                <div class="flex items-center gap-1 flex-wrap">
-                  ${outletBadges}
-                </div>
-                <span class="text-[11px] font-bold text-outline bg-white dark:bg-surface-container px-2 py-0.5 rounded-md border border-outline-variant/30">
-                  ${ceCount} รายงานข่าว
-                </span>
-              </div>
-              <h4 class="text-base sm:text-lg font-headline font-bold text-on-surface leading-snug">
-                ${ceTitle}
-              </h4>
-              ${ceSummary ? `<p class="text-xs sm:text-sm text-on-surface-variant leading-relaxed">${ceSummary}</p>` : ""}
-            </div>
-
-            ${ceArticles.length > 0 ? `
-              <button type="button" 
-                      id="subevent-toggle-btn-${ceId}"
-                      class="subevent-toggle-btn px-3 py-1.5 rounded-xl border border-purple-300 dark:border-purple-700/60 bg-white dark:bg-surface-container text-purple-700 dark:text-purple-300 text-xs font-bold hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs active:scale-95"
-                      onclick="window.__toggleSubEventArticles('${ceId}')">
-                <span id="subevent-btn-text-${ceId}">ดูบทความต้นฉบับ (${ceArticles.length})</span>
-                <span id="subevent-icon-${ceId}" class="material-symbols-outlined text-[16px] transition-transform">expand_more</span>
-              </button>
-            ` : ""}
-          </div>
-
-          ${ceArticles.length > 0 ? `
-            <div id="subevent-articles-${ceId}" class="hidden space-y-2 pt-2 border-t border-purple-200/50 dark:border-purple-900/30">
-              <div class="text-[11px] font-bold text-outline flex items-center gap-1">
-                <span class="material-symbols-outlined text-[14px]">feed</span>
-                <span>รายงานจากแต่ละสำนักข่าวในเหตุการณ์ย่อยนี้:</span>
-              </div>
-              ${articlesListHtml}
-            </div>
-          ` : ""}
-        </div>
-      `;
-    }).join("");
-
-    subEventsHtml = `
-      <div id="sub-events-section" class="space-y-4 pt-2">
-        <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3 flex-wrap gap-2">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold shadow-xs">
-              <span class="material-symbols-outlined text-xl">hub</span>
-            </div>
-            <div>
-              <h3 class="font-headline font-bold text-lg text-on-surface flex items-center gap-2">
-                <span>เหตุการณ์ย่อยในประเด็นนี้ (Sub-events Exploration)</span>
-                <span class="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-bold">${childEvents.length} เหตุการณ์</span>
-              </h3>
-              <p class="text-xs text-outline">แยกตามเหตุการณ์จริงและมุมมองรายงานของแต่ละสำนักข่าว</p>
-            </div>
-          </div>
-        </div>
-        <div class="space-y-3">
-          ${subCardsHtml}
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div id="story-timeline-section" class="trending-story-detail-panel mt-6 bg-white rounded-2xl border border-outline-variant/30 p-6 sm:p-8 shadow-sm space-y-8">
-      
-      <!-- 1. Headline and Synthesized Summary -->
-      <div class="space-y-3">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="px-3 py-1 rounded-full ${story.is_macro ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' : 'bg-primary/10 text-primary'} text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">${story.is_macro ? 'schema' : 'local_fire_department'}</span>
-            <span>${story.is_macro ? 'มหากาพย์ประเด็นข่าว (Macro Storyline)' : 'เจาะลึกประเด็นร้อน (Story Cluster)'}</span>
-          </span>
-          ${category ? `<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-bold uppercase tracking-wider">${category}</span>` : ""}
-          <span class="text-xs text-outline font-medium ml-auto">อัปเดต: ${updatedTime}</span>
-        </div>
-
-        <h2 class="text-xl sm:text-2xl lg:text-3xl font-headline font-extrabold text-on-surface leading-tight">
-          ${headline}
-        </h2>
-
-        <div class="p-5 bg-surface-container-lowest rounded-xl border-l-4 ${story.is_macro ? 'border-purple-600' : 'border-primary'} shadow-xs space-y-2">
-          <div class="flex items-center gap-1.5 ${story.is_macro ? 'text-purple-700 dark:text-purple-400' : 'text-primary'} text-xs font-bold uppercase tracking-wider">
-            <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-            <span>บทสรุปสังเคราะห์ภาพรวมเหตุการณ์ (Synthesized Summary)</span>
-          </div>
-          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-body">
-            ${summary}
-          </p>
-        </div>
-
-        ${story.hashtags && Array.isArray(story.hashtags) && story.hashtags.length > 0 ? `
-          <div class="flex items-center gap-2 flex-wrap pt-2">
-            <span class="text-xs font-bold text-outline flex items-center gap-1">
-              <span class="material-symbols-outlined text-[15px]">tag</span>ประเด็นที่เกี่ยวข้อง:
-            </span>
-            ${story.hashtags.map(h => `
-              <button type="button" 
-                      class="text-xs font-bold text-purple-700 dark:text-purple-300 hover:text-white bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-600 border border-purple-200 dark:border-purple-700/50 px-3 py-1 rounded-full transition-all cursor-pointer shadow-2xs active:scale-95"
-                      onclick="window.__filterByHashtag('${esc(h)}')">
-                ${esc(h)}
-              </button>
-            `).join("")}
-          </div>
-        ` : ""}
-      </div>
-
-      <!-- 2. Sub-events Exploration (If Macro-Event) -->
-      ${subEventsHtml}
-
-      <!-- 3. Chronological Timeline of Developments -->
-      <div class="space-y-4">
-        <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3 flex-wrap gap-2">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary text-xl">timeline</span>
-            <h3 class="font-headline font-bold text-lg text-on-surface">ไทม์ไลน์ลำดับเหตุการณ์ (Chronological Timeline)</h3>
-          </div>
-          <span class="text-xs font-bold text-outline bg-surface-container px-2.5 py-1 rounded-md">
-            ${timeline.length} เหตุการณ์สำคัญตามลำดับเวลา
-          </span>
-        </div>
-
-        <div class="story-timeline space-y-4 pl-4 border-l-2 border-primary/30 ml-2">
-          ${timelineHtml}
-        </div>
-      </div>
-
-      <!-- 4. Outbound Source Articles List -->
-      ${sourceArticles.length > 0 ? `
-      <div class="space-y-3">
-        <div class="flex items-center justify-between border-b border-outline-variant/20 pb-2 flex-wrap gap-2">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary text-xl">newspaper</span>
-            <h3 class="font-headline font-bold text-base text-on-surface">แหล่งข่าวและบทความต้นฉบับ (Original Source Articles)</h3>
-          </div>
-          <span class="text-xs text-outline">${sourceArticles.length} บทความที่รายงาน</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          ${sourcesHtml}
-        </div>
-      </div>
-      ` : ""}
-
-      <!-- 5. Score Breakdown (Volume, Velocity burst, Publisher diversity, Recency, Novelty, Engagement) -->
-      <div class="story-breakdown-card p-5 bg-surface-container-low rounded-2xl border border-outline-variant/30 space-y-4">
-        <div class="flex items-center justify-between flex-wrap gap-3">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-amber-500 text-2xl">analytics</span>
-            <div>
-              <h3 class="font-headline font-bold text-base text-on-surface">การคำนวณคะแนนความร้อนแรง (Trending Score Breakdown)</h3>
-              <p class="text-xs text-outline">คำนวณด้วยฟังก์ชันทางสถิติที่กำหนดได้แน่นอน (Deterministic Scoring)</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary text-white text-xs font-bold shadow-xs">
-            <span>คะแนนสุทธิ (Final Score):</span>
-            <span class="text-amber-300 font-extrabold text-base">${finalScore.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
-          <!-- Signal 1: Volume -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">ปริมาณข่าวล่าสุด</span>
-            <span class="text-xs font-extrabold text-on-surface">Volume: ${volScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, volScore * 20))}%;"></div></div>
-          </div>
-
-          <!-- Signal 2: Velocity Burst -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">อัตราเร่ง / ปะทุ</span>
-            <span class="text-xs font-extrabold text-on-surface">Velocity: ${velScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, velScore * 25))}%;"></div></div>
-          </div>
-
-          <!-- Signal 3: Publisher Diversity -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">ความหลากหลายสื่อ</span>
-            <span class="text-xs font-extrabold text-on-surface">Diversity: ${divScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, divScore * 25))}%;"></div></div>
-          </div>
-
-          <!-- Signal 4: Recency Decay -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">ความสดใหม่</span>
-            <span class="text-xs font-extrabold text-on-surface">Recency: ${recScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, recScore * 100))}%;"></div></div>
-          </div>
-
-          <!-- Signal 5: Novelty -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">ความแปลกใหม่</span>
-            <span class="text-xs font-extrabold text-on-surface">Novelty: ${novScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, novScore * 100))}%;"></div></div>
-          </div>
-
-          <!-- Signal 6: Engagement -->
-          <div class="breakdown-signal-box">
-            <span class="text-[11px] font-bold text-outline">ผู้อ่านมีส่วนร่วม</span>
-            <span class="text-xs font-extrabold text-on-surface">Engagement: ${engScore.toFixed(2)}</span>
-            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, engScore * 20))}%;"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 6. Mandatory Coverage Limitation Disclaimer -->
-      <div class="trending-coverage-disclaimer p-4 rounded-xl border border-amber-300/70 bg-amber-50/80 flex items-start gap-3 text-amber-950">
-        <span class="material-symbols-outlined text-amber-600 text-2xl shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">info</span>
-        <div class="space-y-1">
-          <div class="text-xs font-bold uppercase tracking-wider text-amber-900">
-            ข้อจำกัดของระบบ (Coverage Limitation Disclaimer)
-          </div>
-          <p class="text-xs sm:text-sm font-semibold leading-relaxed">
-            Trending reflects how widely and frequently the collected outlets are covering a story, not verified public interest.
-          </p>
-          <p class="text-[11px] text-amber-800/90 leading-normal">
-            หมายเหตุ: ค่าความนิยมและแนวโน้มสะท้อนความครอบคลุมและความถี่ที่สำนักข่าวซึ่งระบบรวบรวมได้รายงาน มิใช่ผลสำรวจความสนใจของประชาชนโดยตรง
-          </p>
-        </div>
-      </div>
-
-    </div>
-  `;
-}
-
-window.__toggleTimelinePanel = () => {
-  const el = document.getElementById("story-timeline-section");
-  if (!el) return;
-  const isHidden = el.classList.contains("hidden");
-  if (isHidden) {
-    el.classList.remove("hidden");
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    el.classList.add("hidden");
-  }
-};
-
-window.__togglePerspectiveQuote = (idx) => {
-  const box = document.getElementById(`perspective-quote-${idx}`);
-  const btn = document.getElementById(`perspective-quote-btn-${idx}`);
-  if (!box) return;
-  const isHidden = box.classList.contains("hidden");
-  if (isHidden) {
-    box.classList.remove("hidden");
-    if (btn) btn.textContent = "ปิดโควต";
-  } else {
-    box.classList.add("hidden");
-    if (btn) btn.textContent = "โควต";
-  }
-};
-
-window.__scrollToStoryTimeline = () => {
-  const el = document.getElementById("story-timeline-section");
-  if (el) {
-    el.classList.remove("hidden");
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-};
-
-window.__scrollToSubEvents = () => {
-  const el = document.getElementById("sub-events-section") || document.getElementById("story-timeline-section");
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-};
-
-window.__scrollToSubEvent = (subEventId) => {
-  const targetCard = document.getElementById(`subevent-card-${subEventId}`) || document.getElementById("sub-events-section");
-  if (targetCard) {
-    targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
-    targetCard.classList.add("ring-4", "ring-purple-400", "scale-[1.01]");
-    setTimeout(() => {
-      targetCard.classList.remove("ring-4", "ring-purple-400", "scale-[1.01]");
-    }, 2500);
-  } else {
-    window.__scrollToSubEvents();
-  }
-};
-
-window.__toggleSubEventArticles = (subEventId) => {
-  const container = document.getElementById(`subevent-articles-${subEventId}`);
-  const icon = document.getElementById(`subevent-icon-${subEventId}`);
-  const label = document.getElementById(`subevent-btn-text-${subEventId}`);
-  if (!container) return;
-
-  const isHidden = container.classList.contains("hidden");
-  if (isHidden) {
-    container.classList.remove("hidden");
-    if (icon) {
-      icon.textContent = "expand_less";
-    }
-    if (label) {
-      label.textContent = label.textContent.replace("ดู", "ซ่อน");
-    }
-  } else {
-    container.classList.add("hidden");
-    if (icon) {
-      icon.textContent = "expand_more";
-    }
-    if (label) {
-      label.textContent = label.textContent.replace("ซ่อน", "ดู");
-    }
-  }
-};
+/// Safe stubs for legacy timeline/subevent toggles (cleaned up)
+window.__toggleTimelinePanel = () => {};
+window.__togglePerspectiveQuote = () => {};
+window.__scrollToStoryTimeline = () => {};
+window.__scrollToSubEvents = () => {};
+window.__scrollToSubEvent = () => {};
+window.__toggleSubEventArticles = () => {};
 
 // Global Carousel Actions
 window.__prevTrendingSlide = (event) => {

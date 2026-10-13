@@ -423,10 +423,10 @@ html.dark .text-error {
 
 .hero-progress-active {
   width: 0%;
-  animation: fillProgress35 3.5s linear forwards;
+  animation: fillProgress45 4.5s linear forwards;
 }
 
-@keyframes fillProgress35 {
+@keyframes fillProgress45 {
   from { width: 0%; }
   to { width: 100%; }
 }
@@ -697,4 +697,22 @@ html.dark .perspective-quote-box {
   background-color: rgba(88, 28, 135, 0.25) !important;
   color: #e2e2e8 !important;
   border-color: rgba(168, 85, 247, 0.5) !important;
+}
+
+/* ── Hero Publisher Outlets & Storyline Hashtags ── */
+.hero-publisher-pill {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-publisher-pill:hover {
+  transform: translateY(-1.5px) scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.hero-hashtag-pill {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-hashtag-pill:hover {
+  transform: translateY(-1px) scale(1.04);
 }
