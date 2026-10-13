@@ -117,6 +117,10 @@ class StoryRecord(BaseModel):
     outlets: list[str] = Field(default_factory=list, description="Unique publisher names reporting on this story")
     centroid: list[float] | None = Field(default=None, description="Incremental 768-d WangchanBERTa embedding centroid")
     entities: list[str] = Field(default_factory=list, description="Accumulated named entities (people, orgs, places)")
+    macro_event_id: str | None = Field(
+        default=None,
+        description="Enclosing MacroEventRecord identifier (Single Source of Truth)",
+    )
 
     # Presentation enrichment fields (cached LLM outputs with heuristic fallback)
     headline: str | None = Field(default=None, description="LLM-generated story headline (falls back to title)")
@@ -203,22 +207,42 @@ class StoryRecord(BaseModel):
                 self.entities.append(clean)
                 existing_set.add(clean)
 
+    def is_active_dynamic(
+        self,
+        current_time: datetime | None = None,
+        inactivity_threshold_hours: float = 72.0,
+        now: datetime | None = None,
+    ) -> bool:
+        """
+        Dynamically evaluate story active status against actual article activity.
+        Uses last_article_at (or first_article_at) as authoritative timestamp.
+        updated_at is NOT used to prevent presentation/enrichment updates from reviving dormant stories.
+        """
+        ref_ts = self.last_article_at or self.first_article_at or self.updated_at or self.created_at
+        if ref_ts is None:
+            return False
+        eval_now = now if now is not None else (current_time if current_time is not None else _now_utc())
+        if eval_now.tzinfo is None:
+            eval_now = eval_now.replace(tzinfo=timezone.utc)
+        delta_seconds = (eval_now - ref_ts).total_seconds()
+        threshold_seconds = inactivity_threshold_hours * 3600.0
+        return 0.0 <= delta_seconds <= threshold_seconds
+
     def refresh_status(
         self,
         current_time: datetime | None = None,
         inactivity_threshold_hours: float = 72.0,
+        now: datetime | None = None,
     ) -> StoryStatus:
         """
         Evaluate story lifecycle: marked 'dormant' if no new article within inactivity window.
+        Uses is_active_dynamic() as single source of truth.
         """
-        now = current_time or _now_utc()
-        delta_seconds = (now - self.updated_at).total_seconds()
-        threshold_seconds = inactivity_threshold_hours * 3600.0
-
-        if delta_seconds > threshold_seconds:
-            self.status = "dormant"
-        else:
+        eval_now = now if now is not None else current_time
+        if self.is_active_dynamic(current_time=eval_now, inactivity_threshold_hours=inactivity_threshold_hours):
             self.status = "active"
+        else:
+            self.status = "dormant"
         return self.status
 
 
@@ -243,6 +267,7 @@ class StorySummary(BaseModel):
     outlet_count: int
     outlets: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
+    macro_event_id: str | None = None
 
     @classmethod
     def from_story(cls, story: StoryRecord) -> StorySummary:
@@ -259,6 +284,7 @@ class StorySummary(BaseModel):
             outlet_count=story.outlet_count,
             outlets=list(story.outlets),
             entities=list(story.entities),
+            macro_event_id=story.macro_event_id,
         )
 
 
@@ -300,6 +326,7 @@ class StoryDetailResponse(BaseModel):
     entities: list[str] = Field(default_factory=list)
     timeline: list[TimelineEvent] = Field(default_factory=list)
     articles: list[ArticleRecord] = Field(default_factory=list)
+    macro_event_id: str | None = None
     trending_score: float | None = None
     breakdown: dict[str, Any] | None = None
     coverage_disclaimer: str = (
@@ -335,6 +362,7 @@ class StoryDetailResponse(BaseModel):
             entities=list(story.entities),
             timeline=list(story.timeline),
             articles=sorted_articles,
+            macro_event_id=story.macro_event_id,
             trending_score=trending_score,
             breakdown=breakdown,
         )

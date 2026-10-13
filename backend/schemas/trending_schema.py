@@ -54,6 +54,8 @@ class TrendingScoreBreakdown(BaseModel):
     novelty_score: float = 0.0
     routine_penalty: float = 1.0
     is_routine: bool = False
+    crisis_exemption_applied: bool = False
+    crisis_exemption_reason: str | None = None
     final_score: float = 0.0
     details: dict[str, Any] = Field(default_factory=dict)
 
@@ -82,6 +84,7 @@ class TrendingStoryCluster(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     story_id: str = Field(description="Unique story cluster identifier")
+    macro_event_id: str | None = Field(default=None, description="Enclosing macro-event storyline ID if linked")
     title: str = Field(description="Representative or seed article title")
     category: str = Field(default="society", description="Primary category tag")
     status: str = Field(default="active", description="Lifecycle state ('active' vs 'dormant')")
