@@ -1210,7 +1210,11 @@ searchInput.addEventListener("input", e => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     searchQuery = e.target.value.trim();
-    if (searchQuery) saveSearchQuery(searchQuery);
+    if (searchQuery) {
+      saveSearchQuery(searchQuery);
+    } else {
+      UI.renderStorylineBreadcrumb("");
+    }
     if (activeCategory === "bookmarks") {
       renderBookmarkedArticles();
     } else {
@@ -1522,7 +1526,9 @@ window.__filterByHashtag = (tag) => {
   const searchInput = document.getElementById("search-input");
   if (searchInput) {
     searchInput.value = cleanTag;
-    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    searchQuery = cleanTag;
+    UI.renderStorylineBreadcrumb(`#${cleanTag}`);
+    loadPage(1);
     const grid = document.getElementById("news-grid-section") || document.getElementById("news-grid");
     if (grid) {
       grid.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1531,6 +1537,55 @@ window.__filterByHashtag = (tag) => {
     }
     UI.showToast(`กำลังกรองข่าวประเด็น #${cleanTag}`);
   }
+};
+
+window.__filterByStoryline = (macroId, headline, tag) => {
+  const filterText = tag || headline || "";
+  if (!filterText) return;
+  if (activeCategory === "bookmarks" || activeCategory === "for-you") {
+    activeCategory = "all";
+    UI.renderCategoryNav("all", {}, personalizationData.bookmarkedArticles || {});
+  }
+  activeSource = "";
+  UI.updateSourceFilters("");
+
+  // Determine query string
+  let cleanKw = filterText;
+  if (filterText.startsWith("#")) {
+    cleanKw = filterText.slice(1);
+  } else if (filterText.includes("จีดีพี") || filterText.includes("GDP")) {
+    cleanKw = "GDP";
+  } else if (filterText.includes("แบงก์ชาติ") || filterText.includes("ธปท")) {
+    cleanKw = "แบงก์ชาติ";
+  } else if (filterText.includes("IMF")) {
+    cleanKw = "IMF";
+  } else {
+    cleanKw = filterText.slice(0, 20).trim();
+  }
+
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.value = cleanKw;
+    searchQuery = cleanKw;
+    UI.renderStorylineBreadcrumb(headline || tag || cleanKw);
+    loadPage(1);
+    const grid = document.getElementById("news-grid-section") || document.getElementById("news-grid") || document.getElementById("toolbar");
+    if (grid) {
+      grid.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    UI.showToast(`กำลังกรองข่าวในมหากาพย์: ${cleanKw}`);
+  }
+};
+
+window.__clearStorylineFilter = () => {
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.value = "";
+  }
+  searchQuery = "";
+  UI.renderStorylineBreadcrumb("");
+  loadPage(1);
+  UI.showToast("ล้างตัวกรองกลับสู่ข่าวทั้งหมดเรียบร้อย");
 };
 
 // ── Init: draw category nav & source filters ──────────────────────

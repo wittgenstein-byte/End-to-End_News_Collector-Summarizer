@@ -651,36 +651,50 @@ html.dark .macro-quick-card:hover {
   display: none;
 }
 
-/* ── Unified Macro Spotlight Card & Deep-Dive Tabs (Antigravity-Inspired) ── */
-.macro-spotlight-card {
-  transition: all 0.25s ease;
-  position: relative;
+/* ── Macro Storyline Trending Quick Strip & Perspective Matrix ── */
+.trending-quick-strip {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.macro-story-pill {
-  white-space: nowrap;
+.trending-quick-strip::-webkit-scrollbar {
+  display: none;
 }
 
-.macro-perspective-card {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease;
+.trending-quick-card {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.macro-perspective-card:hover {
+.trending-quick-card:hover {
+  transform: translateY(-1px);
+}
+
+.perspective-matrix-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.perspective-matrix-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px -3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px -6px rgba(124, 58, 237, 0.16);
 }
 
-html.dark .macro-spotlight-card {
-  background-color: #15161c !important;
+.perspective-quote-box {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Dark mode overrides for Perspective Matrix */
+html.dark .perspective-matrix-card {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.18), #18191e) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-html.dark .macro-perspective-card {
-  background-color: #1a1b22 !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+html.dark .perspective-matrix-card:hover {
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 12px 30px -6px rgba(168, 85, 247, 0.25) !important;
 }
 
-html.dark .macro-perspective-card:hover {
-  border-color: rgba(124, 58, 237, 0.45) !important;
-  box-shadow: 0 6px 20px -3px rgba(0, 0, 0, 0.4) !important;
-}
+html.dark .perspective-quote-box {
+  background-color: rgba(88, 28, 135, 0.25) !important;
+  color: #e2e2e8 !important;
+  border-color: rgba(168, 85, 247, 0.5) !important;
+}
