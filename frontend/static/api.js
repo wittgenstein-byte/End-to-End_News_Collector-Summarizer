@@ -164,10 +164,10 @@ export async function fetchMacroEventDetail(macroId) {
  * @param {number} limit
  * @param {string} category
  */
-export async function fetchTrendingStories(limit = 7, category = "") {
+export async function fetchTrendingStories(limit = 30, category = "") {
   // 1. Prioritize Macro Trending (มหากาพย์ประเด็นใหญ่เป็นค่าเริ่มต้น)
   const macroTrending = await fetchTrendingMacroEvents(limit, category);
-  if (macroTrending.length > 0) {
+  if (Array.isArray(macroTrending) && macroTrending.length > 0) {
     return macroTrending;
   }
 
@@ -187,9 +187,49 @@ export async function fetchTrendingStories(limit = 7, category = "") {
     // Fall back to /api/news/trending
   }
 
-  // 3. Fallback to /api/news/trending
+  // 3. Fallback to /api/news/trending (Consolidate by Cluster/Topic, never duplicate individual articles)
   const fallback = await fetchTrendingNews(limit, category);
-  return (fallback && (fallback.trending || fallback.articles)) || [];
+  if (fallback) {
+    if (Array.isArray(fallback.clusters) && fallback.clusters.length > 0) {
+      return fallback.clusters.map(c => {
+        const primaryArt = (c.articles && c.articles[0]) || {};
+        const outlets = Array.from(new Set(
+          (c.articles || []).map(a => a.source).filter(Boolean)
+        ));
+        return {
+          story_id: c.cluster_id,
+          macro_event_id: c.cluster_id,
+          title: c.topic_title || primaryArt.title || "ประเด็นข่าวร้อน",
+          headline: c.topic_title || primaryArt.title || "ประเด็นข่าวร้อน",
+          summary: c.cluster_summary || primaryArt.summary || "",
+          category: primaryArt.category || "all",
+          trending_score: typeof c.trend_score === "number" ? c.trend_score : (primaryArt.trending_score || 9.0),
+          outlets: outlets.length > 0 ? outlets : (primaryArt.source ? [primaryArt.source] : []),
+          cluster_sources: outlets,
+          articles: c.articles || [],
+          article_count: (c.articles && c.articles.length) || c.article_count || 1,
+          hashtags: c.hashtags || primaryArt.hashtags || [],
+          image_url: primaryArt.image_url || "",
+          url: primaryArt.url || "",
+          fetched_at: primaryArt.fetched_at || "",
+        };
+      });
+    }
+
+    const rawList = fallback.trending || fallback.articles || [];
+    // Deduplicate raw articles by topic_title or cluster_id
+    const seenTopics = new Set();
+    const deduped = [];
+    for (const art of rawList) {
+      const topicKey = (art.cluster_id || art.topic_title || art.title || "").trim().toLowerCase();
+      if (topicKey && seenTopics.has(topicKey)) continue;
+      if (topicKey) seenTopics.add(topicKey);
+      deduped.push(art);
+    }
+    return deduped;
+  }
+
+  return [];
 }
 
 /**

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -980,13 +981,39 @@ class TrendingService:
             )
             scored_clusters.append(cluster)
 
+        # Hybrid Multi-Signal Deduplication at Macro-Event / Storyline level
+        deduped_clusters: list[TrendingStoryCluster] = []
+        seen_macro_ids: set[str] = set()
+        seen_norm_titles: list[str] = []
+
+        for cluster in scored_clusters:
+            # 1. Macro ID deduplication
+            if cluster.macro_event_id:
+                if cluster.macro_event_id in seen_macro_ids:
+                    continue
+                seen_macro_ids.add(cluster.macro_event_id)
+
+            # 2. Near-duplicate title / topic deduplication
+            raw_t = cluster.headline or cluster.title or ""
+            norm_t = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', raw_t).lower()
+            is_dup = False
+            for prev_t in seen_norm_titles:
+                if norm_t and prev_t and (norm_t in prev_t or prev_t in norm_t or (len(norm_t) >= 12 and norm_t[:12] == prev_t[:12])):
+                    is_dup = True
+                    break
+            if is_dup:
+                continue
+
+            seen_norm_titles.append(norm_t)
+            deduped_clusters.append(cluster)
+
         # Deterministic sorting: trending_score descending, updated_at descending, story_id ascending
-        scored_clusters.sort(
+        deduped_clusters.sort(
             key=lambda c: (-c.trending_score, -parse_article_time(c.updated_at).timestamp(), c.story_id)
         )
 
-        effective_limit = max(1, min(limit, 100))
-        top_clusters = scored_clusters[:effective_limit]
+        effective_limit = max(1, min(limit, 200))
+        top_clusters = deduped_clusters[:effective_limit]
 
         # Assign ordinal rank (1-indexed) and top badges
         for idx, cluster in enumerate(top_clusters, start=1):
@@ -1284,9 +1311,64 @@ class TrendingService:
                     "articles": story_arts,
                 })
 
-        scored_macros.sort(key=lambda m: (-m["trending_score"], -parse_article_time(m["updated_at"]).timestamp()))
-        effective_limit = max(1, min(limit, 100))
-        top_macros = scored_macros[:effective_limit]
+        # Hybrid Multi-Signal Deduplication at Macro-Event Level
+        deduped_macros: list[dict[str, Any]] = []
+        seen_macro_keys: dict[str, dict[str, Any]] = {}
+
+        for m in scored_macros:
+            m_id = m.get("macro_event_id") or m.get("story_id")
+            raw_title = m.get("headline") or m.get("title") or ""
+            norm_title = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', raw_title).lower()
+
+            # Find matching existing macro
+            match_key = None
+            if m_id and m_id in seen_macro_keys:
+                match_key = m_id
+            else:
+                for k, prev_m in seen_macro_keys.items():
+                    prev_raw = prev_m.get("headline") or prev_m.get("title") or ""
+                    prev_norm = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', prev_raw).lower()
+                    if norm_title and prev_norm and (norm_title in prev_norm or prev_norm in norm_title or (len(norm_title) >= 12 and norm_title[:12] == prev_norm[:12])):
+                        match_key = k
+                        break
+
+            if match_key:
+                # Merge into existing macro storyline
+                existing = seen_macro_keys[match_key]
+                # Combine outlets
+                merged_outlets = list(dict.fromkeys(existing.get("outlets", []) + m.get("outlets", [])))
+                existing["outlets"] = merged_outlets
+                existing["cluster_sources"] = merged_outlets
+                existing["outlet_count"] = len(merged_outlets)
+                # Combine articles
+                exist_urls = {a.get("url") for a in existing.get("articles", []) if a.get("url")}
+                for a in m.get("articles", []):
+                    u = a.get("url")
+                    if u and u not in exist_urls:
+                        exist_urls.add(u)
+                        existing["articles"].append(a)
+                existing["article_count"] = len(existing["articles"])
+                # Combine child events
+                exist_c_ids = {c.get("story_id") for c in existing.get("child_events", []) if c.get("story_id")}
+                for c in m.get("child_events", []):
+                    cid = c.get("story_id")
+                    if cid and cid not in exist_c_ids:
+                        exist_c_ids.add(cid)
+                        existing["child_events"].append(c)
+                existing["child_event_count"] = len(existing["child_events"])
+                existing["child_events_count"] = len(existing["child_events"])
+                # Combine hashtags
+                existing["hashtags"] = list(dict.fromkeys(existing.get("hashtags", []) + m.get("hashtags", [])))[:10]
+                # Max score
+                existing["trending_score"] = max(existing.get("trending_score", 0.0), m.get("trending_score", 0.0))
+            else:
+                key = m_id or norm_title
+                seen_macro_keys[key] = m
+                deduped_macros.append(m)
+
+        deduped_macros.sort(key=lambda m: (-m["trending_score"], -parse_article_time(m["updated_at"]).timestamp()))
+        effective_limit = max(1, min(limit, 200))
+        top_macros = deduped_macros[:effective_limit]
         for idx, m in enumerate(top_macros, start=1):
             m["rank"] = idx
 
