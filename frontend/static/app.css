@@ -650,3 +650,37 @@ html.dark .macro-quick-card:hover {
 .trending-hashtags-bar::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Unified Macro Spotlight Card & Deep-Dive Tabs (Antigravity-Inspired) ── */
+.macro-spotlight-card {
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.macro-story-pill {
+  white-space: nowrap;
+}
+
+.macro-perspective-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease;
+}
+
+.macro-perspective-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px -3px rgba(0, 0, 0, 0.08);
+}
+
+html.dark .macro-spotlight-card {
+  background-color: #15161c !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark .macro-perspective-card {
+  background-color: #1a1b22 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark .macro-perspective-card:hover {
+  border-color: rgba(124, 58, 237, 0.45) !important;
+  box-shadow: 0 6px 20px -3px rgba(0, 0, 0, 0.4) !important;
+}
