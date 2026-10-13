@@ -555,3 +555,68 @@ html.dark .trending-coverage-disclaimer {
   border-color: rgba(245, 158, 11, 0.3) !important;
   color: #fde68a !important;
 }
+
+/* ── Macro Storyline & Sub-events Explorer ───────────────────────── */
+.macro-subevent-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.macro-subevent-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(124, 58, 237, 0.08);
+}
+
+.subevent-toggle-btn {
+  transition: all 0.2s ease;
+}
+
+.subevent-toggle-btn:hover {
+  box-shadow: 0 2px 8px -1px rgba(124, 58, 237, 0.15);
+}
+
+.trending-hashtag-pill {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.trending-hashtag-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.3);
+}
+
+.subevent-article-item {
+  transition: all 0.2s ease;
+}
+
+.subevent-article-item:hover {
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+/* Dark mode overrides for Macro Sub-events */
+html.dark .macro-subevent-card {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.12), rgba(20, 21, 25, 0.95)) !important;
+  border-color: rgba(168, 85, 247, 0.2) !important;
+}
+
+html.dark .macro-subevent-card:hover {
+  border-color: rgba(168, 85, 247, 0.35) !important;
+  box-shadow: 0 4px 16px -2px rgba(168, 85, 247, 0.15) !important;
+}
+
+html.dark .subevent-toggle-btn {
+  background-color: #1e1f26 !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+  color: #c084fc !important;
+}
+
+html.dark .subevent-toggle-btn:hover {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+html.dark .subevent-article-item {
+  background-color: #17181e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark .subevent-article-item:hover {
+  border-color: rgba(168, 85, 247, 0.35) !important;
+}

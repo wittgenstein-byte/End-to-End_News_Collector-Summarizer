@@ -412,6 +412,7 @@ class StoryPresentationService:
             if len(self._cache) >= self._cache_max_size:
                 oldest_key = next(iter(self._cache))
                 self._cache.pop(oldest_key, None)
+                self._disk_cache.pop(f"story_{oldest_key[0]}_{oldest_key[1]}", None)
             self._cache[key] = presentation
 
             self._disk_cache[f"story_{sid}_{norm_ts}"] = {

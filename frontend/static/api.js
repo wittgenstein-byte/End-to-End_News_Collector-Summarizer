@@ -120,24 +120,76 @@ export async function fetchStoryDetail(storyId) {
 }
 
 /**
- * ดึงรายการ Trending Stories จาก persistent layer
+ * ดึงรายการ Trending Macro-Events (มหากาพย์ประเด็นข่าวภาพรวม)
  * @param {number} limit
  * @param {string} category
  */
-export async function fetchTrendingStories(limit = 5, category = "") {
+export async function fetchTrendingMacroEvents(limit = 7, category = "") {
+  const params = new URLSearchParams({ limit });
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/macro-events/trending?${params}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn("fetchTrendingMacroEvents failed:", e.message);
+  }
+  return [];
+}
+
+/**
+ * ดึงรายละเอียดของ Macro-Event ตาม macro_id
+ * รวม child events (sub-events), ความสัมพันธ์, ไทม์ไลน์
+ * @param {string} macroId
+ */
+export async function fetchMacroEventDetail(macroId) {
+  if (!macroId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/macro-events/${encodeURIComponent(macroId)}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchMacroEventDetail request failed:", e.message);
+    return null;
+  }
+}
+
+/**
+ * ดึงรายการ Trending Stories จาก persistent layer (Macro-First ค่าเริ่มต้น)
+ * @param {number} limit
+ * @param {string} category
+ */
+export async function fetchTrendingStories(limit = 7, category = "") {
+  // 1. Prioritize Macro Trending (มหากาพย์ประเด็นใหญ่เป็นค่าเริ่มต้น)
+  const macroTrending = await fetchTrendingMacroEvents(limit, category);
+  if (macroTrending.length > 0) {
+    return macroTrending;
+  }
+
+  // 2. Fallback to /api/stories/trending
   const params = new URLSearchParams({ limit });
   if (category && category !== "all") params.set("category", category);
 
   try {
     const res = await fetch(`${API_BASE}/api/stories/trending?${params}`);
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
     }
   } catch (e) {
     // Fall back to /api/news/trending
   }
 
-  return await fetchTrendingNews(limit, category);
+  // 3. Fallback to /api/news/trending
+  const fallback = await fetchTrendingNews(limit, category);
+  return (fallback && (fallback.trending || fallback.articles)) || [];
 }
 
 /**

@@ -1132,24 +1132,131 @@ class TrendingService:
                 },
             )
 
+            cover_img = ""
+            primary_url = ""
+            for a in macro_articles:
+                if not cover_img:
+                    img = a.get("image_url") or a.get("image")
+                    if img and isinstance(img, str) and img.strip():
+                        cover_img = img.strip()
+                if not primary_url:
+                    u = a.get("url")
+                    if u and isinstance(u, str):
+                        primary_url = u.strip()
+
+            tags: list[str] = []
+            if macro.named_crisis_anchor:
+                tags.append(f"#{macro.named_crisis_anchor.replace(' ', '')}")
+            for ent in macro.entities:
+                clean_ent = ent.strip().replace(" ", "")
+                if len(clean_ent) >= 2 and f"#{clean_ent}" not in tags:
+                    tags.append(f"#{clean_ent}")
+            if macro.category and macro.category != "all":
+                cat_tag = f"#{macro.category}"
+                if cat_tag not in tags:
+                    tags.append(cat_tag)
+
+            child_event_summaries = []
+            for cs in child_stories:
+                cs_urls = set(cs.article_urls)
+                cs_arts = [a for a in macro_articles if a.get("url") in cs_urls]
+                child_event_summaries.append({
+                    "story_id": cs.story_id,
+                    "title": cs.title,
+                    "category": cs.category,
+                    "article_count": cs.article_count,
+                    "outlet_count": cs.outlet_count,
+                    "outlets": cs.outlets,
+                    "article_urls": cs.article_urls,
+                    "articles": cs_arts,
+                    "first_article_at": cs.first_article_at.strftime("%Y-%m-%d %H:%M:%S") if cs.first_article_at else "",
+                    "last_article_at": cs.last_article_at.strftime("%Y-%m-%d %H:%M:%S") if cs.last_article_at else "",
+                })
+
             scored_macros.append({
                 "macro_event_id": macro.macro_event_id,
+                "story_id": macro.macro_event_id,
+                "is_macro": True,
                 "title": macro.title,
                 "headline": macro.headline or macro.title,
                 "summary": macro.summary,
                 "category": macro.category,
                 "status": macro.status,
                 "child_event_count": len(child_stories),
+                "child_events_count": len(child_stories),
                 "article_count": len(macro_articles),
                 "outlet_count": k,
                 "outlets": unique_outlets,
+                "cluster_sources": unique_outlets,
+                "cluster_size": k,
                 "trending_score": final_score,
                 "breakdown": breakdown.model_dump(mode="json"),
                 "badges": list(dict.fromkeys(badges)),
                 "created_at": macro.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 "updated_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
                 "timeline": [t.model_dump(mode="json") for t in macro.timeline],
+                "image_url": cover_img,
+                "url": primary_url,
+                "hashtags": tags[:8],
+                "entities": macro.entities[:8],
+                "child_events": child_event_summaries,
+                "articles": macro_articles[:12],
             })
+
+        if not scored_macros:
+            fallback_stories = self.get_trending_stories(limit=limit, category=category, now=now)
+            for s in fallback_stories:
+                story_arts = []
+                for u in s.article_urls:
+                    if u in news_map:
+                        story_arts.append(news_map[u])
+                    else:
+                        story_arts.append({"url": u, "title": s.title, "source": s.outlets[0] if s.outlets else ""})
+                tags = [f"#{s.category}"] if s.category else []
+                for o in s.outlets:
+                    tags.append(f"#{o.replace(' ', '')}")
+                scored_macros.append({
+                    "macro_event_id": s.macro_event_id or f"pseudo_macro_{s.story_id}",
+                    "story_id": s.story_id,
+                    "is_macro": bool(s.macro_event_id),
+                    "title": s.title,
+                    "headline": s.headline or s.title,
+                    "summary": s.summary,
+                    "category": s.category,
+                    "status": "active",
+                    "child_event_count": 1,
+                    "child_events_count": 1,
+                    "article_count": s.article_count,
+                    "outlet_count": len(s.outlets),
+                    "outlets": s.outlets,
+                    "cluster_sources": s.outlets,
+                    "cluster_size": len(s.outlets),
+                    "trending_score": s.trending_score,
+                    "breakdown": s.breakdown.model_dump(mode="json"),
+                    "badges": s.badges,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "timeline": [t.model_dump(mode="json") for t in s.timeline],
+                    "image_url": s.image_url,
+                    "url": s.url,
+                    "hashtags": tags,
+                    "entities": [],
+                    "child_events": [
+                        {
+                            "story_id": s.story_id,
+                            "title": s.title,
+                            "category": s.category,
+                            "article_count": s.article_count,
+                            "outlet_count": len(s.outlets),
+                            "outlets": s.outlets,
+                            "article_urls": s.article_urls,
+                            "articles": story_arts,
+                            "first_article_at": s.first_article_at,
+                            "last_article_at": s.last_article_at,
+                        }
+                    ],
+                    "articles": story_arts,
+                })
 
         scored_macros.sort(key=lambda m: (-m["trending_score"], -parse_article_time(m["updated_at"]).timestamp()))
         effective_limit = max(1, min(limit, 100))

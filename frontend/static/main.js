@@ -6,7 +6,7 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, recordEngagement } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement } from "./api.js";
 import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
 import * as UI from "./UI.js";
 
@@ -906,11 +906,26 @@ async function loadPage(page = 1) {
   // Handle Hero Trending Highlights: shown only on Page 1, 'all' category, no search, no source filter
   const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all") && !searchQuery && !activeSource;
   if (shouldShowTrending) {
-    fetchTrendingNews(TRENDING_LIMIT, activeCategory)
-      .then(trendingData => {
-        const trendingList = (trendingData && (trendingData.trending || trendingData.articles)) || [];
-        if (trendingList.length > 0) {
-          trendingList.forEach(a => { if (a.url) currentArticleMap.set(a.url, a); });
+    fetchTrendingStories(TRENDING_LIMIT, activeCategory)
+      .then(trendingList => {
+        if (Array.isArray(trendingList) && trendingList.length > 0) {
+          trendingList.forEach(a => {
+            if (a.url) currentArticleMap.set(a.url, a);
+            if (Array.isArray(a.articles)) {
+              a.articles.forEach(subArt => {
+                if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+              });
+            }
+            if (Array.isArray(a.child_events)) {
+              a.child_events.forEach(ce => {
+                if (Array.isArray(ce.articles)) {
+                  ce.articles.forEach(subArt => {
+                    if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+                  });
+                }
+              });
+            }
+          });
           UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
         } else {
           document.getElementById("hero-trending")?.classList.add("hidden");
@@ -1498,11 +1513,22 @@ window.__dismissPwaInstall = () => {
 window.__filterByHashtag = (tag) => {
   if (!tag) return;
   const cleanTag = tag.startsWith("#") ? tag.slice(1) : tag;
+  if (activeCategory === "bookmarks" || activeCategory === "for-you") {
+    activeCategory = "all";
+    UI.renderCategoryNav("all", {}, personalizationData.bookmarkedArticles || {});
+  }
+  activeSource = "";
+  UI.updateSourceFilters("");
   const searchInput = document.getElementById("search-input");
   if (searchInput) {
     searchInput.value = cleanTag;
     searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    const grid = document.getElementById("news-grid-section") || document.getElementById("news-grid");
+    if (grid) {
+      grid.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
     UI.showToast(`กำลังกรองข่าวประเด็น #${cleanTag}`);
   }
 };
