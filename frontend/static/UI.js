@@ -705,6 +705,12 @@ function updateHeroTrendingSlide() {
                 <span class="text-slate-900 font-bold">อ่านย่อ</span>
               </button>
               <button type="button" 
+                      class="flex items-center gap-1.5 bg-slate-900/80 hover:bg-black text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/30 backdrop-blur-md" 
+                      onclick="window.__scrollToStoryTimeline()">
+                <span class="material-symbols-outlined text-[16px] text-amber-400">timeline</span>
+                <span class="text-white font-bold">ไทม์ไลน์ & คะแนน</span>
+              </button>
+              <button type="button" 
                       class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/20" 
                       onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[16px] text-amber-300" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
@@ -720,8 +726,284 @@ function updateHeroTrendingSlide() {
         ${indicatorsHtml}
       </div>
     </div>
+
+    <!-- Trending Story Detail, Timeline & Score Breakdown Panel -->
+    ${renderTrendingStoryDetailPanel(n)}
   `;
 }
+
+// ── Milestone 5: Trending Story View & Timeline Renderer ──────────
+
+export function renderTrendingStoryDetailPanel(story) {
+  if (!story) return "";
+
+  const headline = esc(story.headline || story.topic_title || story.title || "ประเด็นข่าวร้อนแรง");
+  const summary = esc(story.summary || story.cluster_summary || "รวบรวมรายงานความคืบหน้าสถานการณ์จากสำนักข่าวที่เกี่ยวข้อง");
+  const category = story.category ? esc(story.category) : "";
+  const updatedTime = esc(story.updated_at || story.fetched_at || "");
+
+  // 1. Score Breakdown data
+  const bd = story.breakdown || {};
+  const finalScore = (typeof story.trending_score === "number" && !isNaN(story.trending_score))
+    ? story.trending_score
+    : (typeof bd.final_score === "number" ? bd.final_score : 9.8);
+
+  const volScore = typeof bd.volume_score === "number" ? bd.volume_score : 1.0;
+  const velScore = typeof bd.velocity_score === "number" ? bd.velocity_score : 1.0;
+  const divScore = typeof bd.diversity_score === "number" ? bd.diversity_score : (story.outlet_count || 1);
+  const recScore = typeof bd.recency_score === "number" ? bd.recency_score : (typeof bd.time_decay === "number" ? bd.time_decay : 1.0);
+  const novScore = typeof bd.novelty_score === "number" ? bd.novelty_score : 0.95;
+  const engScore = typeof bd.engagement_score === "number" ? bd.engagement_score : 0.0;
+
+  // 2. Timeline developments
+  let timeline = Array.isArray(story.timeline) ? story.timeline : [];
+  let memberArticles = Array.isArray(story.articles) ? story.articles : [];
+
+  // Fallback: if timeline is empty, build from member articles
+  if (!timeline.length) {
+    if (memberArticles.length) {
+      timeline = memberArticles.map(a => ({
+        timestamp: a.fetched_at || a.published_at || updatedTime,
+        event: a.summary || a.title || "",
+        title: a.title || "",
+        source: a.source || "สำนักข่าว",
+        url: a.url || "",
+        citation: a.summary || null,
+      }));
+    } else {
+      timeline = [{
+        timestamp: updatedTime,
+        event: story.summary || story.title || "",
+        title: story.title || "",
+        source: story.source || (story.outlets && story.outlets[0]) || "สำนักข่าว",
+        url: story.url || (story.article_urls && story.article_urls[0]) || "",
+        citation: null,
+      }];
+    }
+  }
+
+  // 3. Outbound member article sources
+  const sourceArticles = memberArticles.length > 0 ? memberArticles : (
+    story.url ? [{ title: story.title, url: story.url, source: story.source, fetched_at: updatedTime }] : []
+  );
+
+  const timelineHtml = timeline.map((evt) => {
+    const ts = esc(evt.timestamp || "");
+    const desc = esc(evt.event || evt.event_description || evt.title || "");
+    const evtTitle = esc(evt.title || evt.source_title || "");
+    const src = esc(evt.source || evt.source_name || "สำนักข่าว");
+    const u = evt.url || evt.source_url || "";
+    const color = SOURCE_COLORS[evt.source || evt.source_name] ?? "#1a3a6b";
+    const citation = evt.citation ? esc(evt.citation) : "";
+
+    return `
+      <div class="timeline-milestone relative pl-6 pb-6 last:pb-0">
+        <div class="timeline-dot"></div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2 flex-wrap text-xs">
+            <span class="font-bold text-outline uppercase">${ts}</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold text-white flex items-center gap-1" style="background:${color}">
+              <span>${src}</span>
+            </span>
+            ${u ? `
+              <a href="${esc(u)}" target="_blank" rel="noopener noreferrer" 
+                 class="inline-flex items-center gap-1 text-primary hover:underline font-bold text-[11px] ml-auto">
+                <span>อ่านข่าวต้นฉบับ</span>
+                <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+              </a>
+            ` : ""}
+          </div>
+          ${evtTitle && evtTitle !== desc ? `<h4 class="font-bold text-sm text-on-surface">${evtTitle}</h4>` : ""}
+          <p class="text-sm text-on-surface-variant leading-relaxed">${desc}</p>
+          ${citation ? `
+            <blockquote class="timeline-quote text-xs mt-2 pl-3 py-1 bg-surface-container-low rounded-r-lg">
+              "${citation}"
+            </blockquote>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const sourcesHtml = sourceArticles.slice(0, 6).map(art => {
+    const artTitle = esc(art.title || "");
+    const artSrc = esc(art.source || "สำนักข่าว");
+    const artUrl = art.url || "";
+    const artTime = esc(art.fetched_at || "");
+    const color = SOURCE_COLORS[art.source] ?? "#1a3a6b";
+
+    return `
+      <div class="p-3 bg-surface-container-low hover:bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col justify-between gap-2 transition-all">
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[10px] font-bold text-outline">
+            <span class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full" style="background:${color}"></span>
+              <span class="text-on-surface-variant">${artSrc}</span>
+            </span>
+            <span>${artTime}</span>
+          </div>
+          <p class="text-xs font-bold text-on-surface line-clamp-2">${artTitle}</p>
+        </div>
+        ${artUrl ? `
+          <a href="${esc(artUrl)}" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-primary hover:text-white hover:bg-primary px-2.5 py-1 rounded-lg border border-primary/30 transition-all mt-1">
+            <span>ไปยังเว็บไซต์ต้นฉบับ</span>
+            <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+          </a>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div id="story-timeline-section" class="trending-story-detail-panel mt-6 bg-white rounded-2xl border border-outline-variant/30 p-6 sm:p-8 shadow-sm space-y-8">
+      
+      <!-- 1. Headline and Synthesized Summary -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">local_fire_department</span>
+            <span>เจาะลึกประเด็นร้อน (Story Cluster)</span>
+          </span>
+          ${category ? `<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-bold uppercase tracking-wider">${category}</span>` : ""}
+          <span class="text-xs text-outline font-medium ml-auto">อัปเดต: ${updatedTime}</span>
+        </div>
+
+        <h2 class="text-xl sm:text-2xl lg:text-3xl font-headline font-extrabold text-on-surface leading-tight">
+          ${headline}
+        </h2>
+
+        <div class="p-5 bg-surface-container-lowest rounded-xl border-l-4 border-primary shadow-xs space-y-2">
+          <div class="flex items-center gap-1.5 text-primary text-xs font-bold uppercase tracking-wider">
+            <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+            <span>บทสรุปสังเคราะห์ภาพรวมเหตุการณ์ (Synthesized Summary)</span>
+          </div>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-body">
+            ${summary}
+          </p>
+        </div>
+      </div>
+
+      <!-- 2. Chronological Timeline of Developments -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3 flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-xl">timeline</span>
+            <h3 class="font-headline font-bold text-lg text-on-surface">ไทม์ไลน์ลำดับเหตุการณ์ (Chronological Timeline)</h3>
+          </div>
+          <span class="text-xs font-bold text-outline bg-surface-container px-2.5 py-1 rounded-md">
+            ${timeline.length} เหตุการณ์สำคัญตามลำดับเวลา
+          </span>
+        </div>
+
+        <div class="story-timeline space-y-4 pl-4 border-l-2 border-primary/30 ml-2">
+          ${timelineHtml}
+        </div>
+      </div>
+
+      <!-- 3. Outbound Source Articles List -->
+      ${sourceArticles.length > 0 ? `
+      <div class="space-y-3">
+        <div class="flex items-center justify-between border-b border-outline-variant/20 pb-2 flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-xl">newspaper</span>
+            <h3 class="font-headline font-bold text-base text-on-surface">แหล่งข่าวและบทความต้นฉบับ (Original Source Articles)</h3>
+          </div>
+          <span class="text-xs text-outline">${sourceArticles.length} บทความที่รายงาน</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${sourcesHtml}
+        </div>
+      </div>
+      ` : ""}
+
+      <!-- 4. Score Breakdown (Volume, Velocity burst, Publisher diversity, Recency, Novelty, Engagement) -->
+      <div class="story-breakdown-card p-5 bg-surface-container-low rounded-2xl border border-outline-variant/30 space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-500 text-2xl">analytics</span>
+            <div>
+              <h3 class="font-headline font-bold text-base text-on-surface">การคำนวณคะแนนความร้อนแรง (Trending Score Breakdown)</h3>
+              <p class="text-xs text-outline">คำนวณด้วยฟังก์ชันทางสถิติที่กำหนดได้แน่นอน (Deterministic Scoring)</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary text-white text-xs font-bold shadow-xs">
+            <span>คะแนนสุทธิ (Final Score):</span>
+            <span class="text-amber-300 font-extrabold text-base">${finalScore.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+          <!-- Signal 1: Volume -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">ปริมาณข่าวล่าสุด</span>
+            <span class="text-xs font-extrabold text-on-surface">Volume: ${volScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, volScore * 20))}%;"></div></div>
+          </div>
+
+          <!-- Signal 2: Velocity Burst -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">อัตราเร่ง / ปะทุ</span>
+            <span class="text-xs font-extrabold text-on-surface">Velocity: ${velScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, velScore * 25))}%;"></div></div>
+          </div>
+
+          <!-- Signal 3: Publisher Diversity -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">ความหลากหลายสื่อ</span>
+            <span class="text-xs font-extrabold text-on-surface">Diversity: ${divScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, divScore * 25))}%;"></div></div>
+          </div>
+
+          <!-- Signal 4: Recency Decay -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">ความสดใหม่</span>
+            <span class="text-xs font-extrabold text-on-surface">Recency: ${recScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, recScore * 100))}%;"></div></div>
+          </div>
+
+          <!-- Signal 5: Novelty -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">ความแปลกใหม่</span>
+            <span class="text-xs font-extrabold text-on-surface">Novelty: ${novScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, novScore * 100))}%;"></div></div>
+          </div>
+
+          <!-- Signal 6: Engagement -->
+          <div class="breakdown-signal-box">
+            <span class="text-[11px] font-bold text-outline">ผู้อ่านมีส่วนร่วม</span>
+            <span class="text-xs font-extrabold text-on-surface">Engagement: ${engScore.toFixed(2)}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-val" style="width: ${Math.min(100, Math.max(10, engScore * 20))}%;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Mandatory Coverage Limitation Disclaimer -->
+      <div class="trending-coverage-disclaimer p-4 rounded-xl border border-amber-300/70 bg-amber-50/80 flex items-start gap-3 text-amber-950">
+        <span class="material-symbols-outlined text-amber-600 text-2xl shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">info</span>
+        <div class="space-y-1">
+          <div class="text-xs font-bold uppercase tracking-wider text-amber-900">
+            ข้อจำกัดของระบบ (Coverage Limitation Disclaimer)
+          </div>
+          <p class="text-xs sm:text-sm font-semibold leading-relaxed">
+            Trending reflects how widely and frequently the collected outlets are covering a story, not verified public interest.
+          </p>
+          <p class="text-[11px] text-amber-800/90 leading-normal">
+            หมายเหตุ: ค่าความนิยมและแนวโน้มสะท้อนความครอบคลุมและความถี่ที่สำนักข่าวซึ่งระบบรวบรวมได้รายงาน มิใช่ผลสำรวจความสนใจของประชาชนโดยตรง
+          </p>
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+window.__scrollToStoryTimeline = () => {
+  const el = document.getElementById("story-timeline-section");
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+};
 
 // Global Carousel Actions
 window.__prevTrendingSlide = (event) => {

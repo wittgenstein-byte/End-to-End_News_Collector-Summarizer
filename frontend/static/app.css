@@ -451,3 +451,107 @@ html.dark .text-error {
   background-color: #2e4d83 !important;
   color: #ffffff !important;
 }
+
+/* ── Milestone 5: Trending Story View & Developments Timeline ─────── */
+.trending-story-detail-panel {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.story-timeline {
+  position: relative;
+}
+
+.timeline-milestone {
+  position: relative;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -1.35rem;
+  top: 0.35rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background-color: #2e4d83;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px rgba(46, 77, 131, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.timeline-milestone:hover .timeline-dot {
+  transform: scale(1.25);
+  background-color: #1e3a8a;
+}
+
+.timeline-quote {
+  font-style: italic;
+  border-left: 3px solid rgba(46, 77, 131, 0.35);
+  color: #4b5563;
+}
+
+.story-breakdown-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.breakdown-signal-box {
+  background-color: #ffffff;
+  border: 1px solid rgba(196, 198, 209, 0.35);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.breakdown-signal-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.breakdown-bar-bg {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(196, 198, 209, 0.3);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.breakdown-bar-val {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #2e4d83, #3b82f6);
+}
+
+.trending-coverage-disclaimer {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode overrides for Milestone 5 */
+html.dark .trending-story-detail-panel {
+  background-color: #1c1d22 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark .breakdown-signal-box {
+  background-color: #141519 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark .timeline-dot {
+  border-color: #1c1d22 !important;
+  background-color: #60a5fa !important;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3) !important;
+}
+
+html.dark .timeline-quote {
+  border-color: rgba(96, 165, 250, 0.4) !important;
+  color: #9ca3af !important;
+}
+
+html.dark .trending-coverage-disclaimer {
+  background-color: rgba(120, 53, 15, 0.2) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fde68a !important;
+}

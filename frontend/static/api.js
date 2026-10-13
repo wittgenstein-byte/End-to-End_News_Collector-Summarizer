@@ -81,6 +81,66 @@ export async function fetchTrendingNews(limit = 3, category = "") {
 }
 
 /**
+ * ดึงรายการ story clusters ทั้งหมด (Persistent Stories)
+ * @param {string} status   — กรองสถานะ ('active', 'dormant', หรือ '')
+ * @param {string} category — กรองหมวดหมู่
+ * @param {number} limit    — จำนวนรายการต่อหน้า
+ * @param {number} offset   — offset สำหรับ pagination
+ */
+export async function fetchStories(status = "", category = "", limit = 20, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
+  if (status && status !== "all") params.set("status", status);
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/stories?${params}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchStories request failed:", e.message);
+    return { total: 0, page: 1, page_size: limit, total_pages: 1, has_next: false, has_prev: false, updated: "", stories: [] };
+  }
+}
+
+/**
+ * ดึงรายละเอียดของ Story Cluster ตาม story_id
+ * รวม member articles ตามลำดับเวลา, timeline, citations, และคะแนน breakdown
+ * @param {string} storyId
+ */
+export async function fetchStoryDetail(storyId) {
+  if (!storyId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/stories/${encodeURIComponent(storyId)}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchStoryDetail request failed:", e.message);
+    return null;
+  }
+}
+
+/**
+ * ดึงรายการ Trending Stories จาก persistent layer
+ * @param {number} limit
+ * @param {string} category
+ */
+export async function fetchTrendingStories(limit = 5, category = "") {
+  const params = new URLSearchParams({ limit });
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/stories/trending?${params}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // Fall back to /api/news/trending
+  }
+
+  return await fetchTrendingNews(limit, category);
+}
+
+/**
  * บันทึกสถิติ engagement ของผู้อ่าน (click, summary, bookmark)
  * @param {string} url
  * @param {"click"|"summary"|"bookmark"} eventType
