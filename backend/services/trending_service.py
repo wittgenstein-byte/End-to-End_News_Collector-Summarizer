@@ -30,16 +30,30 @@ from backend.repo.engagement_repo import (
     get_engagement_repository,
 )
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
+from backend.repo.story_repo import StoryRepositoryPort, get_story_repository
+from backend.schemas.news_schema import ArticleRecord
+from backend.schemas.story_schema import StoryRecord
 from backend.schemas.trending_schema import (
     TrendingArticle,
     TrendingCluster,
     TrendingListResponse,
     TrendingScoreBreakdown,
+    TrendingStoryCluster,
 )
 from backend.services.classifier_service import _VALID_CATEGORIES, classify_article
 from backend.services.llm_grouper import LLMBatchEnricher
 
 _ALLOWED_IMAGE_HOSTS = {"thestandard.co", "www.thestandard.co"}
+
+# Recurring routine news patterns for dampening / suppression (lottery, weather forecasts, daily commodities)
+_ROUTINE_KEYWORDS: tuple[str, ...] = (
+    "หวย", "สลากกินแบ่ง", "ตรวจหวย", "ผลสลาก", "เลขเด็ด", "งวดนี้", "งวดประจำวัน",
+    "ผลรางวัลที่ 1", "สลากออมสิน", "สลากธ.ก.ส.", "เลขท้าย", "ใบตรวจหวย",
+    "พยากรณ์อากาศ", "กรมอุตุนิยมวิทยา", "สภาพอากาศวันนี้", "สภาพอากาศ", "ฝนตกทั่วไทย",
+    "พยากรณ์อากาศประจำวัน", "เรดาร์ฝน", "ฝุ่น pm 2.5", "ฝุ่น pm2.5", "ค่าฝุ่นละออง",
+    "ราคาทองวันนี้", "ราคาทองคำวันนี้", "ราคาน้ำมันวันนี้", "อัตราแลกเปลี่ยนประจำวัน",
+    "ดูดวงรายวัน", "ดวงประจำวัน", "ราศีวันนี้",
+)
 
 
 def _proxy_image_url(url: str, source: str) -> str:
@@ -422,9 +436,20 @@ class TrendingService:
         self,
         news_repo: NewsRepositoryPort,
         engagement_repo: EngagementRepositoryPort,
+        story_repo: StoryRepositoryPort | None = None,
         embedder: WangchanEmbedder | None = None,
         clusterer: SemanticClusterer | None = None,
         llm_enricher: LLMBatchEnricher | None = None,
+        volume_weight: float | None = None,
+        velocity_weight: float | None = None,
+        diversity_weight: float | None = None,
+        recency_half_life_hours: float | None = None,
+        novelty_weight: float | None = None,
+        engagement_weight: float | None = None,
+        routine_penalty_factor: float | None = None,
+        recent_window_hours: float | None = None,
+        baseline_window_hours: float | None = None,
+        syndication_discount: float | None = None,
         half_life_hours: float = 12.0,
         breaking_window_hours: float = 3.0,
         breaking_boost: float = 4.0,
@@ -433,6 +458,7 @@ class TrendingService:
     ) -> None:
         self._news_repo = news_repo
         self._engagement_repo = engagement_repo
+        self._story_repo = story_repo
         self._embedder = embedder or WangchanEmbedder.get_instance()
         self._clusterer = clusterer or SemanticClusterer(
             cosine_threshold=settings.trending_cosine_threshold,
@@ -440,6 +466,50 @@ class TrendingService:
             time_window_hours=settings.trending_cluster_time_window_hours,
         )
         self._llm_enricher = llm_enricher or LLMBatchEnricher()
+
+        # Configurable trending weights & thresholds (Settings injection)
+        self._volume_weight: float = (
+            volume_weight if volume_weight is not None else getattr(settings, "volume_weight", 1.0)
+        )
+        self._velocity_weight: float = (
+            velocity_weight if velocity_weight is not None else getattr(settings, "velocity_weight", 1.5)
+        )
+        self._diversity_weight: float = (
+            diversity_weight if diversity_weight is not None else getattr(settings, "diversity_weight", 1.2)
+        )
+        self._recency_half_life_hours: float = (
+            recency_half_life_hours
+            if recency_half_life_hours is not None
+            else getattr(settings, "recency_half_life_hours", half_life_hours)
+        )
+        self._novelty_weight: float = (
+            novelty_weight if novelty_weight is not None else getattr(settings, "novelty_weight", 0.8)
+        )
+        self._engagement_weight: float = (
+            engagement_weight if engagement_weight is not None else getattr(settings, "engagement_weight", 0.6)
+        )
+        self._routine_penalty_factor: float = (
+            routine_penalty_factor
+            if routine_penalty_factor is not None
+            else getattr(settings, "routine_penalty_factor", 0.25)
+        )
+        self._recent_window_hours: float = (
+            recent_window_hours
+            if recent_window_hours is not None
+            else getattr(settings, "trending_recent_window_hours", 24.0)
+        )
+        self._baseline_window_hours: float = (
+            baseline_window_hours
+            if baseline_window_hours is not None
+            else getattr(settings, "trending_baseline_window_hours", 72.0)
+        )
+        self._syndication_discount: float = (
+            syndication_discount
+            if syndication_discount is not None
+            else getattr(settings, "syndication_discount", 0.5)
+        )
+
+        # Legacy parameters
         self._half_life_hours = half_life_hours
         self._breaking_window_hours = breaking_window_hours
         self._breaking_boost = breaking_boost
@@ -449,6 +519,408 @@ class TrendingService:
         # Tier 2 Result Cache
         self._result_cache_lock = threading.Lock()
         self._result_cache: dict[str, tuple[float, TrendingListResponse]] = {}
+
+    @property
+    def story_repo(self) -> StoryRepositoryPort:
+        """Lazily obtain StoryRepositoryPort if not explicitly injected."""
+        if self._story_repo is None:
+            self._story_repo = get_story_repository()
+        return self._story_repo
+
+    # ── Deterministic Trending Layer Methods (Milestone 3) ────────────
+
+    def is_routine_story(
+        self,
+        story: StoryRecord,
+        articles: list[dict[str, Any]] | list[ArticleRecord] | None = None,
+    ) -> bool:
+        """
+        Detect recurring/routine reports (lottery results, weather forecasts, daily commodities).
+        Such routine stories receive a dampening penalty so they do not artificially dominate trending.
+        """
+        if story.metadata.get("is_routine") is True:
+            return True
+
+        cat = (story.category or "").strip().lower()
+        if cat in {"lottery", "weather", "horoscope"}:
+            return True
+
+        title_lower = (story.title or "").strip().lower()
+        for kw in _ROUTINE_KEYWORDS:
+            if kw in title_lower:
+                return True
+
+        if articles:
+            for art in articles:
+                art_title = (
+                    art.get("title") if isinstance(art, dict) else getattr(art, "title", "")
+                )
+                if art_title:
+                    art_title_lower = str(art_title).strip().lower()
+                    for kw in _ROUTINE_KEYWORDS:
+                        if kw in art_title_lower:
+                            return True
+
+        return False
+
+    def compute_publisher_diversity(
+        self,
+        articles: list[dict[str, Any]] | list[ArticleRecord],
+        story: StoryRecord | None = None,
+    ) -> tuple[int, float, list[str]]:
+        """
+        Compute distinct publisher count and syndication-discounted diversity score.
+        Distinct publishers reporting independently provide higher confidence than
+        multiple syndicated or duplicate copies from a single publisher.
+        """
+        outlet_counts: dict[str, int] = {}
+        for a in articles:
+            s = a.get("source") if isinstance(a, dict) else getattr(a, "source", "")
+            s_clean = str(s or "").strip()
+            if s_clean:
+                outlet_counts[s_clean] = outlet_counts.get(s_clean, 0) + 1
+
+        if not outlet_counts and story and story.outlets:
+            for out in story.outlets:
+                clean_out = str(out or "").strip()
+                if clean_out:
+                    outlet_counts[clean_out] = 1
+
+        if not outlet_counts:
+            return 1, 0.0, []
+
+        distinct_outlets = sorted(outlet_counts.keys())
+        k = len(distinct_outlets)
+
+        # Apply syndication discount for repeated articles from the same publisher
+        effective_outlets = 0.0
+        for out, count in outlet_counts.items():
+            if count <= 1:
+                effective_outlets += 1.0
+            else:
+                effective_outlets += 1.0 + self._syndication_discount * float(count - 1)
+
+        # Diversity score combines effective publisher credit with distinct count bonus
+        diversity_score = math.log(1.0 + effective_outlets) + 0.5 * float(max(0, k - 1))
+        return k, round(diversity_score, 4), distinct_outlets
+
+    def compute_volume_and_velocity(
+        self,
+        articles: list[dict[str, Any]] | list[ArticleRecord],
+        ref_time: datetime,
+    ) -> tuple[float, float, dict[str, Any]]:
+        """
+        Compute volume and burst velocity metrics.
+        - Volume: Count of articles in recent window with minor baseline contribution.
+        - Velocity / Burst: Rate of new articles in recent window relative to older baseline.
+          A sudden burst in the recent window strictly outranks flat, distributed volume.
+        """
+        recent_count = 0
+        prior_count = 0
+        older_count = 0
+        parsed_times: list[datetime] = []
+
+        for a in articles:
+            ts_val = (
+                a.get("fetched_at") or a.get("published_at")
+                if isinstance(a, dict)
+                else (getattr(a, "fetched_at", None) or getattr(a, "published_at", None))
+            )
+            t = parse_article_time(ts_val, default_now=ref_time)
+            parsed_times.append(t)
+            elapsed_h = max(0.0, (ref_time - t).total_seconds() / 3600.0)
+
+            if elapsed_h <= self._recent_window_hours:
+                recent_count += 1
+            elif elapsed_h <= self._baseline_window_hours:
+                prior_count += 1
+            else:
+                older_count += 1
+
+        # Effective volume: recent articles weighted highest
+        v_eff = float(recent_count) + 0.25 * float(prior_count) + 0.05 * float(older_count)
+        volume_score = math.log(1.0 + max(0.0, v_eff))
+
+        # Velocity / Burst: recent coverage rate scaled by burst multiplier
+        if recent_count == 0:
+            velocity_score = 0.0
+        else:
+            burst_multiplier = 1.0 + (float(recent_count) / (1.0 + float(prior_count)))
+            velocity_score = math.log(1.0 + float(recent_count)) * burst_multiplier
+
+        latest_time = max(parsed_times) if parsed_times else ref_time
+        elapsed_hours = max(0.0, (ref_time - latest_time).total_seconds() / 3600.0)
+
+        details = {
+            "recent_count": recent_count,
+            "prior_count": prior_count,
+            "older_count": older_count,
+            "total_count": len(articles),
+            "elapsed_hours": elapsed_hours,
+        }
+        return round(volume_score, 4), round(velocity_score, 4), details
+
+    def compute_recency_decay(self, story: StoryRecord, ref_time: datetime) -> float:
+        """
+        Exponential half-life decay based on the story's updated_at timestamp.
+        Recency factor = 2^(-dt / half_life).
+        """
+        dt_hours = max(0.0, (ref_time - story.updated_at).total_seconds() / 3600.0)
+        h = max(0.1, self._recency_half_life_hours)
+        decay = math.pow(2.0, -dt_hours / h)
+        return round(max(0.0001, min(1.0, decay)), 4)
+
+    def compute_novelty(
+        self,
+        story: StoryRecord,
+        other_active_stories: list[StoryRecord],
+    ) -> float:
+        """
+        Compute story novelty / uniqueness relative to other currently active stories.
+        Higher novelty indicates an uncovered event; lower novelty indicates redundant coverage.
+        """
+        peers = [s for s in other_active_stories if s.story_id != story.story_id]
+        if not peers:
+            return 1.0
+
+        # Centroid embedding similarity if available
+        if story.centroid is not None:
+            c_vec = np.asarray(story.centroid, dtype=np.float32)
+            c_norm = float(np.linalg.norm(c_vec))
+            if c_norm > 1e-9:
+                sims: list[float] = []
+                for other in peers:
+                    if other.centroid is not None:
+                        o_vec = np.asarray(other.centroid, dtype=np.float32)
+                        o_norm = float(np.linalg.norm(o_vec))
+                        if o_norm > 1e-9:
+                            cos_sim = float(np.dot(c_vec, o_vec) / (c_norm * o_norm))
+                            sims.append(cos_sim)
+                if sims:
+                    max_sim = max(sims)
+                    novelty = max(0.1, min(1.0, 1.0 - max(0.0, max_sim)))
+                    return round(novelty, 4)
+
+        # Named entity overlap fallback
+        if story.entities:
+            s_ents = {e.strip() for e in story.entities if e.strip()}
+            if s_ents:
+                jaccards: list[float] = []
+                for other in peers:
+                    if other.entities:
+                        o_ents = {e.strip() for e in other.entities if e.strip()}
+                        union = s_ents | o_ents
+                        if union:
+                            jaccards.append(len(s_ents & o_ents) / len(union))
+                if jaccards:
+                    max_overlap = max(jaccards)
+                    novelty = max(0.1, min(1.0, 1.0 - max_overlap))
+                    return round(novelty, 4)
+
+        return 1.0
+
+    def compute_engagement(self, story: StoryRecord) -> tuple[float, dict[str, int]]:
+        """
+        Aggregate reader engagement metrics across all member articles in the story.
+        Non-PII aggregate counts: clicks (1x), summaries (3x), bookmarks (5x).
+        """
+        clicks = 0
+        summaries = 0
+        bookmarks = 0
+
+        for url in story.article_urls:
+            stats = self._engagement_repo.get_engagement(url)
+            clicks += stats.get("clicks", 0)
+            summaries += stats.get("summaries", 0)
+            bookmarks += stats.get("bookmarks", 0)
+
+        weighted_eng = float(1.0 * clicks + 3.0 * summaries + 5.0 * bookmarks)
+        engagement_score = math.log(1.0 + max(0.0, weighted_eng))
+        return round(engagement_score, 4), {
+            "clicks": clicks,
+            "summaries": summaries,
+            "bookmarks": bookmarks,
+        }
+
+    def calculate_story_score(
+        self,
+        story: StoryRecord,
+        articles: list[dict[str, Any]] | list[ArticleRecord],
+        other_stories: list[StoryRecord] | None = None,
+        now: datetime | None = None,
+    ) -> tuple[float, TrendingScoreBreakdown, list[str]]:
+        """
+        Pure deterministic scoring for a StoryRecord cluster.
+        Strictly ZERO LLM calls in scoring path.
+        Identical inputs yield identical ranking and identical scores.
+        """
+        ref_time = now or datetime.now(timezone.utc)
+        is_routine = self.is_routine_story(story, articles)
+
+        distinct_count, diversity_score, unique_outlets = self.compute_publisher_diversity(articles, story)
+        volume_score, velocity_score, time_details = self.compute_volume_and_velocity(articles, ref_time)
+        recency_score = self.compute_recency_decay(story, ref_time)
+        novelty_score = self.compute_novelty(story, other_stories or [])
+        engagement_score, eng_stats = self.compute_engagement(story)
+
+        raw_base = (
+            self._volume_weight * volume_score
+            + self._velocity_weight * velocity_score
+            + self._diversity_weight * diversity_score
+            + self._novelty_weight * novelty_score
+            + self._engagement_weight * engagement_score
+        )
+
+        decayed_score = raw_base * recency_score
+        routine_dampener = self._routine_penalty_factor if is_routine else 1.0
+        final_score = round(decayed_score * routine_dampener, 4)
+
+        badges: list[str] = []
+        if final_score >= 4.0:
+            badges.append("🔥 Trending")
+        elapsed_hours = (ref_time - story.updated_at).total_seconds() / 3600.0
+        if elapsed_hours <= self._breaking_window_hours and distinct_count >= 2:
+            badges.append("⚡ Breaking")
+        if distinct_count >= 3:
+            badges.append("🌟 Top Story")
+        if is_routine:
+            badges.append("⚠️ Routine")
+
+        breakdown = TrendingScoreBreakdown(
+            base_score=round(raw_base, 4),
+            volume_score=volume_score,
+            velocity_score=velocity_score,
+            diversity_score=diversity_score,
+            recency_score=recency_score,
+            time_decay=recency_score,
+            novelty_score=novelty_score,
+            engagement_score=engagement_score,
+            routine_penalty=routine_dampener,
+            is_routine=is_routine,
+            final_score=final_score,
+            raw_trending_score=final_score,
+            cluster_multiplier=round(1.0 + self._consensus_weight * max(0, distinct_count - 1), 4),
+            details={
+                "recent_articles": time_details["recent_count"],
+                "prior_articles": time_details["prior_count"],
+                "total_articles": len(articles),
+                "distinct_outlets": distinct_count,
+                "outlets": unique_outlets,
+                "elapsed_hours": round(time_details["elapsed_hours"], 2),
+                "clicks": eng_stats.get("clicks", 0),
+                "summaries": eng_stats.get("summaries", 0),
+                "bookmarks": eng_stats.get("bookmarks", 0),
+            },
+        )
+
+        return final_score, breakdown, list(dict.fromkeys(badges))
+
+    def get_trending_stories(
+        self,
+        limit: int = 10,
+        category: str | None = None,
+        now: datetime | None = None,
+    ) -> list[TrendingStoryCluster]:
+        """
+        Rank active StoryRecord clusters deterministically.
+        - Strictly ZERO LLM in the scoring path.
+        - Only stories with status == 'active' are ranked.
+        - Excludes dormant stories.
+        - Scores member articles retrieved from NewsRepositoryPort.
+        """
+        ref_time = now or datetime.now(timezone.utc)
+        repo = self.story_repo
+        all_stories = repo.list_stories(status="active", limit=1000)
+
+        # Story Lifecycle Gating: Only active stories eligible
+        eligible_stories: list[StoryRecord] = []
+        for s in all_stories:
+            if (
+                s.status == "active"
+                and s.article_count > 0
+                and s.refresh_status(current_time=ref_time) == "active"
+            ):
+                eligible_stories.append(s)
+
+        # Optional category filtering
+        if category and category.strip().lower() not in ("", "all"):
+            target_cat = category.strip().lower()
+            eligible_stories = [s for s in eligible_stories if s.category.strip().lower() == target_cat]
+
+        if not eligible_stories:
+            return []
+
+        # Load member articles from NewsRepositoryPort
+        raw_news = self._news_repo.load_news()
+        news_map: dict[str, dict[str, Any]] = {}
+        for a in raw_news:
+            if isinstance(a, dict):
+                u = a.get("url")
+                if u and isinstance(u, str):
+                    news_map[u.strip()] = a
+
+        scored_clusters: list[TrendingStoryCluster] = []
+
+        for story in eligible_stories:
+            member_articles: list[dict[str, Any]] = []
+            for u in story.article_urls:
+                clean_u = u.strip() if u else ""
+                if clean_u in news_map:
+                    member_articles.append(news_map[clean_u])
+                else:
+                    member_articles.append({
+                        "url": clean_u,
+                        "title": story.title,
+                        "source": story.outlets[0] if story.outlets else "",
+                        "fetched_at": story.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+
+            score, breakdown, badges = self.calculate_story_score(
+                story=story,
+                articles=member_articles,
+                other_stories=eligible_stories,
+                now=ref_time,
+            )
+
+            cluster = TrendingStoryCluster(
+                story_id=story.story_id,
+                title=story.title,
+                category=story.category,
+                status=story.status,
+                created_at=story.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                updated_at=story.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                article_urls=list(story.article_urls),
+                article_count=len(member_articles),
+                outlet_count=story.outlet_count or len(story.outlets),
+                outlets=list(story.outlets),
+                entities=list(story.entities),
+                trending_score=score,
+                breakdown=breakdown,
+                articles=member_articles,
+                headline=story.headline or story.title,
+                summary=story.summary,
+                timeline=list(story.timeline),
+                badges=badges,
+                is_routine=breakdown.is_routine,
+                metadata=dict(story.metadata),
+            )
+            scored_clusters.append(cluster)
+
+        # Deterministic sorting: trending_score descending, updated_at descending, story_id ascending
+        scored_clusters.sort(
+            key=lambda c: (-c.trending_score, -parse_article_time(c.updated_at).timestamp(), c.story_id)
+        )
+
+        effective_limit = max(1, min(limit, 100))
+        top_clusters = scored_clusters[:effective_limit]
+
+        # Assign ordinal rank (1-indexed) and top badges
+        for idx, cluster in enumerate(top_clusters, start=1):
+            cluster.rank = idx
+            if idx <= 5 and "🔥 Trending" not in cluster.badges and not cluster.is_routine:
+                cluster.badges.append("🔥 Trending")
+
+        return top_clusters
 
     def calculate_score(
         self,
@@ -768,9 +1240,11 @@ def get_trending_service() -> TrendingService:
     """FastAPI Depends() factory for TrendingService."""
     news_repo = get_news_repository()
     engagement_repo = get_engagement_repository()
+    story_repo = get_story_repository()
     return TrendingService(
         news_repo=news_repo,
         engagement_repo=engagement_repo,
-        half_life_hours=12.0,
+        story_repo=story_repo,
+        half_life_hours=settings.recency_half_life_hours,
         trending_window_hours=settings.trending_window_hours,
     )

@@ -134,14 +134,28 @@ class Settings:
     embedding_cache_max_size: int              = int(_get("EMBEDDING_CACHE_MAX_SIZE",              "2000"))
     trending_result_cache_ttl_seconds: int     = int(_get("TRENDING_RESULT_CACHE_TTL_SECONDS",     "600"))
 
+    # Deterministic Trending Scoring Weights & Thresholds (Milestone 3)
+    volume_weight: float                        = float(_get("TRENDING_VOLUME_WEIGHT",               "1.0"))
+    velocity_weight: float                      = float(_get("TRENDING_VELOCITY_WEIGHT",             "1.5"))
+    diversity_weight: float                     = float(_get("TRENDING_DIVERSITY_WEIGHT",            "1.2"))
+    recency_half_life_hours: float              = float(_get("TRENDING_RECENCY_HALF_LIFE_HOURS",     "12.0"))
+    novelty_weight: float                       = float(_get("TRENDING_NOVELTY_WEIGHT",              "0.8"))
+    engagement_weight: float                    = float(_get("TRENDING_ENGAGEMENT_WEIGHT",           "0.6"))
+    routine_penalty_factor: float               = float(_get("TRENDING_ROUTINE_PENALTY_FACTOR",      "0.25"))
+    trending_recent_window_hours: float         = float(_get("TRENDING_RECENT_WINDOW_HOURS",        "24.0"))
+    trending_baseline_window_hours: float       = float(_get("TRENDING_BASELINE_WINDOW_HOURS",      "72.0"))
+    syndication_discount: float                 = float(_get("TRENDING_SYNDICATION_DISCOUNT",        "0.5"))
+
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
+    stories_file: Path      = DATA_DIR / _get("STORIES_FILE", "stories_data.json")
     engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
     db_type: str            = _get("DB_TYPE", "json").lower().strip()
     mongo_uri: str          = _get("MONGO_URI", "mongodb://localhost:27017")
     mongo_db_name: str      = _get("MONGO_DB_NAME", "news_collector")
+    mongo_story_collection: str = _get("MONGO_STORY_COLLECTION", "stories")
 
     # Server
     host: str               = _get("HOST", "0.0.0.0")
