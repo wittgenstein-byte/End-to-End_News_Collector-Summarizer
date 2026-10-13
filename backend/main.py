@@ -38,6 +38,7 @@ from backend.config import settings
 from backend.core.socket_manager import emit, sio
 from backend.repo.news_repo import get_news_repository
 from backend.routers.collect_router import router as collect_router
+from backend.routers.macro_event_router import router as macro_event_router
 from backend.routers.monitoring_router import router as monitoring_router
 from backend.routers.news_router import router as news_router
 from backend.routers.story_router import router as story_router
@@ -112,6 +113,7 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────
 
 app.include_router(story_router)
+app.include_router(macro_event_router)
 app.include_router(news_router)
 app.include_router(collect_router)
 app.include_router(trending_router)

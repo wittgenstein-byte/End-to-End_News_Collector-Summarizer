@@ -175,6 +175,7 @@ async def get_story_detail(
     news_repo: NewsRepositoryPort = Depends(get_news_repository),
     trending_service: TrendingService = Depends(get_trending_service),
     presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
+    macro_repo: Any = Depends(get_story_repository),
 ) -> StoryDetailResponse:
     """
     Get full details for a single story cluster:
@@ -187,6 +188,17 @@ async def get_story_detail(
     """
     story = story_repo.get_story(story_id)
     if story is None:
+        from backend.repo.macro_event_repo import get_macro_event_repository
+
+        macro = get_macro_event_repository().get_macro_event(story_id)
+        if macro is not None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"'{story_id}' is a Macro-Event identifier. "
+                    f"Please query GET /api/macro-events/{story_id} for storyline details."
+                ),
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Story with id '{story_id}' not found",
