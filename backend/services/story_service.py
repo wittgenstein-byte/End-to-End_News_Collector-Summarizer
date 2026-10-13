@@ -65,19 +65,29 @@ class StoryService:
         story_repo: StoryRepositoryPort | None = None,
         embedder: Any = None,
         entity_extractor: EntityExtractor | None = None,
-        high_threshold: float = 0.84,
-        low_threshold: float = 0.70,
+        macro_service: Any = None,
+        high_threshold: float = 0.85,
+        low_threshold: float = 0.74,
         candidate_window_hours: float = 72.0,
         ema_alpha: float = 0.85,
     ) -> None:
         self._story_repo = story_repo or get_story_repository()
         self._embedder = embedder
         self._entity_extractor = entity_extractor or get_entity_extractor()
+        self._macro_service = macro_service
         self._high_threshold = high_threshold
         self._low_threshold = low_threshold
         self._candidate_window_hours = candidate_window_hours
         self._ema_alpha = ema_alpha
         self._lock = threading.RLock()
+
+    def _get_macro_service(self) -> Any:
+        """Lazily initialize MacroEventService if not injected."""
+        if self._macro_service is None:
+            from backend.services.macro_event_service import MacroEventService
+
+            self._macro_service = MacroEventService(story_repo=self._story_repo)
+        return self._macro_service
 
     def _get_embedder(self) -> Any:
         """Lazily initialize WangchanEmbedder if not injected."""
@@ -188,6 +198,14 @@ class StoryService:
                 )
                 self._story_repo.save_story(best_candidate)
                 record.story_id = best_candidate.story_id
+
+                # Synchronize enclosing macro-event activity if linked
+                if best_candidate.macro_event_id:
+                    try:
+                        self._get_macro_service().assign_event(best_candidate)
+                    except Exception as exc:
+                        logger.debug("Macro event sync error on merge: %s", exc)
+
                 return best_candidate, False
 
             # No confident match: start a new story
@@ -208,6 +226,13 @@ class StoryService:
             )
             self._story_repo.save_story(new_story)
             record.story_id = new_story.story_id
+
+            # Assign new event to a macro-event storyline (SST updated)
+            try:
+                self._get_macro_service().assign_event(new_story)
+            except Exception as exc:
+                logger.debug("Macro event assignment error on new story: %s", exc)
+
             return new_story, True
 
     def assign_articles_batch(
@@ -309,6 +334,13 @@ class StoryService:
                 if norm > 1e-9:
                     vec = vec / norm
                 return vec.tolist()
+
+        if hasattr(embedder, "encode_article"):
+            vec = np.asarray(embedder.encode_article(article.title, article.summary or ""), dtype=np.float32)
+            norm = float(np.linalg.norm(vec))
+            if norm > 1e-9:
+                vec = vec / norm
+            return vec.tolist()
 
         if hasattr(embedder, "encode_text"):
             text = f"{article.title}\n{article.summary}".strip()

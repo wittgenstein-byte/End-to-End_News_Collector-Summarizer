@@ -18,12 +18,16 @@ POLICY Zero Crash Guarantee — Graceful HTTP 200 fallback on LLM network error,
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import os
 import re
+import tempfile
 import threading
 from collections.abc import Sequence
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
@@ -31,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.config import settings
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
+from backend.schemas.macro_event_schema import MacroEventRecord, MacroTimelineEvent
 from backend.schemas.news_schema import ArticleRecord
 from backend.schemas.story_schema import StoryRecord
 from backend.schemas.story_schema import TimelineEvent as SchemaTimelineEvent
@@ -284,16 +289,78 @@ class StoryPresentationService:
         temperature: float = 0.2,
         news_repo: NewsRepositoryPort | None = None,
         cache_max_size: int = 500,
+        cache_file: Path | None = None,
     ) -> None:
         self._client = client
         self._models = list(models) if models else list(settings.llm_cascade_models)
         self._temperature = temperature
         self._news_repo = news_repo
         self._cache_max_size = cache_max_size
+        self._cache_file = cache_file or (getattr(settings, "DATA_DIR", Path("data")) / "presentation_cache.json")
 
         # In-memory thread-safe presentation cache keyed by (story_id, updated_at)
         self._cache: dict[tuple[str, str], StoryPresentation] = {}
+        self._disk_cache: dict[str, dict[str, Any]] = {}
         self._cache_lock = threading.Lock()
+        self._load_disk_cache()
+
+    def _load_disk_cache(self) -> None:
+        """Load persistent presentation cache from disk JSON."""
+        if not self._cache_file.exists():
+            return
+        try:
+            content = self._cache_file.read_text(encoding="utf-8")
+            if content.strip():
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    self._disk_cache = data
+        except Exception as exc:
+            logger.debug("Failed to read presentation_cache.json: %s", exc)
+
+    def _save_disk_cache(self) -> None:
+        """Atomically persist presentation cache to disk."""
+        try:
+            self._cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                dir=self._cache_file.parent,
+                delete=False,
+                mode="w",
+                encoding="utf-8",
+            ) as tmp:
+                json.dump(self._disk_cache, tmp, ensure_ascii=False, indent=2)
+                tmp_path = Path(tmp.name)
+            os.replace(tmp_path, self._cache_file)
+        except Exception as exc:
+            logger.debug("Failed to persist presentation cache: %s", exc)
+
+    @staticmethod
+    def compute_sha256_fingerprint(
+        target_id: str,
+        articles: Sequence[dict[str, Any] | ArticleRecord],
+        relations: list[str] | None = None,
+        prompt_version: str = "1.0",
+        model_name: str = "default",
+        schema_version: str = "1.0",
+    ) -> str:
+        """Compute deterministic SHA-256 fingerprint on canonicalized inputs."""
+        signatures: list[str] = []
+        for a in articles:
+            u = a.get("url") if isinstance(a, dict) else getattr(a, "url", "")
+            t = a.get("title") if isinstance(a, dict) else getattr(a, "title", "")
+            f = a.get("fetched_at") if isinstance(a, dict) else getattr(a, "fetched_at", "")
+            signatures.append(f"{str(u or '').strip()}|{str(t or '').strip()[:60]}|{f or ''!s}")
+        signatures.sort()
+
+        canonical_dict = {
+            "target_id": str(target_id).strip(),
+            "articles": signatures,
+            "relations": sorted(relations or []),
+            "prompt_version": prompt_version,
+            "model_name": model_name,
+            "schema_version": schema_version,
+        }
+        raw_bytes = json.dumps(canonical_dict, sort_keys=True, ensure_ascii=True).encode("utf-8")
+        return hashlib.sha256(raw_bytes).hexdigest()
 
     @property
     def client(self) -> OpenAI | None:
@@ -309,9 +376,11 @@ class StoryPresentationService:
             return len(self._cache)
 
     def clear_cache(self) -> None:
-        """Clear presentation cache."""
+        """Clear presentation cache both in-memory and on disk."""
         with self._cache_lock:
             self._cache.clear()
+            self._disk_cache.clear()
+            self._save_disk_cache()
 
     def get_cached(self, story_id: str, updated_at: Any) -> StoryPresentation | None:
         """Lookup cached presentation for (story_id, updated_at)."""
@@ -322,19 +391,128 @@ class StoryPresentationService:
             entry = self._cache.get(key)
             if entry is not None:
                 return entry.model_copy(update={"cached": True})
+
+            # Check disk cache
+            disk_entry = self._disk_cache.get(f"story_{sid}_{norm_ts}")
+            if disk_entry and "presentation" in disk_entry:
+                try:
+                    loaded = StoryPresentation.model_validate(disk_entry["presentation"])
+                    self._cache[key] = loaded
+                    return loaded.model_copy(update={"cached": True})
+                except Exception:
+                    pass
         return None
 
     def set_cached(self, story_id: str, updated_at: Any, presentation: StoryPresentation) -> None:
-        """Store presentation in cache for (story_id, updated_at)."""
+        """Store presentation in cache for (story_id, updated_at) and persist to disk."""
         sid = str(story_id).strip()
         norm_ts = normalize_timestamp(updated_at)
         key = (sid, norm_ts)
         with self._cache_lock:
             if len(self._cache) >= self._cache_max_size:
-                # Evict oldest entry (FIFO)
                 oldest_key = next(iter(self._cache))
                 self._cache.pop(oldest_key, None)
             self._cache[key] = presentation
+
+            self._disk_cache[f"story_{sid}_{norm_ts}"] = {
+                "presentation": presentation.model_dump(mode="json"),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            self._save_disk_cache()
+
+    def present_macro_event(
+        self,
+        macro: MacroEventRecord,
+        child_stories: list[StoryRecord],
+        articles: Sequence[ArticleRecord | dict[str, Any]] | None = None,
+    ) -> MacroEventRecord:
+        """
+        Synthesize overarching presentation for a MacroEventRecord storyline.
+        Generates macro headline, multi-event summary, and chronological timeline.
+        Uses SHA-256 fingerprint for persistent caching and cache invalidation.
+        """
+        resolved_articles = list(articles or [])
+        if not resolved_articles and self._news_repo is not None:
+            all_urls: list[str] = []
+            for cs in child_stories:
+                all_urls.extend(cs.article_urls)
+            if all_urls:
+                unique_urls = list(dict.fromkeys(all_urls))
+                if hasattr(self._news_repo, "get_by_urls"):
+                    resolved_articles = self._news_repo.get_by_urls(unique_urls)
+                elif hasattr(self._news_repo, "load_news"):
+                    u_set = set(unique_urls)
+                    resolved_articles = [a for a in self._news_repo.load_news() if a.get("url") in u_set]
+
+        # Format relations summary for fingerprint
+        rel_strs = [
+            f"{r.source_event_id}->{r.target_event_id}:{r.relation_type}"
+            for r in macro.relations
+        ]
+
+        active_model = self._models[0] if self._models else "fallback"
+        fingerprint = self.compute_sha256_fingerprint(
+            target_id=macro.macro_event_id,
+            articles=resolved_articles,
+            relations=rel_strs,
+            model_name=active_model,
+        )
+
+        with self._cache_lock:
+            cached_macro = self._disk_cache.get(f"macro_{macro.macro_event_id}")
+            if cached_macro and cached_macro.get("fingerprint") == fingerprint:
+                macro.headline = cached_macro.get("headline")
+                macro.summary = cached_macro.get("summary")
+                if cached_macro.get("timeline"):
+                    macro.timeline = [MacroTimelineEvent.model_validate(t) for t in cached_macro["timeline"]]
+                macro.presentation_fingerprint = fingerprint
+                macro.enriched_at = datetime.now(timezone.utc)
+                return macro
+
+        # Build timeline from child stories
+        timeline_events: list[MacroTimelineEvent] = []
+        for cs in sorted(child_stories, key=lambda s: s.first_article_at or s.created_at):
+            ts_str = (cs.first_article_at or cs.created_at).strftime("%Y-%m-%d %H:%M:%S")
+            h = cs.headline or cs.title
+            s = cs.summary or f"เหตุการณ์ {cs.title} มีรายงานข่าว {cs.article_count} รายงาน"
+            timeline_events.append(
+                MacroTimelineEvent(
+                    timestamp=ts_str,
+                    event_id=cs.story_id,
+                    headline=h,
+                    summary=s,
+                    source_outlets=list(cs.outlets),
+                    citation=None,
+                )
+            )
+
+        # Overview headline and summary
+        macro_headline = macro.headline or (f"เกาะติดมหากาพย์ข่าว: {macro.title}")
+        outlets_set = sorted({out for cs in child_stories for out in cs.outlets if out})
+        outlets_str = " และ ".join(outlets_set[:3]) if outlets_set else "สำนักข่าวชั้นนำ"
+        child_count = len(child_stories)
+        macro_summary = (
+            f"ติดตามสถานการณ์ความคืบหน้าต่อเนื่องในประเด็น {macro.title} "
+            f"ครอบคลุม {child_count} เหตุการณ์ย่อย รวบรวมรายงานจาก {outlets_str}"
+        )
+
+        macro.headline = macro_headline
+        macro.summary = macro_summary
+        macro.timeline = timeline_events
+        macro.presentation_fingerprint = fingerprint
+        macro.enriched_at = datetime.now(timezone.utc)
+
+        with self._cache_lock:
+            self._disk_cache[f"macro_{macro.macro_event_id}"] = {
+                "fingerprint": fingerprint,
+                "headline": macro_headline,
+                "summary": macro_summary,
+                "timeline": [t.model_dump(mode="json") for t in timeline_events],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            self._save_disk_cache()
+
+        return macro
 
     # ── Presentation Formatting ───────────────────────────────────
 

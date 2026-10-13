@@ -55,6 +55,19 @@ _ROUTINE_KEYWORDS: tuple[str, ...] = (
     "ดูดวงรายวัน", "ดวงประจำวัน", "ราศีวันนี้",
 )
 
+# Crisis / Severe disaster emergency whitelist (waives routine penalty when severe context confirmed)
+_SEVERE_DISASTER_VERBS: tuple[str, ...] = (
+    "ประกาศเตือนภัย", "ยกระดับเตือนภัย", "เตือนภัยระดับ", "เตือนภัยฉุกเฉิน",
+    "เตรียมรับมือพายุ", "เตือนน้ำท่วม", "เตือนดินถล่ม", "พายุพัดถล่ม", "พายุฤดูร้อนถล่ม",
+)
+_DISASTER_IMPACTS: tuple[str, ...] = (
+    "น้ำท่วมฉับพลัน", "น้ำป่าไหลหลาก", "ดินโคลนถล่ม", "พื้นที่ประสบภัย",
+    "ระดับน้ำวิกฤต", "แม่น้ำล้นตลิ่ง", "จมบาดาล", "น้ำท่วมหนัก",
+)
+_CASUALTY_VERBS: tuple[str, ...] = (
+    "อพยพด่วน", "สูญหาย", "เสียชีวิต", "จมน้ำ", "ติดค้างในบ้าน", "กู้ภัยเร่งช่วย",
+)
+
 
 def _proxy_image_url(url: str, source: str) -> str:
     """Proxy image if needed to avoid hotlink blocks."""
@@ -434,8 +447,8 @@ class TrendingService:
 
     def __init__(
         self,
-        news_repo: NewsRepositoryPort,
-        engagement_repo: EngagementRepositoryPort,
+        news_repo: NewsRepositoryPort | None = None,
+        engagement_repo: EngagementRepositoryPort | None = None,
         story_repo: StoryRepositoryPort | None = None,
         embedder: WangchanEmbedder | None = None,
         clusterer: SemanticClusterer | None = None,
@@ -527,7 +540,82 @@ class TrendingService:
             self._story_repo = get_story_repository()
         return self._story_repo
 
+    @property
+    def news_repo(self) -> NewsRepositoryPort:
+        """Lazily obtain NewsRepositoryPort if not explicitly injected."""
+        if self._news_repo is None:
+            self._news_repo = get_news_repository()
+        return self._news_repo
+
+    @property
+    def engagement_repo(self) -> EngagementRepositoryPort:
+        """Lazily obtain EngagementRepositoryPort if not explicitly injected."""
+        if self._engagement_repo is None:
+            self._engagement_repo = get_engagement_repository()
+        return self._engagement_repo
+
     # ── Deterministic Trending Layer Methods (Milestone 3) ────────────
+
+    def check_routine_status(
+        self,
+        story: StoryRecord,
+        articles: list[dict[str, Any]] | list[ArticleRecord] | None = None,
+    ) -> tuple[bool, bool, str | None]:
+        """
+        Evaluate routine status with context-aware severe disaster exemption.
+        Returns:
+            tuple[is_routine, crisis_exemption_applied, crisis_exemption_reason]
+        """
+        if story.metadata.get("is_routine") is True:
+            return True, False, None
+
+        cat = (story.category or "").strip().lower()
+        title_lower = (story.title or "").strip().lower()
+
+        # Combine titles and texts
+        all_texts = [title_lower]
+        if articles:
+            for art in articles:
+                art_t = (
+                    art.get("title") if isinstance(art, dict) else getattr(art, "title", "")
+                )
+                if art_t:
+                    all_texts.append(str(art_t).strip().lower())
+                art_s = (
+                    art.get("summary") if isinstance(art, dict) else getattr(art, "summary", "")
+                )
+                if art_s:
+                    all_texts.append(str(art_s).strip().lower())
+
+        combined_corpus = " ".join(all_texts)
+
+        # Check if routine keywords are triggered
+        routine_triggered = False
+        if cat in {"lottery", "horoscope"} or cat == "weather":
+            routine_triggered = True
+        else:
+            for kw in _ROUTINE_KEYWORDS:
+                if kw in combined_corpus:
+                    routine_triggered = True
+                    break
+
+        if not routine_triggered:
+            return False, False, None
+
+        # If routine is triggered, check for severe disaster / crisis exemption context
+        # (Lottery or horoscope never qualify for disaster exemption)
+        if cat not in {"lottery", "horoscope"}:
+            for verb in _SEVERE_DISASTER_VERBS:
+                if verb in combined_corpus:
+                    return False, True, f"severe_warning_confirmed: {verb}"
+            for impact in _DISASTER_IMPACTS:
+                if impact in combined_corpus:
+                    return False, True, f"disaster_impact_confirmed: {impact}"
+            for casualty in _CASUALTY_VERBS:
+                if casualty in combined_corpus:
+                    return False, True, f"casualty_evacuation_confirmed: {casualty}"
+
+        return True, False, None
 
     def is_routine_story(
         self,
@@ -538,30 +626,8 @@ class TrendingService:
         Detect recurring/routine reports (lottery results, weather forecasts, daily commodities).
         Such routine stories receive a dampening penalty so they do not artificially dominate trending.
         """
-        if story.metadata.get("is_routine") is True:
-            return True
-
-        cat = (story.category or "").strip().lower()
-        if cat in {"lottery", "weather", "horoscope"}:
-            return True
-
-        title_lower = (story.title or "").strip().lower()
-        for kw in _ROUTINE_KEYWORDS:
-            if kw in title_lower:
-                return True
-
-        if articles:
-            for art in articles:
-                art_title = (
-                    art.get("title") if isinstance(art, dict) else getattr(art, "title", "")
-                )
-                if art_title:
-                    art_title_lower = str(art_title).strip().lower()
-                    for kw in _ROUTINE_KEYWORDS:
-                        if kw in art_title_lower:
-                            return True
-
-        return False
+        is_routine, _, _ = self.check_routine_status(story, articles)
+        return is_routine
 
     def compute_publisher_diversity(
         self,
@@ -662,10 +728,12 @@ class TrendingService:
 
     def compute_recency_decay(self, story: StoryRecord, ref_time: datetime) -> float:
         """
-        Exponential half-life decay based on the story's updated_at timestamp.
+        Exponential half-life decay based on the story's actual article activity.
+        Uses last_article_at (or first_article_at) as single authority, falling back to updated_at.
         Recency factor = 2^(-dt / half_life).
         """
-        dt_hours = max(0.0, (ref_time - story.updated_at).total_seconds() / 3600.0)
+        ref_ts = story.last_article_at or story.first_article_at or story.updated_at
+        dt_hours = max(0.0, (ref_time - ref_ts).total_seconds() / 3600.0)
         h = max(0.1, self._recency_half_life_hours)
         decay = math.pow(2.0, -dt_hours / h)
         return round(max(0.0001, min(1.0, decay)), 4)
@@ -755,7 +823,7 @@ class TrendingService:
         Identical inputs yield identical ranking and identical scores.
         """
         ref_time = now or datetime.now(timezone.utc)
-        is_routine = self.is_routine_story(story, articles)
+        is_routine, crisis_exempt, exempt_reason = self.check_routine_status(story, articles)
 
         distinct_count, diversity_score, unique_outlets = self.compute_publisher_diversity(articles, story)
         volume_score, velocity_score, time_details = self.compute_volume_and_velocity(articles, ref_time)
@@ -778,13 +846,16 @@ class TrendingService:
         badges: list[str] = []
         if final_score >= 4.0:
             badges.append("🔥 Trending")
-        elapsed_hours = (ref_time - story.updated_at).total_seconds() / 3600.0
+        effective_ts = story.last_article_at or story.first_article_at or story.updated_at
+        elapsed_hours = (ref_time - effective_ts).total_seconds() / 3600.0
         if elapsed_hours <= self._breaking_window_hours and distinct_count >= 2:
             badges.append("⚡ Breaking")
         if distinct_count >= 3:
             badges.append("🌟 Top Story")
         if is_routine:
             badges.append("⚠️ Routine")
+        elif crisis_exempt:
+            badges.append("🚨 Crisis Warning")
 
         breakdown = TrendingScoreBreakdown(
             base_score=round(raw_base, 4),
@@ -797,6 +868,8 @@ class TrendingService:
             engagement_score=engagement_score,
             routine_penalty=routine_dampener,
             is_routine=is_routine,
+            crisis_exemption_applied=crisis_exempt,
+            crisis_exemption_reason=exempt_reason,
             final_score=final_score,
             raw_trending_score=final_score,
             cluster_multiplier=round(1.0 + self._consensus_weight * max(0, distinct_count - 1), 4),
@@ -884,6 +957,7 @@ class TrendingService:
 
             cluster = TrendingStoryCluster(
                 story_id=story.story_id,
+                macro_event_id=story.macro_event_id,
                 title=story.title,
                 category=story.category,
                 status=story.status,
@@ -921,6 +995,169 @@ class TrendingService:
                 cluster.badges.append("🔥 Trending")
 
         return top_clusters
+
+    def get_trending_macro_events(
+        self,
+        limit: int = 10,
+        category: str | None = None,
+        now: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Rank active MacroEventRecord storylines deterministically.
+        Aggregates volume, burst velocity, diversity, recency across child events.
+        """
+        from backend.repo.macro_event_repo import get_macro_event_repository
+
+        ref_time = now or datetime.now(timezone.utc)
+        macro_repo = get_macro_event_repository()
+        all_macros = macro_repo.list_macro_events(status="active", limit=500)
+
+        raw_news = self._news_repo.load_news()
+        news_map: dict[str, dict[str, Any]] = {}
+        for a in raw_news:
+            if isinstance(a, dict):
+                u = a.get("url")
+                if u and isinstance(u, str):
+                    news_map[u.strip()] = a
+
+        scored_macros: list[dict[str, Any]] = []
+
+        for macro in all_macros:
+            child_stories = self.story_repo.get_stories_by_macro_id(macro.macro_event_id)
+            if not child_stories and macro.child_event_ids:
+                child_stories = self.story_repo.get_stories_by_ids(macro.child_event_ids)
+
+            # Check dynamic lifecycle
+            if not macro.is_active_dynamic(child_events=child_stories, now=ref_time):
+                continue
+
+            if category and category.strip().lower() not in ("", "all") and macro.category.strip().lower() != category.strip().lower():
+                continue
+
+            # Gather all member articles across all child stories
+            macro_articles: list[dict[str, Any]] = []
+            seen_urls: set[str] = set()
+            for cs in child_stories:
+                for u in cs.article_urls:
+                    clean_u = u.strip() if u else ""
+                    if clean_u and clean_u not in seen_urls:
+                        seen_urls.add(clean_u)
+                        if clean_u in news_map:
+                            macro_articles.append(news_map[clean_u])
+                        else:
+                            macro_articles.append({"url": clean_u, "title": cs.title, "source": cs.outlets[0] if cs.outlets else ""})
+
+            # Check routine status across all child stories and articles
+            is_routine = False
+            crisis_exempt = False
+            exempt_reason = None
+            for cs in child_stories:
+                r, ce, cer = self.check_routine_status(cs, macro_articles)
+                if r:
+                    is_routine = True
+                if ce:
+                    crisis_exempt = True
+                    exempt_reason = cer
+                    is_routine = False
+                    break
+
+            # Calculate signals
+            k, div_score, unique_outlets = self.compute_publisher_diversity(macro_articles)
+            vol_score, vel_score, _time_details = self.compute_volume_and_velocity(macro_articles, ref_time)
+
+            # Recency from latest child activity
+            child_dates = [cs.last_article_at or cs.first_article_at or cs.updated_at for cs in child_stories]
+            latest_child_ts = max(child_dates) if child_dates else (macro.last_activity_at or macro.updated_at)
+            dt_hours = max(0.0, (ref_time - latest_child_ts).total_seconds() / 3600.0)
+            h = max(0.1, self._recency_half_life_hours)
+            recency_score = round(max(0.0001, min(1.0, math.pow(2.0, -dt_hours / h))), 4)
+
+            # Novelty
+            novelty_score = 1.0
+
+            # Engagement across child stories
+            eng_clicks = 0
+            eng_sums = 0
+            eng_bms = 0
+            for u in seen_urls:
+                stats = self._engagement_repo.get_engagement(u)
+                eng_clicks += stats.get("clicks", 0)
+                eng_sums += stats.get("summaries", 0)
+                eng_bms += stats.get("bookmarks", 0)
+            eng_weighted = float(1.0 * eng_clicks + 3.0 * eng_sums + 5.0 * eng_bms)
+            eng_score = round(math.log(1.0 + max(0.0, eng_weighted)), 4)
+
+            raw_base = (
+                self._volume_weight * vol_score
+                + self._velocity_weight * vel_score
+                + self._diversity_weight * div_score
+                + self._novelty_weight * novelty_score
+                + self._engagement_weight * eng_score
+            )
+            decayed = raw_base * recency_score
+            routine_dampener = self._routine_penalty_factor if is_routine else 1.0
+            final_score = round(decayed * routine_dampener, 4)
+
+            badges: list[str] = []
+            if final_score >= 4.0:
+                badges.append("🔥 Trending")
+            if dt_hours <= self._breaking_window_hours and k >= 2:
+                badges.append("⚡ Breaking")
+            if k >= 3:
+                badges.append("🌟 Major Storyline")
+            if is_routine:
+                badges.append("⚠️ Routine")
+            elif crisis_exempt:
+                badges.append("🚨 Crisis Warning")
+
+            breakdown = TrendingScoreBreakdown(
+                base_score=round(raw_base, 4),
+                volume_score=vol_score,
+                velocity_score=vel_score,
+                diversity_score=div_score,
+                recency_score=recency_score,
+                time_decay=recency_score,
+                novelty_score=novelty_score,
+                engagement_score=eng_score,
+                routine_penalty=routine_dampener,
+                is_routine=is_routine,
+                crisis_exemption_applied=crisis_exempt,
+                crisis_exemption_reason=exempt_reason,
+                final_score=final_score,
+                details={
+                    "total_articles": len(macro_articles),
+                    "child_events": len(child_stories),
+                    "distinct_outlets": k,
+                    "outlets": unique_outlets,
+                },
+            )
+
+            scored_macros.append({
+                "macro_event_id": macro.macro_event_id,
+                "title": macro.title,
+                "headline": macro.headline or macro.title,
+                "summary": macro.summary,
+                "category": macro.category,
+                "status": macro.status,
+                "child_event_count": len(child_stories),
+                "article_count": len(macro_articles),
+                "outlet_count": k,
+                "outlets": unique_outlets,
+                "trending_score": final_score,
+                "breakdown": breakdown.model_dump(mode="json"),
+                "badges": list(dict.fromkeys(badges)),
+                "created_at": macro.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "timeline": [t.model_dump(mode="json") for t in macro.timeline],
+            })
+
+        scored_macros.sort(key=lambda m: (-m["trending_score"], -parse_article_time(m["updated_at"]).timestamp()))
+        effective_limit = max(1, min(limit, 100))
+        top_macros = scored_macros[:effective_limit]
+        for idx, m in enumerate(top_macros, start=1):
+            m["rank"] = idx
+
+        return top_macros
 
     def calculate_score(
         self,
