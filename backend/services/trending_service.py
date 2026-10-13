@@ -1027,6 +1027,9 @@ class TrendingService:
             if not child_stories and macro.child_event_ids:
                 child_stories = self.story_repo.get_stories_by_ids(macro.child_event_ids)
 
+            if not child_stories:
+                continue
+
             # Check dynamic lifecycle
             if not macro.is_active_dynamic(child_events=child_stories, now=ref_time):
                 continue
@@ -1046,6 +1049,9 @@ class TrendingService:
                             macro_articles.append(news_map[clean_u])
                         else:
                             macro_articles.append({"url": clean_u, "title": cs.title, "source": cs.outlets[0] if cs.outlets else ""})
+
+            if not macro_articles:
+                continue
 
             # Check routine status across all child stories and articles
             is_routine = False
@@ -1144,6 +1150,12 @@ class TrendingService:
                     if u and isinstance(u, str):
                         primary_url = u.strip()
 
+            first_child_title = (child_stories[0].headline or child_stories[0].title) if child_stories else ""
+            macro_title = macro.title or first_child_title or "ประเด็นข่าวร้อนแรง"
+            macro_headline = macro.headline or macro.title or first_child_title or "ประเด็นข่าวร้อนแรง"
+            first_child_summary = child_stories[0].summary if child_stories else ""
+            macro_summary = macro.summary or first_child_summary or "รวบรวมรายงานความคืบหน้าสถานการณ์จากสำนักข่าวที่เกี่ยวข้อง"
+
             tags: list[str] = []
             if macro.named_crisis_anchor:
                 tags.append(f"#{macro.named_crisis_anchor.replace(' ', '')}")
@@ -1151,6 +1163,18 @@ class TrendingService:
                 clean_ent = ent.strip().replace(" ", "")
                 if len(clean_ent) >= 2 and f"#{clean_ent}" not in tags:
                     tags.append(f"#{clean_ent}")
+            # Contextual keywords from title and summary
+            for kw in ["GDPไทย", "GDP", "แบงก์ชาติ", "IMF", "หุ้นไทย", "ตลาดหุ้น", "เศรษฐกิจไทย", "AI"]:
+                if kw in macro_title or kw in macro_summary:
+                    tag = f"#{kw}"
+                    if tag not in tags:
+                        tags.append(tag)
+            if len(tags) < 3 and child_stories:
+                for cs in child_stories:
+                    for o in cs.outlets:
+                        tag = f"#{o.replace(' ', '')}"
+                        if tag not in tags:
+                            tags.append(tag)
             if macro.category and macro.category != "all":
                 cat_tag = f"#{macro.category}"
                 if cat_tag not in tags:
@@ -1162,10 +1186,12 @@ class TrendingService:
                 cs_arts = [a for a in macro_articles if a.get("url") in cs_urls]
                 child_event_summaries.append({
                     "story_id": cs.story_id,
-                    "title": cs.title,
+                    "title": cs.headline or cs.title,
+                    "headline": cs.headline or cs.title,
+                    "summary": cs.summary,
                     "category": cs.category,
-                    "article_count": cs.article_count,
-                    "outlet_count": cs.outlet_count,
+                    "article_count": cs.article_count or len(cs_arts),
+                    "outlet_count": cs.outlet_count or len(cs.outlets),
                     "outlets": cs.outlets,
                     "article_urls": cs.article_urls,
                     "articles": cs_arts,
@@ -1177,9 +1203,9 @@ class TrendingService:
                 "macro_event_id": macro.macro_event_id,
                 "story_id": macro.macro_event_id,
                 "is_macro": True,
-                "title": macro.title,
-                "headline": macro.headline or macro.title,
-                "summary": macro.summary,
+                "title": macro_title,
+                "headline": macro_headline,
+                "summary": macro_summary,
                 "category": macro.category,
                 "status": macro.status,
                 "child_event_count": len(child_stories),
@@ -1533,9 +1559,9 @@ class TrendingService:
                     }
                 )
 
-        # 8. Batched LLM Metadata Enrichment (Decoupled, Metadata Only)
+        # 8. Batched Metadata Enrichment (Decoupled LLM - Deterministic Heuristic on Critical Path)
         if cluster_enrichment_payload:
-            enriched_meta = self._llm_enricher.enrich_clusters(cluster_enrichment_payload)
+            enriched_meta = self._llm_enricher.enrich_clusters(cluster_enrichment_payload, allow_llm=False)
             for tc in trending_clusters:
                 if tc.cluster_id in enriched_meta:
                     meta = enriched_meta[tc.cluster_id]

@@ -521,11 +521,14 @@ class StoryPresentationService:
         self,
         story: StoryRecord | TrendingStoryCluster | dict[str, Any],
         articles: Sequence[ArticleRecord | dict[str, Any]] | None = None,
+        allow_llm: bool = True,
     ) -> StoryPresentation:
         """
         Generate or retrieve cached presentation for a story event.
         Returns StoryPresentation containing Thai headline, summary,
         chronological developments timeline, and source citations.
+        Decoupled LLM: If allow_llm=False (critical trending path), uses cached
+        presentation or deterministic fallback immediately without LLM network call.
         """
         # 1. Extract story attributes
         story_id, title, category, updated_at_val, story_urls = self._extract_story_info(story)
@@ -539,9 +542,9 @@ class StoryPresentationService:
         # 3. Resolve member articles
         resolved_articles = self._resolve_articles(story, articles, story_urls)
 
-        # 4. Attempt LLM generation via tiered cascade
+        # 4. Attempt LLM generation via tiered cascade (Only if allowed & configured)
         presentation: StoryPresentation | None = None
-        if self._should_attempt_llm():
+        if allow_llm and self._should_attempt_llm():
             presentation = self._generate_llm_presentation(
                 story_id=story_id,
                 title=title,
@@ -550,7 +553,7 @@ class StoryPresentationService:
                 updated_at=norm_updated_at,
             )
 
-        # 5. Robust Fallback if LLM failed, disabled, or returned invalid output
+        # 5. Robust Fallback if LLM disabled, failed, or returned invalid output
         if presentation is None:
             presentation = self._build_fallback_presentation(
                 story_id=story_id,
@@ -568,9 +571,10 @@ class StoryPresentationService:
         self,
         story: StoryRecord | TrendingStoryCluster | dict[str, Any],
         articles: Sequence[ArticleRecord | dict[str, Any]] | None = None,
+        allow_llm: bool = True,
     ) -> StoryPresentation:
         """Asynchronous wrapper for present_story."""
-        return await asyncio.to_thread(self.present_story, story, articles)
+        return await asyncio.to_thread(self.present_story, story, articles, allow_llm)
 
     # ── Story Enrichment (In-Place / Object Return) ────────────────
 
@@ -578,12 +582,13 @@ class StoryPresentationService:
         self,
         story: StoryRecord | TrendingStoryCluster | dict[str, Any],
         articles: Sequence[ArticleRecord | dict[str, Any]] | None = None,
+        allow_llm: bool = True,
     ) -> StoryRecord | TrendingStoryCluster | dict[str, Any]:
         """
         Enrich a story record or cluster with presentation metadata
         (headline, summary, timeline, and citations).
         """
-        presentation = self.present_story(story, articles)
+        presentation = self.present_story(story, articles, allow_llm=allow_llm)
 
         if isinstance(story, StoryRecord):
             story.headline = presentation.headline
@@ -617,34 +622,39 @@ class StoryPresentationService:
         self,
         story: StoryRecord | TrendingStoryCluster | dict[str, Any],
         articles: Sequence[ArticleRecord | dict[str, Any]] | None = None,
+        allow_llm: bool = True,
     ) -> StoryRecord | TrendingStoryCluster | dict[str, Any]:
         """Asynchronous wrapper for enrich_story."""
-        return await asyncio.to_thread(self.enrich_story, story, articles)
+        return await asyncio.to_thread(self.enrich_story, story, articles, allow_llm)
 
     def enrich_top_stories(
         self,
         stories: list[TrendingStoryCluster],
         top_n: int = 5,
+        allow_llm: bool = False,
     ) -> list[TrendingStoryCluster]:
         """
-        Enrich top N trending story clusters with LLM presentation metadata.
-        Falls back gracefully to heuristic presentation without throwing exceptions.
+        Enrich top N trending story clusters with presentation metadata.
+        Decoupled LLM principle: Uses deterministic fallback / cached presentation
+        on the critical trending path (allow_llm=False) to ensure 100% deterministic,
+        instant responses without LLM latency.
         """
         if not stories:
             return []
 
         limit = max(0, min(top_n, len(stories)))
         for idx in range(limit):
-            self.enrich_story(stories[idx])
+            self.enrich_story(stories[idx], allow_llm=allow_llm)
         return stories
 
     async def enrich_top_stories_async(
         self,
         stories: list[TrendingStoryCluster],
         top_n: int = 5,
+        allow_llm: bool = False,
     ) -> list[TrendingStoryCluster]:
         """Asynchronous wrapper for enrich_top_stories."""
-        return await asyncio.to_thread(self.enrich_top_stories, stories, top_n)
+        return await asyncio.to_thread(self.enrich_top_stories, stories, top_n, allow_llm)
 
     # ── Private Generation Helpers ────────────────────────────────
 

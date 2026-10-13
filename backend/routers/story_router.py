@@ -158,8 +158,8 @@ async def get_trending_stories(
         category=category,
     )
 
-    # Enrich top stories with presentation (LLM cascade with graceful heuristic fallback)
-    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5))
+    # Enrich top stories with presentation (Deterministic heuristic fallback, decoupled LLM)
+    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5), allow_llm=False)
 
     return TrendingStoryListResponse(
         total=len(top_stories),
@@ -250,8 +250,8 @@ async def get_story_detail(
 
     member_records.sort(key=_chronological_sort_key)
 
-    # 3. Enrich presentation (LLM cascade or deterministic heuristic fallback)
-    presentation_service.enrich_story(story, member_dicts)
+    # 3. Enrich presentation (Deterministic heuristic fallback or cache, decoupled LLM)
+    presentation_service.enrich_story(story, member_dicts, allow_llm=False)
 
     # 4. Compute deterministic trending score & breakdown
     score, breakdown, _ = trending_service.calculate_story_score(
@@ -264,6 +264,68 @@ async def get_story_detail(
         breakdown_dict["citations"] = list(story.metadata["citations"])
 
     # 5. Build and return StoryDetailResponse
+    return StoryDetailResponse.from_story_and_articles(
+        story=story,
+        articles=member_records,
+        trending_score=score,
+        breakdown=breakdown_dict,
+    )
+
+
+@router.post("/{story_id}/summarize", response_model=StoryDetailResponse)
+async def summarize_story_on_demand(
+    story_id: str,
+    story_repo: StoryRepositoryPort = Depends(get_story_repository),
+    news_repo: NewsRepositoryPort = Depends(get_news_repository),
+    trending_service: TrendingService = Depends(get_trending_service),
+    presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
+) -> StoryDetailResponse:
+    """
+    On-Demand Story Summarization:
+    Explicitly triggered only when the user requests an AI summary for this story event.
+    Calls LLM cascade, updates presentation cache, and returns refreshed StoryDetailResponse.
+    """
+    story = story_repo.get_story(story_id)
+    if story is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Story with id '{story_id}' not found",
+        )
+
+    raw_news = news_repo.load_news()
+    news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+
+    member_dicts: list[dict[str, Any]] = []
+    member_records: list[ArticleRecord] = []
+
+    for u in story.article_urls:
+        clean_u = u.strip() if u else ""
+        if not clean_u:
+            continue
+        if clean_u in news_map:
+            raw_art = news_map[clean_u]
+            member_dicts.append(raw_art)
+            try:
+                member_records.append(ArticleRecord.model_validate(raw_art))
+            except Exception:
+                pass
+
+    def _chronological_sort_key(art: ArticleRecord) -> float:
+        return parse_article_time(art.fetched_at).timestamp()
+
+    member_records.sort(key=_chronological_sort_key)
+
+    # On-demand LLM generation explicitly permitted here
+    presentation_service.enrich_story(story, member_dicts, allow_llm=True)
+
+    score, breakdown, _ = trending_service.calculate_story_score(
+        story=story,
+        articles=member_dicts,
+    )
+    breakdown_dict = breakdown.model_dump()
+    if story.metadata.get("citations"):
+        breakdown_dict["citations"] = list(story.metadata["citations"])
+
     return StoryDetailResponse.from_story_and_articles(
         story=story,
         articles=member_records,

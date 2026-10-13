@@ -93,19 +93,19 @@ class LLMBatchEnricher:
     def enrich_clusters(
         self,
         clusters_data: list[dict[str, Any]],
+        allow_llm: bool = False,
     ) -> dict[str, ClusterMetadata]:
         """
-        Enrich multiple clusters in a single batched LLM prompt.
-        clusters_data: list of dicts with keys:
-          - 'cluster_id': str
-          - 'articles': list of dicts (title, summary, source, fetched_at)
-        Returns mapping of cluster_id -> ClusterMetadata.
+        Enrich multiple clusters in a single batched prompt.
+        Decoupled LLM: If allow_llm=False (default for trending critical path),
+        returns deterministic heuristic fallback immediately without network calls.
         """
         if not clusters_data:
             return {}
 
-        # If LLM is not configured, immediately use deterministic fallback
-        if not settings.llm_api_key or not settings.llm_api_key.strip():
+        # Decoupled LLM principle: If LLM is not allowed (e.g. Critical Trending Path),
+        # immediately use deterministic heuristic fallback without making network calls.
+        if not allow_llm or not settings.llm_api_key or not settings.llm_api_key.strip():
             return self._heuristic_fallback_batch(clusters_data)
 
         prompt_lines: list[str] = [

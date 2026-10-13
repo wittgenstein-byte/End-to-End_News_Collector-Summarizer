@@ -80,8 +80,8 @@ async def get_trending(
     # 2. Fetch active story-based clusters from the persistent Story Identification layer
     top_stories = service.get_trending_stories(limit=limit, category=category)
 
-    # 3. Enrich top stories with presentation (LLM cascade or heuristic fallback)
-    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5))
+    # 3. Enrich top stories with presentation (Deterministic heuristic fallback, decoupled LLM)
+    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5), allow_llm=False)
 
     trending_articles = list(legacy_resp.trending)
     articles_list = list(legacy_resp.articles)
