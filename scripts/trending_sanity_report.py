@@ -134,17 +134,23 @@ def generate_trending_sanity_report(
     ref_time: datetime
     if now is not None:
         ref_time = now
-    elif active_stories:
-        # Use latest story timestamp if available to prevent stories from aging out during offline evaluation
-        latest_story_dt = max(s.updated_at for s in active_stories)
-        now_utc = datetime.now(timezone.utc)
-        # If current time is within 72h of latest story, use now_utc; otherwise use latest_story_dt
-        if abs((now_utc - latest_story_dt).total_seconds()) <= 72 * 3600:
-            ref_time = now_utc
-        else:
-            ref_time = latest_story_dt
     else:
-        ref_time = datetime.now(timezone.utc)
+        candidate_stories = [s for s in active_stories if s.article_count > 0]
+        if candidate_stories:
+            latest_article_dt = max(
+                (s.last_article_at or s.first_article_at or s.created_at)
+                for s in candidate_stories
+            )
+            if latest_article_dt.tzinfo is None:
+                latest_article_dt = latest_article_dt.replace(tzinfo=timezone.utc)
+            now_utc = datetime.now(timezone.utc)
+            # If current real time is within 72h of latest story article, use now_utc; otherwise use latest_article_dt
+            if (now_utc - latest_article_dt).total_seconds() <= 72 * 3600:
+                ref_time = now_utc
+            else:
+                ref_time = latest_article_dt
+        else:
+            ref_time = datetime.now(timezone.utc)
 
     trending_service = TrendingService(
         news_repo=n_repo,
