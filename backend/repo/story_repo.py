@@ -57,6 +57,10 @@ class StoryRepositoryPort(Protocol):
 
     def get_story_by_article_url(self, url: str) -> StoryRecord | None: ...
 
+    def get_stories_by_macro_id(self, macro_id: str) -> list[StoryRecord]: ...
+
+    def delete_story(self, story_id: str) -> bool: ...
+
     def count_stories(self, status: str | None = None) -> int: ...
 
 
@@ -189,6 +193,18 @@ class FileStoryRepository:
                 return self._stories.get(story_id)
             return None
 
+    def get_stories_by_macro_id(self, macro_id: str) -> list[StoryRecord]:
+        """Retrieve all stories belonging to a given macro_event_id (SST lookup)."""
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return []
+        with self._lock:
+            self._sync_cache()
+            return [
+                s for s in self._stories.values()
+                if getattr(s, "macro_event_id", None) == clean_id
+            ]
+
     # ── Utility / Testing Helpers ────────────────────────────────
 
     def count_stories(self, status: str | None = None) -> int:
@@ -199,6 +215,22 @@ class FileStoryRepository:
                 return len(self._stories)
             target = status.strip().lower()
             return sum(1 for s in self._stories.values() if s.status.lower() == target)
+
+    def delete_story(self, story_id: str) -> bool:
+        """Delete story by ID, removing URL mappings and persisting to disk."""
+        clean_id = story_id.strip() if story_id else ""
+        if not clean_id:
+            return False
+        with self._lock:
+            self._sync_cache()
+            old = self._stories.pop(clean_id, None)
+            if old is not None:
+                for u in old.article_urls:
+                    if self._url_to_story_id.get(u) == clean_id:
+                        self._url_to_story_id.pop(u, None)
+                self._persist_to_disk()
+                return True
+            return False
 
     def clear_all(self) -> None:
         """Reset repository store (used in testing or maintenance)."""

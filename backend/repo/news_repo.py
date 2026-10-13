@@ -34,6 +34,7 @@ class NewsRepositoryPort(Protocol):
     ) -> tuple[list[dict], int]: ...
     def get_category_counts(self) -> dict[str, int]: ...
     def get_source_counts(self) -> dict[str, int]: ...
+    def get_by_urls(self, urls: list[str]) -> list[dict]: ...
 
 
 # ── Concrete implementation ───────────────────────────────────────
@@ -49,6 +50,11 @@ class FileNewsRepository:
     def load_news(self) -> list[dict]:
         data = self._read_data()
         return data.get("articles", [])
+
+    def get_by_urls(self, urls: list[str]) -> list[dict]:
+        """Fetch article dicts matching the given URLs."""
+        url_set = set(urls)
+        return [a for a in self.load_news() if a.get("url") in url_set]
 
     def save_news(self, articles: list[dict]) -> None:
         data = self._read_data()

@@ -216,6 +216,18 @@ class MongoStoryRepository:
             logger.error("MongoDB get_story_by_article_url error for url %s: %s", clean_url, exc)
             return None
 
+    def get_stories_by_macro_id(self, macro_id: str) -> list[StoryRecord]:
+        """Find all stories belonging to a given macro_event_id (SST query)."""
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return []
+        try:
+            cursor = self._stories.find({"macro_event_id": clean_id}, {"_id": 0}).sort("updated_at", pymongo.DESCENDING)
+            return [StoryRecord.model_validate(d) for d in cursor]
+        except PyMongoError as exc:
+            logger.error("MongoDB get_stories_by_macro_id error for macro_id %s: %s", clean_id, exc)
+            return []
+
     def count_stories(self, status: str | None = None) -> int:
         """Count total stories, optionally filtered by status."""
         try:
@@ -226,6 +238,18 @@ class MongoStoryRepository:
         except PyMongoError as exc:
             logger.error("MongoDB count_stories error: %s", exc)
             return 0
+
+    def delete_story(self, story_id: str) -> bool:
+        """Delete story document by ID."""
+        clean_id = story_id.strip() if story_id else ""
+        if not clean_id:
+            return False
+        try:
+            res = self._stories.delete_one({"story_id": clean_id})
+            return res.deleted_count > 0
+        except PyMongoError as exc:
+            logger.error("MongoDB delete_story error for story_id %s: %s", clean_id, exc)
+            return False
 
     def close(self) -> None:
         """Close MongoDB client connection."""
