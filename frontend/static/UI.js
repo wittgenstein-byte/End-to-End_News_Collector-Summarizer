@@ -615,15 +615,116 @@ function updateHeroTrendingSlide() {
     `;
   }).join("");
 
+  // Collect all unique hashtags across all trending items
+  const allTrendingHashtags = Array.from(new Set(
+    heroTrendingArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])
+  )).slice(0, 10);
+
+  const hashtagsBarHtml = allTrendingHashtags.length > 0 ? `
+    <div class="trending-hashtags-bar mb-3 flex items-center gap-2 overflow-x-auto py-1.5 scrollbar-none">
+      <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-extrabold shrink-0 border border-amber-500/20 shadow-2xs">
+        <span class="material-symbols-outlined text-[15px] text-amber-500" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        <span>ประเด็นยอดนิยม:</span>
+      </div>
+      <div class="flex items-center gap-1.5 flex-nowrap">
+        ${allTrendingHashtags.map(tag => `
+          <button type="button" 
+                  class="trending-hashtag-pill text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-100/70 hover:bg-amber-400 hover:text-black dark:bg-amber-950/40 dark:hover:bg-amber-400 dark:hover:text-black border border-amber-300/60 dark:border-amber-700/50 px-3 py-1 rounded-full transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                  onclick="window.__filterByHashtag('${esc(tag)}')"
+                  title="กรองข่าวประเด็น ${esc(tag)}">
+            ${esc(tag)}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  const childEvents = Array.isArray(n.child_events) ? n.child_events : [];
+  let subEventsQuickBarHtml = "";
+  if (isMacro && childEvents.length > 0) {
+    const quickCardsHtml = childEvents.slice(0, 3).map((ce, idx) => {
+      const ceTitle = esc(ce.headline || ce.title || `เหตุการณ์ย่อย #${idx + 1}`);
+      const ceOutlets = Array.isArray(ce.outlets) ? ce.outlets : [];
+      const primaryOutlet = ceOutlets[0] || "สำนักข่าว";
+      const outletColor = SOURCE_COLORS[primaryOutlet] ?? "#7c3aed";
+      const ceCount = ce.article_count || (ce.articles ? ce.articles.length : 1);
+      const ceId = esc(ce.story_id || `ce_${idx}`);
+
+      return `
+        <div class="macro-quick-card p-4 rounded-2xl border border-purple-200/90 dark:border-purple-800/40 bg-gradient-to-br from-purple-50/70 via-white to-purple-50/30 dark:from-purple-950/20 dark:via-surface-container-low dark:to-surface-container shadow-xs hover:shadow-md hover:border-purple-400 dark:hover:border-purple-600 transition-all cursor-pointer flex flex-col justify-between gap-3 group/qc"
+             onclick="window.__scrollToSubEvent('${ceId}')"
+             title="คลิกเพื่อดูรายละเอียดเหตุการณ์ย่อยนี้">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+              <span class="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-extrabold text-[10px] tracking-wider uppercase shadow-2xs">
+                Sub-event #${idx + 1}
+              </span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white shadow-2xs" style="background:${outletColor}">
+                <span>${esc(primaryOutlet)}</span>
+              </span>
+            </div>
+            <h4 class="text-xs sm:text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover/qc:text-purple-700 dark:group-hover/qc:text-purple-300 transition-colors">
+              ${ceTitle}
+            </h4>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-purple-100 dark:border-purple-900/30 text-[11px] font-medium text-outline">
+            <span class="flex items-center gap-1 font-semibold">
+              <span class="material-symbols-outlined text-[14px] text-purple-500">feed</span>
+              <span>${ceCount} รายงาน</span>
+            </span>
+            <span class="text-purple-600 dark:text-purple-400 font-extrabold flex items-center gap-0.5 group-hover/qc:translate-x-1 transition-transform">
+              <span>เจาะลึก</span>
+              <span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+            </span>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    subEventsQuickBarHtml = `
+      <div class="mt-4 p-4 sm:p-5 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-900/40 space-y-3.5 shadow-xs">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
+              <span class="material-symbols-outlined text-[16px]">hub</span>
+            </div>
+            <div>
+              <span class="text-xs sm:text-sm font-extrabold text-on-surface block">
+                มุมมอง 3 สำนักข่าวในมหากาพย์นี้ (Cross-Publisher Sub-events Decomposition)
+              </span>
+              <span class="text-[11px] text-outline">เชื่อมโยงรายงานจากแต่ละสำนักข่าวเป็นมหากาพย์เดียวกัน</span>
+            </div>
+          </div>
+          <button type="button" 
+                  class="text-xs font-bold text-purple-700 dark:text-purple-300 hover:text-purple-900 bg-white dark:bg-surface-container px-3 py-1 rounded-full border border-purple-200 dark:border-purple-800 flex items-center gap-1 cursor-pointer transition-all hover:shadow-xs"
+                  onclick="window.__scrollToSubEvents()">
+            <span>ดูทั้งหมด (${childEvents.length} เหตุการณ์)</span>
+            <span class="material-symbols-outlined text-[14px]">expand_more</span>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          ${quickCardsHtml}
+        </div>
+      </div>
+    `;
+  }
+
   container.innerHTML = `
+    <!-- Global Trending Hashtags Bar -->
+    ${hashtagsBarHtml}
+
     <!-- Header Title -->
     <div class="mb-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-2.5">
-        <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm shrink-0">
-          <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
+          <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">whatshot</span>
         </div>
-        <div>
-          <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">เกาะติดประเด็นร้อน (Trending Highlights)</h2>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">⚡ มหากาพย์ประเด็นข่าวร้อน & เรื่องเด่น (Macro Storylines & Trending)</h2>
+          <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-bold border border-purple-200 dark:border-purple-800/40">
+            <span class="material-symbols-outlined text-[13px]">schema</span>
+            <span>Macro-Events Perspective</span>
+          </span>
         </div>
       </div>
 
@@ -701,6 +802,12 @@ function updateHeroTrendingSlide() {
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
+            ${n.summary ? `
+              <p class="text-xs sm:text-sm text-white/90 line-clamp-2 leading-relaxed drop-shadow-md hidden sm:block font-body max-w-4xl"
+                 onclick="window.__openPreview('${esc(n.url)}')">
+                <span class="text-amber-300 font-bold">บทสรุปสังเคราะห์:</span> ${esc(n.summary)}
+              </p>
+            ` : ""}
             ${n.hashtags && Array.isArray(n.hashtags) && n.hashtags.length > 0 ? `
               <div class="flex items-center gap-1.5 flex-wrap pt-1">
                 <span class="text-[11px] font-bold text-amber-300 flex items-center gap-0.5">
@@ -765,6 +872,9 @@ function updateHeroTrendingSlide() {
         ${indicatorsHtml}
       </div>
     </div>
+
+    <!-- Quick Sub-events Decomposition Strip (Directly Visible on Page) -->
+    ${subEventsQuickBarHtml}
 
     <!-- Trending Story Detail, Timeline & Score Breakdown Panel -->
     ${renderTrendingStoryDetailPanel(n)}
@@ -962,7 +1072,7 @@ export function renderTrendingStoryDetailPanel(story) {
       }).join("");
 
       return `
-        <div class="macro-subevent-card p-4 sm:p-5 rounded-2xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-br from-purple-50/40 to-white dark:from-purple-950/10 dark:to-surface-container-low shadow-xs space-y-3">
+        <div id="subevent-card-${ceId}" class="macro-subevent-card p-4 sm:p-5 rounded-2xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-br from-purple-50/40 to-white dark:from-purple-950/10 dark:to-surface-container-low shadow-xs space-y-3">
           <div class="flex items-start justify-between gap-3 flex-wrap">
             <div class="space-y-1.5 flex-1 min-w-[260px]">
               <div class="flex items-center gap-2 flex-wrap">
@@ -1201,6 +1311,19 @@ window.__scrollToSubEvents = () => {
   const el = document.getElementById("sub-events-section") || document.getElementById("story-timeline-section");
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+};
+
+window.__scrollToSubEvent = (subEventId) => {
+  const targetCard = document.getElementById(`subevent-card-${subEventId}`) || document.getElementById("sub-events-section");
+  if (targetCard) {
+    targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+    targetCard.classList.add("ring-4", "ring-purple-400", "scale-[1.01]");
+    setTimeout(() => {
+      targetCard.classList.remove("ring-4", "ring-purple-400", "scale-[1.01]");
+    }, 2500);
+  } else {
+    window.__scrollToSubEvents();
   }
 };
 

@@ -620,3 +620,33 @@ html.dark .subevent-article-item {
 html.dark .subevent-article-item:hover {
   border-color: rgba(168, 85, 247, 0.35) !important;
 }
+
+/* ── Macro Quick Decomposition Cards ── */
+.macro-quick-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.macro-quick-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -5px rgba(124, 58, 237, 0.16);
+}
+
+html.dark .macro-quick-card {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.2), rgba(20, 21, 25, 0.95)) !important;
+  border-color: rgba(168, 85, 247, 0.25) !important;
+}
+
+html.dark .macro-quick-card:hover {
+  border-color: rgba(192, 132, 252, 0.5) !important;
+  box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.25) !important;
+}
+
+/* ── Trending Hashtags Bar Horizontal Scroll ── */
+.trending-hashtags-bar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.trending-hashtags-bar::-webkit-scrollbar {
+  display: none;
+}
