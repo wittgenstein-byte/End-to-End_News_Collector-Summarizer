@@ -91,6 +91,45 @@ class MongoNewsRepository:
             logger.error("MongoDB load_news error: %s", exc)
             return []
 
+    def load_recent_news(self, hours: float = 48.0) -> list[dict]:
+        """Load recent articles within hours window sorted by fetched_at descending."""
+        try:
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            cursor = self._articles.find({"fetched_at": {"$gte": cutoff}}, {"_id": 0}).sort("fetched_at", pymongo.DESCENDING)
+            return list(cursor)
+        except PyMongoError as exc:
+            logger.error("MongoDB load_recent_news error: %s", exc)
+            return []
+
+    def get_article_content(self, url: str) -> dict | None:
+        """Fetch content for a given article URL."""
+        try:
+            doc = self._articles.find_one({"url": url}, {"_id": 0, "content": 1, "raw_html": 1, "bullets": 1, "keywords": 1})
+            return doc if doc else None
+        except PyMongoError as exc:
+            logger.error("MongoDB get_article_content error: %s", exc)
+            return None
+
+    def save_article_content(
+        self,
+        url: str,
+        content: str = "",
+        raw_html: str = "",
+        bullets: list[str] | None = None,
+        keywords: list[str] | None = None,
+    ) -> None:
+        """Save decoupled heavy article content."""
+        try:
+            update_data: dict[str, Any] = {"content": content, "raw_html": raw_html}
+            if bullets is not None:
+                update_data["bullets"] = bullets
+            if keywords is not None:
+                update_data["keywords"] = keywords
+            self._articles.update_one({"url": url}, {"$set": update_data}, upsert=False)
+        except PyMongoError as exc:
+            logger.error("MongoDB save_article_content error: %s", exc)
+
     def get_by_urls(self, urls: list[str]) -> list[dict]:
         """Fetch article dicts matching the given URLs."""
         if not urls:

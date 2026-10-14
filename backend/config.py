@@ -149,10 +149,20 @@ class Settings:
     # Storage (ใช้ pathlib เพื่อ cross-platform — ย้ายไปโฟลเดอร์ data/)
     DATA_DIR: Path          = BASE_DIR / "data"
     data_file: Path         = DATA_DIR / _get("DATA_FILE",  "news_data.json")
+    sqlite_file: Path       = DATA_DIR / _get("SQLITE_FILE", "news_collector.db")
     stories_file: Path      = DATA_DIR / _get("STORIES_FILE", "stories_data.json")
     engagement_file: Path   = DATA_DIR / _get("ENGAGEMENT_FILE", "engagement_data.json")
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
-    db_type: str            = _get("DB_TYPE", "json").lower().strip()
+    db_type: str            = _get("DB_TYPE", "sqlite").lower().strip()
+    sqlite_wal_mode: bool   = _get("SQLITE_WAL_MODE", "true").lower() in {"1", "true", "yes"}
+    sqlite_cache_size_kb: int = int(_get("SQLITE_CACHE_SIZE_KB", "64000"))
+    sqlite_mmap_size_bytes: int = int(_get("SQLITE_MMAP_SIZE_BYTES", "268435456"))
+
+    # Tiered In-Memory Caching (L1 RAM Layer)
+    news_cache_ttl_seconds: int     = int(_get("NEWS_CACHE_TTL_SECONDS", "30"))
+    trending_cache_ttl_seconds: int = int(_get("TRENDING_CACHE_TTL_SECONDS", "60"))
+    metadata_cache_ttl_seconds: int = int(_get("METADATA_CACHE_TTL_SECONDS", "60"))
+
     mongo_uri: str          = _get("MONGO_URI", "mongodb://localhost:27017")
     mongo_db_name: str      = _get("MONGO_DB_NAME", "news_collector")
     mongo_story_collection: str = _get("MONGO_STORY_COLLECTION", "stories")

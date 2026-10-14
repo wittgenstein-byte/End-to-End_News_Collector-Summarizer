@@ -11,7 +11,7 @@ GRASP  Creator — สร้างและจัดการ news / seen-url co
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -21,6 +21,7 @@ from typing import Protocol
 
 class NewsRepositoryPort(Protocol):
     def load_news(self)  -> list[dict]: ...
+    def load_recent_news(self, hours: float = 48.0) -> list[dict]: ...
     def save_news(self, data: list[dict]) -> None: ...
     def load_seen(self)  -> set[str]: ...
     def save_seen(self, seen: set[str]) -> None: ...
@@ -35,6 +36,15 @@ class NewsRepositoryPort(Protocol):
     def get_category_counts(self) -> dict[str, int]: ...
     def get_source_counts(self) -> dict[str, int]: ...
     def get_by_urls(self, urls: list[str]) -> list[dict]: ...
+    def get_article_content(self, url: str) -> dict | None: ...
+    def save_article_content(
+        self,
+        url: str,
+        content: str = "",
+        raw_html: str = "",
+        bullets: list[str] | None = None,
+        keywords: list[str] | None = None,
+    ) -> None: ...
 
 
 # ── Concrete implementation ───────────────────────────────────────
@@ -50,6 +60,11 @@ class FileNewsRepository:
     def load_news(self) -> list[dict]:
         data = self._read_data()
         return data.get("articles", [])
+
+    def load_recent_news(self, hours: float = 48.0) -> list[dict]:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        news = self.load_news()
+        return [n for n in news if str(n.get("fetched_at") or "") >= cutoff]
 
     def get_by_urls(self, urls: list[str]) -> list[dict]:
         """Fetch article dicts matching the given URLs."""
@@ -111,6 +126,28 @@ class FileNewsRepository:
                 counts[src] = counts.get(src, 0) + 1
         return counts
 
+    def get_article_content(self, url: str) -> dict | None:
+        """Fallback for FileNewsRepository - check if in-memory or return None."""
+        for art in self.load_news():
+            if art.get("url") == url and (art.get("content") or art.get("body")):
+                return {
+                    "content": art.get("content") or art.get("body", ""),
+                    "raw_html": art.get("raw_html", ""),
+                    "bullets": art.get("bullets", []),
+                    "keywords": art.get("keywords", []),
+                }
+        return None
+
+    def save_article_content(
+        self,
+        url: str,
+        content: str = "",
+        raw_html: str = "",
+        bullets: list[str] | None = None,
+        keywords: list[str] | None = None,
+    ) -> None:
+        pass
+
     # ── Seen URLs ────────────────────────────────────────────────
 
     def load_seen(self) -> set[str]:
@@ -169,6 +206,45 @@ def get_news_repository() -> NewsRepositoryPort:
 
     from backend.config import settings
 
+    # 1. SQLite WAL Mode Storage Engine (Default for Max Speed)
+    if settings.db_type == "sqlite":
+        try:
+            from backend.repo.sqlite_news_repo import SqliteNewsRepository
+
+            sqlite_repo = SqliteNewsRepository(
+                db_path=settings.sqlite_file,
+                wal_mode=settings.sqlite_wal_mode,
+                cache_size_kb=settings.sqlite_cache_size_kb,
+                mmap_size_bytes=settings.sqlite_mmap_size_bytes,
+            )
+
+            # Auto-bootstrap / migrate from JSON if SQLite database is empty
+            if settings.data_file.exists():
+                cat_counts = sqlite_repo.get_category_counts()
+                if cat_counts.get("all", 0) == 0:
+                    try:
+                        from backend.migrate_to_sqlite import migrate_json_to_sqlite
+
+                        migrate_json_to_sqlite(
+                            json_path=settings.data_file,
+                            sqlite_repo=sqlite_repo,
+                        )
+                    except Exception as m_exc:
+                        import logging
+
+                        logging.getLogger(__name__).warning("SQLite auto-migration skipped: %s", m_exc)
+
+            _REPO_INSTANCE = sqlite_repo
+            return _REPO_INSTANCE
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to initialize SqliteNewsRepository (%s), falling back to FileNewsRepository",
+                exc,
+            )
+
+    # 2. MongoDB Option
     if settings.db_type == "mongodb":
         try:
             from backend.repo.mongo_news_repo import MongoNewsRepository
@@ -186,5 +262,7 @@ def get_news_repository() -> NewsRepositoryPort:
                 exc,
             )
 
+    # 3. JSON File Fallback
     _REPO_INSTANCE = FileNewsRepository(data_file=settings.data_file)
-    return _REPO_INSTANCE
+    return _REPO_INSTANCE
+
