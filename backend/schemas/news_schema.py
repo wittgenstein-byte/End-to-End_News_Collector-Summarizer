@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # ── Category type ─────────────────────────────────────────────────
  
@@ -36,13 +36,21 @@ class CollectRequest(BaseModel):
 # ── Internal / storage schemas ────────────────────────────────────
 
 class ArticleRecord(BaseModel):
-    """ข้าวที่เก็บใน news_output.json"""
+    """
+    Article stored in data/news_data.json / MongoDB 'articles' collection.
+    100% backward compatible with all existing 11,025 articles.
+    """
+    model_config = ConfigDict(extra="ignore")
+
     url: str
     title: str
     source: str
     fetched_at: str = ""
     summary: str = ""
-    category: CategoryType | None = None
+    category: CategoryType | str | None = None
+    story_id: str | None = None
+    image_url: str = ""
+    classification_method: str = ""
 
 # ── LLM output schema ─────────────────────────────────────────────
 

@@ -483,7 +483,7 @@ function startHeroAutoPlay() {
     heroAutoPlayTimer = setInterval(() => {
       heroCurrentIndex = (heroCurrentIndex + 1) % heroTrendingArticles.length;
       updateHeroTrendingSlide();
-    }, 3500);
+    }, 4500);
   }
 }
 
@@ -492,6 +492,13 @@ function stopHeroAutoPlay() {
     clearInterval(heroAutoPlayTimer);
     heroAutoPlayTimer = null;
   }
+}
+
+export function getCurrentHeroTrendingStory() {
+  if (heroTrendingArticles && heroTrendingArticles.length > 0) {
+    return heroTrendingArticles[heroCurrentIndex] || heroTrendingArticles[0];
+  }
+  return null;
 }
 
 export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
@@ -506,12 +513,134 @@ export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
   }
 
   container.classList.remove("hidden");
-  heroTrendingArticles = articles.slice(0, 7);
+
+  // Deduplicate storylines into 1 trending item per topic (No duplicate ranks)
+  const seenKeys = new Map();
+  const deduped = [];
+  for (const item of (articles || [])) {
+    const mId = item.macro_event_id || item.story_id;
+    const rawT = (item.headline || item.topic_title || item.title || "").trim();
+    const normT = rawT.replace(/[\s"\'“”‘’\(\)\[\]\-]+/g, "").toLowerCase();
+
+    let matchKey = null;
+    if (mId && seenKeys.has(mId)) {
+      matchKey = mId;
+    } else {
+      for (const [k, prev] of seenKeys.entries()) {
+        const prevRaw = (prev.headline || prev.topic_title || prev.title || "").trim();
+        const prevNorm = prevRaw.replace(/[\s"\'“”‘’\(\)\[\]\-]+/g, "").toLowerCase();
+        if (normT && prevNorm && (normT.includes(prevNorm) || prevNorm.includes(normT) || (normT.length >= 10 && normT.slice(0, 10) === prevNorm.slice(0, 10)))) {
+          matchKey = k;
+          break;
+        }
+      }
+    }
+
+    if (matchKey) {
+      const existing = seenKeys.get(matchKey);
+      // Combine outlets
+      const outletSet = new Set(existing.outlets || existing.cluster_sources || []);
+      (item.outlets || item.cluster_sources || [item.source]).filter(Boolean).forEach(o => outletSet.add(o));
+      existing.outlets = Array.from(outletSet);
+      existing.cluster_sources = existing.outlets;
+      // Combine articles
+      const existUrls = new Set((existing.articles || []).map(a => a.url));
+      (item.articles || (item.url ? [item] : [])).forEach(a => {
+        if (a && a.url && !existUrls.has(a.url)) {
+          existUrls.add(a.url);
+          if (!existing.articles) existing.articles = [];
+          existing.articles.push(a);
+        }
+      });
+      existing.article_count = (existing.articles || []).length;
+      // Combine hashtags
+      const tagSet = new Set(existing.hashtags || []);
+      (item.hashtags || []).forEach(h => tagSet.add(h));
+      existing.hashtags = Array.from(tagSet);
+      // Combine child_events
+      if (Array.isArray(item.child_events)) {
+        if (!existing.child_events) existing.child_events = [];
+        const existCids = new Set(existing.child_events.map(c => c.story_id).filter(Boolean));
+        for (const ce of item.child_events) {
+          if (!ce.story_id || !existCids.has(ce.story_id)) {
+            existing.child_events.push(ce);
+            if (ce.story_id) existCids.add(ce.story_id);
+          }
+        }
+      }
+    } else {
+      const key = mId || normT;
+      seenKeys.set(key, item);
+      deduped.push(item);
+    }
+  }
+
+  // Unlimited rank: No .slice(0, 7)! Display all macro storylines
+  heroTrendingArticles = deduped;
   heroBookmarkedMap = bookmarkedMap || {};
   heroCurrentIndex = 0;
 
   updateHeroTrendingSlide();
   startHeroAutoPlay();
+}
+
+/**
+ * กำหนดป้ายกำกับมุมมองสื่อแบบ Deterministic ตามเนื้อหาและสำนักข่าว
+ */
+export function getPerspectiveLabel(headline = "", outlet = "", summary = "") {
+  const text = `${headline} ${summary} ${outlet}`.toLowerCase();
+  
+  if (text.includes("แบงก์ชาติ") || text.includes("ธปท") || text.includes("กนง") || text.includes("ดอกเบี้ย") || text.includes("เงินเฟ้อ") || text.includes("thai post")) {
+    return "มุมมอง ธปท. / แบงก์ชาติ";
+  }
+  if (text.includes("imf") || text.includes("world bank") || text.includes("ai") || text.includes("เอไอ") || text.includes("เทคโนโลยี") || text.includes("standard")) {
+    return "มุมมอง สากล & AI (IMF)";
+  }
+  if (text.includes("หุ้น") || text.includes("ตลาดทุน") || text.includes("โบรก") || text.includes("ดึงทุน") || text.includes("การเงิน") || text.includes("ลงทุน") || text.includes("bangkokbiz")) {
+    return "มุมมอง ตลาดทุน & การลงทุน";
+  }
+  if (text.includes("รัฐบาล") || text.includes("นายก") || text.includes("กระทรวง") || text.includes("การเมือง") || text.includes("พรรค")) {
+    return "มุมมอง นโยบาย & ภาครัฐ";
+  }
+  if (text.includes("ส่งออก") || text.includes("การค้า") || text.includes("พาณิชย์") || text.includes("ท่องเที่ยว")) {
+    return "มุมมอง การค้า & ภาคเศรษฐกิจจริง";
+  }
+  return `มุมมองรายงานโดย ${outlet || "สำนักข่าว"}`;
+}
+
+/**
+ * แถบสถานะ Breadcrumb เมื่อกรองข่าวตามประเด็นมหากาพย์ หรือแฮชแท็ก
+ */
+export function renderStorylineBreadcrumb(topicLabel) {
+  const container = document.getElementById("storyline-filter-breadcrumb");
+  if (!container) return;
+  if (!topicLabel) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  container.innerHTML = `
+    <div class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-amber-500/15 border border-purple-300 dark:border-purple-800/60 shadow-xs flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+          <span class="material-symbols-outlined text-[18px]">filter_alt</span>
+        </div>
+        <div class="min-w-0">
+          <span class="text-[10px] sm:text-xs font-bold text-outline uppercase tracking-wider block">กำลังแสดงเฉพาะข่าวในประเด็น</span>
+          <span class="text-xs sm:text-sm font-extrabold text-on-surface truncate block" title="${esc(topicLabel)}">
+            ${esc(topicLabel)}
+          </span>
+        </div>
+      </div>
+      <button type="button" 
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-surface-container text-xs font-bold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+              onclick="window.__clearStorylineFilter()">
+        <span class="material-symbols-outlined text-[15px]">close</span>
+        <span>ล้างตัวกรองกลับสู่ข่าวทั้งหมด</span>
+      </button>
+    </div>
+  `;
 }
 
 function updateHeroTrendingSlide() {
@@ -529,18 +658,22 @@ function updateHeroTrendingSlide() {
     ? n.trending_score.toFixed(1)
     : "9.8";
 
+  const isMacro = Boolean(n.is_macro || (n.child_events && n.child_events.length > 0));
+  const subEventsCount = n.child_events_count || (n.child_events ? n.child_events.length : 0);
+
+  // 1. Rank Badge
   let rankBadge = "";
   if (rankNum === 1) {
     rankBadge = `
-      <span class="px-3 py-1 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 animate-pulse">
-        <span class="material-symbols-outlined text-[15px]">whatshot</span>
+      <span class="px-3 py-1 rounded-lg bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 animate-pulse">
+        <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">whatshot</span>
         <span>#1 HOT STORY</span>
       </span>
     `;
   } else if (rankNum === 2) {
     rankBadge = `
       <span class="px-3 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs shadow-md flex items-center gap-1.5">
-        <span class="material-symbols-outlined text-[15px]">local_fire_department</span>
+        <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
         <span>#2 TRENDING</span>
       </span>
     `;
@@ -559,28 +692,91 @@ function updateHeroTrendingSlide() {
     `;
   }
 
+  // 2. Multi-source Reporting Pill
   let multiSourcePill = "";
+  if (isMacro && subEventsCount > 0) {
+    multiSourcePill += `
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-400/50 w-fit shadow-lg">
+        <span class="material-symbols-outlined text-[15px] text-purple-300">hub</span>
+        <span class="text-white">มหากาพย์ <span class="text-purple-300 font-extrabold">${subEventsCount}</span> เหตุการณ์ย่อย</span>
+      </div>
+    `;
+  }
   if (n.cluster_sources && Array.isArray(n.cluster_sources) && n.cluster_sources.length > 1) {
     const srcCount = n.cluster_sources.length;
     const displayedSources = srcCount > 3
       ? `${n.cluster_sources.slice(0, 3).join(", ")} +${srcCount - 3} สำนักข่าว`
       : n.cluster_sources.join(", ");
-    multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg" title="${esc(n.cluster_sources.join(', '))}">
-        <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
+    multiSourcePill += `
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg" title="${esc(n.cluster_sources.join(', '))}">
+        <span class="material-symbols-outlined text-[15px] text-amber-400">newspaper</span>
+        <span class="text-white">รายงานจาก ${srcCount} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(displayedSources)}</span></span>
+      </div>
+    `;
+  } else if (n.outlets && Array.isArray(n.outlets) && n.outlets.length > 1) {
+    const srcCount = n.outlets.length;
+    const displayedSources = srcCount > 3
+      ? `${n.outlets.slice(0, 3).join(", ")} +${srcCount - 3} สำนักข่าว`
+      : n.outlets.join(", ");
+    multiSourcePill += `
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg" title="${esc(n.outlets.join(', '))}">
+        <span class="material-symbols-outlined text-[15px] text-amber-400">newspaper</span>
         <span class="text-white">รายงานจาก ${srcCount} สำนักข่าว: <span class="text-amber-300 font-semibold">${esc(displayedSources)}</span></span>
       </div>
     `;
   } else if (n.cluster_size && n.cluster_size > 1) {
-    multiSourcePill = `
-      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
+    multiSourcePill += `
+      <div class="flex items-center gap-1.5 text-xs text-white font-bold bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/40 w-fit shadow-lg">
         <span class="material-symbols-outlined text-[15px] text-amber-400">hub</span>
         <span class="text-white">ประเด็นตรงกัน ${n.cluster_size} สำนักข่าว</span>
       </div>
     `;
   }
 
-  // Generate 7 indicator progress bars at the bottom with 3.5s animation only on the current slide
+  // 3. Quick-Switch Trending Strip (Horizontal Scroll Capsule Strip)
+  const quickSwitchStripHtml = heroTrendingArticles.length > 0 ? `
+    <div class="trending-quick-strip mb-4 flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none"
+         onmouseenter="window.__pauseTrendingAutoPlay()"
+         onmouseleave="window.__resumeTrendingAutoPlay()">
+      <div class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600/10 text-purple-700 dark:text-purple-300 text-xs font-extrabold shrink-0 border border-purple-500/20 shadow-2xs">
+        <span class="material-symbols-outlined text-[16px] text-purple-600 animate-pulse">schema</span>
+        <span>มหากาพย์ประเด็นยอดนิยม:</span>
+      </div>
+      <div class="flex items-center gap-2 flex-nowrap">
+        ${heroTrendingArticles.map((art, idx) => {
+          const isCurrent = idx === heroCurrentIndex;
+          const rank = idx + 1;
+          const rankIcon = rank === 1 ? 'whatshot' : (rank === 2 ? 'local_fire_department' : 'trending_up');
+          const titleShort = esc(art.headline || art.topic_title || art.title || `ประเด็น #${rank}`);
+          const srcCount = art.child_events_count || (art.outlets ? art.outlets.length : (art.cluster_size || 1));
+          
+          return `
+            <button type="button" 
+                    class="trending-quick-card shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
+                      isCurrent 
+                        ? 'bg-gradient-to-r from-purple-700 via-indigo-700 to-primary text-white shadow-md ring-2 ring-purple-400 scale-[1.02]' 
+                        : 'bg-white dark:bg-surface-container border border-outline-variant/30 text-on-surface hover:border-purple-300 dark:hover:border-purple-600 hover:bg-surface-container-high'
+                    }"
+                    onclick="window.__goToTrendingSlide(${idx})"
+                    title="${titleShort}">
+              <span class="flex items-center gap-1 font-extrabold ${isCurrent ? 'text-amber-300' : 'text-purple-600 dark:text-purple-400'}">
+                <span class="material-symbols-outlined text-[15px]">${rankIcon}</span>
+                <span>#${rank}</span>
+              </span>
+              <span class="max-w-[130px] sm:max-w-[180px] lg:max-w-[220px] truncate text-left">${titleShort}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-md font-extrabold ${
+                isCurrent ? 'bg-white/20 text-white' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+              }">
+                ${srcCount} สื่อ
+              </span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  // 4. Progress Segments (Auto-play indicators)
   const indicatorsHtml = heroTrendingArticles.map((_, idx) => {
     const isCurrent = idx === heroCurrentIndex;
     return `
@@ -593,15 +789,119 @@ function updateHeroTrendingSlide() {
     `;
   }).join("");
 
+  // 5. Global Hashtags Bar
+  const allTrendingHashtags = Array.from(new Set(
+    heroTrendingArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])
+  )).slice(0, 10);
+
+  const hashtagsBarHtml = allTrendingHashtags.length > 0 ? `
+    <div class="trending-hashtags-bar mb-3 flex items-center gap-2 overflow-x-auto py-1.5 scrollbar-none">
+      <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-extrabold shrink-0 border border-amber-500/20 shadow-2xs">
+        <span class="material-symbols-outlined text-[15px] text-amber-500" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        <span>#แท็กยอดนิยม:</span>
+      </div>
+      <div class="flex items-center gap-1.5 flex-nowrap">
+        ${allTrendingHashtags.map(tag => `
+          <button type="button" 
+                  class="trending-hashtag-pill text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-100/80 hover:bg-amber-400 hover:text-black dark:bg-amber-950/50 dark:hover:bg-amber-400 dark:hover:text-black border border-amber-300/70 dark:border-amber-700/60 px-3 py-1 rounded-full transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                  onclick="window.__filterByHashtag('${esc(tag)}')"
+                  title="กรองข่าวประเด็น ${esc(tag)}">
+            ${esc(tag)}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  // 5. Publisher Outlets Bar (แหล่งข่าวที่รายงานในมหากาพย์นี้)
+  const outletMap = new Map();
+  (n.articles || []).forEach(a => {
+    if (a && a.source) {
+      if (!outletMap.has(a.source)) outletMap.set(a.source, []);
+      outletMap.get(a.source).push(a);
+    }
+  });
+  (n.child_events || []).forEach(ce => {
+    (ce.articles || []).forEach(a => {
+      if (a && a.source) {
+        if (!outletMap.has(a.source)) outletMap.set(a.source, []);
+        if (!outletMap.get(a.source).some(ea => ea.url === a.url)) {
+          outletMap.get(a.source).push(a);
+        }
+      }
+    });
+  });
+  if (outletMap.size === 0 && n.source) {
+    outletMap.set(n.source, n.url ? [n] : []);
+  }
+  (n.outlets || n.cluster_sources || []).forEach(src => {
+    if (!outletMap.has(src)) outletMap.set(src, []);
+  });
+
+  const publisherPillsHtml = Array.from(outletMap.entries()).map(([outlet, arts]) => {
+    const brandColor = SOURCE_COLORS[outlet] ?? "#6366f1";
+    const count = arts.length;
+    return `
+      <button type="button"
+              class="hero-publisher-pill flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/95 text-white border border-white/30 hover:border-white/60 backdrop-blur-md shadow-md text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 group/pub shrink-0"
+              onclick="event.stopPropagation(); window.__openOutletArticle('${esc(outlet)}')"
+              title="คลิกอ่านรายงานข่าวจาก ${esc(outlet)} (${count} ข่าว)">
+        <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" style="background:${brandColor}"></span>
+        <span class="group-hover/pub:text-amber-300 transition-colors">${esc(outlet)}</span>
+        ${count > 0 ? `<span class="text-[10px] px-1.5 py-0.2 rounded-md font-extrabold bg-white/20 text-white/90">${count}</span>` : ""}
+        <span class="material-symbols-outlined text-[13px] opacity-60 group-hover/pub:opacity-100 transition-opacity">open_in_new</span>
+      </button>
+    `;
+  }).join("");
+
+  // 6. Consolidated Hashtags for this Storyline
+  const storylineHashtags = Array.from(new Set([
+    ...(Array.isArray(n.hashtags) ? n.hashtags : []),
+    ...((n.child_events || []).flatMap(ce => Array.isArray(ce.hashtags) ? ce.hashtags : [])),
+    ...((n.articles || []).flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
+  ])).filter(Boolean).slice(0, 10);
+
+  const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
+    <div class="flex items-center gap-1.5 flex-wrap pt-1">
+      <span class="text-xs font-extrabold text-amber-300 flex items-center gap-1 shrink-0 drop-shadow-sm">
+        <span class="material-symbols-outlined text-[14px]">tag</span>
+        <span>#แฮชแท็ก:</span>
+      </span>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        ${storylineHashtags.map(tag => {
+          const clean = tag.startsWith("#") ? tag.slice(1) : tag;
+          return `
+            <button type="button"
+                    class="hero-hashtag-pill text-xs font-bold text-amber-200 bg-black/65 hover:bg-amber-400 hover:text-black hover:border-amber-400 border border-amber-300/40 px-3 py-1 rounded-full transition-all duration-200 cursor-pointer backdrop-blur-md shadow-xs active:scale-95 flex items-center gap-0.5"
+                    onclick="event.stopPropagation(); window.__filterByHashtag('${esc(clean)}')"
+                    title="กรองข่าวประเด็น #${esc(clean)}">
+              <span>#</span><span>${esc(clean)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  ` : "";
+
   container.innerHTML = `
-    <!-- Header Title -->
+    <!-- 1. Quick-Switch Trending Strip -->
+    ${quickSwitchStripHtml}
+
+    <!-- 2. Global Trending Hashtags Bar -->
+    ${hashtagsBarHtml}
+
+    <!-- 3. Header Title -->
     <div class="mb-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-2.5">
-        <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-sm shrink-0">
-          <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
+          <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">whatshot</span>
         </div>
-        <div>
-          <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">เกาะติดประเด็นร้อน (Trending Highlights)</h2>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h2 class="font-headline font-extrabold text-base sm:text-lg lg:text-xl text-on-surface tracking-tight">⚡ มหากาพย์ประเด็นข่าวร้อน & เรื่องเด่น (Macro Storylines & Trending)</h2>
+          <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-bold border border-purple-200 dark:border-purple-800/40">
+            <span class="material-symbols-outlined text-[13px]">schema</span>
+            <span>Macro Storyline Hub</span>
+          </span>
         </div>
       </div>
 
@@ -612,7 +912,7 @@ function updateHeroTrendingSlide() {
       </div>
     </div>
 
-    <!-- Single Frame Modal/Banner Carousel -->
+    <!-- 4. Single Clean Hero Card Banner -->
     <div class="hero-carousel-container group"
          onmouseenter="window.__pauseTrendingAutoPlay()"
          onmouseleave="window.__resumeTrendingAutoPlay()">
@@ -627,17 +927,17 @@ function updateHeroTrendingSlide() {
 
       <!-- Left Navigation Arrow -->
       <button type="button" 
-              class="hero-nav-btn hero-nav-btn-left"
-              onclick="window.__prevTrendingSlide(event)"
-              title="ก่อนหน้า">
+               class="hero-nav-btn hero-nav-btn-left"
+               onclick="window.__prevTrendingSlide(event)"
+               title="ก่อนหน้า">
         <span class="material-symbols-outlined text-[28px]">chevron_left</span>
       </button>
 
       <!-- Right Navigation Arrow -->
       <button type="button" 
-              class="hero-nav-btn hero-nav-btn-right"
-              onclick="window.__nextTrendingSlide(event)"
-              title="ถัดไป">
+               class="hero-nav-btn hero-nav-btn-right"
+               onclick="window.__nextTrendingSlide(event)"
+               title="ถัดไป">
         <span class="material-symbols-outlined text-[28px]">chevron_right</span>
       </button>
 
@@ -645,15 +945,21 @@ function updateHeroTrendingSlide() {
       <div class="hero-gradient-overlay">
         <!-- Top Status Row -->
         <div class="flex items-center justify-between gap-2 pointer-events-auto">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             ${rankBadge}
+            ${isMacro ? `
+              <span class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-bold text-xs shadow-md flex items-center gap-1 border border-purple-400/40">
+                <span class="material-symbols-outlined text-[14px]">schema</span>
+                <span>มหากาพย์ข่าว</span>
+              </span>
+            ` : ""}
             <span class="px-2.5 py-1 rounded-lg bg-black/75 text-white backdrop-blur-md text-xs font-bold border border-white/30 shadow-md">
               🔥 Trending • ${scoreVal}
             </span>
           </div>
           <div class="flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg border border-white/30 shadow-md">
             <span class="w-2.5 h-2.5 rounded-full shadow-xs" style="background:${color}"></span>
-            <span class="text-xs font-bold text-white uppercase tracking-wider drop-shadow-md">${esc(n.source)}</span>
+            <span class="text-xs font-bold text-white uppercase tracking-wider drop-shadow-md">${esc(n.source || (n.outlets && n.outlets[0]) || "รวมสำนักข่าว")}</span>
           </div>
         </div>
 
@@ -669,27 +975,39 @@ function updateHeroTrendingSlide() {
                 </div>
               ` : ""}
             </div>
+            
             <h1 class="text-lg sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight drop-shadow-lg group-hover:text-amber-200 transition-colors line-clamp-2 cursor-pointer"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
-            ${n.hashtags && Array.isArray(n.hashtags) && n.hashtags.length > 0 ? `
-              <div class="flex items-center gap-1.5 flex-wrap pt-1">
-                ${n.hashtags.map(h => `
-                  <button type="button" 
-                          class="text-[11px] font-bold text-amber-200 bg-black/60 hover:bg-amber-400 hover:text-black border border-amber-300/40 px-2.5 py-0.5 rounded-full transition-all cursor-pointer backdrop-blur-sm shadow-xs"
-                          onclick="event.stopPropagation(); window.__filterByHashtag('${esc(h)}')"
-                          title="กรองข่าวประเด็น ${esc(h)}">
-                    ${esc(h)}
-                  </button>
-                `).join("")}
+
+            ${n.summary ? `
+              <p class="text-xs sm:text-sm text-white/90 line-clamp-2 leading-relaxed drop-shadow-md hidden sm:block font-body max-w-4xl"
+                 onclick="window.__openPreview('${esc(n.url)}')">
+                <span class="text-amber-300 font-bold">บทสรุปสังเคราะห์:</span> ${esc(n.summary)}
+              </p>
+            ` : ""}
+
+            <!-- Publisher Outlets Row (แหล่งข่าวให้กดดู) -->
+            ${publisherPillsHtml ? `
+              <div class="flex items-center gap-2 flex-wrap pt-1">
+                <span class="text-xs font-extrabold text-amber-300 flex items-center gap-1 shrink-0 drop-shadow-sm">
+                  <span class="material-symbols-outlined text-[15px]">newspaper</span>
+                  <span>แหล่งข่าว:</span>
+                </span>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  ${publisherPillsHtml}
+                </div>
               </div>
             ` : ""}
+
+            <!-- Consolidated Hashtags Row (รวม # ไว้) -->
+            ${storylineHashtagsHtml}
           </div>
 
           <div class="flex items-center justify-between gap-4 flex-wrap pt-2">
             <span class="text-xs font-bold text-white/90 uppercase tracking-wider drop-shadow-md">${esc(n.fetched_at || "")}</span>
-            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
               <button type="button" 
                       class="p-2 rounded-xl border border-white/40 bg-black/60 text-white hover:bg-white hover:text-slate-900 backdrop-blur-md active:scale-95 transition-all shadow-md cursor-pointer"
                       onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
@@ -702,10 +1020,16 @@ function updateHeroTrendingSlide() {
                       class="flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-900 px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer" 
                       onclick="window.__openPreview('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[16px] text-slate-900">visibility</span>
-                <span class="text-slate-900 font-bold">อ่านย่อ</span>
+                <span class="text-slate-900 font-bold">อ่านสรุปย่อ</span>
               </button>
               <button type="button" 
-                      class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/20" 
+                      class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-purple-300/40 backdrop-blur-md" 
+                      onclick="window.__filterByStoryline('${esc(n.macro_event_id || n.story_id)}', '${esc(n.headline || n.title)}')">
+                <span class="material-symbols-outlined text-[16px] text-purple-200">filter_alt</span>
+                <span class="text-white font-bold">ดูข่าวทั้งหมดในประเด็นนี้</span>
+              </button>
+              <button type="button" 
+                      class="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-white/20" 
                       onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[16px] text-amber-300" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
                 <span class="text-white font-bold">สรุป AI ทันที</span>
@@ -722,6 +1046,14 @@ function updateHeroTrendingSlide() {
     </div>
   `;
 }
+
+/// Safe stubs for legacy timeline/subevent toggles (cleaned up)
+window.__toggleTimelinePanel = () => {};
+window.__togglePerspectiveQuote = () => {};
+window.__scrollToStoryTimeline = () => {};
+window.__scrollToSubEvents = () => {};
+window.__scrollToSubEvent = () => {};
+window.__toggleSubEventArticles = () => {};
 
 // Global Carousel Actions
 window.__prevTrendingSlide = (event) => {

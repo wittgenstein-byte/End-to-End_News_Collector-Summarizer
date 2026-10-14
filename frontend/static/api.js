@@ -81,6 +81,158 @@ export async function fetchTrendingNews(limit = 3, category = "") {
 }
 
 /**
+ * ดึงรายการ story clusters ทั้งหมด (Persistent Stories)
+ * @param {string} status   — กรองสถานะ ('active', 'dormant', หรือ '')
+ * @param {string} category — กรองหมวดหมู่
+ * @param {number} limit    — จำนวนรายการต่อหน้า
+ * @param {number} offset   — offset สำหรับ pagination
+ */
+export async function fetchStories(status = "", category = "", limit = 20, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
+  if (status && status !== "all") params.set("status", status);
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/stories?${params}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchStories request failed:", e.message);
+    return { total: 0, page: 1, page_size: limit, total_pages: 1, has_next: false, has_prev: false, updated: "", stories: [] };
+  }
+}
+
+/**
+ * ดึงรายละเอียดของ Story Cluster ตาม story_id
+ * รวม member articles ตามลำดับเวลา, timeline, citations, และคะแนน breakdown
+ * @param {string} storyId
+ */
+export async function fetchStoryDetail(storyId) {
+  if (!storyId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/stories/${encodeURIComponent(storyId)}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchStoryDetail request failed:", e.message);
+    return null;
+  }
+}
+
+/**
+ * ดึงรายการ Trending Macro-Events (มหากาพย์ประเด็นข่าวภาพรวม)
+ * @param {number} limit
+ * @param {string} category
+ */
+export async function fetchTrendingMacroEvents(limit = 7, category = "") {
+  const params = new URLSearchParams({ limit });
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/macro-events/trending?${params}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn("fetchTrendingMacroEvents failed:", e.message);
+  }
+  return [];
+}
+
+/**
+ * ดึงรายละเอียดของ Macro-Event ตาม macro_id
+ * รวม child events (sub-events), ความสัมพันธ์, ไทม์ไลน์
+ * @param {string} macroId
+ */
+export async function fetchMacroEventDetail(macroId) {
+  if (!macroId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/macro-events/${encodeURIComponent(macroId)}`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
+  } catch (e) {
+    console.warn("fetchMacroEventDetail request failed:", e.message);
+    return null;
+  }
+}
+
+/**
+ * ดึงรายการ Trending Stories จาก persistent layer (Macro-First ค่าเริ่มต้น)
+ * @param {number} limit
+ * @param {string} category
+ */
+export async function fetchTrendingStories(limit = 30, category = "") {
+  // 1. Prioritize Macro Trending (มหากาพย์ประเด็นใหญ่เป็นค่าเริ่มต้น)
+  const macroTrending = await fetchTrendingMacroEvents(limit, category);
+  if (Array.isArray(macroTrending) && macroTrending.length > 0) {
+    return macroTrending;
+  }
+
+  // 2. Fallback to /api/stories/trending
+  const params = new URLSearchParams({ limit });
+  if (category && category !== "all") params.set("category", category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/stories/trending?${params}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    // Fall back to /api/news/trending
+  }
+
+  // 3. Fallback to /api/news/trending (Consolidate by Cluster/Topic, never duplicate individual articles)
+  const fallback = await fetchTrendingNews(limit, category);
+  if (fallback) {
+    if (Array.isArray(fallback.clusters) && fallback.clusters.length > 0) {
+      return fallback.clusters.map(c => {
+        const primaryArt = (c.articles && c.articles[0]) || {};
+        const outlets = Array.from(new Set(
+          (c.articles || []).map(a => a.source).filter(Boolean)
+        ));
+        return {
+          story_id: c.cluster_id,
+          macro_event_id: c.cluster_id,
+          title: c.topic_title || primaryArt.title || "ประเด็นข่าวร้อน",
+          headline: c.topic_title || primaryArt.title || "ประเด็นข่าวร้อน",
+          summary: c.cluster_summary || primaryArt.summary || "",
+          category: primaryArt.category || "all",
+          trending_score: typeof c.trend_score === "number" ? c.trend_score : (primaryArt.trending_score || 9.0),
+          outlets: outlets.length > 0 ? outlets : (primaryArt.source ? [primaryArt.source] : []),
+          cluster_sources: outlets,
+          articles: c.articles || [],
+          article_count: (c.articles && c.articles.length) || c.article_count || 1,
+          hashtags: c.hashtags || primaryArt.hashtags || [],
+          image_url: primaryArt.image_url || "",
+          url: primaryArt.url || "",
+          fetched_at: primaryArt.fetched_at || "",
+        };
+      });
+    }
+
+    const rawList = fallback.trending || fallback.articles || [];
+    // Deduplicate raw articles by topic_title or cluster_id
+    const seenTopics = new Set();
+    const deduped = [];
+    for (const art of rawList) {
+      const topicKey = (art.cluster_id || art.topic_title || art.title || "").trim().toLowerCase();
+      if (topicKey && seenTopics.has(topicKey)) continue;
+      if (topicKey) seenTopics.add(topicKey);
+      deduped.push(art);
+    }
+    return deduped;
+  }
+
+  return [];
+}
+
+/**
  * บันทึกสถิติ engagement ของผู้อ่าน (click, summary, bookmark)
  * @param {string} url
  * @param {"click"|"summary"|"bookmark"} eventType

@@ -91,6 +91,17 @@ class MongoNewsRepository:
             logger.error("MongoDB load_news error: %s", exc)
             return []
 
+    def get_by_urls(self, urls: list[str]) -> list[dict]:
+        """Fetch article dicts matching the given URLs."""
+        if not urls:
+            return []
+        try:
+            cursor = self._articles.find({"url": {"$in": urls}}, {"_id": 0})
+            return list(cursor)
+        except PyMongoError as exc:
+            logger.error("MongoDB get_by_urls error: %s", exc)
+            return []
+
     def save_news(self, articles: list[dict]) -> None:
         """Atomic bulk upsert of articles using URL as unique key."""
         if not articles:
