@@ -501,6 +501,23 @@ export function getCurrentHeroTrendingStory() {
   return null;
 }
 
+export function getHeroTrendingArticles() {
+  return heroTrendingArticles;
+}
+
+export function getHeroTrendingStoryById(id) {
+  if (!id || !heroTrendingArticles.length) return null;
+  const target = String(id).trim().toLowerCase();
+  return heroTrendingArticles.find(s => {
+    const mId = String(s.macro_event_id || "").toLowerCase();
+    const sId = String(s.story_id || "").toLowerCase();
+    const cId = String(s.cluster_id || "").toLowerCase();
+    const t = String(s.title || "").toLowerCase();
+    const h = String(s.headline || "").toLowerCase();
+    return mId === target || sId === target || cId === target || t === target || h === target;
+  }) || null;
+}
+
 export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
   const container = document.getElementById("hero-trending");
   if (!container) return;
@@ -1024,7 +1041,7 @@ function updateHeroTrendingSlide() {
               </button>
               <button type="button" 
                       class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-purple-300/40 backdrop-blur-md" 
-                      onclick="window.__filterByStoryline('${esc(n.macro_event_id || n.story_id)}', '${esc(n.headline || n.title)}')">
+                      onclick="window.__openStoryline('${esc(n.macro_event_id || n.story_id)}', '${esc(n.headline || n.title)}')">
                 <span class="material-symbols-outlined text-[16px] text-purple-200">filter_alt</span>
                 <span class="text-white font-bold">ดูข่าวทั้งหมดในประเด็นนี้</span>
               </button>
@@ -1405,15 +1422,24 @@ export function showModalError(msg) {
 export function switchView(viewName = "feed") {
   const feedView = document.getElementById("feed-view");
   const previewView = document.getElementById("preview-view");
+  const storylineView = document.getElementById("storyline-view");
   const tickerContainer = document.getElementById("ticker-container");
 
   if (viewName === "preview") {
     if (feedView) feedView.classList.add("hidden");
+    if (storylineView) storylineView.classList.add("hidden");
     if (previewView) previewView.classList.remove("hidden");
+    if (tickerContainer) tickerContainer.classList.add("hidden");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } else if (viewName === "storyline") {
+    if (feedView) feedView.classList.add("hidden");
+    if (previewView) previewView.classList.add("hidden");
+    if (storylineView) storylineView.classList.remove("hidden");
     if (tickerContainer) tickerContainer.classList.add("hidden");
     window.scrollTo({ top: 0, behavior: "smooth" });
   } else {
     if (previewView) previewView.classList.add("hidden");
+    if (storylineView) storylineView.classList.add("hidden");
     if (feedView) feedView.classList.remove("hidden");
     if (tickerContainer) tickerContainer.classList.remove("hidden");
   }
@@ -1735,5 +1761,424 @@ export function renderHistoryList(items = [], type = "history", bookmarkedMap = 
       </div>
     `;
   }).join("");
+}
+
+// ── Dedicated Storyline View (หน้าเจาะลึกมหากาพย์ประเด็นข่าว) ────────
+
+export function showStorylineLoading() {
+  const container = document.getElementById("storyline-view");
+  if (!container) return;
+  container.innerHTML = `
+    <div class="py-24 text-center flex flex-col items-center justify-center space-y-4">
+      <div class="inline-flex items-center justify-center">
+        <svg class="animate-spin h-10 w-10 text-purple-600" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"></path>
+        </svg>
+      </div>
+      <p class="text-base font-extrabold text-purple-900 dark:text-purple-200">กำลังโหลดมหากาพย์ประเด็นข่าว...</p>
+      <p class="text-xs text-outline">รวบรวมเหตุการณ์และบทความจากสำนักข่าวทั้งหมด</p>
+    </div>
+  `;
+}
+
+export function showStorylineError(msg = "ไม่สามารถโหลดข้อมูลประเด็นข่าวนี้ได้") {
+  const container = document.getElementById("storyline-view");
+  if (!container) return;
+  container.innerHTML = `
+    <div class="max-w-2xl mx-auto py-16 px-6 text-center space-y-4">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl">error</span>
+      </div>
+      <h3 class="font-headline font-bold text-lg text-on-surface">เกิดข้อผิดพลาดในการโหลดประเด็นข่าว</h3>
+      <p class="text-sm text-outline">${esc(msg)}</p>
+      <div class="pt-2 flex items-center justify-center gap-3">
+        <button class="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-container transition-all active:scale-95 shadow-xs cursor-pointer"
+                onclick="window.__backFromStoryline()">
+          กลับสู่ฟีดรวมข่าว
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+export function showStorylineAiLoading() {
+  const section = document.getElementById("storyline-ai-section");
+  if (!section) return;
+  section.innerHTML = `
+    <div class="p-6 mt-4 bg-purple-500/10 dark:bg-purple-950/30 rounded-2xl border border-purple-400/30 text-center space-y-3 animate-fade-in">
+      <div class="inline-flex items-center justify-center">
+        <svg class="animate-spin h-7 w-7 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"></path>
+        </svg>
+      </div>
+      <p class="text-sm font-bold text-purple-900 dark:text-purple-200">AI กำลังสังเคราะห์ภาพรวมมหากาพย์ประเด็นนี้...</p>
+      <p class="text-xs text-outline">วิเคราะห์มุมมองร่วม ความขัดแย้ง และพัฒนาการสำคัญจากทุกสำนักข่าว</p>
+    </div>
+  `;
+}
+
+export function renderStorylineAiSummary(summaryData) {
+  const section = document.getElementById("storyline-ai-section");
+  if (!section) return;
+  const s = summaryData;
+  const bullets = (s.bullets ?? []).map((b, i) => `
+    <li class="flex items-start space-x-3 text-sm leading-relaxed text-on-surface">
+      <span class="text-purple-600 dark:text-purple-400 font-bold text-xs mt-0.5 shrink-0 bg-purple-100 dark:bg-purple-900/40 w-5 h-5 rounded-full flex items-center justify-center">0${i+1}</span>
+      <span>${esc(b)}</span>
+    </li>
+  `).join("");
+
+  const keywords = (s.keywords ?? []).map(k => {
+    const clean = String(k).replace(/^#/, "");
+    return `
+      <span class="px-2.5 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-md">#${esc(clean)}</span>
+    `;
+  }).join("");
+
+  section.innerHTML = `
+    <div class="p-6 mt-4 bg-white dark:bg-surface-container-low rounded-2xl border border-purple-300/60 dark:border-purple-800/60 shadow-xs space-y-4 animate-fade-in">
+      <div class="flex items-center justify-between flex-wrap gap-2 border-b border-purple-100 dark:border-purple-900/30 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-lg" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+          <h3 class="font-headline font-bold text-base text-purple-900 dark:text-purple-200">บทวิเคราะห์สังเคราะห์ประเด็นข้ามสำนักข่าว (AI Deep Synthesis)</h3>
+        </div>
+        ${s.sentiment ? `
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${s.sentiment.toLowerCase().includes('positive') ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : (s.sentiment.toLowerCase().includes('negative') ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300')}">
+            Sentiment: ${esc(s.sentiment)}
+          </span>
+        ` : ""}
+      </div>
+
+      ${s.summary ? `
+        <p class="text-sm text-on-surface leading-relaxed">
+          ${esc(s.summary)}
+        </p>
+      ` : ""}
+
+      ${bullets ? `
+        <div class="space-y-2 pt-2">
+          <h4 class="text-xs font-bold uppercase tracking-widest text-outline">Key Story Developments (ลำดับความคืบหน้าสำคัญ)</h4>
+          <ul class="space-y-2">
+            ${bullets}
+          </ul>
+        </div>
+      ` : ""}
+
+      ${keywords ? `
+        <div class="flex flex-wrap gap-1.5 pt-2">
+          ${keywords}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+export function renderStorylineView(storyData, activeSourceFilter = "", bookmarkedMap = {}) {
+  const container = document.getElementById("storyline-view");
+  if (!container || !storyData) return;
+
+  const storyId = storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
+  const headline = storyData.headline || storyData.title || "มหากาพย์ประเด็นข่าว";
+  const category = storyData.category || "general";
+  const catObj = getCategoryById(category);
+  const rawArticles = Array.isArray(storyData.articles) ? storyData.articles : [];
+
+  // Sort articles chronologically (earliest to latest for story timeline)
+  const sortedArticles = [...rawArticles].sort((a, b) => {
+    const timeA = new Date(a.fetched_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
+    return timeA - timeB;
+  });
+
+  // Calculate article counts per publisher outlet
+  const outletCounts = {};
+  sortedArticles.forEach(a => {
+    const src = a.source || "สำนักข่าว";
+    outletCounts[src] = (outletCounts[src] || 0) + 1;
+  });
+  const outlets = Object.keys(outletCounts);
+
+  // Filter articles by activeSourceFilter
+  const filteredArticles = activeSourceFilter
+    ? sortedArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase())
+    : sortedArticles;
+
+  // Build Publisher Filter Pills
+  const allIsActive = !activeSourceFilter;
+  let publisherPillsHtml = `
+    <button type="button" 
+            class="storyline-publisher-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0 ${
+              allIsActive 
+                ? 'bg-purple-600 text-white shadow-xs' 
+                : 'bg-white dark:bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline-variant/30'
+            }"
+            onclick="window.__filterStorylinePublisher('')">
+      <span>ทั้งหมด</span>
+      <span class="text-[10px] px-1.5 py-0.2 rounded-md ${allIsActive ? 'bg-white/20 text-white font-extrabold' : 'bg-surface-container-highest text-outline'}">
+        ${sortedArticles.length}
+      </span>
+    </button>
+  `;
+
+  publisherPillsHtml += outlets.map(outlet => {
+    const isActive = outlet.toLowerCase() === activeSourceFilter.toLowerCase();
+    const count = outletCounts[outlet] || 0;
+    const color = SOURCE_COLORS[outlet] ?? "#1a3a6b";
+    return `
+      <button type="button" 
+              class="storyline-publisher-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-2xs cursor-pointer shrink-0 ${
+                isActive 
+                  ? 'bg-purple-600 text-white font-bold shadow-xs' 
+                  : 'bg-white dark:bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline-variant/30 font-medium'
+              }"
+              onclick="window.__filterStorylinePublisher('${esc(outlet)}')">
+        <span class="w-2 h-2 rounded-full shrink-0" style="background:${isActive ? '#ffffff' : color}"></span>
+        <span>${esc(outlet)}</span>
+        <span class="text-[10px] px-1.5 py-0.2 rounded-md ${isActive ? 'bg-white/20 text-white font-extrabold' : 'bg-surface-container-highest text-outline'}">
+          ${count}
+        </span>
+      </button>
+    `;
+  }).join("");
+
+  // Consolidated Hashtags
+  const storylineHashtags = Array.from(new Set([
+    ...(Array.isArray(storyData.hashtags) ? storyData.hashtags : []),
+    ...(Array.isArray(storyData.entities) ? storyData.entities : []),
+    ...((storyData.child_events || []).flatMap(ce => Array.isArray(ce.hashtags) ? ce.hashtags : [])),
+    ...(sortedArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
+  ])).filter(Boolean).slice(0, 10);
+
+  const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
+    <div class="flex items-center gap-2 flex-wrap pt-2">
+      <span class="text-xs font-bold text-outline flex items-center gap-1 shrink-0">
+        <span class="material-symbols-outlined text-[14px]">tag</span>
+        <span>หัวข้อที่เกี่ยวข้อง:</span>
+      </span>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        ${storylineHashtags.map(tag => {
+          const clean = tag.startsWith("#") ? tag.slice(1) : tag;
+          return `
+            <button type="button"
+                    class="hero-hashtag-pill text-xs font-semibold px-2.5 py-0.5 rounded-md bg-surface-container hover:bg-purple-100 dark:hover:bg-purple-900/40 text-on-surface-variant hover:text-purple-700 dark:hover:text-purple-300 border border-outline-variant/30 transition-all cursor-pointer"
+                    onclick="window.__filterByHashtag('${esc(clean)}')">
+              #${esc(clean)}
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  // Articles Grid
+  const articlesGridHtml = filteredArticles.length > 0 ? `
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      ${filteredArticles.map((art, idx) => {
+        const color = SOURCE_COLORS[art.source] ?? "#1a3a6b";
+        const placeholder = getCategoryPlaceholder(art.category);
+        const imgSrc = art.image_url || placeholder;
+        const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[art.url]);
+        const artJsonEncoded = encodeURIComponent(JSON.stringify(art));
+        const perspective = getPerspectiveLabel(art.title, art.source, art.summary);
+
+        return `
+          <article class="storyline-card flex flex-col bg-white dark:bg-surface-container-low rounded-2xl border border-outline-variant/20 overflow-hidden shadow-xs hover:shadow-md transition-all group">
+            <!-- Card Image -->
+            <div class="relative w-full aspect-[16/10] overflow-hidden bg-surface-container-highest cursor-pointer"
+                 onclick="window.__openPreview('${esc(art.url)}')">
+              <img src="${esc(imgSrc)}" 
+                   alt="${esc(art.title)}" 
+                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                   onerror="this.onerror=null; this.src='${placeholder}';"
+                   loading="lazy">
+              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              
+              <!-- Source Badge on Image -->
+              <div class="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/20">
+                <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
+                <span class="text-[11px] font-bold text-white uppercase tracking-wider">${esc(art.source || "ข่าว")}</span>
+              </div>
+
+              <!-- Chronological Step Indicator -->
+              <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-white/20">
+                ลำดับ #${idx + 1}
+              </div>
+            </div>
+
+            <!-- Card Content -->
+            <div class="p-5 flex-1 flex flex-col space-y-2.5">
+              <!-- Perspective & Badges -->
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-200 dark:border-purple-800/40 inline-flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[12px]">view_in_ar</span>
+                  <span>${esc(perspective)}</span>
+                </span>
+                ${renderArticleBadges(art, false)}
+              </div>
+
+              <!-- Title -->
+              <h3 class="font-headline font-bold text-base text-on-surface line-clamp-2 group-hover:text-primary transition-colors cursor-pointer leading-snug"
+                  onclick="window.__openPreview('${esc(art.url)}')">
+                ${esc(art.title)}
+              </h3>
+
+              <!-- Summary -->
+              <p class="text-xs text-on-surface-variant line-clamp-3 leading-relaxed">
+                ${esc(art.summary || "")}
+              </p>
+
+              <!-- Footer with time and actions -->
+              <div class="pt-3 mt-auto border-t border-outline-variant/10 flex items-center justify-between gap-2">
+                <span class="text-[10px] font-bold text-outline uppercase">${esc(art.fetched_at || "")}</span>
+                <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                  <button type="button"
+                          class="h-7 w-7 flex items-center justify-center rounded-lg border border-outline-variant/30 ${isBookmarked ? 'bg-primary/10 text-primary border-primary/30' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'} active:scale-95 transition-all cursor-pointer"
+                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                    <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #2e4d83;" : ""}">
+                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                    </span>
+                  </button>
+
+                  <button type="button"
+                          class="h-7 px-2.5 flex items-center justify-center gap-1 bg-surface-container text-on-surface hover:bg-surface-container-high rounded-lg font-bold text-xs active:scale-95 transition-all cursor-pointer"
+                          onclick="window.__openPreview('${esc(art.url)}')">
+                    <span class="material-symbols-outlined text-[13px]">visibility</span>
+                    <span>อ่านย่อ</span>
+                  </button>
+
+                  <button type="button"
+                          class="h-7 px-2.5 flex items-center justify-center gap-1 bg-primary text-white hover:bg-primary-container rounded-lg font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
+                          onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">
+                    <span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                    <span>สรุป AI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  ` : `
+    <div class="text-center py-16 bg-white dark:bg-surface-container-low rounded-2xl border border-outline-variant/20 p-8 space-y-3">
+      <span class="material-symbols-outlined text-4xl text-outline">search_off</span>
+      <p class="text-sm font-bold text-on-surface">ไม่พบบทความจากสำนักข่าว "${esc(activeSourceFilter)}" ในมหากาพย์นี้</p>
+      <button class="px-4 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors cursor-pointer"
+              onclick="window.__filterStorylinePublisher('')">
+        ดูข่าวจากทุกสำนักข่าว (${sortedArticles.length})
+      </button>
+    </div>
+  `;
+
+  container.innerHTML = `
+    <!-- 1. Top Navigation Bar -->
+    <div class="flex items-center justify-between gap-4 mb-6 sticky top-[72px] z-30 bg-surface/95 dark:bg-[#121316]/95 backdrop-blur py-3 border-b border-outline-variant/20">
+      <button type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-container hover:bg-surface-container-high text-on-surface rounded-xl text-sm font-bold transition-all active:scale-95 shadow-xs border border-outline-variant/30 cursor-pointer"
+              onclick="window.__backFromStoryline()">
+        <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+        <span>กลับสู่ฟีดรวมข่าว</span>
+      </button>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-bold border border-purple-200 dark:border-purple-800/50 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[15px]">schema</span>
+          <span>มหากาพย์ประเด็นข่าว</span>
+        </span>
+        ${catObj ? `
+          <span class="px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1" style="background:${catObj.bg}; color:${catObj.color}; border-color:${catObj.color}30;">
+            <span>${catObj.icon}</span>
+            <span>${catObj.label}</span>
+          </span>
+        ` : ""}
+      </div>
+    </div>
+
+    <!-- 2. Storyline Header Hero Card -->
+    <div class="mb-8 space-y-4">
+      <div class="space-y-2">
+        <h1 class="text-2xl sm:text-4xl font-headline font-extrabold text-on-surface leading-tight tracking-tight">
+          ${esc(headline)}
+        </h1>
+        <div class="flex items-center gap-3 text-xs text-outline font-medium flex-wrap">
+          <span class="flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">newspaper</span>
+            <span>ครอบคลุม ${outlets.length} สำนักข่าว</span>
+          </span>
+          <span>•</span>
+          <span class="flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">article</span>
+            <span>ทั้งหมด ${sortedArticles.length} รายงานข่าว</span>
+          </span>
+          ${storyData.updated_at ? `
+            <span>•</span>
+            <span class="flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">schedule</span>
+              <span>อัปเดตล่าสุด ${esc(storyData.updated_at)}</span>
+            </span>
+          ` : ""}
+        </div>
+      </div>
+
+      <!-- Synthesized Overview Box -->
+      <div class="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/60 dark:from-purple-950/20 dark:via-surface-container-low dark:to-indigo-950/20 border border-purple-200/70 dark:border-purple-900/40 shadow-xs space-y-3">
+        <div class="flex items-center justify-between gap-3 flex-wrap border-b border-purple-100 dark:border-purple-900/30 pb-3">
+          <div class="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-bold text-sm sm:text-base">
+            <span class="material-symbols-outlined text-[20px] text-purple-600 dark:text-purple-400">auto_stories</span>
+            <span>ภาพรวมสังเคราะห์ของประเด็น (Synthesized Overview)</span>
+          </div>
+          <button type="button"
+                  id="storyline-ai-btn"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
+                  onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
+            <span class="material-symbols-outlined text-[15px]">auto_awesome</span>
+            <span>สรุปภาพรวมประเด็นด้วย AI</span>
+          </button>
+        </div>
+
+        <p class="text-sm sm:text-base text-on-surface leading-relaxed font-body">
+          ${esc(storyData.summary || "ประมวลภาพรวมความคืบหน้าของเหตุการณ์จากทุกสำนักข่าว เพื่อให้เห็นทิศทางและการเปลี่ยนแปลงที่สำคัญ")}
+        </p>
+
+        <!-- Container for AI Summary when generated -->
+        <div id="storyline-ai-section"></div>
+
+        <!-- Consolidated Hashtags -->
+        ${storylineHashtagsHtml}
+      </div>
+    </div>
+
+    <!-- 3. Publisher Filter Strip -->
+    <div class="mb-6 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-lg">filter_list</span>
+          <h2 class="font-headline font-bold text-sm sm:text-base text-on-surface">กรองตามสำนักข่าวที่รายงาน</h2>
+        </div>
+        <span class="text-xs text-outline font-medium">
+          แสดง ${filteredArticles.length} จาก ${sortedArticles.length} ข่าว
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        ${publisherPillsHtml}
+      </div>
+    </div>
+
+    <!-- 4. Chronological Articles Grid -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between gap-2 border-b border-outline-variant/15 pb-2">
+        <h2 class="font-headline font-bold text-base sm:text-lg text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-xl">timeline</span>
+          <span>บทความและลำดับเหตุการณ์ในมหากาพย์</span>
+        </h2>
+      </div>
+
+      ${articlesGridHtml}
+    </div>
+  `;
 }
 

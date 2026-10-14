@@ -6,7 +6,7 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail } from "./api.js";
 import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
 import * as UI from "./UI.js";
 
@@ -47,6 +47,9 @@ const AI_SUMMARIES_CACHE_KEY = "newsroom_ai_summaries";
 
 let readingHistory = [];
 let cachedAiSummaries = {};
+let returnViewHash = "#/";
+let currentStorylineData = null;
+let activeStorylineSourceFilter = "";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -1360,10 +1363,15 @@ function showPreviewByUrl(url, autoSummarize = false) {
 
 function handleHashRouting() {
   const hash = window.location.hash || "#/";
-  if (hash.startsWith("#/preview/")) {
+  if (hash.startsWith("#/storyline/")) {
+    const rawPart = hash.replace("#/storyline/", "");
+    const [encodedId, queryStr] = rawPart.split("?");
+    const storyId = decodeURIComponent(encodedId || "");
+    loadStorylineView(storyId);
+  } else if (hash.startsWith("#/preview/")) {
     const rawPart = hash.replace("#/preview/", "");
     const [encodedUrl, queryStr] = rawPart.split("?");
-    const articleUrl = decodeURIComponent(encodedUrl);
+    const articleUrl = decodeURIComponent(encodedUrl || "");
     const params = new URLSearchParams(queryStr || "");
     const autoSummarize = params.get("summarize") === "1" || params.get("summarize") === "true";
     showPreviewByUrl(articleUrl, autoSummarize);
@@ -1378,17 +1386,218 @@ window.addEventListener("hashchange", handleHashRouting);
 
 window.__openPreview = (url) => {
   if (!url) return;
+  if (window.location.hash.startsWith("#/storyline/")) {
+    returnViewHash = window.location.hash;
+  } else {
+    returnViewHash = "#/";
+  }
   window.location.hash = `#/preview/${encodeURIComponent(url)}`;
 };
 
 window.__openPreviewAndSummarize = (url) => {
   if (!url) return;
+  if (window.location.hash.startsWith("#/storyline/")) {
+    returnViewHash = window.location.hash;
+  } else {
+    returnViewHash = "#/";
+  }
   window.location.hash = `#/preview/${encodeURIComponent(url)}?summarize=1`;
 };
 
 window.__backToFeed = () => {
+  window.location.hash = returnViewHash || "#/";
+};
+
+window.__openStoryline = (id, headline) => {
+  const targetId = id || headline || "";
+  if (!targetId) return;
+  window.location.hash = `#/storyline/${encodeURIComponent(targetId)}`;
+};
+
+window.__backFromStoryline = () => {
   window.location.hash = "#/";
 };
+
+window.__filterStorylinePublisher = (source) => {
+  activeStorylineSourceFilter = source || "";
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {}
+    );
+  }
+};
+
+window.__runStorylineAiSummary = async (storyId) => {
+  UI.showStorylineAiLoading();
+  try {
+    // 1. Try backend story summarize endpoint if storyId matches
+    let res = null;
+    try {
+      const apiRes = await fetch(`/api/stories/${encodeURIComponent(storyId)}/summarize`, { method: "POST" });
+      if (apiRes.ok) {
+        res = await apiRes.json();
+      }
+    } catch (_) {}
+
+    if (res && res.summary) {
+      UI.renderStorylineAiSummary({
+        summary: res.summary,
+        bullets: res.timeline ? res.timeline.map(t => `${t.timestamp ? t.timestamp + ': ' : ''}${t.title || t.event || ''}`).filter(Boolean) : [],
+        keywords: res.entities || res.hashtags || [],
+        sentiment: res.sentiment || "Neutral",
+      });
+      return;
+    }
+
+    // 2. Fallback: Summarize the primary article using existing on-demand LLM service
+    if (currentStorylineData && Array.isArray(currentStorylineData.articles) && currentStorylineData.articles.length > 0) {
+      const firstArticle = currentStorylineData.articles[0];
+      const sumRes = await summarizeArticle(firstArticle.url);
+      if (sumRes.ok && sumRes.summary) {
+        UI.renderStorylineAiSummary(sumRes.summary);
+        return;
+      }
+    }
+
+    // 3. Fallback: Deterministic synthesized summary (Guaranteed no crash, decoupled LLM)
+    const fallbackBullets = (currentStorylineData && Array.isArray(currentStorylineData.articles))
+      ? currentStorylineData.articles.slice(0, 4).map(a => `${a.source || 'ข่าว'}: ${a.title}`)
+      : ["มีการรายงานความเคลื่อนไหวอย่างต่อเนื่องจากสำนักข่าวชั้นนำ", "ประเด็นมีความสำคัญและมีผลกระทบในวงกว้าง"];
+
+    UI.renderStorylineAiSummary({
+      summary: (currentStorylineData && currentStorylineData.summary)
+        ? currentStorylineData.summary
+        : "ประเด็นนี้อยู่ระหว่างการติดตามอย่างใกล้ชิดจากหลายสำนักข่าว โดยมีประเด็นสำคัญที่เชื่อมโยงถึงกันอย่างต่อเนื่อง",
+      bullets: fallbackBullets,
+      keywords: (currentStorylineData && (currentStorylineData.hashtags || currentStorylineData.entities)) || [],
+      sentiment: "Neutral",
+    });
+  } catch (e) {
+    console.warn("AI summary error for storyline:", e);
+    UI.renderStorylineAiSummary({
+      summary: (currentStorylineData && currentStorylineData.summary) || "สรุปภาพรวมประเด็นข่าว",
+      bullets: [],
+      keywords: [],
+    });
+  }
+};
+
+async function loadStorylineView(storyId) {
+  if (!storyId) {
+    UI.showStorylineError("ไม่พบรหัสประเด็นข่าว");
+    UI.switchView("storyline");
+    return;
+  }
+
+  UI.showStorylineLoading();
+  UI.switchView("storyline");
+  activeStorylineSourceFilter = "";
+
+  try {
+    // 1. First attempt: fetch macro-event detail from API
+    let storyData = await fetchMacroEventDetail(storyId);
+
+    // 2. Second attempt: if not macro, fetch story detail from API
+    if (!storyData) {
+      storyData = await fetchStoryDetail(storyId);
+    }
+
+    // 3. Third attempt: In-memory lookup from hero carousel
+    if (!storyData) {
+      const heroStory = UI.getHeroTrendingStoryById(storyId);
+      if (heroStory) {
+        storyData = { ...heroStory };
+      }
+    }
+
+    // 4. Fourth attempt: Match by keywords in currentArticleMap
+    if (!storyData) {
+      const matchingArticles = [];
+      const lowerTarget = storyId.toLowerCase();
+      for (const [url, art] of currentArticleMap.entries()) {
+        const titleLower = (art.title || "").toLowerCase();
+        const summaryLower = (art.summary || "").toLowerCase();
+        if (titleLower.includes(lowerTarget) || summaryLower.includes(lowerTarget)) {
+          matchingArticles.push(art);
+        }
+      }
+
+      if (matchingArticles.length > 0) {
+        storyData = {
+          macro_event_id: storyId,
+          title: matchingArticles[0].title,
+          headline: matchingArticles[0].title,
+          summary: matchingArticles[0].summary || "รวมข่าวในประเด็นนี้",
+          category: matchingArticles[0].category || "general",
+          articles: matchingArticles,
+          outlets: Array.from(new Set(matchingArticles.map(a => a.source).filter(Boolean))),
+        };
+      }
+    }
+
+    if (!storyData) {
+      UI.showStorylineError(`ไม่พบข้อมูลสำหรับประเด็น "${storyId}"`);
+      return;
+    }
+
+    // Assemble member articles list
+    let memberArticles = Array.isArray(storyData.articles) ? [...storyData.articles] : [];
+
+    // If child_events exist, extract nested articles or URLs
+    if (Array.isArray(storyData.child_events)) {
+      storyData.child_events.forEach(ce => {
+        if (Array.isArray(ce.articles)) {
+          memberArticles.push(...ce.articles);
+        }
+        if (Array.isArray(ce.article_urls)) {
+          ce.article_urls.forEach(u => {
+            const mapped = currentArticleMap.get(u);
+            if (mapped) memberArticles.push(mapped);
+          });
+        }
+      });
+    }
+
+    // If few articles found, cross-match relevant articles from currentArticleMap
+    if (memberArticles.length === 0) {
+      const targetKeywords = (storyData.headline || storyData.title || "")
+        .split(/\s+/)
+        .filter(w => w.length > 2);
+
+      for (const [u, art] of currentArticleMap.entries()) {
+        const text = `${art.title || ""} ${art.summary || ""}`;
+        if (targetKeywords.some(kw => text.includes(kw))) {
+          memberArticles.push(art);
+        }
+      }
+    }
+
+    // Deduplicate articles by URL and sync to currentArticleMap
+    const seenUrls = new Set();
+    const dedupedArticles = [];
+    for (const a of memberArticles) {
+      if (a && a.url && !seenUrls.has(a.url)) {
+        seenUrls.add(a.url);
+        currentArticleMap.set(a.url, a);
+        dedupedArticles.push(a);
+      }
+    }
+
+    storyData.articles = dedupedArticles;
+    currentStorylineData = storyData;
+
+    UI.renderStorylineView(
+      storyData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {}
+    );
+  } catch (err) {
+    console.error("Failed to load storyline view:", err);
+    UI.showStorylineError(err.message || "เกิดข้อผิดพลาดในการโหลดประเด็นข่าว");
+  }
+}
 
 window.__openExternalSourceClean = (url) => {
   if (!url) return;
@@ -1596,7 +1805,11 @@ window.__filterByHashtag = (tag) => {
 };
 
 window.__filterByStoryline = (macroId, headline, tag) => {
-  const filterText = tag || headline || "";
+  if (macroId || headline) {
+    window.__openStoryline(macroId, headline);
+    return;
+  }
+  const filterText = tag || "";
   if (!filterText) return;
   if (activeCategory === "bookmarks" || activeCategory === "for-you") {
     activeCategory = "all";

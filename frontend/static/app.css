@@ -716,3 +716,31 @@ html.dark .perspective-quote-box {
 .hero-hashtag-pill:hover {
   transform: translateY(-1px) scale(1.04);
 }
+
+/* ── Dedicated Storyline View Styles ── */
+.storyline-publisher-pill {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.storyline-publisher-pill:hover {
+  transform: translateY(-1px);
+}
+
+.storyline-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.storyline-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .storyline-card {
+  background-color: #18191e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark .storyline-card:hover {
+  border-color: rgba(168, 85, 247, 0.3) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+}
