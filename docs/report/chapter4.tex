@@ -362,6 +362,150 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 
 เมื่อมีข่าวใหม่ที่ผ่านการสรุปและจำแนกเรียบร้อยแล้ว \texttt{SocketManager} จะทำการกระจาย Event (\texttt{news:new}) ไปยังเบราว์เซอร์ของผู้ใช้ทุกคนที่กำลังเปิดหน้าเว็บอยู่ เพื่อให้ผู้ใช้ได้รับข่าวสารล่าสุดทันทีโดยไม่ต้องทำการรีเฟรชหน้าต่างเบราว์เซอร์
 
+\subsection{รายละเอียดการทำงานของจุดเชื่อมต่อบริการทั้งหมด (API Specifications)}
+
+ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติได้รับการพัฒนาจุดเชื่อมต่อบริการแบบ REST API ตามมาตรฐาน OpenAPI 3.0 โดยแบ่งแยกความรับผิดชอบออกเป็น 6 กลุ่ม Router หลัก และระบบการตรวจสอบสถานะ (System Probes) รวมทั้งสิ้น 20 จุดเชื่อมต่อบริการ ดังนี้:
+
+กลุ่มที่ 1 จุดเชื่อมต่อบริการกลุ่มประเด็นข่าว (\texttt{StoryRouter} เส้นทางหลัก \texttt{/api/stories}) มีหน้าที่จัดการวงจรชีวิตและการเรียกดูประเด็นข่าวสารที่ผ่านการจัดกลุ่มแบบสองชั้น ประกอบด้วย:
+\texttt{GET /api/stories} ใช้สำหรับเรียกดูรายการประเด็นข่าวสาร รองรับพารามิเตอร์การกรองตามหมวดหมู่ (\texttt{category}) สถานะวงจรชีวิต (\texttt{status} ได้แก่ \texttt{active} หรือ \texttt{dormant}) ตลอดจนการแบ่งหน้า (\texttt{limit} ค่าเริ่มต้น 20 และ \texttt{offset}) โดยส่งคืนรายการ \texttt{StoryRecord} พร้อมรายชื่อสำนักข่าวร่วม
+\texttt{GET /api/stories/trending} ใช้สำหรับเรียกดูประเด็นข่าวที่กำลังเป็นกระแสความนิยมสูงสุด โดยนำเสนอข้อมูลที่ผ่านการประมวลผลคะแนนจากเอนจินจัดอันดับแบบดีเทอร์มินิสติก (Layer 2) พร้อมรายละเอียดการแจกแจงคะแนน (\texttt{TrendingScoreBreakdown})
+\texttt{GET /api/stories/\{story\_id\}} ใช้สำหรับเรียกดูข้อมูลเชิงลึกของประเด็นข่าวรายเรื่อง ประกอบด้วยพาดหัวภาพรวม บทสรุปสังเคราะห์ รายชื่อสำนักข่าวทั้งหมด ไทม์ไลน์พัฒนาการของเหตุการณ์ และรายชื่อบทความข่าวเดี่ยวในกลุ่ม
+\texttt{POST /api/stories/\{story\_id\}/summarize} ใช้สำหรับร้องขอการสังเคราะห์เนื้อหาภาพรวมประเด็นข่าว ไทม์ไลน์ และพาดหัวข่าวร่วมผ่านโมเดลภาษาขนาดใหญ่ (KKU Gen.AI) แบบ On-Demand โดยมีกลไกตรวจสอบแคชเพื่อป้องกันการประมวลผลซ้ำ และมีระบบสำรองแบบฮิวริสติก (Heuristic Fallback) รองรับกรณีที่โมเดลภาษาภายนอกไม่ตอบสนอง
+
+กลุ่มที่ 2 จุดเชื่อมต่อบริการกลุ่มมหากาพย์ประเด็นข่าว (\texttt{MacroEventRouter} เส้นทางหลัก \texttt{/api/macro-events}) ทำหน้าที่บริหารจัดการประเด็นข่าวขนาดใหญ่ที่มีความเชื่อมโยงกันข้ามหมวดหมู่และยืดเยื้อ ประกอบด้วย:
+\texttt{GET /api/macro-events} ใช้สำหรับดึงรายการมหากาพย์ประเด็นข่าวทั้งหมด โดยสามารถกรองตามสถานะและข้อยกเว้นกรณีวิกฤต (\texttt{crisis})
+\texttt{GET /api/macro-events/trending} ใช้สำหรับดึงมหากาพย์ข่าวที่กำลังได้รับความสนใจสูงสุดเพื่อนำไปแสดงผลบนพื้นที่เด่นของหน้าหลัก Bento Hub
+\texttt{GET /api/macro-events/\{macro\_id\}} ใช้สำหรับดึงรายละเอียดโครงสร้างมหากาพย์ข่าว ความเชื่อมโยงระหว่างประเด็นย่อย (Sub-events) และไทม์ไลน์ภาพรวมเหตุการณ์
+
+กลุ่มที่ 3 จุดเชื่อมต่อบริการข้อมูลข่าวสารหลัก (\texttt{NewsRouter} เส้นทางหลัก \texttt{/api}) ทำหน้าที่ให้บริการข้อมูลบทความข่าวเดี่ยวและการสกัดเนื้อหา ประกอบด้วย:
+\texttt{GET /api/news} ใช้สำหรับดึงรายการบทความข่าวสาร รองรับพารามิเตอร์การแบ่งหน้า (\texttt{page}, \texttt{page\_size}) ตัวกรองหมวดหมู่ (\texttt{category}) ตัวกรองสำนักข่าว (\texttt{source}) และการค้นหาด้วยคำสำคัญ (\texttt{search}) โดยมีระบบแคชระดับ L1 และรองรับ HTTP 304 Not Modified ผ่านส่วนหัว ETag
+\texttt{GET /api/news/content} ใช้สำหรับสกัดเนื้อหาบทความข่าวฉบับเต็มในรูปแบบ Cleaned Markdown ผ่าน Trafilatura และคอนเทนเนอร์ Obscura สำหรับนำไปแสดงผลบนหน้าต่าง In-App Modal Reader
+\texttt{GET /api/categories} ใช้สำหรับเรียกดูรายชื่อ 9 หมวดหมู่ข่าวภาษาไทยที่ระบบรองรับ พร้อมรหัสสีและข้อมูลสถิติ
+\texttt{GET /api/sources} ใช้สำหรับเรียกดูรายชื่อสำนักข่าวทั้งหมดที่ลงทะเบียนและเปิดใช้งานในระบบ (\texttt{@register\_source})
+\texttt{GET /api/status} ใช้สำหรับตรวจสอบสถานะรอบเวลาการทำงานของสเกรปเปอร์และจำนวนข่าวสะสมในระบบ
+\texttt{GET /api/image} ใช้เป็นบริการ Reverse Proxy สำหรับดึงและแคชรูปภาพหน้าปกบทความข่าว เพื่อแก้ไขปัญหาการจำกัดการเข้าถึงข้ามโดเมน (CORS) และการป้องกัน Hotlinking ของเว็บไซต์ต้นทาง
+
+กลุ่มที่ 4 จุดเชื่อมต่อบริการนำเข้าบทความเฉพาะกิจ (\texttt{CollectRouter} เส้นทางหลัก \texttt{/api}) ประกอบด้วย:
+\texttt{POST /api/collect-md} รับข้อมูล URL ของบทความข่าวเดี่ยวจากผู้ใช้ เพื่อสั่งให้ระบบทำการดึงเนื้อหา สกัดบทความ ตัดคำ และจำแนก 9 หมวดหมู่โดยทันทีแบบ On-Demand
+
+กลุ่มที่ 5 จุดเชื่อมต่อบริการจัดอันดับกระแสและการมีส่วนร่วม (\texttt{TrendingRouter} เส้นทางหลัก \texttt{/api/news}) ประกอบด้วย:
+\texttt{GET /api/news/trending} ใช้สำหรับเรียกดูข่าวเดี่ยวที่ติดกระแสความนิยม (คงไว้เพื่อความเข้ากันได้ย้อนหลังกับระบบเวอร์ชันเดิม)
+\texttt{POST /api/news/engage} และ \texttt{POST /api/news/engagement} รับข้อมูลเหตุการณ์การมีส่วนร่วมของผู้อ่านแบบนิรนาม (\texttt{click}, \texttt{summary\_view}, \texttt{bookmark}, \texttt{share}) เพื่อนำไปคำนวณเป็นคะแนนปฏิสัมพันธ์ของข่าวโดยไม่มีการเก็บข้อมูลส่วนบุคคล
+
+กลุ่มที่ 6 จุดเชื่อมต่อบริการศูนย์ควบคุมและติดตามสถานะระบบ (\texttt{MonitoringRouter} เส้นทางหลัก \texttt{/api/monitoring}) ประกอบด้วย:
+\texttt{POST /api/monitoring/auth} ใช้สำหรับตรวจสอบรหัสผ่านลับของผู้ดูแลระบบ (\texttt{admin\_secret}) และสร้างโทเค็นเซสชันความปลอดภัย
+\texttt{GET /api/monitoring/verify} ใช้สำหรับตรวจสอบความถูกต้องของโทเค็นเซสชันผู้ดูแลระบบ
+\texttt{GET /api/monitoring/stats} ใช้สำหรับดึงข้อมูลสถิติสุขภาพของระบบ การใช้หน่วยความจำ RAM อัตรา Throughput การทำงานของสเกรปเปอร์ และอัตราความสำเร็จของแคช (Cache Hit Ratio)
+\texttt{POST /api/monitoring/scrape-now} ใช้สำหรับส่งคำสั่งให้ระบบเริ่มรอบการสเกรปข่าวทุกสำนักทันทีแบบ Asynchronous
+\texttt{POST /api/monitoring/clear-cache} ใช้สำหรับสั่งล้างข้อมูลในแคชหน่วยความจำ แคช HTTP ETag และแคชบทสรุปประเด็นข่าว
+\texttt{POST /api/monitoring/test-source} ใช้สำหรับทดสอบการเชื่อมต่อและการแยกวิเคราะห์เนื้อหาของสำนักข่าวรายแห่งที่ระบุ
+
+นอกจากจุดเชื่อมต่อบริการ REST API ข้างต้นแล้ว ระบบยังมีจุดเชื่อมต่อบริการสำหรับตรวจสอบสถานะระดับโครงสร้างพื้นฐาน (System Probes) ได้แก่ \texttt{GET /livez} (Liveness Probe ยืนยันการทำงานของโปรเซส), \texttt{GET /readyz} (Readiness Probe ตรวจสอบความพร้อมของระบบจัดเก็บข้อมูลและ Chromium Headless), \texttt{GET /sw.js} (บริการ Service Worker รองรับการแคชออฟไลน์แบบ Progressive Web App) และช่องทางการสื่อสาร WebSocket ผ่าน Socket.IO สำหรับผลักดันเหตุการณ์ข่าวใหม่ (\texttt{news:new}) แบบสองทิศทาง
+
+สรุปรายละเอียดจุดเชื่อมต่อบริการสำคัญ พารามิเตอร์ และรหัสสถานะการตอบกลับแสดงดังตารางที่ \ref{tab:all_api_endpoints}
+
+\begin{table}[H]
+\centering
+\small
+\caption{รายละเอียดข้อกำหนดจุดเชื่อมต่อบริการ REST API และ System Probes ทั้งหมดในระบบ}
+\label{tab:all_api_endpoints}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.2cm}|p{3.4cm}|p{4.0cm}|p{2.6cm}|>{\centering\arraybackslash}p{2.0cm}|}
+\hline
+\textbf{Method} & \textbf{เส้นทาง (Route)} & \textbf{วัตถุประสงค์และหน้าที่} & \textbf{พารามิเตอร์หลัก} & \textbf{HTTP Status} \\
+\hline
+\texttt{GET} & \texttt{/api/stories} & ดึงรายการประเด็นข่าวสาร & \texttt{category}, \texttt{status}, \texttt{limit} & 200, 304, 500 \\ \hline
+\texttt{GET} & \texttt{/api/stories/trending} & ดึงประเด็นข่าวกระแสหลัก Layer 2 & -- & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นและไทม์ไลน์ & \texttt{story\_id} (Path) & 200, 404 \\ \hline
+\texttt{POST} & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสรุปสังเคราะห์ประเด็นข้ามสำนัก & \texttt{story\_id} (Path) & 200, 500 \\ \hline
+\texttt{GET} & \texttt{/api/macro-events} & ดึงรายการมหากาพย์ประเด็นข่าว & \texttt{status}, \texttt{crisis} & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวเด่นบน Bento Hub & -- & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์และประเด็นย่อย & \texttt{macro\_id} (Path) & 200, 404 \\ \hline
+\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวสารเดี่ยวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/news/content} & สกัดเนื้อหาฉบับเต็ม Cleaned Markdown & \texttt{url} (Query) & 200, 400, 500 \\ \hline
+\texttt{GET} & \texttt{/api/categories} & ดึงรายชื่อและเมทาดาตา 9 หมวดหมู่ & -- & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/sources} & ดึงรายชื่อสำนักข่าวและชุดสีที่ลงทะเบียน & -- & 200, 304 \\ \hline
+\texttt{GET} & \texttt{/api/status} & ตรวจสอบรอบสเกรปและจำนวนข่าว & -- & 200 \\ \hline
+\texttt{GET} & \texttt{/api/image} & บริการ Reverse Proxy และแคชรูปภาพ & \texttt{url} (Query) & 200, 400, 502 \\ \hline
+\texttt{POST} & \texttt{/api/collect-md} & นำเข้าและสกัดเนื้อหาข่าวรายชิ้นด่วน & \texttt{url} (Body JSON) & 200, 422 \\ \hline
+\texttt{POST} & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม & \texttt{article\_id}, \texttt{action} & 200, 400 \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/auth} & ยืนยันตัวตนผู้ดูแลระบบออกโทเค็น & \texttt{secret} (Body JSON) & 200, 401 \\ \hline
+\texttt{GET} & \texttt{/api/monitoring/verify} & ตรวจสอบสถานะโทเค็นเซสชัน & Header Bearer Token & 200, 401 \\ \hline
+\texttt{GET} & \texttt{/api/monitoring/stats} & ตรวจสอบสถิติ RAM แคช และ Throughput & Header Bearer Token & 200, 401 \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/scrape-now} & สั่งรันสเกรปข่าวทุกสำนักทันที & Header Bearer Token & 200, 401 \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/clear-cache} & ล้างแคชในหน่วยความจำและ HTTP & Header Bearer Token & 200, 401 \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/test-source} & ทดสอบการเชื่อมต่อสำนักข่าวรายแห่ง & \texttt{source\_name} (Body) & 200, 401, 500 \\ \hline
+\texttt{GET} & \texttt{/livez} / \texttt{/readyz} & โพรบตรวจสอบความพร้อมของระบบ & -- & 200, 503 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{รายละเอียดส่วนต่อประสานและปุ่มควบคุมทั้งหมดของระบบ (Complete UI Controls \& Buttons Catalog)}
+
+เพื่ออำนวยความสะดวกในการใช้งานของผู้ใช้ทุกกลุ่ม ระบบได้รับการออกแบบส่วนติดต่อผู้ใช้เป็น 2 ส่วนหลัก ได้แก่ ส่วนต่อประสานผู้อ่านข่าวทั่วไป (Bento Hub SPA บนไฟล์ \texttt{frontend/index.html}) และศูนย์ควบคุมและติดตามสถานะระบบสำหรับผู้ดูแล (Ops Console บนไฟล์ \texttt{frontend/monitoring.html}) โดยองค์ประกอบของปุ่มควบคุม ตัวเลือกปฏิสัมพันธ์ และหน้าต่างโมดอลทั้งหมดจำแนกได้ดังนี้:
+
+ในส่วนต่อประสานผู้อ่านข่าว Bento Hub (\texttt{frontend/index.html}):
+ปุ่มแบนเนอร์แจ้งเตือนข่าวใหม่ลอยตัว (Floating Unread Articles Banner Button) เรียกใช้ฟังก์ชัน \texttt{\_\_loadUnreadArticles()} จะปรากฏขึ้นบริเวณกึ่งกลางด้านบนของหน้าจอเมื่อมีข่าวใหม่เข้ามาผ่าน WebSocket พร้อมแสดงข้อความจำนวนข่าวที่เพิ่งมาถึง เมื่อผู้ใช้คลิกปุ่ม ระบบจะเลื่อนหน้าจอกลับขึ้นสู่ด้านบนสุด (Smooth Scroll) และนำข่าวใหม่เข้าสู่ตารางแสดงผลทันทีโดยไม่ต้องรีโหลดหน้าเว็บ
+ปุ่มปิดแบนเนอร์ข่าวใหม่ (Banner Dismiss Button) เรียกใช้ฟังก์ชัน \texttt{\_\_dismissNewArticlesBanner()} อยู่บริเวณมุมขวาของแบนเนอร์ข่าวใหม่ เพื่อให้ผู้ใช้สามารถปิดการแจ้งเตือนได้หากยังไม่ต้องการโหลดข่าวใหม่ในทันที
+ปุ่มตราสัญลักษณ์และชื่อระบบ (Brand Navigation Control) บริเวณมุมบนซ้ายของแถบนำทาง เมื่อผู้ใช้คลิกจะคืนค่ากลับสู่หน้าหลัก Bento Hub โดยทำการล้างตัวกรองหมวดหมู่และคำค้นหาทั้งหมด
+ปุ่มเปิดประวัติการอ่านข่าว (Reading History Button) เรียกใช้ฟังก์ชัน \texttt{\_\_showHistory()} เพื่อเปิดหน้าต่างโมดอลแสดงรายการบทความที่ผู้ใช้เคยเปิดอ่าน ซึ่งบันทึกอยู่บน LocalStorage ของเบราว์เซอร์
+ปุ่มเปิดรายการข่าวที่บันทึกไว้ (Bookmarks Button) เรียกใช้ฟังก์ชัน \texttt{\_\_showBookmarks()} เพื่อเปิดหน้าต่างโมดอลแสดงรายการข่าวที่ผู้ใช้ได้กดบันทึกคั่นหน้าไว้สำหรับการอ่านภายหลัง
+ปุ่มเปิดการตั้งค่าและความเป็นส่วนตัว (Settings \& Privacy Button) เรียกใช้ฟังก์ชัน \texttt{\_\_openSettings()} สำหรับเปิดหน้าต่างโมดอลตั้งค่าสิทธิ์คุกกี้ การปรับธีมการแสดงผล และการจัดการข้อมูลส่วนบุคคลตามมาตรฐาน PDPA
+แถบปุ่มแท็บหมวดหมู่ข่าว (Category Navigation Tabs) ประกอบด้วยปุ่มสลับหมวดหมู่ข่าวภาษาไทยทั้ง 9 หมวดหมู่หลัก พร้อมปุ่ม "ทั้งหมด (All)" เพื่อดูข่าวรวม และปุ่ม "สำหรับคุณ (For You)" ซึ่งแสดงข่าวที่สอดคล้องกับความสนใจจากพฤติกรรมการอ่าน
+แถบปุ่มคัดกรองสำนักข่าว (Publisher Filter Pills) เป็นชุดปุ่มรูปแคปซูลแสดงรายชื่อและสีประจำสำนักข่าว (เช่น ThaiPBS, ไทยรัฐ, เดลินิวส์, มติชน ฯลฯ) ที่อนุญาตให้ผู้ใช้คลิกเลือกเพื่อดูข่าวเฉพาะสำนักพิมพ์ที่สนใจได้
+แถบปุ่มแฮชแท็กประเด็นข่าว (\#Hashtags Ribbon) เป็นปุ่มตัวเลือกแฮชแท็กของประเด็นข่าวเด่น ช่วยให้ผู้ใช้สามารถคลิกสำรวจข่าวสารในเหตุการณ์เดียวกันได้อย่างรวดเร็ว
+แถบค้นหาและปุ่มล้างคำค้น (Search Input \& Clear Button) กล่องป้อนข้อความค้นหาข่าวแบบ Real-time พร้อมปุ่มกากบาท [$\times$] สำหรับล้างคำค้นหาเพื่อคืนค่ารายการข่าวทั้งหมด
+ปุ่มบนการ์ดข่าวสารและประเด็นข่าว (Card Action Controls) ซึ่งติดตั้งอยู่บนบัตรข่าวทุกใบ ประกอบด้วย ปุ่มเปิดบทสรุปผู้บริหาร AI (Executive AI Briefing Button รูปดาวสี่แฉก) สำหรับเปิดโมดอลสรุปเนื้อหาสังเคราะห์และ Sentiment, ปุ่มเปิดอ่านบทความฉบับเต็มในตัวเว็บ (In-App Reader Modal Button) สำหรับอ่านเนื้อหา Cleaned Markdown แบบเต็มหน้าต่าง, ปุ่มบันทึกคั่นหน้า (Bookmark Toggle Button) สำหรับเพิ่มหรือยกเลิกการบันทึกข่าว, ปุ่มแชร์ข่าว (Share Button) สำหรับเรียกใช้ Web Share API ของระบบปฏิบัติการหรือคัดลอกลิงก์ไปยังคลิปบอร์ด และปุ่มเปิดหน้าเว็บข่าวต้นฉบับ (External Source Link Button) สำหรับเปิดลิงก์ข่าวจริงในแท็บใหม่
+ปุ่มควบคุมการแบ่งหน้า (Pagination Controls) ประกอบด้วยปุ่มหน้าก่อนหน้า (Previous Page Button), ปุ่มระบุหมายเลขหน้า (Page Number Buttons) และปุ่มหน้าถัดไป (Next Page Button) สำหรับเลือกดูข่าวสารในหน้าต่าง ๆ
+ปุ่มควบคุมในหน้าต่างโมดอล (Modal Action Buttons) ประกอบด้วยปุ่มปิดหน้าต่างโมดอล [$\times$], ปุ่มล้างประวัติการอ่านทั้งหมด (Clear All History Button) และปุ่มลบรายการเดี่ยวออกจากประวัติหรือบุ๊กมาร์ก
+ปุ่มควบคุมความเป็นส่วนตัว PDPA (Privacy \& Consent Controls) ประกอบด้วยปุ่มยินยอมการใช้งานคุกกี้ (Accept Cookies Button), ปุ่มปฏิเสธคุกกี้ (Reject Button) และปุ่มล้างข้อมูลสถิติความสนใจ (Clear Preference Data Button) เพื่อให้ผู้ใช้สามารถลบประวัติความสนใจทั้งหมดออกจากเบราว์เซอร์ได้ทันที
+
+ในส่วนศูนย์ควบคุมและติดตามสถานะระบบสำหรับผู้ดูแล (\texttt{frontend/monitoring.html}):
+ปุ่มสลับการแสดงผลรหัสผ่าน (Password Visibility Toggle Button) บนฟอร์มยืนยันตัวตน เพื่อสลับการแสดงผลรหัสผ่านระหว่างจุดวงกลมกับข้อความธรรมดา
+ปุ่มเข้าสู่ระบบคอนโซล (Admin Login Submit Button) สำหรับส่งรหัสผ่านลับของผู้ดูแลระบบไปยังเซิร์ฟเวอร์เพื่อตรวจสอบสิทธิ์และรับโทเค็น
+กล่องสลับการรีเฟรชข้อมูลอัตโนมัติ (Auto-refresh Toggle Checkbox) สำหรับเปิดหรือปิดการส่งคำขอดึงสถิติสุขภาพของระบบทุก 5 วินาที
+ปุ่มรีเฟรชสถานะด้วยตนเอง (Manual Refresh Button) สำหรับสั่งให้เบราว์เซอร์ส่งคำขอดึงสถิติล่าสุดทันทีโดยไม่ต้องรอรอบเวลา
+ปุ่มสั่งเริ่มรอบการสเกรปข่าวทันที (Scrape Now Button) สำหรับสั่งการให้ระบบเริ่มกระบวนการสเกรปข่าวด่วนจากทุกสำนักพร้อมกัน
+ปุ่มสั่งล้างแคชระบบ (Clear Cache Button) สำหรับสั่งให้เซิร์ฟเวอร์ล้างข้อมูลใน L1 Memory Cache, แคช HTTP ETag และแคชบทสรุปประเด็นข่าว
+ปุ่มทดสอบแหล่งข่าวรายสำนัก (Test Source Probe Buttons) ซึ่งมีอยู่ประจำแต่ละสำนักข่าว เพื่อให้ผู้ดูแลสามารถกดทดสอบการเชื่อมต่อและการสกัดข้อมูลเฉพาะสำนักข่าวนั้น ๆ พร้อมแสดงผลรหัสสถานะและจำนวนบทความที่พบ
+ปุ่มออกจากระบบคอนโซล (Logout Button) สำหรับทำลายโทเค็นเซสชันและนำผู้ดูแลกลับสู่หน้าจอยืนยันตัวตนอย่างปลอดภัย
+
+รายการสรุปและคุณลักษณะของปุ่มควบคุม ปฏิสัมพันธ์ และฟังก์ชันที่ผูกโยงในระบบแสดงดังตารางที่ \ref{tab:all_ui_buttons}
+
+\begin{table}[H]
+\centering
+\small
+\caption{รายละเอียดคุณลักษณะของปุ่มควบคุมและองค์ประกอบปฏิสัมพันธ์ทั้งหมดในระบบ}
+\label{tab:all_ui_buttons}
+\begin{tabular}{|p{3.2cm}|p{2.6cm}|p{4.2cm}|p{3.8cm}|}
+\hline
+\textbf{ชื่อปุ่มควบคุม} & \textbf{ตำแหน่งบนหน้าจอ} & \textbf{พฤติกรรมและการตอบสนอง} & \textbf{ฟังก์ชัน/เหตุการณ์ที่ผูกโยง} \\
+\hline
+ปุ่มแบนเนอร์ข่าวใหม่ลอยตัว & กึ่งกลางบน (Fixed) & เลื่อนจอขึ้นบนสุดและโหลดข่าวใหม่เข้าตาราง & \texttt{\_\_loadUnreadArticles()} \\ \hline
+ปุ่มปิดแบนเนอร์ข่าวใหม่ & มุมขวาของแบนเนอร์ & ซ่อนแถบแบนเนอร์แจ้งเตือนข่าวใหม่ & \texttt{\_\_dismissNewArticlesBanner()} \\ \hline
+ปุ่มตราสัญลักษณ์และชื่อระบบ & ซ้ายบนของ Navbar & คืนค่าหน้าหลักและล้างตัวกรองทั้งหมด & \texttt{window.location.hash = '\#/'} \\ \hline
+ปุ่มประวัติการอ่าน & ขวาบนของ Navbar & เปิดโมดอลแสดงประวัติบทความที่เคยอ่าน & \texttt{\_\_showHistory()} \\ \hline
+ปุ่มรายการคั่นหน้า & ขวาบนของ Navbar & เปิดโมดอลแสดงรายการบทความที่บันทึกไว้ & \texttt{\_\_showBookmarks()} \\ \hline
+ปุ่มตั้งค่าและความเป็นส่วนตัว & ขวาบนของ Navbar & เปิดโมดอลตั้งค่า PDPA และธีมการแสดงผล & \texttt{\_\_openSettings()} \\ \hline
+ปุ่มแท็บหมวดหมู่ (9 หมวด) & แถบใต้ Navbar & สลับกรองข่าวสารตามหมวดหมู่ที่เลือก & \texttt{\_\_filterCategory(category)} \\ \hline
+ปุ่มตัวกรองสำนักข่าว (Pills) & แถบตัวกรอง & แสดงข่าวเฉพาะสำนักพิมพ์ที่คลิกเลือก & \texttt{\_\_filterSource(source)} \\ \hline
+ปุ่มแฮชแท็กประเด็นข่าว & แถบ Bento Ribbon & กรองข่าวตามแฮชแท็กสำคัญของเหตุการณ์ & \texttt{\_\_filterHashtag(tag)} \\ \hline
+ปุ่มล้างคำค้นหา [$\times$] & ภายในกล่องค้นหา & ล้างข้อความค้นหาและแสดงข่าวทั้งหมด & \texttt{\_\_clearSearch()} \\ \hline
+ปุ่มเปิดบทสรุป AI ผู้บริหาร & บนบัตรข่าว/ประเด็น & เปิดโมดอลสรุปเนื้อหาสังเคราะห์และ Sentiment & \texttt{\_\_openStorySummary(id)} \\ \hline
+ปุ่มอ่านข่าวฉบับเต็ม In-App & บนบัตรข่าว & เปิดหน้าต่างอ่าน Markdown สะอาด ไร้โฆษณา & \texttt{\_\_openReader(articleUrl)} \\ \hline
+ปุ่มบันทึกคั่นหน้า (Bookmark) & บนบัตรข่าว & สลับสถานะบันทึกลงในเบราว์เซอร์ LocalStorage & \texttt{\_\_toggleBookmark(id)} \\ \hline
+ปุ่มแชร์ข่าว (Share) & บนบัตรข่าว & แชร์ผ่าน Web Share API หรือคัดลอกลิงก์ & \texttt{\_\_shareArticle(url, title)} \\ \hline
+ปุ่มลิงก์ข่าวต้นฉบับ & บนบัตรข่าว & เปิดเว็บข่าวต้นฉบับในแท็บใหม่ & ลิงก์ \texttt{target="\_blank"} \\ \hline
+ปุ่มควบคุมการแบ่งหน้า & ท้ายตารางข่าว & สลับไปหน้ารายการข่าวก่อนหน้า/ถัดไป & \texttt{\_\_changePage(pageNum)} \\ \hline
+ปุ่มล้างประวัติ/บุ๊กมาร์ก & ภายในโมดอล & ล้างข้อมูลทั้งหมดออกจาก LocalStorage & \texttt{\_\_clearHistory()}, \texttt{\_\_clearAllBookmarks()} \\ \hline
+ปุ่มล้างข้อมูลความสนใจ PDPA & โมดอลตั้งค่า/แบนเนอร์ & ลบข้อมูลสถิติความสนใจและคุกกี้ทั้งหมด & \texttt{\_\_clearPreferenceData()} \\ \hline
+ปุ่มเข้าสู่ระบบคอนโซล & หน้ามอนิเตอร์ & ตรวจสอบรหัสผ่านผู้ดูแลและรับสิทธิ์เข้าถึง & \texttt{handleAdminLogin(e)} \\ \hline
+ปุ่มสั่งเริ่มสเกรปข่าวด่วน & คอนโซลผู้ดูแล & สั่งรันสเกรปข่าวทุกสำนักทันที & \texttt{triggerScrapeNow()} \\ \hline
+ปุ่มสั่งล้างแคชระบบ & คอนโซลผู้ดูแล & ล้างข้อมูลในแคชหน่วยความจำและ HTTP & \texttt{triggerClearCache()} \\ \hline
+ปุ่มทดสอบสำนักข่าวรายแห่ง & การ์ดสำนักข่าวในคอนโซล & ทดสอบการเชื่อมต่อและดึงข่าวเฉพาะสำนัก & \texttt{testSource(sourceName)} \\
+\hline
+\end{tabular}
+\end{table}
+
 
 % -----------------------------------------------------------
 \section{การออกแบบและมาตรการความมั่นคงปลอดภัยของระบบ (System Security Design)}

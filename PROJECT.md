@@ -2,8 +2,8 @@
 # Scope: Full Project
 
 ## Architecture
-- `docker-compose.yml`: Add `obscura` service.
-- `backend/config.py`: Add `obscura_service_url`.
+- `docker-compose.yml`: Playwright service & app configuration.
+- `backend/config.py`: Service URLs and cache configuration.
 - `backend/sockets/` & `backend/services/`: Browser service managing Playwright CDP sessions.
 - `frontend/static/`: Add personalization, cache, browser tabs UI, cookie banner.
 

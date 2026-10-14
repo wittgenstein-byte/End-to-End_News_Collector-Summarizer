@@ -361,7 +361,7 @@ async def test_browser_snapshot_cache_cdp_bypass() -> None:
 
     mock_navigate = AsyncMock(
         return_value={
-            "html": "<main><h1>Obscura Rendered DOM</h1></main>",
+            "html": "<main><h1>Browser Rendered DOM</h1></main>",
             "url": "https://thestandard.co/article/99",
             "title": "The Standard",
         }
@@ -375,14 +375,14 @@ async def test_browser_snapshot_cache_cdp_bypass() -> None:
         # First navigation -> Cache Miss -> Dispatches to worker
         res1 = await service.navigate("tab-1", "https://thestandard.co/article/99")
         assert res1.get("cached") is not True
-        assert res1["html"] == "<main><h1>Obscura Rendered DOM</h1></main>"
+        assert res1["html"] == "<main><h1>Browser Rendered DOM</h1></main>"
         assert mock_navigate.call_count == 1
         assert cache.size == 1
 
         # Second navigation -> Cache Hit -> CDP Bypassed!
         res2 = await service.navigate("tab-1", "https://thestandard.co/article/99")
         assert res2.get("cached") is True
-        assert res2["html"] == "<main><h1>Obscura Rendered DOM</h1></main>"
+        assert res2["html"] == "<main><h1>Browser Rendered DOM</h1></main>"
         assert res2["title"] == "The Standard"
         # Mock call count must remain 1
         assert mock_navigate.call_count == 1

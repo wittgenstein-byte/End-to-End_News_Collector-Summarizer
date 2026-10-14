@@ -99,56 +99,146 @@ Pairwise F1-score & 0.1473 & \textbf{0.4383} & -- & เพิ่มขึ้น 
 จากตารางที่ \ref{tab:story_clustering_eval} สถาปัตยกรรมเดิมมีค่า B-cubed Precision สูงอย่างผิดปกติเนื่องจากอัลกอริทึมจำกัดกรอบเวลาแข็งตัว 36 ชั่วโมงและใช้เกณฑ์ Cosine Similarity สูงเกินไป ($0.92$) ส่งผลให้กลุ่มข่าวแตกกระจายเป็นข่าวเดี่ยว (Singletons) มากถึง 97 กลุ่ม และมีค่า Pairwise Recall ต่ำเพียง 0.0798 ในขณะที่สถาปัตยกรรมสองชั้นใหม่ซึ่งใช้ Dense Vector จาก WangchanBERTa ผสานการยืนยันเอนทิตีชื่อเฉพาะ (NER) และหน้าต่างสืบค้น 72 ชั่วโมงแบบไม่จำกัดอายุขัย สามารถลดจำนวนคู่ข่าวที่แตกกลุ่มผิดพลาดลงได้ถึงร้อยละ 24 และเพิ่มค่า B-cubed F1 เป็น 0.7911 ผ่านเกณฑ์การยอมรับทั้งหมดได้อย่างสมบูรณ์
 
 
-\subsection{แบบจำลองยูสเคส (Use Case Diagram)}
+\subsection{แบบจำลองยูสเคสและการกำหนดขอบเขตหน้าที่ (Use Case Modeling \& Specifications)}
 
-แบบจำลองการใช้งานระบบ (Use Case Modeling) แสดงปฏิสัมพันธ์ระหว่างผู้ใช้งานระบบกับฟังก์ชันต่าง ๆ ดังภาพที่ \ref{fig:usecase_diagram}
+แบบจำลองการใช้งานระบบ (Use Case Modeling) แสดงปฏิสัมพันธ์ระหว่างกลุ่มผู้ใช้งานระบบ 2 กลุ่มหลัก ได้แก่ ผู้อ่านข่าวทั่วไป (Reader) และระบบอัตโนมัติ/ผู้ดูแลระบบ (Scheduler \& Administrator) กับขอบเขตหน้าที่การทำงานของระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติ โดยแบ่งออกเป็น 2 แผนภาพหลัก ได้แก่ แผนภาพยูสเคสสำหรับผู้ใช้งานทั่วไป ดังแสดงในภาพที่ \ref{fig:usecase_reader} และแผนภาพยูสเคสสำหรับระบบเบื้องหลังและผู้ดูแลระบบ ดังแสดงในภาพที่ \ref{fig:usecase_system}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    font=\small,
-    actor/.style={draw, circle, inner sep=0pt, minimum size=0.8cm, fill=blue!10, thick},
-    usecase/.style={draw, ellipse, minimum width=3.4cm, minimum height=0.9cm, align=center, fill=gray!5, thick},
-    systembox/.style={draw, rectangle, rounded corners, inner sep=15pt, fill=blue!2, thick, dashed}
+    font=\footnotesize,
+    actor/.style={draw, circle, inner sep=0pt, minimum size=0.75cm, fill=blue!10, thick},
+    usecase/.style={draw, ellipse, minimum width=3.2cm, minimum height=0.65cm, align=center, fill=gray!5, thick},
+    systembox/.style={draw, rectangle, rounded corners, inner sep=10pt, fill=blue!2, thick, dashed}
 ]
 
-% Actors
-\node[actor] (user) at (-4.5, 0) {};
-\node[below=0.1cm of user, align=center] {\textbf{ผู้อ่านข่าวทั่วไป}\\\textbf{(Reader)}};
+% Actor
+\node[actor] (reader) at (-5.0, 0) {};
+\node[below=0.08cm of reader, align=center] {\textbf{ผู้อ่านข่าวทั่วไป}\\\textbf{(Reader)}};
 
-\node[actor] (admin) at (7.5, 0) {};
-\node[below=0.1cm of admin, align=center] {\textbf{ระบบตั้งเวลา}\\\textbf{(Scheduler/Cron)}};
+% Use Cases Column 1 (Discovery & Consumption)
+\node[usecase] (uc1) at (0.2, 4.4) {เรียกดูข่าวสด Bento Hub};
+\node[usecase] (uc2) at (0.2, 3.4) {กรองข่าวตาม 9 หมวดหมู่};
+\node[usecase] (uc3) at (0.2, 2.4) {กรองข่าวตามสำนักข่าว};
+\node[usecase] (uc4) at (0.2, 1.4) {ค้นหาข่าวด้วยคำสำคัญ};
+\node[usecase] (uc5) at (0.2, 0.4) {สำรวจประเด็นผ่าน \#Hashtags};
+\node[usecase] (uc6) at (0.2, -0.6) {เปิดอ่านข่าวฉบับเต็ม (In-app)};
 
-% Use Cases
-\node[usecase] (uc1) at (1.5, 3.5) {ติดตามข่าวสดเรียลไทม์};
-\node[usecase] (uc2) at (1.5, 2.3) {กรองข่าวตาม 9 หมวดหมู่};
-\node[usecase] (uc3) at (1.5, 1.1) {อ่านบทสรุป \& Sentiment};
-\node[usecase] (uc4) at (1.5, -0.1) {อ่านข่าวฉบับเต็ม (In-app)};
-\node[usecase] (uc5) at (1.5, -1.3) {บันทึกคั่นหน้าข่าว (Bookmark)};
-\node[usecase] (uc6) at (1.5, -2.5) {ดูข่าวติดกระแส (Trending)};
-\node[usecase] (uc7) at (1.5, -3.7) {สเกรปข่าวหลายแหล่งอัตโนมัติ};
+% Use Cases Column 2 (Deep Reading & Engagement)
+\node[usecase] (uc7) at (4.5, 4.4) {อ่านสรุป AI \& Sentiment};
+\node[usecase] (uc8) at (4.5, 3.4) {อ่านบทสังเคราะห์ข้ามสำนัก};
+\node[usecase] (uc9) at (4.5, 2.4) {ดูไทม์ไลน์พัฒนาการเหตุการณ์};
+\node[usecase] (uc10) at (4.5, 1.4) {บันทึกคั่นหน้าข่าว (Bookmark)};
+\node[usecase] (uc11) at (4.5, 0.4) {ดูประวัติการอ่าน (History)};
+\node[usecase] (uc12) at (4.5, -0.6) {แชร์ข่าวสาร (Share API)};
+\node[usecase] (uc13) at (2.35, -1.6) {จัดการสิทธิ์คุกกี้ \& ล้างข้อมูล PDPA};
 
 % System Boundary
 \begin{scope}[on background layer]
-    \node[systembox, fit=(uc1) (uc7), label=above:{\textbf{ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติ (News Analytics Pipeline)}}] (sys) {};
+    \node[systembox, fit=(uc1) (uc6) (uc7) (uc12) (uc13), label=above:{\textbf{ระบบส่วนต่อประสานสำหรับผู้อ่านข่าว (Reader Bento Hub SPA)}}] (sys_reader) {};
 \end{scope}
 
-% Associations User
-\draw[thick] (user) -- (uc1.west);
-\draw[thick] (user) -- (uc2.west);
-\draw[thick] (user) -- (uc3.west);
-\draw[thick] (user) -- (uc4.west);
-\draw[thick] (user) -- (uc5.west);
-\draw[thick] (user) -- (uc6.west);
-
-% Associations Scheduler
-\draw[thick] (admin) -- (uc7.east);
-\draw[thick] (admin) -- (uc1.east);
+% Associations
+\draw[thick] (reader) -- (uc1.west);
+\draw[thick] (reader) -- (uc2.west);
+\draw[thick] (reader) -- (uc3.west);
+\draw[thick] (reader) -- (uc4.west);
+\draw[thick] (reader) -- (uc5.west);
+\draw[thick] (reader) -- (uc6.west);
+\draw[thick] (reader) -- (uc7.west);
+\draw[thick] (reader) -- (uc8.west);
+\draw[thick] (reader) -- (uc9.west);
+\draw[thick] (reader) -- (uc10.west);
+\draw[thick] (reader) -- (uc11.west);
+\draw[thick] (reader) -- (uc12.west);
+\draw[thick] (reader) -- (uc13.west);
 
 \end{tikzpicture}
-\caption{แผนภาพแบบจำลองยูสเคสของระบบ (Use Case Diagram)}
-\label{fig:usecase_diagram}
+\caption{แผนภาพแบบจำลองยูสเคสสำหรับผู้ใช้งานทั่วไป (Reader Use Case Diagram)}
+\label{fig:usecase_reader}
 \end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\footnotesize,
+    actor/.style={draw, circle, inner sep=0pt, minimum size=0.75cm, fill=purple!10, thick},
+    usecase/.style={draw, ellipse, minimum width=3.3cm, minimum height=0.65cm, align=center, fill=gray!5, thick},
+    systembox/.style={draw, rectangle, rounded corners, inner sep=10pt, fill=purple!2, thick, dashed}
+]
+
+% Actors
+\node[actor] (sched) at (-5.0, 1.8) {};
+\node[below=0.08cm of sched, align=center] {\textbf{ระบบตั้งเวลาเบื้องหลัง}\\\textbf{(Background Daemon)}};
+
+\node[actor] (admin) at (5.2, -1.8) {};
+\node[below=0.08cm of admin, align=center] {\textbf{ผู้ดูแลระบบ}\\\textbf{(Administrator)}};
+
+% Use Cases Left Column (Scheduler)
+\node[usecase] (sc1) at (-0.5, 4.2) {วนรอบดึงข่าวอัตโนมัติ};
+\node[usecase] (sc2) at (-0.5, 3.2) {สกัดเนื้อหา \& กรองแท็ก};
+\node[usecase] (sc3) at (-0.5, 2.2) {จำแนก 9 หมวดหมู่ภาษาไทย};
+\node[usecase] (sc4) at (-0.5, 1.2) {สรุปความ \& วิเคราะห์อารมณ์};
+\node[usecase] (sc5) at (-0.5, 0.2) {ระบุประเด็นข่าวออนไลน์ 2 ชั้น};
+\node[usecase] (sc6) at (-0.5, -0.8) {คำนวณคะแนนกระแส Zero-LLM};
+\node[usecase] (sc7) at (-0.5, -1.8) {กระจายสัญญาณข่าว WebSocket};
+
+% Use Cases Right Column (Admin)
+\node[usecase] (ad1) at (0.2, -3.0) {ยืนยันตัวตนเข้าสู่คอนโซล};
+\node[usecase] (ad2) at (0.2, -4.0) {ตรวจสอบสถานะสุขภาพ \& RAM};
+\node[usecase] (ad3) at (0.2, -5.0) {สั่งรันสเกรปข่าวด่วนทันที};
+\node[usecase] (ad4) at (0.2, -6.0) {ทดสอบการเชื่อมต่อรายสำนัก};
+\node[usecase] (ad5) at (0.2, -7.0) {ล้างแคชระบบ \& HTTP ETag};
+
+% System Boundary
+\begin{scope}[on background layer]
+    \node[systembox, fit=(sc1) (sc7) (ad1) (ad5), label=above:{\textbf{ระบบประมวลผลเบื้องหลังและศูนย์ควบคุมสถานะ (Automation \& Ops Console)}}] (sys_admin) {};
+\end{scope}
+
+% Associations
+\draw[thick] (sched) -- (sc1.west);
+\draw[thick] (sched) -- (sc2.west);
+\draw[thick] (sched) -- (sc3.west);
+\draw[thick] (sched) -- (sc4.west);
+\draw[thick] (sched) -- (sc5.west);
+\draw[thick] (sched) -- (sc6.west);
+\draw[thick] (sched) -- (sc7.west);
+
+\draw[thick] (admin) -- (ad1.east);
+\draw[thick] (admin) -- (ad2.east);
+\draw[thick] (admin) -- (ad3.east);
+\draw[thick] (admin) -- (ad4.east);
+\draw[thick] (admin) -- (ad5.east);
+
+\end{tikzpicture}
+\caption{แผนภาพแบบจำลองยูสเคสสำหรับระบบเบื้องหลังและผู้ดูแลระบบ (System \& Admin Use Case Diagram)}
+\label{fig:usecase_system}
+\end{figure}
+
+รายละเอียดข้อกำหนดเชิงคุณลักษณะของยูสเคสหลักทั้ง 10 ประการ (Use Case Specifications) แสดงดังตารางที่ \ref{tab:use_case_specs}
+
+\begin{table}[H]
+\centering
+\small
+\caption{ข้อกำหนดรายละเอียดคุณลักษณะของยูสเคสหลักในระบบ}
+\label{tab:use_case_specs}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.2cm}|p{2.8cm}|p{2.0cm}|p{3.2cm}|p{4.8cm}|}
+\hline
+\textbf{รหัส} & \textbf{ชื่อยูสเคส} & \textbf{ผู้กระทำหลัก} & \textbf{เงื่อนไขก่อนหน้า (Precondition)} & \textbf{ผลลัพธ์หลังการทำงาน (Postcondition)} \\
+\hline
+UC-01 & ติดตามข่าวสารสด Bento Hub & ผู้อ่านทั่วไป & เบราว์เซอร์เชื่อมต่ออินเทอร์เน็ต & หน้าจอแสดงบัตรข่าวกระแสหลักและรายการข่าวสดพร้อมการแจ้งเตือนแบบเรียลไทม์ \\ \hline
+UC-02 & กรองและค้นหาข่าวสาร & ผู้อ่านทั่วไป & ข้อมูลข่าวได้รับการจำแนกหมวดหมู่ & แสดงรายการข่าวที่ตรงกับหมวดหมู่ สำนักข่าว หรือคำค้นหาที่ระบุ \\ \hline
+UC-03 & อ่านบทความฉบับเต็ม In-app & ผู้อ่านทั่วไป & ผู้ใช้คลิกเลือกบทความ & หน้าต่าง In-app Reader แสดงเนื้อหา Markdown สะอาด ไร้โฆษณา และไร้สคริปต์อันตราย \\ \hline
+UC-04 & อ่านบทสังเคราะห์ประเด็นข่าว & ผู้อ่านทั่วไป & ระบบระบุประเด็นข่าวสำเร็จ & แสดงบทสรุปภาพรวมข้ามสำนัก ไทม์ไลน์เหตุการณ์ และรายชื่อสำนักข่าวร่วม \\ \hline
+UC-05 & จัดการคั่นหน้าและประวัติ & ผู้อ่านทั่วไป & ผู้ใช้โต้ตอบกับการ์ดข่าว & รายการข่าวถูกจัดเก็บบน LocalStorage ในเบราว์เซอร์ของผู้ใช้โดยไม่ส่งข้อมูลระบุตัวตนขึ้นเซิร์ฟเวอร์ \\ \hline
+UC-06 & คุ้มครองความเป็นส่วนตัว PDPA & ผู้อ่านทั่วไป & ผู้ใช้เข้าสู่เว็บไซต์ครั้งแรก & ผู้ใช้สามารถเลือกยินยอม ปฏิเสธ หรือสั่งล้างสถิติความสนใจ (Clear Preference) ได้ทันที \\ \hline
+UC-07 & ประมวลผลดึงข่าวอัตโนมัติ & ระบบตั้งเวลา & เซิร์ฟเวอร์และ Playwright พร้อมทำงาน & ข่าวใหม่จากทุกสำนักถูกสกัด ตัดคำ และจำแนก 9 หมวดหมู่อย่างครบถ้วน \\ \hline
+UC-08 & ระบุประเด็นและจัดอันดับกระแส & ระบบตั้งเวลา & มีข่าวใหม่เข้าสู่ระบบ & ข่าวถูกรวมกลุ่มด้วย Two-Band Gate และคำนวณคะแนนกระแส 6 มิติแบบ Zero-LLM \\ \hline
+UC-09 & กระจายสัญญาณข่าว WebSocket & ระบบตั้งเวลา & ข่าวผ่านการสรุปและบันทึกเสร็จสิ้น & เบราว์เซอร์ของผู้ใช้ทุกรายได้รับ Event \texttt{news:new} เพื่อแสดงแถบแจ้งเตือนข่าวใหม่ \\ \hline
+UC-10 & ตรวจสอบและบริหารจัดการระบบ & ผู้ดูแลระบบ & ผู้ดูแลยืนยันตัวตนสำเร็จ & ตรวจสอบสถิติ RAM แคช สั่งรันสเกรปทันที หรือสั่งล้างแคชระบบได้ตามต้องการ \\
+\hline
+\end{tabular}
+\end{table}
 
 % -----------------------------------------------------------
 \section{เครื่องมือที่ใช้ในการดำเนินงาน}

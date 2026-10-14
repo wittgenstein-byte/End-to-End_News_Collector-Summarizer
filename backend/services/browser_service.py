@@ -1,7 +1,7 @@
 """
 services/browser_service.py
 ─────────────────────────────────────────────────────────────────
-SOLID  S — Manages In-App Browser sessions via Playwright / Obscura
+SOLID  S — Manages In-App Browser sessions via Playwright
 SOLID  D — Depends on settings for service URL (injected config)
 GRASP  Controller — Orchestrates Playwright CDP / Local interactions
 ─────────────────────────────────────────────────────────────────
@@ -432,8 +432,8 @@ class BrowserService:
             if self._playwright is None:
                 self._playwright = await async_playwright().start()
 
-            # Attempt Obscura CDP connection if available
-            if self._obscura_available:
+            # Attempt Obscura CDP connection if available and configured
+            if self._obscura_available and settings.obscura_service_url:
                 try:
                     self._browser = await self._playwright.chromium.connect_over_cdp(
                         settings.obscura_service_url,
@@ -875,7 +875,7 @@ class BrowserService:
         if cached_snapshot is not None:
             return cached_snapshot
 
-        # 3. Cache Miss: Dispatch to Playwright / Obscura worker thread
+        # 3. Cache Miss: Dispatch to Playwright worker thread
         result = await self._dispatch(self._navigate_inner(tab_id, url))
 
         # 4. Strict Error Isolation: Cache ONLY valid snapshots

@@ -62,33 +62,60 @@ uv run python backend/main.py
 
 \begin{table}[H]
 \centering
-\caption{รายละเอียด REST API Endpoints ของระบบ}
-\label{tab:api_specs}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|p{5cm}|p{4.5cm}|}
+\footnotesize
+\caption{รายละเอียด REST API สำหรับบริการข้อมูลข่าวสารและประเด็นข่าว}
+\label{tab:api_specs_news}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|p{3.5cm}|p{4.4cm}|p{3.5cm}|}
 \hline
 \textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
 \hline
-\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} \\ \hline
-\texttt{GET} & \texttt{/api/news/\{id\}} & ดึงรายละเอียดข่าวรายชิ้นพร้อมบทสรุป & คืนค่า JSON \texttt{NewsArticle} \\ \hline
-\texttt{GET} & \texttt{/api/categories} & ดึงรายการหมวดหมู่ข่าวทั้งหมด & คืนค่า List ของ Category Metadata \\ \hline
-\texttt{GET} & \texttt{/api/trending} & ดึงรายการข่าวที่เป็นกระแสความนิยม & คืนค่า List ของ \texttt{TrendingArticle} \\ \hline
-\texttt{POST} & \texttt{/api/engagement} & บันทึกสถิติการปฏิสัมพันธ์ของผู้ใช้ & รับ \texttt{article\_id}, \texttt{action\_type} \\ \hline
-\texttt{POST} & \texttt{/api/collect} & สั่งให้ระบบเริ่มรอบการสเกรปข่าวทันที & คืนค่าสถานะ \texttt{status: started} \\ \hline
-\texttt{GET} & \texttt{/health} & ตรวจสอบสถานะความพร้อมของเซิร์ฟเวอร์ & คืนค่าสถานะ Storage และ Playwright \\
+\texttt{GET} & \texttt{/api/stories} & ดึงรายการประเด็นข่าวสองชั้น & \texttt{category}, \texttt{status}, \texttt{limit} \\ \hline
+\texttt{GET} & \texttt{/api/stories/trending} & ดึงประเด็นข่าวติดกระแส Layer 2 & คืนค่า \texttt{ScoreBreakdown} \\ \hline
+\texttt{GET} & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นและไทม์ไลน์ & คืนค่า \texttt{StoryRecord} \\ \hline
+\texttt{POST} & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสังเคราะห์ภาพรวมข้ามสำนัก & พาดหัวรวมและไทม์ไลน์ \\ \hline
+\texttt{GET} & \texttt{/api/macro-events} & ดึงรายการมหากาพย์ประเด็นข่าว & \texttt{status}, \texttt{crisis} \\ \hline
+\texttt{GET} & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวกระแส Bento Hub & คืนค่ารายการ Macro Events \\ \hline
+\texttt{GET} & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์และประเด็นย่อย & คืนค่ารายละเอียด Macro Event \\ \hline
+\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวสารเดี่ยวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} \\ \hline
+\texttt{GET} & \texttt{/api/news/content} & สกัดเนื้อหาบทความฉบับเต็ม In-App & \texttt{url} (Query) $\rightarrow$ Cleaned MD \\ \hline
+\texttt{GET} & \texttt{/api/categories} & ดึงรายการ 9 หมวดหมู่ภาษาไทย & คืนค่า List Category Metadata \\ \hline
+\texttt{GET} & \texttt{/api/sources} & ดึงรายการสำนักข่าวที่ลงทะเบียน & คืนค่า List Source Metadata \\ \hline
+\texttt{GET} & \texttt{/api/status} & ตรวจสอบสถานะรอบเวลาและจำนวนข่าว & คืนค่าสถิติจำนวนข่าวในคลัง \\ \hline
+\texttt{GET} & \texttt{/api/image} & Reverse Proxy และแคชรูปภาพข่าว & \texttt{url} (Query) $\rightarrow$ Image Stream \\ \hline
+\texttt{POST} & \texttt{/api/collect-md} & สกัดเนื้อหาข่าวด่วน On-Demand & \texttt{url} (Body JSON) \\ \hline
+\texttt{POST} & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม & \texttt{article\_id}, \texttt{action} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{รายละเอียด REST API สำหรับระบบควบคุมและโพรบโครงสร้างพื้นฐาน}
+\label{tab:api_specs_ops}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|p{3.5cm}|p{4.4cm}|p{3.5cm}|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
+\hline
+\texttt{POST} & \texttt{/api/monitoring/auth} & ยืนยันตัวตนผู้ดูแลระบบออกโทเค็น & \texttt{secret} (Body JSON) \\ \hline
+\texttt{GET} & \texttt{/api/monitoring/verify} & ตรวจสอบโทเค็นเซสชันผู้ดูแล & Bearer Token \\ \hline
+\texttt{GET} & \texttt{/api/monitoring/stats} & ตรวจสอบสุขภาพ Throughput และ RAM & Bearer Token $\rightarrow$ Stats \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/scrape-now} & สั่งรันสเกรปข่าวด่วนทุกสำนักทันที & คืนค่า Trigger Success \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/clear-cache} & ล้างแคชในหน่วยความจำและ HTTP & คืนค่า Cache Cleared \\ \hline
+\texttt{POST} & \texttt{/api/monitoring/test-source} & ทดสอบดึงข่าวรายสำนัก & \texttt{source\_name} (Body JSON) \\ \hline
+\texttt{GET} & \texttt{/livez} / \texttt{/readyz} & โพรบตรวจสอบความพร้อมของระบบ & ตรวจสอบโพรเซสและระบบไฟล์ \\
+\hline
+\end{tabular}
 \end{table}
 
 \section*{รายการ WebSocket Events (Socket.IO)}
 
 \begin{table}[H]
 \centering
+\footnotesize
 \caption{รายละเอียด WebSocket Events สำหรับการสื่อสารแบบ Real-time}
 \label{tab:ws_events}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|p{8cm}|}
+\begin{tabular}{|>{\centering\arraybackslash}p{2.8cm}|>{\centering\arraybackslash}p{2.2cm}|p{7.5cm}|}
 \hline
 \textbf{Event Name} & \textbf{ทิศทาง} & \textbf{คำอธิบายและข้อมูลที่ส่ง (Payload)} \\
 \hline
@@ -97,6 +124,5 @@ uv run python backend/main.py
 \texttt{news:updated} & Server $\rightarrow$ Client & ส่งข้อมูลการอัปเดตบทความ เช่น เมื่อการสรุป LLM เสร็จสมบูรณ์ \\ \hline
 \texttt{connect} / \texttt{disconnect} & ทั้งสองทิศทาง & ตรวจจับการเชื่อมต่อและการตัดการเชื่อมต่อของผู้ใช้ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}

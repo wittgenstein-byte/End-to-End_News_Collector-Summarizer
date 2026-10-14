@@ -750,7 +750,7 @@ function armBrowserLoadTimeout() {
     const loading = document.getElementById("browser-loading");
     if (loading && loading.style.display !== "none") {
       loading.style.display = "none";
-      window.__browserShowError("ไม่มี response จาก server (timeout) — ตรวจสอบว่า Obscura/Playwright ทำงานอยู่");
+      window.__browserShowError("ไม่มี response จาก server (timeout) — ตรวจสอบว่า Playwright ทำงานอยู่");
     }
   }, 20000);
 }
