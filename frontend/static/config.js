@@ -15,6 +15,7 @@ export const API_BASE   = IS_DEV
 export const SOCKET_URL = API_BASE;
 export const PAGE_SIZE  = 20;
 export const TRENDING_LIMIT = 50;
+export const HERO_CLUSTER_LIMIT = 12;
 
 /**
  * Sentiment visual token configurations

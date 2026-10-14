@@ -5,7 +5,7 @@
  * รับ data สำเร็จรูปจาก main.js — ไม่ fetch เอง
  */
 
-import { SOURCE_COLORS, CATEGORIES, getCategoryById, getSentimentConfig, SENTIMENT_CONFIG } from "./config.js";
+import { SOURCE_COLORS, CATEGORIES, getCategoryById, getSentimentConfig, SENTIMENT_CONFIG, HERO_CLUSTER_LIMIT } from "./config.js";
 
 // ── Escape ────────────────────────────────────────────────────────
 
@@ -486,7 +486,7 @@ export function renderHeroTrending(articles = [], bookmarkedMap = {}) {
     }
   }
 
-  heroTrendingArticles = deduped;
+  heroTrendingArticles = deduped.slice(0, HERO_CLUSTER_LIMIT || 12);
   heroBookmarkedMap = bookmarkedMap || {};
   heroCurrentIndex = 0;
 
@@ -577,7 +577,7 @@ function updateHeroTrendingSlide() {
                     class="editorial-index-pill ${isCurrent ? 'active' : ''}"
                     onclick="window.__goToTrendingSlide(${idx})"
                     title="${titleShort}">
-              <span class="font-mono text-[10px] font-bold opacity-60">0${rank}</span>
+              <span class="font-mono text-[10px] font-bold opacity-60">${String(rank).padStart(2, "0")}</span>
               <span class="max-w-[160px] sm:max-w-[220px] truncate">${titleShort}</span>
               <span class="font-mono text-[9px] px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 opacity-75">${srcCount} สื่อ</span>
             </button>
@@ -688,7 +688,7 @@ function updateHeroTrendingSlide() {
         <div class="flex items-center justify-between gap-2 pointer-events-auto">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="px-2.5 py-1 rounded bg-[#c84b31] text-white font-mono font-bold text-[10px] tracking-widest uppercase">
-              FEATURED #0${rankNum}
+              FEATURED #${String(rankNum).padStart(2, "0")}
             </span>
             <span class="px-2.5 py-1 rounded bg-black/60 text-white/90 backdrop-blur-md font-mono text-[10px] border border-white/20">
               IMPACT SCORE ${scoreVal}
@@ -722,7 +722,7 @@ function updateHeroTrendingSlide() {
           </div>
 
           <div class="flex items-center justify-between gap-4 flex-wrap pt-2 border-t border-white/15">
-            <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY 0${rankNum}/0${total}</span>
+            <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
             <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
               <button type="button" 
                       class="p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer"
