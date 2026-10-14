@@ -13,12 +13,15 @@ POLICY Zero Crash Guarantee — Always returns HTTP 200 with fallback
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from backend.config import settings
+from backend.core.l1_cache import trending_cache
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.repo.story_repo import StoryRepositoryPort, get_story_repository
 from backend.schemas.news_schema import ArticleRecord
@@ -153,19 +156,33 @@ async def get_trending_stories(
     enriched presentation (headline, summary, timeline with citations).
     Guarantees HTTP 200 with fallback presentation when LLM is unavailable.
     """
-    top_stories = trending_service.get_trending_stories(
+    # L1 In-Memory Cache Check (< 0.5 ms)
+    cache_key = f"trending_stories:{limit}:{category or 'all'}"
+    cached_data = await trending_cache.get(cache_key)
+    if cached_data is not None:
+        return TrendingStoryListResponse(**cached_data)
+
+    top_stories = await asyncio.to_thread(
+        trending_service.get_trending_stories,
         limit=limit,
         category=category,
     )
 
     # Enrich top stories with presentation (Deterministic heuristic fallback, decoupled LLM)
-    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5), allow_llm=False)
+    await asyncio.to_thread(
+        presentation_service.enrich_top_stories,
+        top_stories,
+        top_n=min(limit, 5),
+        allow_llm=False,
+    )
 
-    return TrendingStoryListResponse(
+    response = TrendingStoryListResponse(
         total=len(top_stories),
         updated=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         stories=top_stories,
     )
+    await trending_cache.set(cache_key, response.model_dump(), ttl_seconds=float(settings.trending_cache_ttl_seconds))
+    return response
 
 
 @router.get("/{story_id}", response_model=StoryDetailResponse)

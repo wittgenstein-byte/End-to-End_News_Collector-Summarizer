@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from backend.config import settings
 from backend.core.constants import BROWSER_HEADERS
+from backend.core.l1_cache import metadata_cache, news_feed_cache
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.services.classifier_service import ensure_categories
 
@@ -67,6 +68,12 @@ async def get_news(
     query = q.strip().lower()
     cat_filter = category if (category and category in VALID_CATEGORIES) else None
 
+    # L1 In-Memory Cache Check (< 0.5 ms)
+    cache_key = f"feed:{page}:{source}:{cat_filter}:{query}"
+    cached_feed = await news_feed_cache.get(cache_key)
+    if cached_feed is not None:
+        return JSONResponse(cached_feed)
+
     page_items, total = await asyncio.to_thread(
         repo.query_news,
         page=page,
@@ -88,18 +95,36 @@ async def get_news(
             item.get("source", ""),
         )
 
-    return JSONResponse(
-        {
-            "total": total,
-            "page": page,
-            "page_size": settings.page_size,
-            "total_pages": total_pages,
-            "has_next": page < total_pages,
-            "has_prev": page > 1,
-            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-            "news": page_items,
-        }
-    )
+    response_payload = {
+        "total": total,
+        "page": page,
+        "page_size": settings.page_size,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+        "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "news": page_items,
+    }
+
+    # Store in L1 RAM cache
+    await news_feed_cache.set(cache_key, response_payload, ttl_seconds=float(settings.news_cache_ttl_seconds))
+    return JSONResponse(response_payload)
+
+
+@router.get("/news/content")
+async def get_article_content(
+    url: str,
+    repo: NewsRepositoryPort = Depends(get_news_repository),
+) -> JSONResponse:
+    """Fetch decoupled heavy article body content/markdown by URL."""
+    clean_url = url.strip()
+    if not clean_url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    content_data = await asyncio.to_thread(repo.get_article_content, clean_url)
+    if not content_data:
+        raise HTTPException(status_code=404, detail="Article content not found")
+    return JSONResponse({"url": clean_url, **content_data})
 
 
 @router.get("/categories")
@@ -109,10 +134,18 @@ async def get_categories(
     """
     คืนจำนวนข่าวในแต่ละหมวดหมู่สำหรับ badge บน category tabs
     """
+    cache_key = "metadata:categories"
+    cached_counts = await metadata_cache.get(cache_key)
+    if cached_counts is not None:
+        return JSONResponse(cached_counts)
+
     cat_counts = await asyncio.to_thread(repo.get_category_counts)
     counts: dict[str, int] = {cat: cat_counts.get(cat, 0) for cat in VALID_CATEGORIES}
     counts["all"] = cat_counts.get("all", sum(counts.values()))
-    return JSONResponse({"categories": counts})
+    payload = {"categories": counts}
+
+    await metadata_cache.set(cache_key, payload, ttl_seconds=float(settings.metadata_cache_ttl_seconds))
+    return JSONResponse(payload)
 
 
 @router.get("/sources")
@@ -122,8 +155,16 @@ async def get_sources(
     """
     คืนจำนวนข่าวในแต่ละแหล่งข่าว
     """
+    cache_key = "metadata:sources"
+    cached_sources = await metadata_cache.get(cache_key)
+    if cached_sources is not None:
+        return JSONResponse(cached_sources)
+
     src_counts = await asyncio.to_thread(repo.get_source_counts)
-    return JSONResponse({"sources": src_counts})
+    payload = {"sources": src_counts}
+
+    await metadata_cache.set(cache_key, payload, ttl_seconds=float(settings.metadata_cache_ttl_seconds))
+    return JSONResponse(payload)
 
 
 @router.get("/status")
@@ -140,6 +181,7 @@ async def get_status(
             "time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         }
     )
+
 
 
 
