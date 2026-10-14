@@ -12,10 +12,14 @@ POLICY Zero Crash Guarantee — Always returns HTTP 200 with fallback
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field
 
+from backend.config import settings
+from backend.core.l1_cache import trending_cache
 from backend.repo.engagement_repo import (
     FileEngagementRepository,
     get_engagement_repository,
@@ -74,14 +78,20 @@ async def get_trending(
     story presentation (headline, summary, timeline with citations).
     Guarantees HTTP 200 even if LLM is unavailable (graceful heuristic fallback).
     """
+    # L1 In-Memory Cache Check (< 0.5 ms)
+    cache_key = f"trending_legacy:{limit}:{category or 'all'}"
+    cached_data = await trending_cache.get(cache_key)
+    if cached_data is not None:
+        return EnrichedTrendingResponse(**cached_data)
+
     # 1. Fetch legacy article-based trending clusters (with TrendingScoreBreakdown)
-    legacy_resp = service.get_trending_articles(category=category, limit=limit)
+    legacy_resp = await asyncio.to_thread(service.get_trending_articles, category=category, limit=limit)
 
     # 2. Fetch active story-based clusters from the persistent Story Identification layer
-    top_stories = service.get_trending_stories(limit=limit, category=category)
+    top_stories = await asyncio.to_thread(service.get_trending_stories, limit=limit, category=category)
 
     # 3. Enrich top stories with presentation (Deterministic heuristic fallback, decoupled LLM)
-    presentation_service.enrich_top_stories(top_stories, top_n=min(limit, 5), allow_llm=False)
+    await asyncio.to_thread(presentation_service.enrich_top_stories, top_stories, top_n=min(limit, 5), allow_llm=False)
 
     trending_articles = list(legacy_resp.trending)
     articles_list = list(legacy_resp.articles)
@@ -144,7 +154,7 @@ async def get_trending(
                 art.breakdown = st.breakdown
                 art.trending_score = st.trending_score
 
-    return EnrichedTrendingResponse(
+    resp = EnrichedTrendingResponse(
         total=len(trending_articles),
         updated=legacy_resp.updated,
         trending=trending_articles[:limit],
@@ -158,6 +168,8 @@ async def get_trending(
             "are covering a story, not verified public interest."
         ),
     )
+    await trending_cache.set(cache_key, resp.model_dump(), ttl_seconds=float(settings.trending_cache_ttl_seconds))
+    return resp
 
 
 @router.post("/engage")

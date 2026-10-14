@@ -159,6 +159,7 @@ export async function fetchMacroEventDetail(macroId) {
   }
 }
 
+
 /**
  * ดึงรายการ Trending Stories จาก persistent layer (Macro-First ค่าเริ่มต้น)
  * @param {number} limit

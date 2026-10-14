@@ -6,7 +6,7 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail } from "./api.js";
 import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
 import * as UI from "./UI.js";
 
@@ -47,6 +47,9 @@ const AI_SUMMARIES_CACHE_KEY = "newsroom_ai_summaries";
 
 let readingHistory = [];
 let cachedAiSummaries = {};
+let returnViewHash = "#/";
+let currentStorylineData = null;
+let activeStorylineSourceFilter = "";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -1360,10 +1363,15 @@ function showPreviewByUrl(url, autoSummarize = false) {
 
 function handleHashRouting() {
   const hash = window.location.hash || "#/";
-  if (hash.startsWith("#/preview/")) {
+  if (hash.startsWith("#/storyline/")) {
+    const rawPart = hash.replace("#/storyline/", "");
+    const [encodedId, queryStr] = rawPart.split("?");
+    const storyId = decodeURIComponent(encodedId || "");
+    loadStorylineView(storyId);
+  } else if (hash.startsWith("#/preview/")) {
     const rawPart = hash.replace("#/preview/", "");
     const [encodedUrl, queryStr] = rawPart.split("?");
-    const articleUrl = decodeURIComponent(encodedUrl);
+    const articleUrl = decodeURIComponent(encodedUrl || "");
     const params = new URLSearchParams(queryStr || "");
     const autoSummarize = params.get("summarize") === "1" || params.get("summarize") === "true";
     showPreviewByUrl(articleUrl, autoSummarize);
@@ -1378,17 +1386,273 @@ window.addEventListener("hashchange", handleHashRouting);
 
 window.__openPreview = (url) => {
   if (!url) return;
+  if (window.location.hash.startsWith("#/storyline/")) {
+    returnViewHash = window.location.hash;
+  } else {
+    returnViewHash = "#/";
+  }
   window.location.hash = `#/preview/${encodeURIComponent(url)}`;
 };
 
 window.__openPreviewAndSummarize = (url) => {
   if (!url) return;
+  if (window.location.hash.startsWith("#/storyline/")) {
+    returnViewHash = window.location.hash;
+  } else {
+    returnViewHash = "#/";
+  }
   window.location.hash = `#/preview/${encodeURIComponent(url)}?summarize=1`;
 };
 
 window.__backToFeed = () => {
+  window.location.hash = returnViewHash || "#/";
+};
+
+window.__openStoryline = (id, headline) => {
+  let targetId = id;
+  if (!targetId || targetId === "undefined" || targetId === "null") {
+    targetId = headline || "";
+  }
+  if (!targetId || targetId === "undefined" || targetId === "null") {
+    const currentHero = UI.getCurrentHeroTrendingStory();
+    if (currentHero) {
+      targetId = currentHero.macro_event_id || currentHero.story_id || currentHero.cluster_id || currentHero.headline || currentHero.title || "";
+    }
+  }
+  if (!targetId) return;
+
+  const targetHash = `#/storyline/${encodeURIComponent(targetId)}`;
+  if (window.location.hash !== targetHash) {
+    window.location.hash = targetHash;
+  }
+  // Call loadStorylineView immediately so navigation happens without waiting
+  loadStorylineView(targetId);
+};
+
+window.__openCurrentHeroStoryline = () => {
+  const currentHero = UI.getCurrentHeroTrendingStory();
+  if (!currentHero) return;
+  const targetId = currentHero.macro_event_id || currentHero.story_id || currentHero.cluster_id || currentHero.headline || currentHero.title || "";
+  const headline = currentHero.headline || currentHero.topic_title || currentHero.title || "";
+  window.__openStoryline(targetId, headline);
+};
+
+window.__backFromStoryline = () => {
   window.location.hash = "#/";
 };
+
+window.__filterStorylinePublisher = (source) => {
+  activeStorylineSourceFilter = source || "";
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {}
+    );
+  }
+};
+
+window.__runStorylineAiSummary = async (storyId) => {
+  UI.showStorylineAiLoading();
+  try {
+    // 1. Try backend story summarize endpoint if storyId matches
+    let res = null;
+    try {
+      const apiRes = await fetch(`/api/stories/${encodeURIComponent(storyId)}/summarize`, { method: "POST" });
+      if (apiRes.ok) {
+        res = await apiRes.json();
+      }
+    } catch (_) {}
+
+    if (res && res.summary) {
+      UI.renderStorylineAiSummary({
+        summary: res.summary,
+        bullets: res.timeline ? res.timeline.map(t => `${t.timestamp ? t.timestamp + ': ' : ''}${t.title || t.event || ''}`).filter(Boolean) : [],
+        keywords: res.entities || res.hashtags || [],
+        sentiment: res.sentiment || "Neutral",
+      });
+      return;
+    }
+
+    // 2. Fallback: Summarize the primary article using existing on-demand LLM service
+    if (currentStorylineData && Array.isArray(currentStorylineData.articles) && currentStorylineData.articles.length > 0) {
+      const firstArticle = currentStorylineData.articles[0];
+      const sumRes = await summarizeArticle(firstArticle.url);
+      if (sumRes.ok && sumRes.summary) {
+        UI.renderStorylineAiSummary(sumRes.summary);
+        return;
+      }
+    }
+
+    // 3. Fallback: Deterministic synthesized summary (Guaranteed no crash, decoupled LLM)
+    const fallbackBullets = (currentStorylineData && Array.isArray(currentStorylineData.articles))
+      ? currentStorylineData.articles.slice(0, 4).map(a => `${a.source || 'ข่าว'}: ${a.title}`)
+      : ["มีการรายงานความเคลื่อนไหวอย่างต่อเนื่องจากสำนักข่าวชั้นนำ", "ประเด็นมีความสำคัญและมีผลกระทบในวงกว้าง"];
+
+    UI.renderStorylineAiSummary({
+      summary: (currentStorylineData && currentStorylineData.summary)
+        ? currentStorylineData.summary
+        : "ประเด็นนี้อยู่ระหว่างการติดตามอย่างใกล้ชิดจากหลายสำนักข่าว โดยมีประเด็นสำคัญที่เชื่อมโยงถึงกันอย่างต่อเนื่อง",
+      bullets: fallbackBullets,
+      keywords: (currentStorylineData && (currentStorylineData.hashtags || currentStorylineData.entities)) || [],
+      sentiment: "Neutral",
+    });
+  } catch (e) {
+    console.warn("AI summary error for storyline:", e);
+    UI.renderStorylineAiSummary({
+      summary: (currentStorylineData && currentStorylineData.summary) || "สรุปภาพรวมประเด็นข่าว",
+      bullets: [],
+      keywords: [],
+    });
+  }
+};
+
+async function loadStorylineView(storyId) {
+  let targetId = storyId;
+  if (!targetId || targetId === "undefined" || targetId === "null") {
+    const currentHero = UI.getCurrentHeroTrendingStory();
+    if (currentHero) {
+      targetId = currentHero.macro_event_id || currentHero.story_id || currentHero.cluster_id || currentHero.headline || currentHero.title || "";
+    }
+  }
+
+  if (!targetId) {
+    UI.showStorylineError("ไม่พบรหัสประเด็นข่าว");
+    UI.switchView("storyline");
+    return;
+  }
+
+  UI.showStorylineLoading();
+  UI.switchView("storyline");
+  activeStorylineSourceFilter = "";
+
+  try {
+    // 1. First attempt: fetch macro-event detail from API
+    let storyData = await fetchMacroEventDetail(targetId);
+
+    // 2. Second attempt: if not macro, fetch story detail from API
+    if (!storyData) {
+      storyData = await fetchStoryDetail(targetId);
+    }
+
+    // 3. Third attempt: In-memory lookup from hero carousel
+    if (!storyData) {
+      const heroStory = UI.getHeroTrendingStoryById(targetId);
+      if (heroStory) {
+        storyData = { ...heroStory };
+      }
+    }
+
+    // 4. Fourth attempt: Match by keywords or cluster in currentArticleMap
+    if (!storyData) {
+      const matchingArticles = [];
+      const lowerTarget = targetId.toLowerCase();
+      for (const [url, art] of currentArticleMap.entries()) {
+        const titleLower = (art.title || "").toLowerCase();
+        const summaryLower = (art.summary || "").toLowerCase();
+        const clusterStr = String(art.cluster_id || "").toLowerCase();
+        if (titleLower.includes(lowerTarget) || summaryLower.includes(lowerTarget) || clusterStr === lowerTarget) {
+          matchingArticles.push(art);
+        }
+      }
+
+      if (matchingArticles.length > 0) {
+        storyData = {
+          macro_event_id: targetId,
+          cluster_id: targetId,
+          title: matchingArticles[0].title,
+          headline: matchingArticles[0].title,
+          summary: matchingArticles[0].summary || "รวมข่าวในประเด็นนี้",
+          category: matchingArticles[0].category || "general",
+          articles: matchingArticles,
+          outlets: Array.from(new Set(matchingArticles.map(a => a.source).filter(Boolean))),
+        };
+      }
+    }
+
+    if (!storyData) {
+      // 5. Final fallback: Use current hero story if available
+      const heroStory = UI.getCurrentHeroTrendingStory();
+      if (heroStory) {
+        storyData = { ...heroStory };
+      }
+    }
+
+    if (!storyData) {
+      UI.showStorylineError(`ไม่พบข้อมูลสำหรับประเด็น "${targetId}"`);
+      return;
+    }
+
+    // Assemble member articles list
+    let memberArticles = Array.isArray(storyData.articles) ? [...storyData.articles] : [];
+
+    // If child_events exist, extract nested articles or URLs
+    if (Array.isArray(storyData.child_events)) {
+      storyData.child_events.forEach(ce => {
+        if (Array.isArray(ce.articles)) {
+          memberArticles.push(...ce.articles);
+        }
+        if (Array.isArray(ce.article_urls)) {
+          ce.article_urls.forEach(u => {
+            const mapped = currentArticleMap.get(u);
+            if (mapped) memberArticles.push(mapped);
+          });
+        }
+      });
+    }
+
+    // Cross-match member articles by cluster_id from currentArticleMap
+    const effectiveClusterId = storyData.cluster_id || storyData.macro_event_id || storyData.story_id;
+    if (effectiveClusterId) {
+      const clusterTarget = String(effectiveClusterId).toLowerCase();
+      for (const [u, art] of currentArticleMap.entries()) {
+        if (art.cluster_id && String(art.cluster_id).toLowerCase() === clusterTarget) {
+          memberArticles.push(art);
+        }
+      }
+    }
+
+    // If few articles found, cross-match relevant articles from currentArticleMap
+    if (memberArticles.length <= 1) {
+      const targetKeywords = (storyData.headline || storyData.title || "")
+        .split(/\s+/)
+        .filter(w => w.length > 2);
+
+      for (const [u, art] of currentArticleMap.entries()) {
+        const text = `${art.title || ""} ${art.summary || ""}`;
+        if (targetKeywords.some(kw => text.includes(kw))) {
+          memberArticles.push(art);
+        }
+      }
+    }
+
+    // Deduplicate articles by URL and sync to currentArticleMap
+    const seenUrls = new Set();
+    const dedupedArticles = [];
+    for (const a of memberArticles) {
+      if (a && a.url && !seenUrls.has(a.url)) {
+        seenUrls.add(a.url);
+        currentArticleMap.set(a.url, a);
+        dedupedArticles.push(a);
+      }
+    }
+
+    storyData.articles = dedupedArticles;
+    if (!storyData.outlets || storyData.outlets.length === 0) {
+      storyData.outlets = Array.from(new Set(dedupedArticles.map(a => a.source).filter(Boolean)));
+    }
+    currentStorylineData = storyData;
+
+    UI.renderStorylineView(
+      storyData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {}
+    );
+  } catch (err) {
+    console.error("Failed to load storyline view:", err);
+    UI.showStorylineError(err.message || "เกิดข้อผิดพลาดในการโหลดประเด็นข่าว");
+  }
+}
 
 window.__openExternalSourceClean = (url) => {
   if (!url) return;
@@ -1596,7 +1860,11 @@ window.__filterByHashtag = (tag) => {
 };
 
 window.__filterByStoryline = (macroId, headline, tag) => {
-  const filterText = tag || headline || "";
+  if (macroId || headline) {
+    window.__openStoryline(macroId, headline);
+    return;
+  }
+  const filterText = tag || "";
   if (!filterText) return;
   if (activeCategory === "bookmarks" || activeCategory === "for-you") {
     activeCategory = "all";

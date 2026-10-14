@@ -210,6 +210,11 @@ class ScraperService:
                 all_news.extend(new_batch)
                 self._repo.save_news(all_news)
                 self._repo.save_seen(seen)
+
+                # Invalidate L1 feed and trending caches so clients see new articles immediately
+                from backend.core.l1_cache import invalidate_feed_caches
+                await invalidate_feed_caches()
+
                 print(f"  💾 {len(new_batch)} บทความใหม่ (รวม {len(all_news)})")
                 self.log_event("SUCCESS", f"Collected {len(new_batch)} new articles (Total: {len(all_news)})", "scraper")
                 await self._emit(
