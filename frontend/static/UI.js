@@ -725,7 +725,8 @@ function updateHeroTrendingSlide() {
             <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
             <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
               <button type="button" 
-                      class="p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer"
+                      class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
+                      data-url="${esc(n.url)}"
                       onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
                       title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
                 <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
@@ -818,7 +819,7 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
     const catObj = getCategoryById(n.category);
 
     return `
-      <article class="editorial-card group" style="animation: fadeUp 0.35s ease-out ${Math.min(i * 0.03, 0.4)}s both;">
+      <article class="editorial-card group" data-url="${esc(n.url)}" style="animation: fadeUp 0.35s ease-out ${Math.min(i * 0.03, 0.4)}s both;">
         <div class="flex flex-col flex-1 cursor-pointer" data-url="${esc(n.url)}" onclick="window.__openPreview(this.dataset.url)">
           <!-- Card Thumbnail -->
           <div class="aspect-[16/10] overflow-hidden relative shrink-0 bg-surface-container-low border-b border-outline-variant/25">
@@ -862,7 +863,8 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
           <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
             ${n.url ? `
             <button type="button"
-                    class="editorial-card-icon-btn ${isBookmarked ? 'active' : ''}"
+                    class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
+                    data-url="${esc(n.url)}"
                     onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')"
                     title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
               <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
@@ -1189,7 +1191,8 @@ export function renderPreviewView(article, isBookmarked = false, cachedSummary =
       </button>
 
       <div class="flex items-center gap-2">
-        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/40 ${isBookmarked ? 'bg-[#141413] text-white' : 'bg-white text-on-surface hover:bg-surface-container'} text-xs font-bold transition-colors cursor-pointer"
+        <button class="bookmark-btn modal-bookmark-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/40 ${isBookmarked ? 'bg-[#141413] text-white active' : 'bg-white text-on-surface hover:bg-surface-container'} text-xs font-bold transition-colors cursor-pointer"
+                data-url="${esc(article.url)}"
                 onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')">
           <span class="material-symbols-outlined text-[16px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
             ${isBookmarked ? 'bookmark' : 'bookmark_border'}
@@ -1535,7 +1538,7 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
         const perspective = getPerspectiveLabel(art.title, art.source, art.summary);
 
         return `
-          <article class="editorial-card">
+          <article class="editorial-card" data-url="${esc(art.url)}">
             <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-low cursor-pointer border-b border-outline-variant/25"
                  onclick="window.__openPreview('${esc(art.url)}')">
               <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
@@ -1565,9 +1568,20 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
               <div class="mt-auto pt-3 border-t border-outline-variant/25 flex items-center justify-between gap-2">
                 <span class="font-mono text-[10px] text-outline uppercase">${esc(art.fetched_at || "")}</span>
                 <div class="flex items-center gap-1" onclick="event.stopPropagation()">
-                  <button type="button" class="editorial-card-icon-btn ${isBookmarked ? 'active' : ''}"
-                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')">
-                    <span class="material-symbols-outlined text-[15px]">${isBookmarked ? 'bookmark' : 'bookmark_border'}</span>
+                  <button type="button" 
+                          class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
+                          data-url="${esc(art.url)}"
+                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                    <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
+                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                    </span>
+                  </button>
+                  <button type="button" 
+                          class="editorial-card-icon-btn"
+                          onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
+                          title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
+                    <span class="material-symbols-outlined text-[15px]">visibility_off</span>
                   </button>
                   <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
                   <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>

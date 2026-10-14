@@ -775,14 +775,22 @@ window.__toggleArticleBookmark = (event, articleJsonStr) => {
     if (!article || !article.url) return;
 
     personalizationData.bookmarkedArticles = personalizationData.bookmarkedArticles || {};
+    personalizationData.bookmarks = personalizationData.bookmarks || [];
 
-    if (personalizationData.bookmarkedArticles[article.url]) {
+    const isCurrentlyBookmarked = Boolean(personalizationData.bookmarkedArticles[article.url]);
+    const nextBookmarked = !isCurrentlyBookmarked;
+
+    if (isCurrentlyBookmarked) {
       delete personalizationData.bookmarkedArticles[article.url];
+      personalizationData.bookmarks = personalizationData.bookmarks.filter(u => u !== article.url);
       savePersonalization();
       UI.showToast("ลบบุ๊กมาร์กเรียบร้อย");
     } else {
       article.bookmarked_at = new Date().toISOString();
       personalizationData.bookmarkedArticles[article.url] = article;
+      if (!personalizationData.bookmarks.includes(article.url)) {
+        personalizationData.bookmarks.push(article.url);
+      }
       savePersonalization();
       updateAffinity(article, 5.0);
       recordEngagement(article.url, "bookmark");
@@ -794,9 +802,59 @@ window.__toggleArticleBookmark = (event, articleJsonStr) => {
 
     if (activeCategory === "bookmarks") {
       renderBookmarkedArticles();
-    } else {
-      loadPage(currentPage);
+      return;
     }
+
+    // In-place UI update without full-feed reload
+    const updateBtn = (btn) => {
+      const icon = btn.querySelector(".material-symbols-outlined");
+      const textSpan = btn.querySelector("span:not(.material-symbols-outlined)");
+
+      if (nextBookmarked) {
+        btn.classList.add("active");
+        btn.setAttribute("title", "ลบบุ๊กมาร์ก");
+        if (icon) {
+          icon.textContent = "bookmark";
+          icon.style.fontVariationSettings = "'FILL' 1";
+          if (btn.classList.contains("hero-bookmark-btn")) {
+            icon.style.color = "#f59e0b";
+          }
+        }
+        if (textSpan && textSpan.textContent.includes("บันทึก")) {
+          textSpan.textContent = "บันทึกแล้ว";
+        }
+        if (btn.classList.contains("modal-bookmark-btn")) {
+          btn.classList.remove("bg-white", "text-on-surface");
+          btn.classList.add("bg-[#141413]", "text-white");
+        }
+      } else {
+        btn.classList.remove("active");
+        btn.setAttribute("title", "บันทึกบทความ");
+        if (icon) {
+          icon.textContent = "bookmark_border";
+          icon.style.fontVariationSettings = "'FILL' 0";
+          icon.style.color = "";
+        }
+        if (textSpan && textSpan.textContent.includes("บันทึก")) {
+          textSpan.textContent = "บันทึก";
+        }
+        if (btn.classList.contains("modal-bookmark-btn")) {
+          btn.classList.remove("bg-[#141413]", "text-white");
+          btn.classList.add("bg-white", "text-on-surface");
+        }
+      }
+    };
+
+    if (event?.currentTarget) {
+      updateBtn(event.currentTarget);
+    }
+
+    try {
+      const escapedUrl = CSS.escape(article.url);
+      document.querySelectorAll(`button.bookmark-btn[data-url="${escapedUrl}"]`).forEach(btn => {
+        if (btn !== event?.currentTarget) updateBtn(btn);
+      });
+    } catch (_) {}
   } catch (err) {
     console.error("Failed to toggle article bookmark:", err);
   }
@@ -807,24 +865,42 @@ window.__showLessLikeThis = (event, articleJsonStr) => {
   event?.stopPropagation();
   try {
     const article = typeof articleJsonStr === "string" ? JSON.parse(decodeURIComponent(articleJsonStr)) : articleJsonStr;
+    if (!article || !article.url) return;
+
+    // Immediately animate and collapse the target card
+    const btn = event?.currentTarget;
+    let card = btn ? btn.closest("article") : null;
+    if (!card) {
+      try {
+        card = document.querySelector(`article[data-url="${CSS.escape(article.url)}"]`);
+      } catch (_) {}
+    }
+
+    if (card) {
+      card.style.transition = "opacity 0.3s ease, transform 0.3s ease, max-height 0.35s ease, margin 0.35s ease, padding 0.35s ease";
+      card.style.opacity = "0";
+      card.style.transform = "scale(0.94) translateY(-6px)";
+      setTimeout(() => {
+        card.style.display = "none";
+      }, 320);
+    }
+
     const affinity = getAffinity();
-    if (!affinity || !article?.url) {
-      UI.showToast("กรุณายินยอมการจัดเก็บข้อมูลการตั้งค่าเพื่อปรับฟีด");
-      return;
+    if (affinity) {
+      affinity.hidden_article_urls = [article.url, ...(affinity.hidden_article_urls || []).filter(url => url !== article.url)].slice(0, 250);
+      if (article.category) {
+        affinity.categories[article.category] = (affinity.categories[article.category] || 0) - 10.0;
+      }
+      affinity.last_active = new Date().toISOString();
+      savePersonalization();
     }
-    affinity.hidden_article_urls = [article.url, ...(affinity.hidden_article_urls || []).filter(url => url !== article.url)].slice(0, 250);
-    // "Less like this" expresses a topic preference, not distrust of a publisher.
-    // Keep the source and keyword affinities intact so other Thai Post topics can
-    // still appear when they match the reader's interests.
-    if (article.category) {
-      affinity.categories[article.category] = (affinity.categories[article.category] || 0) - 10.0;
+
+    UI.showToast("ซ่อนข่าวนี้แล้ว และจะลดเนื้อหาลักษณะนี้ลง");
+    if (activeCategory === "for-you") {
+      setTimeout(() => loadPage(1), 350);
     }
-    affinity.last_active = new Date().toISOString();
-    savePersonalization();
-    UI.showToast("จะลดข่าวลักษณะนี้ในฟีดสำหรับคุณ");
-    if (activeCategory === "for-you") loadPage(1);
   } catch (error) {
-    console.warn("Failed to update For You feedback:", error);
+    console.warn("Failed to update show-less feedback:", error);
   }
 };
 
@@ -1714,7 +1790,7 @@ window.__showHistory = () => {
   UI.renderHistoryList(readingHistory, "history", personalizationData.bookmarkedArticles || {});
 };
 
-window.__showBookmarks = () => {
+window.__showBookmarksModal = () => {
   const bookmarksList = Object.values(personalizationData.bookmarkedArticles || {});
   UI.openHistoryModal("บทความที่บันทึกไว้ (Bookmarks)", "bookmarks");
   UI.renderHistoryList(bookmarksList, "bookmarks", personalizationData.bookmarkedArticles || {});
