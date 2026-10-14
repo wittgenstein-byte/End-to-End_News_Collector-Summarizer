@@ -1040,7 +1040,11 @@ async function loadPage(page = 1) {
       }
     }
 
-    UI.renderGrid(data.news, newArticleSet, personalizationData.bookmarkedArticles || {});
+    const affinity = getAffinity();
+    const hiddenSet = new Set((affinity && affinity.hidden_article_urls) || []);
+    const visibleNews = (data.news || []).filter(a => !hiddenSet.has(a.url));
+
+    UI.renderGrid(visibleNews, newArticleSet, personalizationData.bookmarkedArticles || {});
     UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
     UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
