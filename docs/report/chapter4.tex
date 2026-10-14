@@ -400,24 +400,23 @@ API Key สำหรับเชื่อมต่อกับบริการ
 
 \begin{table}[H]
 \centering
+\small
 \caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก (จำนวนรวม 372 กรณีทดสอบ)}
 \label{tab:automated_tests}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|p{4.5cm}|p{5.5cm}|c|c|}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.2cm}|p{3.8cm}|p{5.4cm}|>{\centering\arraybackslash}p{1.4cm}|>{\centering\arraybackslash}p{1.8cm}|}
 \hline
-\textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ไฟล์ทดสอบหลัก (\texttt{backend/tests/})} & \textbf{จำนวนข้อ} & \textbf{ผลการทดสอบ} \\
+\textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ขอบเขตและโมดูลทดสอบสำคัญ} & \textbf{จำนวน (ข้อ)} & \textbf{ผลการ ทดสอบ} \\
 \hline
-1 & การประมวลผลภาษาและการจำแนกหมวดหมู่ & \texttt{test\_classifier\_service.py}, \texttt{test\_wangchan\_embedding\_integration.py} & 49 & ผ่าน (100\%) \\ \hline
-2 & การระบุประเด็นข่าวและวงรอบชีวิต & \texttt{test\_story\_service.py}, \texttt{test\_story\_repo.py}, \texttt{test\_layer1\_stress.py}, \texttt{test\_semantic\_clustering.py}, \texttt{test\_dynamic\_lifecycle\_clock.py}, \texttt{test\_long\_running\_storyline.py} & 66 & ผ่าน (100\%) \\ \hline
-3 & เอนจินจัดอันดับกระแสและความคงทนทางสถิติ & \texttt{test\_trending\_service.py}, \texttt{test\_trending\_deterministic.py}, \texttt{test\_trending\_challenger\_stress.py}, \texttt{test\_adversarial\_layer2\_layer3.py} & 59 & ผ่าน (100\%) \\ \hline
-4 & การสังเคราะห์นำเสนอ มหากาพย์ข่าว และมอนิเตอร์ & \texttt{test\_story\_presentation.py}, \texttt{test\_monitoring.py}, \texttt{test\_layer4\_stress.py}, \texttt{test\_crisis\_exemption\_precision.py}, \texttt{test\_presentation\_cache\_fingerprint.py}, \texttt{test\_macro\_membership\_consistency.py}, \texttt{test\_event\_vs\_macro\_matching.py} & 46 & ผ่าน (100\%) \\ \hline
-5 & สถาปัตยกรรมแคช ฐานข้อมูล และความปลอดภัย PDPA & \texttt{test\_storage\_pdpa.py}, \texttt{test\_caching.py}, \texttt{test\_browser\_cache.py}, \texttt{test\_http\_cache.py}, \texttt{test\_summary\_cache.py}, \texttt{test\_sqlite\_news\_repo.py}, \texttt{test\_news\_repo.py}, \texttt{test\_tiered\_cache.py}, \texttt{test\_summarizer\_cascade.py}, \texttt{test\_sources.py} & 121 & ผ่าน (100\%) \\ \hline
-6 & การประเมินผลเชิงประจักษ์และจุดเชื่อมต่อบริการ & \texttt{test\_api\_endpoints.py}, \texttt{test\_evaluation\_harness.py}, \texttt{test\_api\_compatibility\_adapters.py} & 31 & ผ่าน (100\%) \\
+1 & การประมวลผลภาษาและการจำแนกหมวดหมู่ & การตัดคำภาษาไทย, การจำแนก 9 หมวดหมู่ (\texttt{classifier\_service}) และเวกเตอร์หนาแน่น (\texttt{wangchan\_embedding}) & 49 & ผ่าน (100\%) \\ \hline
+2 & การระบุประเด็นข่าวและวงรอบชีวิต & เกณฑ์ตัดสินใจ Two-Band, การยืนยันเอนทิตี (\texttt{story\_service}), Centroid EMA, การจัดเก็บประเด็นข่าว (\texttt{story\_repo}) และการทดสอบโหลดหนัก (\texttt{layer1\_stress}) & 66 & ผ่าน (100\%) \\ \hline
+3 & เอนจินจัดอันดับกระแสและความคงทนทางสถิติ & สัญญาณคะแนน 6 มิติ, คุณสมบัติ Zero-LLM, การลดทอนข่าวประจำวัน (\texttt{trending\_deterministic}) และการทดสอบกรณีสุดขั้ว (\texttt{adversarial}) & 59 & ผ่าน (100\%) \\ \hline
+4 & การสังเคราะห์นำเสนอ มหากาพย์ข่าว และมอนิเตอร์ & การสรุปประเด็นรวมและไทม์ไลน์ (\texttt{story\_presentation}), มหากาพย์ข่าว (\texttt{macro\_events}), ข้อยกเว้นวิกฤต และศูนย์ควบคุมสถานะ (\texttt{monitoring}) & 46 & ผ่าน (100\%) \\ \hline
+5 & สถาปัตยกรรมแคช ฐานข้อมูล และความปลอดภัย PDPA & แคชหน่วยความจำและ HTTP 304 (\texttt{caching}, \texttt{http\_cache}), การป้องกัน Cache Stampede (\texttt{summary\_cache}), ฐานข้อมูล SQLite WAL และความปลอดภัย PDPA (\texttt{storage\_pdpa}) & 121 & ผ่าน (100\%) \\ \hline
+6 & การประเมินผลเชิงประจักษ์และจุดเชื่อมต่อบริการ & การประเมินเมตริก B-cubed และ Pairwise (\texttt{evaluation\_harness}), จุดเชื่อมต่อ REST API ทุกส่วน (\texttt{api\_endpoints}) และ Adapter ความเข้ากันได้ & 31 & ผ่าน (100\%) \\
 \hline
-\multicolumn{3}{|c|}{\textbf{รวมทั้งสิ้น}} & \textbf{372} & \textbf{ผ่าน (100\%)} \\
+\multicolumn{3}{|c|}{\textbf{รวมชุดทดสอบอัตโนมัติทั้งหมด (32 โมดูล)}} & \textbf{372} & \textbf{ผ่าน (100\%)} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{การทดสอบคุณสมบัติคงที่ทางวิศวกรรมและกรณีสุดขั้ว (In-Depth Technical Testing Methodologies)}
