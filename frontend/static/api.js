@@ -159,21 +159,6 @@ export async function fetchMacroEventDetail(macroId) {
   }
 }
 
-/**
- * ดึงรายละเอียดของ Story Cluster ตาม story_id
- * @param {string} storyId
- */
-export async function fetchStoryDetail(storyId) {
-  if (!storyId) return null;
-  try {
-    const res = await fetch(`${API_BASE}/api/stories/${encodeURIComponent(storyId)}`);
-    if (!res.ok) throw await buildHttpError(res);
-    return await res.json();
-  } catch (e) {
-    console.warn("fetchStoryDetail request failed:", e.message);
-    return null;
-  }
-}
 
 /**
  * ดึงรายการ Trending Stories จาก persistent layer (Macro-First ค่าเริ่มต้น)

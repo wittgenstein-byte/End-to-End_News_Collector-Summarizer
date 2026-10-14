@@ -4,7 +4,9 @@
   "description": "ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time\r ระบบดึงข่าวอัตโนมัติ และสรุปจากหลายสำนักข่าวไทย แสดงผลบนเว็บแบบ Real-time",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "tailwindcss -i ./static/tailwind-input.css -o ./static/app.css --minify",
+    "watch:css": "tailwindcss -i ./static/tailwind-input.css -o ./static/app.css --watch"
   },
   "repository": {
     "type": "git",
