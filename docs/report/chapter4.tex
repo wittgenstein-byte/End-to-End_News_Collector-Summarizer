@@ -388,25 +388,51 @@ async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
 
 API Key สำหรับเชื่อมต่อกับบริการภายนอก เช่น \texttt{LLM\_API} ของ KKU Gen.AI และการตั้งค่าระบบต่าง ๆ ถูกจัดเก็บไว้ในไฟล์ \texttt{.env} และ Environment Variables ที่แยกต่างหาก โดยมีไฟล์ \texttt{.gitignore} ป้องกันการนำความลับของระบบขึ้นสู่ระบบควบคุมเวอร์ชัน (Git Repository) อย่างเข้มงวด
 
-% -----------------------------------------------------------
+% % -----------------------------------------------------------
 \section{การทดสอบระบบ}
 % -----------------------------------------------------------
 
-\subsection{การทดสอบอัตโนมัติ (Automated Test Suite)}
+การรับประกันคุณภาพและความน่าเชื่อถือของระบบ (Quality Assurance \& Reliability) เป็นหัวใจสำคัญในการพัฒนาระบบรวบรวมและวิเคราะห์ข่าวสารอัตโนมัติ ซึ่งต้องทำงานต่อเนื่องตลอดเวลา (24/7 Continuous Operation) และประมวลผลข้อมูลจากภายนอกที่มีความผันผวนสูง โครงงานนี้จึงประยุกต์ใช้ระเบียบวิธีพัฒนาที่ขับเคลื่อนด้วยการทดสอบ (Test-Driven Development: TDD) และสร้างชุดทดสอบอัตโนมัติที่ครอบคลุมการทำงานทุกระดับตั้งแต่การทดสอบระดับหน่วย (Unit Testing) การทดสอบการทำงานร่วมกัน (Integration Testing) การทดสอบกรณีสุดขั้วและสภาวะวิกฤต (Adversarial \& Stress Testing) การทดสอบการประมวลผลพร้อมกัน (Concurrency Testing) และการทดสอบความมั่นคงปลอดภัยตามมาตรฐาน PDPA รวมทั้งสิ้น 372 กรณีทดสอบ (372 Test Cases) ครอบคลุม 32 โมดูลทดสอบบนเฟรมเวิร์ค \texttt{pytest} โดยมีผลการทดสอบผ่านสมบูรณ์ครบทั้ง 372 กรณีทดสอบ (คิดเป็นร้อยละ 100)
 
-ระบบได้รับการออกแบบให้มีชุดทดสอบอัตโนมัติที่ครอบคลุมการทำงานทุกระดับด้วยเฟรมเวิร์ค \texttt{pytest} มากกว่า 30 ชุดทดสอบ โดยสามารถจำแนกออกเป็นกลุ่มการทดสอบหลักได้ดังนี้
+\subsection{โครงสร้างและสถิติชุดทดสอบอัตโนมัติ (Automated Test Suite Structure \& Statistics)}
 
-การทดสอบระดับหน่วยและการประมวลผลข้อความ (Unit Tests \& Text Processing) ตรวจสอบความถูกต้องของการตัดคำภาษาไทย การจับคู่คีย์เวิร์ดจำแนกหมวดหมู่ 9 หมวดหมู่ (\texttt{test\_classifier\_service.py}) การสกัดข้อมูลจากโครงสร้างเว็บของแต่ละสำนักข่าว (\texttt{test\_sources.py}) และการผสานข้อมูลเวกเตอร์แบบฝังตัว (\texttt{test\_wangchan\_embedding\_integration.py})
+ชุดทดสอบอัตโนมัติของระบบสามารถจำแนกออกเป็น 6 มิติหลักตามขอบเขตการทำงานของสถาปัตยกรรม ดังแสดงในตารางที่ \ref{tab:automated_tests}
 
-การทดสอบการระบุประเด็นข่าวและสภาวะวิกฤต (Story Identification \& Stress Tests) ตรวจสอบความแม่นยำในการจัดกลุ่มข่าวแบบ Two-Band Similarity การอัปเดตเวกเตอร์ตัวแทนด้วย Centroid EMA (\texttt{test\_story\_service.py}) ความคงทนของการประมวลผลข่าวกระแสสูงใน Layer 1 ภายใต้สภาวะโหลดหนัก (\texttt{test\_layer1\_stress.py}) พฤติกรรมของประเด็นข่าวที่ดำเนินต่อเนื่องยาวนาน (\texttt{test\_long\_running\_storyline.py}) และกลไกวงรอบชีวิตประเด็นข่าว (\texttt{test\_dynamic\_lifecycle\_clock.py})
+\begin{table}[H]
+\centering
+\caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก (จำนวนรวม 372 กรณีทดสอบ)}
+\label{tab:automated_tests}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|p{4.5cm}|p{5.5cm}|c|c|}
+\hline
+\textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ไฟล์ทดสอบหลัก (\texttt{backend/tests/})} & \textbf{จำนวนข้อ} & \textbf{ผลการทดสอบ} \\
+\hline
+1 & การประมวลผลภาษาและการจำแนกหมวดหมู่ & \texttt{test\_classifier\_service.py}, \texttt{test\_wangchan\_embedding\_integration.py} & 49 & ผ่าน (100\%) \\ \hline
+2 & การระบุประเด็นข่าวและวงรอบชีวิต & \texttt{test\_story\_service.py}, \texttt{test\_story\_repo.py}, \texttt{test\_layer1\_stress.py}, \texttt{test\_semantic\_clustering.py}, \texttt{test\_dynamic\_lifecycle\_clock.py}, \texttt{test\_long\_running\_storyline.py} & 66 & ผ่าน (100\%) \\ \hline
+3 & เอนจินจัดอันดับกระแสและความคงทนทางสถิติ & \texttt{test\_trending\_service.py}, \texttt{test\_trending\_deterministic.py}, \texttt{test\_trending\_challenger\_stress.py}, \texttt{test\_adversarial\_layer2\_layer3.py} & 59 & ผ่าน (100\%) \\ \hline
+4 & การสังเคราะห์นำเสนอ มหากาพย์ข่าว และมอนิเตอร์ & \texttt{test\_story\_presentation.py}, \texttt{test\_monitoring.py}, \texttt{test\_layer4\_stress.py}, \texttt{test\_crisis\_exemption\_precision.py}, \texttt{test\_presentation\_cache\_fingerprint.py}, \texttt{test\_macro\_membership\_consistency.py}, \texttt{test\_event\_vs\_macro\_matching.py} & 46 & ผ่าน (100\%) \\ \hline
+5 & สถาปัตยกรรมแคช ฐานข้อมูล และความปลอดภัย PDPA & \texttt{test\_storage\_pdpa.py}, \texttt{test\_caching.py}, \texttt{test\_browser\_cache.py}, \texttt{test\_http\_cache.py}, \texttt{test\_summary\_cache.py}, \texttt{test\_sqlite\_news\_repo.py}, \texttt{test\_news\_repo.py}, \texttt{test\_tiered\_cache.py}, \texttt{test\_summarizer\_cascade.py}, \texttt{test\_sources.py} & 121 & ผ่าน (100\%) \\ \hline
+6 & การประเมินผลเชิงประจักษ์และจุดเชื่อมต่อบริการ & \texttt{test\_api\_endpoints.py}, \texttt{test\_evaluation\_harness.py}, \texttt{test\_api\_compatibility\_adapters.py} & 31 & ผ่าน (100\%) \\
+\hline
+\multicolumn{3}{|c|}{\textbf{รวมทั้งสิ้น}} & \textbf{372} & \textbf{ผ่าน (100\%)} \\
+\hline
+\end{tabular}%
+}
+\end{table}
 
-การทดสอบกลไกจัดอันดับความนิยมและการต้านทานกรณีสุดขั้ว (Deterministic Trending \& Adversarial Tests) ตรวจสอบสูตรคำนวณคะแนน Trending Score ทั้ง 6 สัญญาณ (\texttt{test\_trending\_deterministic.py}, \texttt{test\_trending\_service.py}) การลดทอนคะแนนข่าวประจำวัน (Routine News Dampening) การทดสอบป้อนข้อมูลจำลองในสภาวะสุดขั้วเพื่อตรวจจับความผิดปกติระหว่าง Layer 2 และ Layer 3 (\texttt{test\_adversarial\_layer2\_layer3.py}) และการทดสอบแข่งขันจัดอันดับความนิยมภายใต้ภาวะโหลดสูง (\texttt{test\_trending\_challenger\_stress.py})
+\subsection{การทดสอบคุณสมบัติคงที่ทางวิศวกรรมและกรณีสุดขั้ว (In-Depth Technical Testing Methodologies)}
 
-การทดสอบการนำเสนอและมหากาพย์ประเด็นข่าว (Presentation \& Macro Events) ตรวจสอบการสร้างบทสรุปประเด็นรวม ไทม์ไลน์ และกลไกตรวจสอบรอยนิ้วมือแคชการนำเสนอ (\texttt{test\_story\_presentation.py}, \texttt{test\_presentation\_cache\_fingerprint.py}) การเชื่อมโยงประเด็นข่าวย่อยเข้าสู่มหากาพย์ประเด็นข่าว (\texttt{test\_macro\_membership\_consistency.py}, \texttt{test\_event\_vs\_macro\_matching.py}) และข้อยกเว้นกรณีวิกฤต (\texttt{test\_crisis\_exemption\_precision.py})
+เพื่อให้มั่นใจว่าระบบมีเสถียรภาพภายใต้สภาวะการทำงานจริงที่มีความซับซ้อน ชุดทดสอบได้ออกแบบกรณีทดสอบครอบคลุมคุณสมบัติคงที่ทางวิศวกรรม (Engineering Invariants) และสภาวะสุดขั้วใน 5 ด้านหลัก:
 
-การทดสอบระบบจัดเก็บข้อมูลและความปลอดภัย (Storage Persistence \& PDPA Compliance) ตรวจสอบการทำงานของหน่วยความจำแคชและ HTTP ETag 304 (\texttt{test\_caching.py}, \texttt{test\_http\_cache.py}, \texttt{test\_browser\_cache.py}) การทำงานของพื้นที่จัดเก็บข้อมูลทั้งแบบ JSON, SQLite WAL และ MongoDB (\texttt{test\_news\_repo.py}, \texttt{test\_sqlite\_news\_repo.py}, \texttt{test\_story\_repo.py}) ตลอดจนการทดสอบมาตรการความเป็นส่วนตัวตามมาตรฐาน PDPA (\texttt{test\_storage\_pdpa.py}) เพื่อรับประกันว่าไม่มีการบันทึกข้อมูลระบุตัวตนส่วนบุคคลในฐานข้อมูล
+ประการแรก การทดสอบความแม่นยำในการระบุประเด็นข่าวและการคงทนของเวกเตอร์ศูนย์กลาง (Story Identification \& Centroid EMA Invariants) ได้รับการตรวจสอบอย่างเข้มงวดผ่าน \texttt{test\_story\_service.py} โดยทดสอบว่าบทความข่าวที่มีค่าความคล้ายคลึงโคไซน์ $\cos \ge 0.85$ จะต้องถูกรวมเข้ากลุ่มประเด็นข่าวเดิมเสมอ (Direct Merge) แม้ไม่มีเอนทิตีร่วมกัน ในขณะที่บทความในแถบก้ำกึ่ง $0.74 \le \cos < 0.85$ จะถูกรวมก็ต่อเมื่อตรวจพบเอนทิตีบุคคล สถานที่ หรือองค์กรตรงกันอย่างน้อย 1 รายการ (Confirmed Merge) และหาก $\cos < 0.74$ ระบบจะต้องสร้างกลุ่มข่าวใหม่เสมอ แม้ว่าจะมีเอนทิตีร่วมกัน เพื่อป้องกันการรั่วไหลของคำศัพท์ที่ไม่เกี่ยวข้อง นอกจากนี้ การทดสอบคณิตศาสตร์ของ Centroid EMA ($\alpha = 0.85$) ยืนยันว่าจุดศูนย์กลางของกลุ่มข่าวสามารถรักษาสมดุลของแกนเรื่องเดิมได้อย่างมั่นคง ไม่เกิดการเบี่ยงเบนของความหมาย (Semantic Drift) แม้มีข่าวเข้ามาเสริมต่อเนื่องข้ามสัปดาห์ (\texttt{test\_long\_running\_storyline.py}) พร้อมทดสอบการสลับสถานะของประเด็นข่าวระหว่าง Active และ Dormant และการฟื้นคืนสถานะโดยคงรหัส \texttt{story\_id} เดิมอย่างคงเส้นคงวา (Idempotent Reactivation)
 
-การทดสอบการประเมินผลประสิทธิภาพเชิงประจักษ์ (Evaluation Harness) ตรวจสอบความถูกต้องของสคริปต์ประเมินผลตัวชี้วัด B-cubed และ Pairwise Metrics กับชุดข้อมูลมาตรฐานอ้างอิงจริง (\texttt{test\_evaluation\_harness.py}) เพื่อให้มั่นใจในความเที่ยงตรงของการวัดผลทางสถิติ
+ประการที่สอง การทดสอบคุณสมบัติคงที่ของเอนจินจัดอันดับความนิยมแบบดีเทอร์มินิสติก (Deterministic Trending \& Adversarial Invariants) ตรวจสอบผ่าน \texttt{test\_trending\_deterministic.py} และ \texttt{test\_adversarial\_layer2\_layer3.py} โดยมีคุณสมบัติสำคัญที่ต้องผ่านการทดสอบ 3 ประการ คือ คุณสมบัติปลอดการเรียกใช้โมเดลภาษาขนาดใหญ่ (Zero LLM Invariant) ที่ยืนยันว่าไม่มีการเรียกใช้บริการภายนอกหรือ LLM ในกระบวนการคำนวณคะแนน ทำให้ความเร็วในการจัดอันดับคงที่ในระดับมิลลิวินาทีเสมอ คุณสมบัติความแน่นอนเชิงคณิตศาสตร์ (Strictly Deterministic Across Repeated Runs) ที่ทดสอบการคำนวณคะแนนซ้ำบนชุดข้อมูลข่าว 1,000 ข่าวแล้วได้คะแนนและลำดับเหมือนเดิมทุกประการร้อยละ 100 และการทดสอบกลไกลดทอนข่าวประจำวัน (Routine News Dampening) ที่ยืนยันว่ารายงานสภาพอากาศและผลสลากกินแบ่งรัฐบาลจะถูกคูณลดทอนคะแนนลงเหลือ 0.25 เท่าเสมอ เพื่อป้องกันไม่ให้ข่าวประจำวันบดบังข่าวด่วนที่สำคัญ นอกจากนี้ \texttt{test\_trending\_challenger\_stress.py} ยังทดสอบการจัดการกับเวลาในอนาคต (Future Timestamp Clamping) และเวลาในอดีตลึกเกิน 100 วัน (Underflow Safety) เพื่อความปลอดภัยทางคณิตศาสตร์
+
+ประการที่สาม การทดสอบการประมวลผลพร้อมกันและการป้องกันภาวะตื่นตระหนกของแคช (Concurrency \& Cache Stampede Protection) ตรวจสอบผ่าน \texttt{test\_summary\_cache.py} และ \texttt{test\_sqlite\_news\_repo.py} โดยระบบได้จำลองสถานการณ์ที่มีผู้ใช้งานส่งคำขอสรุปข่าวบทความเดียวกันเข้ามาพร้อมกัน 100 คำขอในเสี้ยววินาทีเดียวกัน กลไก Single-Flight Mutex Locking จะอนุญาตให้คำขอแรกเพียงคำขอเดียวส่งต่อไปยัง KKU Gen.AI API ในขณะที่อีก 99 คำขอจะรอรับผลลัพธ์จากแคชเดียวกัน ช่วยป้องกันไม่ให้โควตา API ถูกใช้สิ้นเปลืองและป้องกันการล่มของระบบเซิร์ฟเวอร์ และสำหรับการบันทึกข้อมูลแบบหลายเธรดใน SQLite โหมด Write-Ahead Logging (WAL) ได้รับการทดสอบการอ่านและเขียนพร้อมกันจำนวนมหาศาลโดยไม่เกิดข้อผิดพลาดฐานข้อมูลถูกล็อก (Database Locked Error)
+
+ประการที่สี่ การทดสอบความมั่นคงปลอดภัยและการคุ้มครองข้อมูลส่วนบุคคล (Zero-PII Compliance \& PDPA Testing) ตรวจสอบผ่าน \texttt{test\_storage\_pdpa.py} โดยทำการตรวจสอบยืนยันเชิงลึก (Deep Structural Assertion) ว่าในฐานข้อมูลไม่มีการบันทึกหมายเลขที่อยู่ไอพี (IP Address) ข้อมูล User Agent ข้อมูลตำแหน่งพิกัดทางภูมิศาสตร์ หรือชื่อบุคคลของผู้ใช้งานแม้แต่จุดเดียว โดยข้อมูลพฤติกรรมความสนใจจะถูกบันทึกเป็นเพียงตัวเลขคะแนนรวมแบบนิรนาม (Anonymous Aggregate Engagement) เท่านั้น ตลอดจนทดสอบฟังก์ชันการล้างข้อมูลประวัติบนเบราว์เซอร์ (Clear Data Feature) ว่าสามารถคืนสถานะความเป็นส่วนตัวของผู้ใช้ได้อย่างสมบูรณ์
+
+ประการที่ห้า การทดสอบชุดประเมินผลเชิงประจักษ์ (Evaluation Harness Testing) ตรวจสอบผ่าน \texttt{test\_evaluation\_harness.py} โดยทดสอบความถูกต้องของกระบวนการคำนวณเมตริก B-cubed Precision, B-cubed Recall, B-cubed F1-score และ Pairwise Metrics กับข้อมูลข่าวจริง 111 ข่าว และ 59 เหตุการณ์อ้างอิง เพื่อให้มั่นใจว่าเครื่องมือวัดผลทางสถิติของระบบทำงานได้อย่างถูกต้อง แม่นยำ และสอดคล้องกับระเบียบวิธีวิจัยมาตรฐานสากล
 
 \subsection{ผลการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing)}
 
