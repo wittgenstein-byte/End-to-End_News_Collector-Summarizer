@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from backend.repo.macro_event_repo import (
     MacroEventRepositoryPort,
@@ -185,24 +186,9 @@ async def get_macro_event_detail(
         child_events=child_summaries,
         relations=list(macro.relations),
         timeline=list(macro.timeline),
+        articles=member_articles,
         synthesis=synthesis,
     )
-
-
-@router.get("/{macro_id}/synthesis", response_model=EventProgressionSynthesis)
-async def get_macro_event_synthesis(
-    macro_id: str,
-    macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
-    story_repo: StoryRepositoryPort = Depends(get_story_repository),
-    news_repo: NewsRepositoryPort = Depends(get_news_repository),
-    presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
-) -> EventProgressionSynthesis:
-    """
-    Get Evidence-Grounded Event Progression Synthesis for a Macro-Event storyline.
-    Decoupled LLM: Uses cache or deterministic heuristic by default (allow_llm=False).
-    """
-from pydantic import BaseModel, Field
-
 
 class SynthesisRequestPayload(BaseModel):
     title: str | None = None

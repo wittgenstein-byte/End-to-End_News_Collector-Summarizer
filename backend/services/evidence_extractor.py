@@ -175,16 +175,16 @@ class EvidenceExtractor:
         timestamps: list[str] = []
 
         for idx, art in enumerate(articles, start=1):
-            art_id = f"art_{idx:02d}"
-
             # Support both Pydantic model and dict
             if isinstance(art, dict):
+                art_id = str(art.get("article_id") or f"art_{idx:02d}")
                 art_title = str(art.get("title") or "").strip()
                 art_summary = str(art.get("summary") or "").strip()
                 art_source = str(art.get("source") or "สำนักข่าว").strip()
                 art_url = str(art.get("url") or "").strip()
                 art_time = str(art.get("fetched_at") or art.get("published_at") or "").strip()
             else:
+                art_id = str(getattr(art, "article_id", None) or f"art_{idx:02d}")
                 art_title = getattr(art, "title", "")
                 art_summary = getattr(art, "summary", "")
                 art_source = getattr(art, "source", "สำนักข่าว")
