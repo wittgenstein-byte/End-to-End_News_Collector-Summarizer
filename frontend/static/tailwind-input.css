@@ -1100,3 +1100,130 @@ html.dark .storyline-back-btn:hover {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* ── Event Intelligence Dossier Tabs & Cards ── */
+.dossier-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.dossier-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.dossier-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.dossier-tab-btn.active {
+  background: #ffffff !important;
+  color: #141413 !important;
+  border-color: #ffffff !important;
+}
+
+.dossier-tab-btn .tab-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dossier-tab-btn.active .tab-badge {
+  background: #141413;
+  color: #ffffff;
+}
+
+.citation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 0.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.citation-chip:hover {
+  background: #fbbf24;
+  color: #141413;
+  transform: translateY(-1px);
+}
+
+@keyframes citationPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(200, 75, 49, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(200, 75, 49, 0);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(200, 75, 49, 0);
+    transform: scale(1);
+  }
+}
+
+.citation-highlight-pulse {
+  animation: citationPulse 1.2s ease-in-out 2;
+  border-color: #c84b31 !important;
+  outline: 2px solid #c84b31 !important;
+}
+
+.fact-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  transition: background 0.15s ease;
+}
+
+.fact-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.conflict-matrix-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+}
+
+.unknown-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.outlier-card {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}

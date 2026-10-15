@@ -6,7 +6,7 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail } from "./api.js";
+import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js";
 import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
 import * as UI from "./UI.js";
 
@@ -44,9 +44,11 @@ let unreadArticlesQueue = [];
 const currentArticleMap = new Map();
 const READING_HISTORY_KEY = "newsroom_reading_history";
 const AI_SUMMARIES_CACHE_KEY = "newsroom_ai_summaries";
+const STORYLINE_SYNTHESIS_CACHE_KEY = "newsroom_storyline_synthesis_cache";
 
 let readingHistory = [];
 let cachedAiSummaries = {};
+let cachedStorylineSyntheses = {};
 let returnViewHash = "#/";
 let currentStorylineData = null;
 let activeStorylineSourceFilter = "";
@@ -54,8 +56,71 @@ let activeStorylineSourceFilter = "";
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
   cachedAiSummaries = JSON.parse(localStorage.getItem(AI_SUMMARIES_CACHE_KEY) || "{}");
+  cachedStorylineSyntheses = JSON.parse(localStorage.getItem(STORYLINE_SYNTHESIS_CACHE_KEY) || "{}");
 } catch (e) {
   console.warn("Storage parse error for history/cache:", e);
+}
+
+function computeArticlesContentSig(articles) {
+  if (!Array.isArray(articles) || articles.length === 0) return "";
+  return articles
+    .map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : (a && a.title ? a.title.trim().toLowerCase() : "")))
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function getStorylineCache(storyId, articles) {
+  if (!cachedStorylineSyntheses) return null;
+  // 1. By storyId directly
+  if (storyId && cachedStorylineSyntheses[storyId]) {
+    return cachedStorylineSyntheses[storyId];
+  }
+  // 2. By content signature (independent of cluster ID!)
+  const sig = computeArticlesContentSig(articles);
+  if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
+    return cachedStorylineSyntheses[`sig_${sig}`];
+  }
+  // 3. By Jaccard / Overlap (resilient when cluster ID shifts or groups evolve!)
+  if (Array.isArray(articles) && articles.length > 0) {
+    const currentUrls = new Set(
+      articles.map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean)
+    );
+    if (currentUrls.size > 0) {
+      for (const [key, cached] of Object.entries(cachedStorylineSyntheses)) {
+        if (!cached || !Array.isArray(cached._member_urls) || cached._member_urls.length === 0) continue;
+        const cachedUrls = new Set(cached._member_urls);
+        let common = 0;
+        for (const u of currentUrls) {
+          if (cachedUrls.has(u)) common++;
+        }
+        const minSize = Math.min(currentUrls.size, cachedUrls.size);
+        if (common >= 2 || (minSize === 1 && common === 1) || (common / minSize >= 0.5)) {
+          if (storyId) cachedStorylineSyntheses[storyId] = cached;
+          return cached;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function saveStorylineCache(storyId, articles, synthesis) {
+  if (!synthesis) return;
+  const urls = (articles || []).map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean);
+  const toSave = { ...synthesis, _member_urls: urls, _saved_at: Date.now() };
+  if (storyId) {
+    cachedStorylineSyntheses[storyId] = toSave;
+  }
+  const sig = computeArticlesContentSig(articles);
+  if (sig) {
+    cachedStorylineSyntheses[`sig_${sig}`] = toSave;
+  }
+  try {
+    localStorage.setItem(STORYLINE_SYNTHESIS_CACHE_KEY, JSON.stringify(cachedStorylineSyntheses));
+  } catch (e) {
+    console.warn("Failed to persist storyline synthesis cache:", e);
+  }
 }
 
 function savePersonalization() {
@@ -1535,22 +1600,38 @@ window.__filterStorylinePublisher = (source) => {
 window.__runStorylineAiSummary = async (storyId) => {
   UI.showStorylineAiLoading();
   try {
-    // 1. Try backend story summarize endpoint if storyId matches
-    let res = null;
-    try {
-      const apiRes = await fetch(`/api/stories/${encodeURIComponent(storyId)}/summarize`, { method: "POST" });
-      if (apiRes.ok) {
-        res = await apiRes.json();
-      }
-    } catch (_) {}
+    const isMacro = Boolean(currentStorylineData?.macro_event_id);
+    const articles = currentStorylineData?.articles || [];
+    const articleUrls = articles.map(a => a.url).filter(Boolean);
+    const payload = {
+      title: currentStorylineData?.headline || currentStorylineData?.title || "",
+      headline: currentStorylineData?.headline || currentStorylineData?.title || "",
+      articles: articles,
+      article_urls: articleUrls,
+    };
 
-    if (res && res.summary) {
-      UI.renderStorylineAiSummary({
-        summary: res.summary,
-        bullets: res.timeline ? res.timeline.map(t => `${t.timestamp ? t.timestamp + ': ' : ''}${t.title || t.event || ''}`).filter(Boolean) : [],
-        keywords: res.entities || res.hashtags || [],
-        sentiment: res.sentiment || "Neutral",
-      });
+    let synthesis = null;
+    try {
+      synthesis = await triggerStorylineSynthesis(storyId, isMacro, true, payload);
+    } catch (apiErr) {
+      console.warn("triggerStorylineSynthesis failed, trying fallback:", apiErr);
+    }
+
+    if (synthesis && (synthesis.executive_summary || synthesis.progression_timeline)) {
+      if (currentStorylineData) {
+        currentStorylineData.synthesis = synthesis;
+      }
+      saveStorylineCache(storyId, articles, synthesis);
+      UI.renderStorylineAiSynthesis(synthesis);
+      // Re-render storyline view so article cards receive outlier warnings and active styles
+      if (currentStorylineData) {
+        UI.renderStorylineView(
+          currentStorylineData,
+          activeStorylineSourceFilter,
+          personalizationData.bookmarkedArticles || {}
+        );
+      }
+      UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
       return;
     }
 
@@ -1721,6 +1802,27 @@ async function loadStorylineView(storyId) {
     if (!storyData.outlets || storyData.outlets.length === 0) {
       storyData.outlets = Array.from(new Set(dedupedArticles.map(a => a.source).filter(Boolean)));
     }
+
+    // If synthesis is not attached yet, try to load cached/heuristic synthesis from backend or local cache
+    if (!storyData.synthesis && targetId) {
+      // 1. Check local client cache first (0ms, resilient to cluster ID changes via URL signature & overlap)
+      const localCached = getStorylineCache(targetId, storyData.articles);
+      if (localCached && (localCached.executive_summary || localCached.progression_timeline)) {
+        storyData.synthesis = localCached;
+      } else {
+        try {
+          const isMacro = Boolean(storyData.macro_event_id);
+          const cachedSynth = await fetchStorylineSynthesis(targetId, isMacro);
+          if (cachedSynth && (cachedSynth.executive_summary || cachedSynth.progression_timeline)) {
+            storyData.synthesis = cachedSynth;
+            saveStorylineCache(targetId, storyData.articles, cachedSynth);
+          }
+        } catch (_) {}
+      }
+    } else if (storyData.synthesis && (storyData.synthesis.executive_summary || storyData.synthesis.progression_timeline)) {
+      saveStorylineCache(targetId, storyData.articles, storyData.synthesis);
+    }
+
     currentStorylineData = storyData;
 
     UI.renderStorylineView(

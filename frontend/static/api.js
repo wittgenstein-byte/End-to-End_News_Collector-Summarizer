@@ -159,6 +159,74 @@ export async function fetchMacroEventDetail(macroId) {
   }
 }
 
+/**
+ * ดึงผลการสังเคราะห์ความคืบหน้าของเหตุการณ์ (Event Progression Synthesis)
+ * @param {string} storyId
+/**
+ * ดึงผลการวิเคราะห์ Event Progression Synthesis จาก backend (ถ้ามีแคชอยู่แล้ว)
+ * @param {string} storyId
+ * @param {boolean} isMacro
+ */
+export async function fetchStorylineSynthesis(storyId, isMacro = true) {
+  if (!storyId) return null;
+  const primary = isMacro
+    ? `${API_BASE}/api/macro-events/${encodeURIComponent(storyId)}/synthesis`
+    : `${API_BASE}/api/stories/${encodeURIComponent(storyId)}/synthesis`;
+  const secondary = isMacro
+    ? `${API_BASE}/api/stories/${encodeURIComponent(storyId)}/synthesis`
+    : `${API_BASE}/api/macro-events/${encodeURIComponent(storyId)}/synthesis`;
+
+  try {
+    const res = await fetch(primary);
+    if (res.ok) return await res.json();
+  } catch (_) {}
+
+  try {
+    const res2 = await fetch(secondary);
+    if (res2.ok) return await res2.json();
+  } catch (_) {}
+
+  return null;
+}
+
+/**
+ * สั่งให้ AI สังเคราะห์ความคืบหน้าของเหตุการณ์ใหม่แบบ On-Demand
+ * @param {string} storyId
+ * @param {boolean} isMacro
+ * @param {boolean} forceRefresh
+ * @param {object|null} payload
+ */
+export async function triggerStorylineSynthesis(storyId, isMacro = true, forceRefresh = true, payload = null) {
+  if (!storyId) return null;
+  const primary = isMacro
+    ? `${API_BASE}/api/macro-events/${encodeURIComponent(storyId)}/synthesis`
+    : `${API_BASE}/api/stories/${encodeURIComponent(storyId)}/synthesis`;
+  const secondary = isMacro
+    ? `${API_BASE}/api/stories/${encodeURIComponent(storyId)}/synthesis`
+    : `${API_BASE}/api/macro-events/${encodeURIComponent(storyId)}/synthesis`;
+
+  const bodyData = payload ? JSON.stringify(payload) : "{}";
+  const headers = { "Content-Type": "application/json" };
+
+  try {
+    const url = `${primary}?force_refresh=${forceRefresh ? 'true' : 'false'}`;
+    const res = await fetch(url, { method: "POST", headers, body: bodyData });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn("Primary synthesis endpoint failed, trying fallback:", e.message);
+  }
+
+  try {
+    const url2 = `${secondary}?force_refresh=${forceRefresh ? 'true' : 'false'}`;
+    const res2 = await fetch(url2, { method: "POST", headers, body: bodyData });
+    if (res2.ok) return await res2.json();
+  } catch (e) {
+    console.warn("Fallback synthesis endpoint failed:", e.message);
+  }
+
+  return null;
+}
+
 
 /**
  * ดึงรายการ Trending Stories จาก persistent layer (Macro-First ค่าเริ่มต้น)
