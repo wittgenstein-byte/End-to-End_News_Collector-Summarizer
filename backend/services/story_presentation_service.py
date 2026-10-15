@@ -35,11 +35,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.config import settings
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
+from backend.schemas.event_evidence_schema import (
+    ConfirmedFact,
+    DisputeIssue,
+    DisputeSide,
+    EventProgressionSynthesis,
+    IrrelevantArticle,
+    ProgressionMilestone,
+    UnknownPoint,
+)
 from backend.schemas.macro_event_schema import MacroEventRecord, MacroTimelineEvent
 from backend.schemas.news_schema import ArticleRecord
 from backend.schemas.story_schema import StoryRecord
 from backend.schemas.story_schema import TimelineEvent as SchemaTimelineEvent
 from backend.schemas.trending_schema import TrendingStoryCluster
+from backend.services.evidence_extractor import EvidenceExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +276,77 @@ Rules:
 - Return ONLY valid JSON, no markdown code block fences (no ```json)."""
 
 
+EVENT_PROGRESSION_SYSTEM_PROMPT = """You are an elite Senior Intelligence Analyst and News Verification Director.
+Your task is NOT to write a generic summary of news articles.
+Instead, you must construct an Evidence-Grounded Event Progression Model (แบบจำลองความคืบหน้าของเหตุการณ์จากหลักฐาน) from the structured evidence provided in JSON.
+
+Your analytical goals:
+1. Distinguish between what actually happened (Progression Timeline), what is independently corroborated (Confirmed Facts), what stakeholders dispute (Conflicts & Divergent Claims), and what is still unknown or blindspots (Unknowns & Uncertainties).
+2. Ground every milestone and fact strictly in the provided evidence. Always cite supporting `evidence_ids` (e.g. ["art_01", "art_02"]).
+3. NEVER assume two articles are independent confirmations if they cite the exact same press release or single quote. Do not state accusations or opinions as confirmed facts.
+4. Separate the actual time an event occurred (`event_time`) from the time the news was published (`published_at`).
+5. DETECT OUTLIER / IRRELEVANT ARTICLES: In macro-event topic clusters, sometimes an unrelated news article is accidentally grouped in by automated clustering. If any article in the input does NOT belong to the main real-world event/storyline, you MUST explicitly identify it in `irrelevant_articles` and state the exact reason why it is irrelevant.
+
+Output MUST be strictly valid JSON matching this schema:
+{
+  "executive_summary": "2–3 sentence authoritative Thai executive briefing stating the core event, latest shift, and overall state.",
+  "progression_timeline": [
+    {
+      "milestone_id": "m_01",
+      "event_time": "YYYY-MM-DD HH:MM:SS or approximate time",
+      "description": "Factual description of the milestone development in Thai",
+      "evidence_ids": ["art_01"]
+    }
+  ],
+  "confirmed_facts": [
+    {
+      "fact_id": "f_01",
+      "fact": "Corroborated fact backed by evidence in Thai",
+      "evidence_ids": ["art_01", "art_02"],
+      "corroborating_sources": ["ThaiPBS", "Bangkok Post"]
+    }
+  ],
+  "conflicts": [
+    {
+      "topic_in_dispute": "ประเด็นที่เห็นต่างหรือมีข้อโต้แย้งในเหตุการณ์",
+      "status": "กำลังตรวจสอบ / ต่างฝ่ายต่างแถลงโต้แย้ง / ข้อกล่าวหาเบื้องต้น",
+      "sides": [
+        {
+          "speaker": "ชื่อบุคคล หรือหน่วยงาน หรือกลุ่ม",
+          "source": "สำนักข่าวที่รายงาน",
+          "claim_type": "official_statement | accusation | opinion | forecast",
+          "stance": "สรุปจุดยืนหรือข้อโต้แย้งสั้น ๆ ชัดเจน",
+          "evidence_quote": "ข้อความอ้างอิงตรงจากหลักฐาน",
+          "evidence_id": "art_01"
+        }
+      ]
+    }
+  ],
+  "unknowns": [
+    {
+      "question": "คำถามสำคัญที่ยังไม่มีคำตอบหรือยังหาข้อสรุปไม่ได้",
+      "why_unknown": "เหตุผลที่ยังสรุปไม่ได้ (เช่น ข้อมูลขัดแย้ง, รอผลชันสูตร/ผลสอบ, ยังไม่มีแถลง)",
+      "pending_action": "เหตุการณ์หรือขั้นตอนที่จะชี้ขาดข้อเท็จจริงนี้ได้"
+    }
+  ],
+  "irrelevant_articles": [
+    {
+      "article_id": "art_03",
+      "source": "สำนักข่าว",
+      "title": "หัวข้อข่าว",
+      "reason": "เหตุผลที่ระบุว่าข่าวนี้นอกเรื่องหรือไม่เกี่ยวข้องกับประเด็นหลัก"
+    }
+  ]
+}
+
+Rules:
+- Respond in Thai (except proper names, sources, or English terms).
+- If there are no clear conflicts, provide an empty list for `conflicts`.
+- If there are no irrelevant articles, provide an empty list `[]` for `irrelevant_articles`.
+- If an article is unrelated, put it in `irrelevant_articles` and DO NOT include it in `confirmed_facts` or `progression_timeline`.
+- Return ONLY valid JSON, no markdown code block fences (no ```json)."""
+
+
 # ── Service Implementation ────────────────────────────────────────
 
 class StoryPresentationService:
@@ -361,6 +442,114 @@ class StoryPresentationService:
         }
         raw_bytes = json.dumps(canonical_dict, sort_keys=True, ensure_ascii=True).encode("utf-8")
         return hashlib.sha256(raw_bytes).hexdigest()
+
+    @staticmethod
+    def compute_articles_signature(articles: Sequence[dict[str, Any] | ArticleRecord]) -> str:
+        """
+        Compute a deterministic SHA-256 signature based solely on canonical article URLs/titles.
+        This signature is 100% stable regardless of cluster_id, story_id, or event_id changes.
+        """
+        urls: list[str] = []
+        for a in articles:
+            u = a.get("url") if isinstance(a, dict) else getattr(a, "url", "")
+            if u and str(u).strip():
+                clean = str(u).strip().split("#")[0].rstrip("/").lower()
+                urls.append(clean)
+            else:
+                t = a.get("title") if isinstance(a, dict) else getattr(a, "title", "")
+                if t:
+                    urls.append(f"title:{str(t).strip()[:80].lower()}")
+        urls.sort()
+        raw = "|".join(urls).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    def find_cached_synthesis(
+        self,
+        event_id: str | None = None,
+        articles: Sequence[dict[str, Any] | ArticleRecord] | None = None,
+        title: str | None = None,
+    ) -> EventProgressionSynthesis | None:
+        """
+        Multi-tier cache lookup resilient to cluster_id re-grouping and shifting:
+        1. Direct event_id match (f"synthesis_{event_id}")
+        2. Content signature match (f"synthesis_sig_{articles_sig}")
+        3. Jaccard / Overlap matching (>= 50% shared article URLs with any cached event)
+        """
+        with self._cache_lock:
+            # 1. Direct event_id match
+            if event_id:
+                cache_key = f"synthesis_{event_id}"
+                entry = self._disk_cache.get(cache_key)
+                if isinstance(entry, dict) and entry.get("data"):
+                    try:
+                        data = dict(entry["data"])
+                        data["cached"] = True
+                        return EventProgressionSynthesis.model_validate(data)
+                    except Exception as err:
+                        logger.debug("find_cached_synthesis: direct id validate failed: %s", err)
+
+            # 2. Content signature match (independent of event_id!)
+            if articles:
+                articles_sig = self.compute_articles_signature(articles)
+                sig_key = f"synthesis_sig_{articles_sig}"
+                sig_entry = self._disk_cache.get(sig_key)
+                if isinstance(sig_entry, dict) and sig_entry.get("data"):
+                    try:
+                        data = dict(sig_entry["data"])
+                        data["cached"] = True
+                        if event_id:
+                            self._disk_cache[f"synthesis_{event_id}"] = sig_entry
+                        return EventProgressionSynthesis.model_validate(data)
+                    except Exception as err:
+                        logger.debug("find_cached_synthesis: sig validate failed: %s", err)
+
+                # 3. Jaccard / Overlap matching (handles cluster id shifts, article additions/subtractions)
+                target_urls = set()
+                for a in articles:
+                    u = a.get("url") if isinstance(a, dict) else getattr(a, "url", "")
+                    if u and str(u).strip():
+                        target_urls.add(str(u).strip().split("#")[0].rstrip("/").lower())
+
+                if target_urls:
+                    best_match_entry = None
+                    best_overlap_ratio = 0.0
+
+                    for k, item in self._disk_cache.items():
+                        if not k.startswith("synthesis_") or not isinstance(item, dict) or not item.get("data"):
+                            continue
+                        cached_urls = set(
+                            str(u).strip().split("#")[0].rstrip("/").lower()
+                            for u in (item.get("article_urls") or [])
+                            if u and str(u).strip()
+                        )
+                        if not cached_urls:
+                            continue
+
+                        intersection = target_urls & cached_urls
+                        if not intersection:
+                            continue
+
+                        min_len = min(len(target_urls), len(cached_urls))
+                        overlap_ratio = len(intersection) / max(1, min_len)
+
+                        if overlap_ratio >= 0.5 or len(intersection) >= 2 or (min_len == 1 and len(intersection) == 1):
+                            if overlap_ratio > best_overlap_ratio:
+                                best_overlap_ratio = overlap_ratio
+                                best_match_entry = item
+
+                    if best_match_entry and best_match_entry.get("data"):
+                        try:
+                            data = dict(best_match_entry["data"])
+                            data["cached"] = True
+                            if event_id:
+                                self._disk_cache[f"synthesis_{event_id}"] = best_match_entry
+                            self._disk_cache[f"synthesis_sig_{articles_sig}"] = best_match_entry
+                            self._save_disk_cache()
+                            return EventProgressionSynthesis.model_validate(data)
+                        except Exception as err:
+                            logger.debug("find_cached_synthesis: overlap validate failed: %s", err)
+
+        return None
 
     @property
     def client(self) -> OpenAI | None:
@@ -514,6 +703,307 @@ class StoryPresentationService:
             self._save_disk_cache()
 
         return macro
+
+    # ── Event Progression Synthesis (3-Layer Architecture) ───────────
+
+    def synthesize_event_progression(
+        self,
+        event_id: str,
+        title: str,
+        articles: Sequence[ArticleRecord | dict[str, Any]],
+        allow_llm: bool = True,
+        force_refresh: bool = False,
+    ) -> EventProgressionSynthesis:
+        """
+        Synthesize an evidence-grounded Event Progression Intelligence Model
+        from member articles (Layer 1: Evidence -> Layer 2: Synthesis -> Layer 3: Executive Dossier).
+        Separates Confirmed Facts, Claim-vs-Claim Conflicts, Blindspots/Unknowns,
+        and flags Outlier/Irrelevant articles.
+        Cached by (event_id, fingerprint) with 100% resilient heuristic fallback.
+        """
+        fingerprint = self.compute_sha256_fingerprint(event_id, articles)
+        cache_key = f"synthesis_{event_id}"
+
+        # 1. Check multi-tier disk / in-memory cache (event_id, content signature, overlap matching)
+        if not force_refresh:
+            cached = self.find_cached_synthesis(event_id=event_id, articles=articles, title=title)
+            if cached is not None:
+                return cached
+
+        # 2. Extract structured evidence payload (Layer 1)
+        evidence_payload = EvidenceExtractor.build_payload(
+            event_id=event_id,
+            title=title,
+            articles=articles,
+        )
+
+        # 3. Attempt LLM Synthesis (Layer 2)
+        synthesis: EventProgressionSynthesis | None = None
+        if allow_llm and self._should_attempt_llm() and evidence_payload.articles:
+            payload_json = evidence_payload.model_dump_json(indent=2)
+            user_content = (
+                f"โปรดวิเคราะห์หลักฐานข่าวและสร้างแบบจำลองความคืบหน้าของเหตุการณ์ (Event Progression Synthesis) "
+                f"สำหรับเหตุการณ์: '{title}' (ID: {event_id})\n\n"
+                f"ชุดข้อมูลหลักฐาน (Evidence Input JSON):\n{payload_json}"
+            )
+
+            for model_idx, model_name in enumerate(self._models):
+                try:
+                    assert self._client is not None
+                    response = self._client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": EVENT_PROGRESSION_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        temperature=self._temperature,
+                        timeout=30.0,
+                        stream=False,
+                    )
+                    raw_text = (response.choices[0].message.content or "").strip()
+                    if not raw_text:
+                        continue
+
+                    parsed = self._parse_llm_json(raw_text)
+                    if parsed is not None:
+                        parsed["event_id"] = event_id
+                        parsed["is_fallback"] = False
+                        parsed["cached"] = False
+                        parsed["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+                        synthesis = EventProgressionSynthesis.model_validate(parsed)
+                        if model_idx > 0:
+                            logger.info(
+                                "synthesize_event_progression: succeeded via cascade model '%s' (attempt %d/%d)",
+                                model_name,
+                                model_idx + 1,
+                                len(self._models),
+                            )
+                        break
+                except Exception as exc:
+                    logger.warning(
+                        "synthesize_event_progression error with model '%s': %s",
+                        model_name,
+                        exc,
+                    )
+                    continue
+
+        # 4. Deterministic Heuristic Fallback if LLM disabled or failed
+        if synthesis is None:
+            synthesis = self._build_fallback_event_synthesis(
+                event_id=event_id,
+                title=title,
+                articles=articles,
+                payload=evidence_payload,
+                fingerprint=fingerprint,
+            )
+
+        # 5. Persist to cache (both by event_id AND by content signature and URL list)
+        articles_sig = self.compute_articles_signature(articles)
+        article_urls = [
+            str(a.get("url") if isinstance(a, dict) else getattr(a, "url", "")).strip()
+            for a in articles
+            if (a.get("url") if isinstance(a, dict) else getattr(a, "url", ""))
+        ]
+
+        cache_entry = {
+            "fingerprint": fingerprint,
+            "articles_signature": articles_sig,
+            "article_urls": article_urls,
+            "title": title,
+            "event_id": event_id,
+            "data": synthesis.model_dump(mode="json"),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        with self._cache_lock:
+            self._disk_cache[cache_key] = cache_entry
+            self._disk_cache[f"synthesis_sig_{articles_sig}"] = cache_entry
+            self._save_disk_cache()
+
+        return synthesis
+
+    async def synthesize_event_progression_async(
+        self,
+        event_id: str,
+        title: str,
+        articles: Sequence[ArticleRecord | dict[str, Any]],
+        allow_llm: bool = True,
+        force_refresh: bool = False,
+    ) -> EventProgressionSynthesis:
+        """Asynchronous non-blocking wrapper for synthesize_event_progression."""
+        return await asyncio.to_thread(
+            self.synthesize_event_progression,
+            event_id,
+            title,
+            articles,
+            allow_llm,
+            force_refresh,
+        )
+
+    def _build_fallback_event_synthesis(
+        self,
+        event_id: str,
+        title: str,
+        articles: Sequence[Any],
+        payload: Any,
+        fingerprint: str = "",
+    ) -> EventProgressionSynthesis:
+        """
+        Deterministic heuristic fallback for Event Progression Synthesis.
+        Guarantees 100% Zero-Crash and produces a structured 4-section intelligence dossier
+        even when LLM is offline or disabled.
+        """
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        if not payload.articles:
+            return EventProgressionSynthesis(
+                event_id=event_id,
+                executive_summary=f"รายงานสรุปความคืบหน้าสถานการณ์: {title}",
+                progression_timeline=[],
+                confirmed_facts=[],
+                conflicts=[],
+                unknowns=[
+                    UnknownPoint(
+                        question="รายละเอียดและพัฒนาการเพิ่มเติมของเหตุการณ์",
+                        why_unknown="อยู่ระหว่างการรวบรวมหลักฐานและรายงานจากสำนักข่าว",
+                        pending_action="รอการอัปเดตข้อมูลเพิ่มเติม",
+                    )
+                ],
+                irrelevant_articles=[],
+                is_fallback=True,
+                cached=False,
+                generated_at=now_str,
+            )
+
+        # 1. Executive Summary
+        rep_articles = payload.articles[:6]
+        lead_summary = rep_articles[0].summary or rep_articles[0].title
+        sources = sorted({a.source for a in payload.articles if a.source})
+        sources_str = ", ".join(sources[:3])
+        exec_summary = (
+            f"เกาะติดสถานการณ์สำคัญ '{title}' รวบรวมหลักฐานจาก {sources_str} "
+            f"รวม {len(payload.articles)} รายงาน ล่าสุดมีพัฒนาการต่อเนื่องเกี่ยวกับ: "
+            f"{self._clean_text(lead_summary)[:180]}..."
+        )
+
+        # 2. Progression Timeline
+        timeline: list[ProgressionMilestone] = []
+        for i, art in enumerate(payload.articles[:8], start=1):
+            t_str = art.published_at or art.event_time or now_str
+            timeline.append(
+                ProgressionMilestone(
+                    milestone_id=f"m_{i:02d}",
+                    event_time=t_str,
+                    description=art.title,
+                    evidence_ids=[art.article_id],
+                )
+            )
+
+        # 3. Confirmed Facts (corroborate from claims or articles)
+        facts: list[ConfirmedFact] = []
+        fact_idx = 1
+        for art in payload.articles:
+            for clm in art.claims:
+                if clm.claim_type in ("official_statement", "fact_report") and len(clm.text) >= 20:
+                    facts.append(
+                        ConfirmedFact(
+                            fact_id=f"f_{fact_idx:02d}",
+                            fact=clm.text,
+                            evidence_ids=[art.article_id],
+                            corroborating_sources=[art.source],
+                        )
+                    )
+                    fact_idx += 1
+                    if len(facts) >= 4:
+                        break
+            if len(facts) >= 4:
+                break
+
+        if not facts and payload.articles:
+            for art in payload.articles[:3]:
+                facts.append(
+                    ConfirmedFact(
+                        fact_id=f"f_{fact_idx:02d}",
+                        fact=art.title,
+                        evidence_ids=[art.article_id],
+                        corroborating_sources=[art.source],
+                    )
+                )
+                fact_idx += 1
+
+        # 4. Conflicts Matrix (search for accusations or differing perspectives)
+        conflicts: list[DisputeIssue] = []
+        sides: list[DisputeSide] = []
+        for art in payload.articles:
+            for clm in art.claims:
+                if clm.claim_type in ("accusation", "opinion") or clm.speaker not in ("", "แหล่งข่าว"):
+                    sides.append(
+                        DisputeSide(
+                            speaker=clm.speaker or art.source,
+                            source=art.source,
+                            claim_type=clm.claim_type,
+                            stance=clm.text[:120],
+                            evidence_quote=clm.evidence_quote or clm.text,
+                            evidence_id=art.article_id,
+                        )
+                    )
+                    if len(sides) >= 3:
+                        break
+            if len(sides) >= 3:
+                break
+
+        if len(sides) >= 2:
+            conflicts.append(
+                DisputeIssue(
+                    topic_in_dispute=f"มุมมองและข้อสังเกตต่อประเด็น {title}",
+                    status="ต่างฝ่ายต่างนำเสนอข้อเท็จจริง",
+                    sides=sides,
+                )
+            )
+
+        # 5. Unknowns (realistic uncertainty gaps)
+        unknowns: list[UnknownPoint] = [
+            UnknownPoint(
+                question="ผลการตรวจสอบข้อเท็จจริงหรือข้อสรุปอย่างเป็นทางการจากหน่วยงานกำกับดูแล",
+                why_unknown="ยังไม่มีแถลงการณ์ชี้ขาดฉบับสมบูรณ์จากเจ้าหน้าที่หรือหน่วยงานที่รับผิดชอบ",
+                pending_action="รอรายงานผลการตรวจสอบอย่างเป็นทางการ",
+            ),
+            UnknownPoint(
+                question="มาตรการแก้ไขและผลกระทบระยะยาวต่อผู้เกี่ยวข้อง",
+                why_unknown="สถานการณ์ยังอยู่ในช่วงเริ่มต้นของการคลี่คลาย",
+                pending_action="ติดตามการประชุมและการบังคับใช้มาตรการในระยะถัดไป",
+            ),
+        ]
+
+        # 6. Irrelevant Articles Detection Heuristic
+        # If an article has 0 common significant words with event title, flag as potential outlier
+        irrelevant: list[IrrelevantArticle] = []
+        title_tokens = set(re.findall(r'[\wก-๙]{3,}', title.lower()))
+        for art in payload.articles:
+            art_tokens = set(re.findall(r'[\wก-๙]{3,}', (art.title + " " + art.summary).lower()))
+            overlap = title_tokens.intersection(art_tokens)
+            if title_tokens and len(overlap) == 0 and len(payload.articles) > 2:
+                irrelevant.append(
+                    IrrelevantArticle(
+                        article_id=art.article_id,
+                        source=art.source,
+                        title=art.title,
+                        reason="เนื้อหาและหัวข้อข่าวไม่มีคำสำคัญร่วมกับประเด็นหลักของเหตุการณ์ อาจเป็นข่าวที่ระบบจัดกลุ่มคลาดเคลื่อน",
+                    )
+                )
+
+        return EventProgressionSynthesis(
+            event_id=event_id,
+            executive_summary=exec_summary,
+            progression_timeline=timeline,
+            confirmed_facts=facts,
+            conflicts=conflicts,
+            unknowns=unknowns,
+            irrelevant_articles=irrelevant,
+            is_fallback=True,
+            cached=False,
+            generated_at=now_str,
+        )
 
     # ── Presentation Formatting ───────────────────────────────────
 

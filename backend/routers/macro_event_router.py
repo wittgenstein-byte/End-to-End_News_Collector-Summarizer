@@ -23,7 +23,9 @@ from backend.repo.macro_event_repo import (
     MacroEventRepositoryPort,
     get_macro_event_repository,
 )
+from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.repo.story_repo import StoryRepositoryPort, get_story_repository
+from backend.schemas.event_evidence_schema import EventProgressionSynthesis
 from backend.schemas.macro_event_schema import (
     MacroEventDetailResponse,
     MacroEventListResponse,
@@ -138,6 +140,37 @@ async def get_macro_event_detail(
 
     child_summaries = [StorySummary.from_story(s) for s in child_stories]
 
+    # Collect member articles across child stories for synthesis
+    article_urls: list[str] = []
+    for cs in child_stories:
+        for u in cs.article_urls:
+            if u and u.strip() and u.strip() not in article_urls:
+                article_urls.append(u.strip())
+
+    news_repo = get_news_repository()
+    raw_news = news_repo.load_news()
+    news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+
+    member_articles: list[dict[str, Any]] = []
+    for u in article_urls:
+        if u in news_map:
+            member_articles.append(news_map[u])
+        else:
+            member_articles.append({
+                "url": u,
+                "title": macro.title,
+                "source": "สำนักข่าว",
+                "summary": macro.summary or macro.title,
+                "fetched_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+    synthesis = presentation_service.synthesize_event_progression(
+        event_id=macro.macro_event_id,
+        title=macro.title,
+        articles=member_articles,
+        allow_llm=False,
+    )
+
     return MacroEventDetailResponse(
         macro_event_id=macro.macro_event_id,
         title=macro.title,
@@ -152,4 +185,204 @@ async def get_macro_event_detail(
         child_events=child_summaries,
         relations=list(macro.relations),
         timeline=list(macro.timeline),
+        synthesis=synthesis,
+    )
+
+
+@router.get("/{macro_id}/synthesis", response_model=EventProgressionSynthesis)
+async def get_macro_event_synthesis(
+    macro_id: str,
+    macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
+    story_repo: StoryRepositoryPort = Depends(get_story_repository),
+    news_repo: NewsRepositoryPort = Depends(get_news_repository),
+    presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
+) -> EventProgressionSynthesis:
+    """
+    Get Evidence-Grounded Event Progression Synthesis for a Macro-Event storyline.
+    Decoupled LLM: Uses cache or deterministic heuristic by default (allow_llm=False).
+    """
+from pydantic import BaseModel, Field
+
+
+class SynthesisRequestPayload(BaseModel):
+    title: str | None = None
+    headline: str | None = None
+    articles: list[dict[str, Any]] = Field(default_factory=list)
+    article_urls: list[str] = Field(default_factory=list)
+
+
+@router.get("/{macro_id}/synthesis", response_model=EventProgressionSynthesis)
+async def get_macro_event_synthesis(
+    macro_id: str,
+    macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
+    story_repo: StoryRepositoryPort = Depends(get_story_repository),
+    news_repo: NewsRepositoryPort = Depends(get_news_repository),
+    presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
+) -> EventProgressionSynthesis:
+    """
+    Get Evidence-Grounded Event Progression Synthesis for a Macro-Event storyline.
+    Decoupled LLM: Uses cache (ID, signature, overlap) or deterministic heuristic by default.
+    """
+    # 1. Multi-tier cache check first (ID, signature, overlap)
+    cached = presentation_service.find_cached_synthesis(event_id=macro_id)
+    if cached is not None:
+        return cached
+
+    # 2. Try macro_repo
+    macro = macro_repo.get_macro_event(macro_id)
+    if macro is not None:
+        child_stories = story_repo.get_stories_by_macro_id(macro.macro_event_id)
+        if not child_stories and macro.child_event_ids:
+            child_stories = story_repo.get_stories_by_ids(macro.child_event_ids)
+
+        article_urls: list[str] = []
+        for cs in child_stories:
+            for u in cs.article_urls:
+                if u and u.strip() and u.strip() not in article_urls:
+                    article_urls.append(u.strip())
+
+        raw_news = news_repo.load_news()
+        news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+
+        member_articles: list[dict[str, Any]] = []
+        for u in article_urls:
+            if u in news_map:
+                member_articles.append(news_map[u])
+            else:
+                member_articles.append({
+                    "url": u,
+                    "title": macro.title,
+                    "source": "สำนักข่าว",
+                    "summary": macro.summary or macro.title,
+                    "fetched_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                })
+
+        return presentation_service.synthesize_event_progression(
+            event_id=macro.macro_event_id,
+            title=macro.title,
+            articles=member_articles,
+            allow_llm=False,
+        )
+
+    # 3. Try story_repo fallback
+    story = story_repo.get_story(macro_id)
+    if story is not None:
+        raw_news = news_repo.load_news()
+        news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+        member_articles = [news_map[u.strip()] for u in story.article_urls if u and u.strip() in news_map]
+        return presentation_service.synthesize_event_progression(
+            event_id=story.story_id,
+            title=story.title,
+            articles=member_articles,
+            allow_llm=False,
+        )
+
+    # 4. Try news_repo cluster_id match
+    raw_news = news_repo.load_news()
+    clustered = [item for item in raw_news if isinstance(item, dict) and str(item.get("cluster_id") or "") == macro_id]
+    if clustered:
+        return presentation_service.synthesize_event_progression(
+            event_id=macro_id,
+            title=clustered[0].get("title") or "ประเด็นข่าว",
+            articles=clustered,
+            allow_llm=False,
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Macro-event or Storyline '{macro_id}' not found",
+    )
+
+
+@router.post("/{macro_id}/synthesis", response_model=EventProgressionSynthesis)
+async def trigger_macro_event_synthesis(
+    macro_id: str,
+    payload: SynthesisRequestPayload | None = None,
+    force_refresh: bool = Query(default=False, description="Force LLM re-synthesis"),
+    macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
+    story_repo: StoryRepositoryPort = Depends(get_story_repository),
+    news_repo: NewsRepositoryPort = Depends(get_news_repository),
+    presentation_service: StoryPresentationService = Depends(get_story_presentation_service),
+) -> EventProgressionSynthesis:
+    """
+    On-Demand Deep Event Progression Synthesis via LLM.
+    Triggered when user clicks 'สังเคราะห์ความคืบหน้าด้วย AI'.
+    Extracts evidence, constructs claim-vs-claim matrix, checks corroborated facts,
+    highlights unknowns, and detects outlier/irrelevant articles in the cluster.
+    """
+    title = ""
+    member_articles: list[dict[str, Any]] = []
+
+    # A. Check payload.articles first
+    if payload and payload.articles:
+        member_articles = list(payload.articles)
+        title = payload.title or payload.headline or ""
+
+    # B. Check macro_repo
+    if not member_articles:
+        macro = macro_repo.get_macro_event(macro_id)
+        if macro is not None:
+            title = macro.title
+            child_stories = story_repo.get_stories_by_macro_id(macro.macro_event_id)
+            if not child_stories and macro.child_event_ids:
+                child_stories = story_repo.get_stories_by_ids(macro.child_event_ids)
+
+            article_urls: list[str] = []
+            for cs in child_stories:
+                for u in cs.article_urls:
+                    if u and u.strip() and u.strip() not in article_urls:
+                        article_urls.append(u.strip())
+
+            raw_news = news_repo.load_news()
+            news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+
+            for u in article_urls:
+                if u in news_map:
+                    member_articles.append(news_map[u])
+                else:
+                    member_articles.append({
+                        "url": u,
+                        "title": macro.title,
+                        "source": "สำนักข่าว",
+                        "summary": macro.summary or macro.title,
+                        "fetched_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+
+    # C. Check story_repo
+    if not member_articles:
+        story = story_repo.get_story(macro_id)
+        if story is not None:
+            title = story.title
+            raw_news = news_repo.load_news()
+            news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+            member_articles = [news_map[u.strip()] for u in story.article_urls if u and u.strip() in news_map]
+
+    # D. Check payload.article_urls
+    if not member_articles and payload and payload.article_urls:
+        raw_news = news_repo.load_news()
+        news_map = {str(item.get("url") or "").strip(): item for item in raw_news if isinstance(item, dict)}
+        member_articles = [news_map[u.strip()] for u in payload.article_urls if u and u.strip() in news_map]
+
+    # E. Check news_repo by cluster_id
+    if not member_articles:
+        raw_news = news_repo.load_news()
+        member_articles = [item for item in raw_news if isinstance(item, dict) and str(item.get("cluster_id") or "") == macro_id]
+        if member_articles:
+            title = member_articles[0].get("title") or "ประเด็นข่าว"
+
+    if not member_articles:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cannot synthesize: No articles found for '{macro_id}'",
+        )
+
+    if not title:
+        title = member_articles[0].get("title") or "ประเด็นข่าว"
+
+    return await presentation_service.synthesize_event_progression_async(
+        event_id=macro_id,
+        title=title,
+        articles=member_articles,
+        allow_llm=True,
+        force_refresh=force_refresh,
     )

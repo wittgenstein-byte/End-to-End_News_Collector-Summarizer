@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.schemas.event_evidence_schema import EventProgressionSynthesis
 from backend.schemas.news_schema import ArticleRecord
 
 StoryStatus = Literal["active", "dormant"]
@@ -327,6 +328,7 @@ class StoryDetailResponse(BaseModel):
     timeline: list[TimelineEvent] = Field(default_factory=list)
     articles: list[ArticleRecord] = Field(default_factory=list)
     macro_event_id: str | None = None
+    synthesis: EventProgressionSynthesis | None = None
     trending_score: float | None = None
     breakdown: dict[str, Any] | None = None
     coverage_disclaimer: str = (
@@ -341,6 +343,7 @@ class StoryDetailResponse(BaseModel):
         articles: list[ArticleRecord],
         trending_score: float | None = None,
         breakdown: dict[str, Any] | None = None,
+        synthesis: EventProgressionSynthesis | None = None,
     ) -> StoryDetailResponse:
         sorted_articles = sorted(
             articles,
@@ -363,6 +366,7 @@ class StoryDetailResponse(BaseModel):
             timeline=list(story.timeline),
             articles=sorted_articles,
             macro_event_id=story.macro_event_id,
+            synthesis=synthesis,
             trending_score=trending_score,
             breakdown=breakdown,
         )
