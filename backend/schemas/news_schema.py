@@ -65,6 +65,9 @@ class NewsSummary(BaseModel):
     category: CategoryType | None    = None
     sentiment: SentimentType | None  = None
     keywords: list[str]                 = []
+    provider: str | None             = None
+    model: str | None                = None
+    is_fallback: bool                = False
 
 
 # ── Response schemas ──────────────────────────────────────────────

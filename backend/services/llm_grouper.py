@@ -21,6 +21,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from backend.config import settings
+from backend.core.cascading_client import CascadingLLMClient, get_cascading_client
 
 logger = logging.getLogger(__name__)
 
@@ -79,16 +80,27 @@ class LLMBatchEnricher:
 
     def __init__(
         self,
-        client: OpenAI | None = None,
+        client: CascadingLLMClient | OpenAI | None = None,
         models: list[str] | None = None,
         temperature: float = 0.2,
     ) -> None:
-        self._client = client or OpenAI(
-            api_key=settings.llm_api_key or "dummy_key",
-            base_url=settings.llm_base_url,
-        )
-        self._models = models or list(settings.llm_cascade_models)
         self._temperature = temperature
+        self._client: Any
+        if isinstance(client, CascadingLLMClient):
+            self._cascading_client = client
+            self._client = client
+            self._models = [t.model for t in client.targets]
+        elif client is not None:
+            self._client = client
+            self._models = models or list(settings.llm_cascade_models)
+            self._cascading_client = CascadingLLMClient.from_client_and_models(
+                client=client,
+                models=self._models,
+            )
+        else:
+            self._cascading_client = get_cascading_client()
+            self._client = self._cascading_client
+            self._models = [t.model for t in self._cascading_client.targets]
 
     def enrich_clusters(
         self,
@@ -103,9 +115,9 @@ class LLMBatchEnricher:
         if not clusters_data:
             return {}
 
-        # Decoupled LLM principle: If LLM is not allowed (e.g. Critical Trending Path),
-        # immediately use deterministic heuristic fallback without making network calls.
-        if not allow_llm or not settings.llm_api_key or not settings.llm_api_key.strip():
+        # Decoupled LLM principle: If LLM is not allowed (e.g. Critical Trending Path)
+        # or no provider targets are available, use deterministic heuristic fallback.
+        if not allow_llm or not self._cascading_client.targets:
             return self._heuristic_fallback_batch(clusters_data)
 
         prompt_lines: list[str] = [
@@ -124,42 +136,34 @@ class LLMBatchEnricher:
             prompt_lines.append("")
 
         user_content = "\n".join(prompt_lines)
+        messages = [
+            {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
 
-        # Call LLM with Tiered Cascading Fallback
-        for idx, model_name in enumerate(self._models):
-            try:
-                response = self._client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    temperature=self._temperature,
-                    timeout=15.0,
-                    stream=False,
-                )
-                raw_text = (response.choices[0].message.content or "").strip()
-                parsed = self._parse_json_response(raw_text)
-                if parsed:
-                    result_map: dict[str, ClusterMetadata] = {
-                        item.cluster_id: item for item in parsed.clusters
-                    }
-                    # Ensure all requested clusters have an entry
-                    for c in clusters_data:
-                        cid = str(c.get("cluster_id", ""))
-                        if cid not in result_map:
-                            result_map[cid] = self._heuristic_fallback_single(c)
-                    if idx > 0:
-                        logger.info("LLM Enricher: succeeded using fallback model '%s'", model_name)
-                    return result_map
-            except Exception as exc:
-                logger.warning(
-                    "LLM Enricher: model '%s' failed (%s). Trying next in cascade...",
-                    model_name,
-                    exc,
-                )
+        try:
+            result = self._cascading_client.complete(
+                messages=messages,
+                validator=self._parse_json_response,
+                temperature=self._temperature,
+            )
+            parsed = result.parsed
+            if isinstance(parsed, BatchEnrichmentResponse):
+                result_map: dict[str, ClusterMetadata] = {
+                    item.cluster_id: item for item in parsed.clusters
+                }
+                # Ensure all requested clusters have an entry
+                for c in clusters_data:
+                    cid = str(c.get("cluster_id", ""))
+                    if cid not in result_map:
+                        result_map[cid] = self._heuristic_fallback_single(c)
+                return result_map
+        except Exception as exc:
+            logger.warning(
+                "LLM Enricher: cascade execution failed (%s). Falling back to deterministic heuristics.",
+                exc,
+            )
 
-        logger.warning("LLM Enricher: all cascade models failed. Falling back to deterministic heuristics.")
         return self._heuristic_fallback_batch(clusters_data)
 
     def _parse_json_response(self, raw: str) -> BatchEnrichmentResponse | None:
@@ -171,11 +175,8 @@ class LLMBatchEnricher:
             cleaned = cleaned[3:]
         cleaned = cleaned.removesuffix("```").strip()
 
-        try:
-            data = json.loads(cleaned)
-            return BatchEnrichmentResponse.model_validate(data)
-        except Exception:
-            return None
+        data = json.loads(cleaned)
+        return BatchEnrichmentResponse.model_validate(data)
 
     def _heuristic_fallback_single(self, cluster: dict[str, Any]) -> ClusterMetadata:
         """

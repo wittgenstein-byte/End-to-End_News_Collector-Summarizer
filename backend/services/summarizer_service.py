@@ -14,11 +14,13 @@ import asyncio
 import hashlib
 import json
 import logging
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from openai import OpenAI
 
 from backend.core.cache import AsyncInMemoryCache, CachePort
+from backend.core.cascading_client import CascadingLLMClient, get_cascading_client
 from backend.schemas.news_schema import NewsSummary
 
 logger = logging.getLogger(__name__)
@@ -108,26 +110,42 @@ Return ONLY a valid JSON object with this exact structure — no preamble, no ma
 # ── Service ───────────────────────────────────────────────────────
 
 class SummarizerService:
-    """ส่ง Markdown content ให้ LLM และแปลง JSON response เป็น NewsSummary พร้อม Tier Cascade Fallback & In-Memory Cache"""
+    """ส่ง Markdown content ให้ LLM และแปลง JSON response เป็น NewsSummary พร้อม Multi-Provider HA Cascading Fallback & In-Memory Cache"""
 
     def __init__(
         self,
-        client: OpenAI,
+        client: CascadingLLMClient | OpenAI | None = None,
         model: str | None = None,
         models: list[str] | None = None,
         temperature: float = 0.3,
         cache: CachePort[NewsSummary] | None = None,
     ) -> None:
-        self._client      = client
         self._temperature = temperature
-        self._cache       = cache
+        self._cache = cache
 
-        if models:
-            self._models = list(models)
-        elif model:
-            self._models = [model]
+        self._client: Any
+        if isinstance(client, CascadingLLMClient):
+            self._cascading_client = client
+            self._client = client
+            self._models = [t.model for t in client.targets]
+        elif client is not None:
+            # Legacy OpenAI client or Mock passed in tests/custom callers
+            if models:
+                self._models = list(models)
+            elif model:
+                self._models = [model]
+            else:
+                self._models = ["gemini-3.5-flash-lite"]
+
+            self._client = client
+            self._cascading_client = CascadingLLMClient.from_client_and_models(
+                client=client,
+                models=self._models,
+            )
         else:
-            self._models = ["gemini-3.5-flash-lite"]
+            self._cascading_client = get_cascading_client()
+            self._client = self._cascading_client
+            self._models = [t.model for t in self._cascading_client.targets]
 
     @property
     def model(self) -> str:
@@ -155,17 +173,22 @@ class SummarizerService:
             key = f"summary:hash:{h}"
 
         if self._cache is not None:
-            return await self._cache.get_or_compute(
+            summary = await self._cache.get_or_compute(
                 key,
                 lambda: asyncio.to_thread(self.summarize, markdown_content),
             )
+            if getattr(summary, "is_fallback", False):
+                from backend.config import settings
+                ttl = min(float(settings.summary_cache_ttl_seconds), 1800.0)
+                await self._cache.set(key, summary, ttl_seconds=ttl)
+            return summary
 
         return await asyncio.to_thread(self.summarize, markdown_content)
 
     def summarize(self, markdown_content: str) -> NewsSummary:
         """
-        เรียก LLM แบบ sync พร้อม Tiered Cascading Fallback
-        ถ้าโมเดลตัวแรกไม่พร้อม/Error จะ cascade ไปยังตัวถัดไปใน tier อัตโนมัติ
+        เรียก LLM แบบ sync พร้อม Multi-Provider HA Cascading Fallback
+        ถ้าโมเดลหรือ provider ตัวแรกไม่พร้อม/Error จะ cascade ไปยังตัวถัดไปอัตโนมัติ
         """
         # Trimming content to speed up inference and avoid giant token counts
         max_chars = 4000
@@ -173,57 +196,19 @@ class SummarizerService:
         if len(markdown_content) > max_chars:
             truncated_content = markdown_content[:max_chars] + "\n\n...[Content Truncated]..."
 
-        last_exception: Exception | None = None
-        errors: list[str] = []
-        for idx, current_model in enumerate(self._models):
-            try:
-                response = self._client.chat.completions.create(
-                    model=current_model,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user",   "content": truncated_content},
-                    ],
-                    stream=False,
-                    temperature=self._temperature,
-                    timeout=30.0,
-                )
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": truncated_content},
+        ]
 
-                content = response.choices[0].message.content or ""
-                raw = content.strip()
-                if not raw:
-                    raise ValueError(f"Model '{current_model}' returned empty response content.")
-
-                summary = self._parse_output(raw)
-                if idx > 0:
-                    logger.info(
-                        "Cascade Fallback: Successfully summarized using fallback model '%s' (attempt %d/%d)",
-                        current_model,
-                        idx + 1,
-                        len(self._models),
-                    )
-                return summary
-            except Exception as exc:
-                last_exception = exc
-                err_msg = f"Model '{current_model}' failed: {exc}"
-                errors.append(err_msg)
-                logger.warning(
-                    "⚠️ LLM Cascade: %s. Trying next candidate...",
-                    err_msg,
-                )
-
-        error_summary = " | ".join(errors)
-        logger.error(
-            "❌ All %d models in LLM cascade failed. Details: %s",
-            len(self._models),
-            error_summary,
+        result = self._cascading_client.complete(
+            messages=messages,
+            validator=self._parse_output,
+            temperature=self._temperature,
         )
 
-        if len(self._models) == 1 and last_exception is not None:
-            raise last_exception
-
-        if last_exception is not None:
-            raise RuntimeError(f"All LLM models in cascade failed: {error_summary}") from last_exception
-        raise RuntimeError(f"All LLM models in cascade failed: {error_summary}")
+        assert isinstance(result.parsed, NewsSummary)
+        return result.parsed
 
     # ── Private ───────────────────────────────────────────────────
 
@@ -262,10 +247,9 @@ def get_summary_cache() -> AsyncInMemoryCache[NewsSummary]:
 def get_summarizer_service() -> SummarizerService:
     from backend.config import settings
 
-    client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+    cascading_client = get_cascading_client()
     return SummarizerService(
-        client=client,
-        models=settings.llm_cascade_models,
+        client=cascading_client,
         temperature=settings.llm_temperature,
         cache=get_summary_cache(),
-    )
+    )
