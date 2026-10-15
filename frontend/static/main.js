@@ -2106,5 +2106,53 @@ refreshCategoryCounts();
 refreshSourceFilters();
 checkPDPA();
 
+// ── Storyline Scroll Management (Auto-hide top bar on scroll-down, floating back button) ──
+let lastStorylineScrollY = window.scrollY;
+let storylineScrollTicking = false;
+
+function onStorylineWindowScroll() {
+  const currentY = window.scrollY;
+  const isStorylineActive = window.location.hash.startsWith("#/storyline/") ||
+    (document.getElementById("storyline-view") && !document.getElementById("storyline-view").classList.contains("hidden"));
+
+  const floatingBtn = document.getElementById("storyline-floating-back");
+  const topBar = document.getElementById("storyline-top-bar");
+
+  if (!isStorylineActive) {
+    if (floatingBtn) floatingBtn.classList.add("hidden-fade");
+    if (topBar) topBar.classList.remove("is-hidden");
+    lastStorylineScrollY = currentY;
+    return;
+  }
+
+  // Show floating back button when scrolled down past header
+  if (currentY > 80) {
+    if (floatingBtn) floatingBtn.classList.remove("hidden-fade");
+  } else {
+    if (floatingBtn) floatingBtn.classList.add("hidden-fade");
+  }
+
+  // Auto-hide top bar when scrolling down, show when scrolling up
+  if (topBar) {
+    if (currentY > 80 && currentY > lastStorylineScrollY + 6) {
+      topBar.classList.add("is-hidden");
+    } else if (currentY < lastStorylineScrollY - 6 || currentY <= 80) {
+      topBar.classList.remove("is-hidden");
+    }
+  }
+
+  lastStorylineScrollY = currentY;
+}
+
+window.addEventListener("scroll", () => {
+  if (!storylineScrollTicking) {
+    window.requestAnimationFrame(() => {
+      onStorylineWindowScroll();
+      storylineScrollTicking = false;
+    });
+    storylineScrollTicking = true;
+  }
+}, { passive: true });
+
 // Handle initial route on startup
 handleHashRouting();

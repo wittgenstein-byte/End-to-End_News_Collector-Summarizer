@@ -1081,21 +1081,29 @@ export function switchView(viewName = "feed") {
   const feedView = document.getElementById("feed-view");
   const previewView = document.getElementById("preview-view");
   const storylineView = document.getElementById("storyline-view");
+  const floatingBack = document.getElementById("storyline-floating-back");
+  const topBar = document.getElementById("storyline-top-bar");
 
   if (viewName === "preview") {
     if (feedView) feedView.classList.add("hidden");
     if (storylineView) storylineView.classList.add("hidden");
     if (previewView) previewView.classList.remove("hidden");
+    if (floatingBack) floatingBack.classList.add("hidden-fade");
+    if (topBar) topBar.classList.remove("is-hidden");
     window.scrollTo({ top: 0, behavior: "smooth" });
   } else if (viewName === "storyline") {
     if (feedView) feedView.classList.add("hidden");
     if (previewView) previewView.classList.add("hidden");
     if (storylineView) storylineView.classList.remove("hidden");
+    if (floatingBack) floatingBack.classList.add("hidden-fade");
+    if (topBar) topBar.classList.remove("is-hidden");
     window.scrollTo({ top: 0, behavior: "smooth" });
   } else {
     if (previewView) previewView.classList.add("hidden");
     if (storylineView) storylineView.classList.add("hidden");
     if (feedView) feedView.classList.remove("hidden");
+    if (floatingBack) floatingBack.classList.add("hidden-fade");
+    if (topBar) topBar.classList.remove("is-hidden");
   }
 }
 
@@ -1428,7 +1436,12 @@ window.__switchDossierTab = (tabName) => {
 window.__inspectCitation = (evidenceId) => {
   if (!evidenceId) return;
   const cleanId = String(evidenceId).trim().toLowerCase();
-  const el = document.getElementById(`article-evidence-${cleanId}`) || document.querySelector(`[data-evidence-id="${cleanId}"]`);
+  let el = document.getElementById(`article-evidence-${cleanId}`) || document.querySelector(`[data-evidence-id="${cleanId}"]`);
+  if (!el && typeof window.__filterStorylinePublisher === "function") {
+    // If hidden by current publisher filter, reset filter to reveal all storyline articles
+    window.__filterStorylinePublisher("");
+    el = document.getElementById(`article-evidence-${cleanId}`) || document.querySelector(`[data-evidence-id="${cleanId}"]`);
+  }
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('citation-highlight-pulse');
@@ -1438,6 +1451,12 @@ window.__inspectCitation = (evidenceId) => {
   } else {
     console.warn("Evidence card not found in current view:", cleanId);
   }
+};
+
+window.__toggleQualityAuditPanel = () => {
+  const panel = document.getElementById("dossier-audit-panel");
+  if (!panel) return;
+  panel.classList.toggle("hidden");
 };
 
 export function showStorylineAiLoading() {
@@ -1467,6 +1486,8 @@ export function renderStorylineAiSynthesis(synthesisData) {
   const conflicts = Array.isArray(s.conflicts) ? s.conflicts : [];
   const unknowns = Array.isArray(s.unknowns) ? s.unknowns : [];
   const outliers = Array.isArray(s.irrelevant_articles) ? s.irrelevant_articles : [];
+  const politicalContexts = Array.isArray(s.political_contexts) ? s.political_contexts : [];
+  const metrics = s.metrics;
 
   const isAi = s.generated_by === "ai" || (!s.is_fallback && s.generated_by !== "heuristic_fallback");
   const badgeLabel = isAi ? "AI SOURCED INTELLIGENCE" : "EVIDENCE CORROBORATION";
@@ -1474,40 +1495,127 @@ export function renderStorylineAiSynthesis(synthesisData) {
     ? "bg-amber-500/20 text-amber-300 border-amber-500/40" 
     : "bg-blue-500/20 text-blue-300 border-blue-500/40";
 
-  // Outlier Warning Banner
-  let outlierBannerHtml = "";
-  if (outliers.length > 0) {
-    outlierBannerHtml = `
-      <div class="outlier-card mb-4 animate-fade-in">
-        <div class="flex items-center gap-2 mb-2 text-amber-400 font-bold text-xs sm:text-sm">
-          <span class="material-symbols-outlined text-[20px]">warning</span>
-          <span>แจ้งเตือน: ตรวจพบข่าวที่ไม่เกี่ยวข้องกับเหตุการณ์หลัก (${outliers.length} รายการ)</span>
-        </div>
-        <p class="text-[11px] sm:text-xs text-white/80 mb-3 leading-relaxed">
-          แบบจำลอง AI ตรวจสอบพบว่ามีข่าวบางชิ้นที่ถูกจัดกลุ่มเข้ามาในประเด็นนี้ผิดพลาด หรือมีเนื้อหาหลุดจากพัฒนาการหลักของเหตุการณ์:
-        </p>
-        <div class="space-y-2">
-          ${outliers.map(irr => `
-            <div class="flex items-start gap-2.5 p-2.5 rounded bg-black/60 border border-amber-500/25 text-xs text-white/90">
-              <button type="button" class="citation-chip shrink-0 mt-0.5" onclick="window.__inspectCitation('${esc(irr.article_id)}')">
-                <span class="material-symbols-outlined text-[11px]">link</span>
-                <span>${esc(irr.article_id)}</span>
-              </button>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 mb-1 flex-wrap">
-                  <span class="font-mono text-[10px] text-amber-300 font-bold uppercase bg-amber-500/20 px-1.5 py-0.5 rounded">${esc(irr.source || "ข่าว")}</span>
-                  <span class="font-headline font-bold text-white truncate">${esc(irr.title)}</span>
-                </div>
-                <p class="text-[11px] text-amber-200/90 leading-normal">
-                  <span class="font-semibold text-amber-400">เหตุผลที่ตรวจพบ:</span> ${esc(irr.reason)}
-                </p>
-              </div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    `;
+  // Calculate evidence count and excluded count for compact audit status badge
+  const totalExcluded = outliers.length + politicalContexts.length;
+  const excludedCount = metrics?.excluded_count ?? totalExcluded;
+  let evidenceCount = metrics?.synthesized_evidence_count;
+  if (typeof evidenceCount !== "number") {
+    const usedIds = new Set();
+    progressionTimeline.forEach(t => (t.evidence_ids || []).forEach(id => usedIds.add(id)));
+    confirmedFacts.forEach(f => (f.evidence_ids || []).forEach(id => usedIds.add(id)));
+    conflicts.forEach(c => (c.sides || []).forEach(sd => sd.evidence_id && usedIds.add(sd.evidence_id)));
+    evidenceCount = usedIds.size || Math.max(1, (metrics?.candidate_count || 0) - excludedCount);
   }
+
+  // Compact Quality Audit Status Badge and Collapsible Audit Panel
+  const auditSectionHtml = `
+    <div class="space-y-3">
+      <div class="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/10 text-xs text-white/90 flex-wrap gap-2.5">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-amber-400 text-[18px]">verified_user</span>
+          <span>
+            ${excludedCount > 0 ? `
+              คัดกรองหลักฐานจริง <strong class="text-emerald-400 font-mono">${evidenceCount}</strong> รายการ 
+              <span class="text-white/60">(คัดแยกบริบท/นอกเรื่อง <strong class="text-amber-300 font-mono">${excludedCount}</strong> รายการ)</span>
+            ` : `
+              หลักฐานทั้งหมด <strong class="text-emerald-400 font-mono">${evidenceCount}</strong> รายการผ่านเกณฑ์การตรวจสอบ 
+              <span class="text-white/60">(ไม่พบข่าวนอกประเด็น)</span>
+            `}
+          </span>
+        </div>
+        <button type="button" 
+                onclick="window.__toggleQualityAuditPanel()" 
+                class="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-white/10">
+          <span class="material-symbols-outlined text-[14px]">tune</span>
+          <span>ตรวจสอบ</span>
+        </button>
+      </div>
+
+      <!-- Collapsible Audit Panel (Closed by default) -->
+      <div id="dossier-audit-panel" class="hidden p-4 sm:p-5 rounded-xl bg-black/65 border border-white/15 space-y-4 animate-fade-in text-xs text-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <div class="flex items-center gap-2 font-bold text-amber-400">
+            <span class="material-symbols-outlined text-[18px]">fact_check</span>
+            <span class="text-xs sm:text-sm font-headline">รายงานการตรวจสอบคุณภาพหลักฐานและบริบทแวดล้อม (Quality Audit)</span>
+          </div>
+          <button type="button" 
+                  onclick="window.__toggleQualityAuditPanel()" 
+                  class="text-white/60 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
+                  title="ปิดหน้าต่างตรวจสอบ">
+            <span class="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+
+        ${politicalContexts.length > 0 ? `
+          <div class="space-y-2">
+            <div class="flex items-center gap-1.5 text-blue-300 font-bold text-xs">
+              <span class="material-symbols-outlined text-[16px]">info</span>
+              <span>ข่าวบริบทการเมือง / ประเด็นแวดล้อม (${politicalContexts.length} รายการ)</span>
+            </div>
+            <p class="text-[11px] text-white/70 leading-relaxed">
+              ข่าวกลุ่มนี้ให้ข้อมูลบริบทเบื้องหลัง (เช่น การอภิปรายไม่ไว้วางใจ) แต่ถูกแยกออกจากสายหลักฐานโดยตรง เพื่อป้องกันการรบกวนลำดับเหตุการณ์ของประเด็นหลัก
+            </p>
+            <div class="space-y-2 pt-1 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+              ${politicalContexts.map(pc => `
+                <div class="p-2.5 rounded bg-black/50 border border-blue-500/25 flex items-start gap-2.5 text-white/90">
+                  <button type="button" class="citation-chip shrink-0 mt-0.5" onclick="window.__inspectCitation('${esc(pc.article_id)}')">
+                    <span class="material-symbols-outlined text-[11px]">link</span>
+                    <span>${esc(pc.article_id)}</span>
+                  </button>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                      <span class="font-mono text-[10px] text-blue-300 font-bold uppercase bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30">${esc(pc.source || "ข่าว")}</span>
+                      <span class="font-headline font-bold text-white text-xs truncate">${esc(pc.title)}</span>
+                    </div>
+                    <p class="text-[11px] text-blue-200/90 leading-normal">
+                      <span class="font-semibold text-blue-300">ความเชื่อมโยง/บริบท:</span> ${esc(pc.relation_to_event || pc.context_summary || "บริบทแวดล้อม")}
+                    </p>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
+
+        ${outliers.length > 0 ? `
+          <div class="space-y-2 pt-2 ${politicalContexts.length > 0 ? 'border-t border-white/10' : ''}">
+            <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+              <span class="material-symbols-outlined text-[16px]">warning</span>
+              <span>ข่าวนอกประเด็น / ไม่เกี่ยวข้องกับเหตุการณ์หลัก (${outliers.length} รายการ)</span>
+            </div>
+            <p class="text-[11px] text-white/70 leading-relaxed">
+              แบบจำลองตรวจพบข่าวที่จัดกลุ่มเข้ามาผิดพลาดหรือมีเนื้อหาหลุดจากประเด็นสำคัญของเหตุการณ์นี้:
+            </p>
+            <div class="space-y-2 pt-1 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+              ${outliers.map(irr => `
+                <div class="p-2.5 rounded bg-black/50 border border-amber-500/25 flex items-start gap-2.5 text-white/90">
+                  <button type="button" class="citation-chip shrink-0 mt-0.5" onclick="window.__inspectCitation('${esc(irr.article_id)}')">
+                    <span class="material-symbols-outlined text-[11px]">link</span>
+                    <span>${esc(irr.article_id)}</span>
+                  </button>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                      <span class="font-mono text-[10px] text-amber-300 font-bold uppercase bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">${esc(irr.source || "ข่าว")}</span>
+                      <span class="font-headline font-bold text-white text-xs truncate">${esc(irr.title)}</span>
+                    </div>
+                    <p class="text-[11px] text-amber-200/90 leading-normal">
+                      <span class="font-semibold text-amber-400">เหตุผลที่คัดแยก:</span> ${esc(irr.reason)}
+                    </p>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
+
+        ${politicalContexts.length === 0 && outliers.length === 0 ? `
+          <div class="p-4 text-center text-xs text-white/60">
+            ไม่พบข่าวที่ถูกคัดแยกเป็นบริบทหรืออยู่นอกประเด็นหลักในกลุ่มนี้
+          </div>
+        ` : ""}
+      </div>
+    </div>
+  `;
 
   // Panel 1: Timeline HTML
   const timelineHtml = progressionTimeline.length > 0 ? `
@@ -1693,8 +1801,8 @@ export function renderStorylineAiSynthesis(synthesisData) {
         </div>
       </div>
 
-      <!-- Outlier Warning Banner if present -->
-      ${outlierBannerHtml}
+      <!-- Evidence Quality & Relevance Audit Section -->
+      ${auditSectionHtml}
 
       <!-- Dossier Tabs Navigation -->
       <div>
@@ -1772,13 +1880,46 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
   if (!container || !storyData) return;
 
   const storyId = storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
-  const headline = storyData.headline || storyData.title || "แฟ้มเจาะลึกประเด็นข่าว";
+  const heroTitle = storyData.topic_title || storyData.title || storyData.headline || "แฟ้มเจาะลึกประเด็นข่าว";
   const rawArticles = Array.isArray(storyData.articles) ? storyData.articles : [];
 
   const sortedArticles = [...rawArticles].sort((a, b) => {
     const timeA = new Date(a.fetched_at || a.created_at || 0).getTime();
     const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
     return timeA - timeB;
+  });
+
+  const synthesis = storyData.synthesis;
+  const metrics = synthesis?.metrics;
+  const irrelevantList = Array.isArray(synthesis?.irrelevant_articles) ? synthesis.irrelevant_articles : [];
+  const contextList = Array.isArray(synthesis?.political_contexts) ? synthesis.political_contexts : [];
+  const excludedCount = metrics?.excluded_count ?? (irrelevantList.length + contextList.length);
+
+  // Pre-index context and outlier articles from synthesis to cross-reference evidence IDs
+  const titleToEvidenceId = new Map();
+  const urlToEvidenceId = new Map();
+
+  contextList.forEach(c => {
+    if (c.title && c.article_id) titleToEvidenceId.set(c.title.trim().toLowerCase(), c.article_id);
+  });
+  irrelevantList.forEach(irr => {
+    if (irr.title && irr.article_id) titleToEvidenceId.set(irr.title.trim().toLowerCase(), irr.article_id);
+  });
+
+  // Assign permanent, stable chronological evidence IDs to all articles in the storyline
+  sortedArticles.forEach((art, idx) => {
+    const artTitle = (art.title || "").trim().toLowerCase();
+    const artUrl = (art.url || "").trim().toLowerCase();
+    if (!art.article_id) {
+      if (titleToEvidenceId.has(artTitle)) {
+        art.article_id = titleToEvidenceId.get(artTitle);
+      } else if (urlToEvidenceId.has(artUrl)) {
+        art.article_id = urlToEvidenceId.get(artUrl);
+      } else {
+        art.article_id = `art_${String(idx + 1).padStart(2, '0')}`;
+      }
+    }
+    art._chronology_num = idx + 1;
   });
 
   const outletCounts = {};
@@ -1788,9 +1929,39 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
   });
   const outlets = Object.keys(outletCounts);
 
-  const filteredArticles = activeSourceFilter
-    ? sortedArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase())
-    : sortedArticles;
+  // Extract evidence publishers set for prioritization
+  const evidencePublishers = Array.isArray(metrics?.synthesized_publishers) && metrics.synthesized_publishers.length > 0
+    ? metrics.synthesized_publishers
+    : [];
+  const evidencePublishersSet = new Set(evidencePublishers.map(p => p.toLowerCase()));
+
+  // Prioritize evidence publishers first, then other outlets by volume
+  const sortedOutlets = [...outlets].sort((a, b) => {
+    const isAEvidence = evidencePublishersSet.has(a.toLowerCase());
+    const isBEvidence = evidencePublishersSet.has(b.toLowerCase());
+    if (isAEvidence && !isBEvidence) return -1;
+    if (!isAEvidence && isBEvidence) return 1;
+    return (outletCounts[b] || 0) - (outletCounts[a] || 0);
+  });
+
+  // Filter articles based on activeSourceFilter
+  let filteredArticles = sortedArticles;
+  if (activeSourceFilter === "__context_excluded__") {
+    filteredArticles = sortedArticles.filter(art => {
+      const evId = (art.article_id || "").toLowerCase();
+      const isOut = irrelevantList.some(irr =>
+        (irr.article_id && irr.article_id.toLowerCase() === evId) ||
+        (irr.title && art.title && irr.title.trim().toLowerCase() === art.title.trim().toLowerCase())
+      );
+      const isCtx = contextList.some(c =>
+        (c.article_id && c.article_id.toLowerCase() === evId) ||
+        (c.title && art.title && c.title.trim().toLowerCase() === art.title.trim().toLowerCase())
+      );
+      return isOut || isCtx;
+    });
+  } else if (activeSourceFilter) {
+    filteredArticles = sortedArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase());
+  }
 
   const allIsActive = !activeSourceFilter;
   let publisherPillsHtml = `
@@ -1802,8 +1973,9 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
     </button>
   `;
 
-  publisherPillsHtml += outlets.map(outlet => {
+  publisherPillsHtml += sortedOutlets.map(outlet => {
     const isActive = outlet.toLowerCase() === activeSourceFilter.toLowerCase();
+    const isCorroborated = evidencePublishersSet.has(outlet.toLowerCase());
     const count = outletCounts[outlet] || 0;
     const color = SOURCE_COLORS[outlet] ?? "#1d3557";
     return `
@@ -1812,10 +1984,24 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
               onclick="window.__filterStorylinePublisher('${esc(outlet)}')">
         <span style="display:inline-block; width:7px; height:7px; border-radius:9999px; background:${isActive ? '#ffffff' : color};"></span>
         <span>${esc(outlet)}</span>
+        ${isCorroborated ? `<span class="text-[10px] text-emerald-400 font-bold" title="สำนักข่าวที่ให้หลักฐานตรงกัน">✓</span>` : ""}
         <span class="pill-count">${count}</span>
       </button>
     `;
   }).join("");
+
+  if (excludedCount > 0) {
+    const isContextActive = activeSourceFilter === "__context_excluded__";
+    publisherPillsHtml += `
+      <button type="button" 
+              class="storyline-publisher-pill ${isContextActive ? 'active' : ''} border border-amber-500/40 text-amber-300"
+              onclick="window.__filterStorylinePublisher('__context_excluded__')">
+        <span class="material-symbols-outlined text-[13px] text-amber-400">filter_alt</span>
+        <span>ข่าวบริบท/คัดออก</span>
+        <span class="pill-count">${excludedCount}</span>
+      </button>
+    `;
+  }
 
   const storylineHashtags = Array.from(new Set([
     ...(Array.isArray(storyData.hashtags) ? storyData.hashtags : []),
@@ -1841,9 +2027,6 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
     </div>
   ` : "";
 
-  const synthesis = storyData.synthesis;
-  const irrelevantList = Array.isArray(synthesis?.irrelevant_articles) ? synthesis.irrelevant_articles : [];
-
   const articlesGridHtml = filteredArticles.length > 0 ? `
     <div class="storyline-grid-container">
       ${filteredArticles.map((art, idx) => {
@@ -1853,7 +2036,8 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
         const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[art.url]);
         const artJsonEncoded = encodeURIComponent(JSON.stringify(art));
         const perspective = getPerspectiveLabel(art.title, art.source, art.summary);
-        const evidenceId = `art_${String(idx + 1).padStart(2, '0')}`;
+        const evidenceId = art.article_id || `art_${String(art._chronology_num || idx + 1).padStart(2, '0')}`;
+        const chronologyNum = art._chronology_num || (idx + 1);
 
         // Check if flagged as outlier / irrelevant
         const matchedOutlier = irrelevantList.find(irr => 
@@ -1863,40 +2047,61 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
         const isOutlier = Boolean(matchedOutlier);
         const outlierReason = matchedOutlier?.reason || "";
 
+        // Check if flagged as political / situational context
+        const matchedContext = contextList.find(c => 
+          (c.article_id && c.article_id.toLowerCase() === evidenceId.toLowerCase()) ||
+          (c.title && art.title && c.title.trim().toLowerCase() === art.title.trim().toLowerCase())
+        );
+        const isContext = Boolean(matchedContext);
+        const contextRelation = matchedContext?.relation_to_event || matchedContext?.context_summary || "";
+
         return `
-          <article class="editorial-card transition-all duration-300 ${isOutlier ? 'border-2 border-dashed border-amber-500/60 bg-amber-950/10' : ''}" 
-                   id="article-evidence-${evidenceId}" 
-                   data-evidence-id="${evidenceId}" 
+          <article class="editorial-card transition-all duration-300 ${isOutlier ? 'border border-amber-500/35 bg-amber-950/10' : (isContext ? 'border border-blue-500/35 bg-blue-950/10' : '')}" 
+                   id="article-evidence-${evidenceId.toLowerCase()}" 
+                   data-evidence-id="${evidenceId.toLowerCase()}" 
                    data-url="${esc(art.url)}">
             <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-low cursor-pointer border-b border-outline-variant/25"
                  onclick="window.__openPreview('${esc(art.url)}')">
               <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
               <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
                 <span class="bg-black/75 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded">
-                  CHRONOLOGY #0${idx + 1}
+                  CHRONOLOGY #${String(chronologyNum).padStart(2, '0')}
                 </span>
                 <span class="citation-chip" title="รหัสหลักฐานสำหรับตรวจสอบย้อนกลับ">
                   ${evidenceId.toUpperCase()}
                 </span>
               </div>
               ${isOutlier ? `
-                <div class="absolute top-2.5 right-2.5 bg-amber-500 text-black font-bold text-[10px] px-2 py-0.5 rounded shadow-md flex items-center gap-1">
-                  <span class="material-symbols-outlined text-[12px]">warning</span>
-                  <span>OUTLIER</span>
+                <div class="absolute top-2.5 right-2.5 bg-amber-500/90 text-black font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[11px]">filter_alt</span>
+                  <span>คัดแยก</span>
                 </div>
-              ` : ""}
+              ` : (isContext ? `
+                <div class="absolute top-2.5 right-2.5 bg-blue-600/90 text-white font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[11px]">info</span>
+                  <span>บริบท</span>
+                </div>
+              ` : "")}
             </div>
 
             <div class="p-4 sm:p-5 flex flex-col flex-1">
-              ${isOutlier ? `
-                <div class="mb-3 p-2.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-1.5">
-                  <span class="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">warning</span>
-                  <div class="min-w-0 flex-1">
-                    <span class="font-bold text-amber-700 dark:text-amber-300">AI: ข่าวนี้อาจไม่เกี่ยวข้องกับเหตุการณ์หลัก</span>
-                    <p class="text-[11px] text-on-surface-variant mt-0.5">${esc(outlierReason)}</p>
+              ${isContext ? `
+                <div class="mb-2.5 px-2.5 py-1.5 rounded bg-blue-500/10 border border-blue-500/25 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-1.5">
+                  <span class="material-symbols-outlined text-[14px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">info</span>
+                  <div class="min-w-0 flex-1 leading-normal text-[11px]">
+                    <span class="font-bold text-blue-700 dark:text-blue-300">บริบทการเมือง (อยู่นอกสารบบหลักฐาน):</span>
+                    <span class="text-on-surface-variant ml-1">${esc(contextRelation || "ข้อมูลบริบทเบื้องหลัง")}</span>
                   </div>
                 </div>
-              ` : ""}
+              ` : (isOutlier ? `
+                <div class="mb-2.5 px-2.5 py-1.5 rounded bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-1.5">
+                  <span class="material-symbols-outlined text-[14px] text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">filter_alt</span>
+                  <div class="min-w-0 flex-1 leading-normal text-[11px]">
+                    <span class="font-bold text-amber-700 dark:text-amber-300">ข่าวนอกประเด็นหลัก:</span>
+                    <span class="text-on-surface-variant ml-1">${esc(outlierReason || "คัดแยกออกจากเหตุการณ์")}</span>
+                  </div>
+                </div>
+              ` : "")}
 
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="flex items-center gap-1.5">
@@ -1946,7 +2151,7 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
 
   container.innerHTML = `
     <div class="storyline-container">
-      <div class="storyline-top-bar">
+      <div class="storyline-top-bar" id="storyline-top-bar">
         <button type="button" class="storyline-back-btn" onclick="window.__backFromStoryline()">
           <span class="material-symbols-outlined text-[16px]">arrow_back</span>
           <span>กลับสู่ฟีดรวมข่าว</span>
@@ -1958,36 +2163,69 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
 
       <div class="storyline-hero-banner">
         <div class="font-mono text-[10px] uppercase tracking-widest text-amber-400 mb-2">EXECUTIVE STORYLINE BRIEFING</div>
-        <h1 class="storyline-hero-title">${esc(headline)}</h1>
-        <div class="storyline-meta-row font-mono">
-          <span>${outlets.length} OUTLETS</span>
-          <span>/</span>
-          <span>${sortedArticles.length} REPORTS</span>
-          ${storyData.updated_at ? `<span>/</span><span>UPDATED ${esc(storyData.updated_at)}</span>` : ""}
+        <h1 class="storyline-hero-title">${esc(heroTitle)}</h1>
+        <div class="storyline-meta-row font-mono text-[11px]">
+          ${metrics ? `
+            <span class="text-amber-400 font-bold">${metrics.candidate_count} ข่าวในกลุ่ม (${metrics.candidate_publishers_count} สำนักข่าว)</span>
+            <span class="text-white/40">•</span>
+            <span class="text-white/80">คัดแยก ${metrics.excluded_count} รายการ</span>
+            <span class="text-white/40">•</span>
+            <span class="text-emerald-400 font-bold">หลักฐานสังเคราะห์ ${metrics.synthesized_evidence_count} ข่าว (${metrics.synthesized_publishers_count} สำนักข่าว)</span>
+            ${storyData.updated_at ? `<span class="text-white/40">•</span><span>UPDATED ${esc(storyData.updated_at)}</span>` : ""}
+          ` : `
+            <span>${outlets.length} OUTLETS</span>
+            <span>/</span>
+            <span>${sortedArticles.length} REPORTS</span>
+            ${storyData.updated_at ? `<span>/</span><span>UPDATED ${esc(storyData.updated_at)}</span>` : ""}
+          `}
         </div>
 
-        <!-- Baseline Briefing Card -->
-        <div class="storyline-overview-card">
-          <div class="storyline-overview-header">
-            <div class="storyline-overview-title">
-              <span class="material-symbols-outlined text-[18px]">description</span>
-              <span>บทสรุปภาพรวมพื้นฐาน (Baseline Overview)</span>
-            </div>
-            <button type="button" id="storyline-ai-btn" class="storyline-ai-btn"
-                    onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
-              <span class="material-symbols-outlined text-[15px]">auto_awesome</span>
-              <span>สังเคราะห์ความคืบหน้าด้วย AI</span>
-            </button>
-          </div>
-          <p class="storyline-overview-body">
-            ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
-          </p>
-
-          <!-- AI Intelligence Dossier Mount Point -->
+        ${synthesis ? `
+          <!-- AI Intelligence Dossier Mount Point (Prominent Placement) -->
           <div id="storyline-ai-section"></div>
 
+          <!-- Demoted Baseline Briefing Card -->
+          <details class="storyline-baseline-collapsible mt-3 p-3.5 bg-black/25 rounded-lg border border-white/10 text-white/80 transition-all">
+            <summary class="cursor-pointer font-bold text-xs flex items-center justify-between text-white/70 hover:text-white select-none">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">description</span>
+                <span>บทสรุปภาพรวมพื้นฐาน (Baseline Overview)</span>
+              </span>
+              <span class="font-mono text-[10px] text-white/40 flex items-center gap-1">
+                <span>คลิกเพื่อคลี่ดู</span>
+                <span class="material-symbols-outlined text-[14px]">expand_more</span>
+              </span>
+            </summary>
+            <p class="storyline-overview-body mt-2.5 text-xs text-white/75 leading-relaxed">
+              ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
+            </p>
+          </details>
+
           ${storylineHashtagsHtml}
-        </div>
+        ` : `
+          <!-- Baseline Briefing Card (Active when no synthesis yet) -->
+          <div class="storyline-overview-card">
+            <div class="storyline-overview-header">
+              <div class="storyline-overview-title">
+                <span class="material-symbols-outlined text-[18px]">description</span>
+                <span>บทสรุปภาพรวมพื้นฐาน (Baseline Overview)</span>
+              </div>
+              <button type="button" id="storyline-ai-btn" class="storyline-ai-btn"
+                      onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
+                <span class="material-symbols-outlined text-[15px]">auto_awesome</span>
+                <span>สังเคราะห์ความคืบหน้าด้วย AI</span>
+              </button>
+            </div>
+            <p class="storyline-overview-body">
+              ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
+            </p>
+
+            <!-- AI Intelligence Dossier Mount Point -->
+            <div id="storyline-ai-section"></div>
+
+            ${storylineHashtagsHtml}
+          </div>
+        `}
       </div>
 
       <div class="storyline-filter-bar">

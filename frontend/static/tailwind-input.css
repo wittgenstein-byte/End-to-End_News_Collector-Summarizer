@@ -889,11 +889,79 @@ html.dark .editorial-badge-neutral {
   -webkit-backdrop-filter: blur(12px);
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--ed-border);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  will-change: transform, opacity;
+}
+
+.storyline-top-bar.is-hidden {
+  transform: translateY(-135%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 html.dark .storyline-top-bar {
   background: rgba(15, 16, 18, 0.95) !important;
   border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Floating Back Button when scrolled down */
+.storyline-floating-back-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background: #141413;
+  color: #f7f4ed;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, background 0.15s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.storyline-floating-back-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 14px 28px -5px rgba(0, 0, 0, 0.45);
+  background: #232320;
+}
+
+.storyline-floating-back-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.storyline-floating-back-btn.hidden-fade {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(16px) !important;
+}
+
+html.dark .storyline-floating-back-btn {
+  background: #f7f4ed !important;
+  color: #141413 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
+}
+
+html.dark .storyline-floating-back-btn:hover {
+  background: #ffffff !important;
+}
+
+@media (max-width: 640px) {
+  .storyline-floating-back-btn {
+    bottom: 1.25rem;
+    left: 1rem;
+    padding: 0.55rem 1rem;
+  }
 }
 
 .storyline-back-btn {
@@ -1227,3 +1295,13 @@ html.dark .storyline-back-btn:hover {
   border-radius: 0.5rem;
   padding: 1rem;
 }
+
+.storyline-baseline-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.storyline-baseline-collapsible[open] summary .material-symbols-outlined:last-child {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
