@@ -395,9 +395,24 @@ window.__toggleDarkMode = (isDark) => {
     document.documentElement.classList.remove("dark");
     document.documentElement.classList.add("light");
   }
+  personalizationData.darkMode = isDark;
   if (hasConsent && privacyPermissions.ui) {
-    personalizationData.darkMode = isDark;
     savePersonalization();
+  } else {
+    try {
+      localStorage.setItem("theme_pref", isDark ? "dark" : "light");
+    } catch (e) {}
+  }
+};
+
+window.__toggleThemeDirectly = () => {
+  const isDarkNow = document.documentElement.classList.contains("dark");
+  const newDark = !isDarkNow;
+  window.__toggleDarkMode(newDark);
+  const dmEl = document.getElementById("setting-darkmode");
+  if (dmEl) dmEl.checked = newDark;
+  if (typeof UI !== "undefined" && UI.showToast) {
+    UI.showToast(newDark ? "เปิดโหมดมืด (Dark Mode)" : "เปิดโหมดสว่าง (Light Mode)");
   }
 };
 

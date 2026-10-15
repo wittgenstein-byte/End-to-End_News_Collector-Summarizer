@@ -734,22 +734,24 @@ function updateHeroTrendingSlide() {
                 </span>
               </button>
               <button type="button" 
-                      class="flex items-center gap-1.5 bg-white text-[#141413] hover:bg-white/90 px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer" 
+                      class="hero-read-abstract-btn flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
                       onclick="window.__openPreview('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[15px]">article</span>
                 <span>อ่านบทคัดย่อ</span>
               </button>
               <button type="button" 
-                      class="flex items-center gap-1.5 bg-black/65 hover:bg-black/85 text-white px-3.5 py-2 rounded-lg font-bold text-xs border border-white/30 backdrop-blur-md transition-all cursor-pointer" 
-                      onclick="window.__openCurrentHeroStoryline()">
-                <span class="material-symbols-outlined text-[15px]">account_tree</span>
-                <span>ดูข่าวทั้งหมดในประเด็นนี้ (${outletMap.size} สื่อ)</span>
-              </button>
-              <button type="button" 
-                      class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer" 
+                      class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
                       onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
                 <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
                 <span>สรุป AI</span>
+              </button>
+              <button type="button" 
+                      class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg" 
+                      onclick="window.__openCurrentHeroStoryline()"
+                      title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
+                <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">account_tree</span>
+                <span>ดูข่าวทั้งหมดในประเด็นนี้</span>
+                <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
               </button>
             </div>
           </div>
@@ -1112,36 +1114,39 @@ export function switchView(viewName = "feed") {
 export function renderInlineSummary(summary) {
   const s = summary;
   const bullets = (s.bullets ?? []).map((b, i) => `
-    <li class="flex items-start gap-3 text-sm leading-relaxed text-on-surface">
-      <span class="font-mono text-xs font-bold text-secondary mt-0.5 shrink-0">0${i+1}.</span>
-      <span>${esc(b)}</span>
+    <li class="flex items-start gap-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100 font-medium">
+      <span class="preview-ai-bullet-num font-mono text-xs font-bold text-amber-600 dark:text-amber-400 mt-0.5 shrink-0">0${i+1}.</span>
+      <span class="preview-ai-bullet-text">${esc(b)}</span>
     </li>
   `).join("");
 
   const keywords = (s.keywords ?? []).map(k => `
-    <span class="px-2 py-0.5 bg-surface-container text-on-surface-variant font-mono text-[10px] font-semibold rounded">#${esc(k)}</span>
+    <span class="preview-ai-tag px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-semibold rounded-md">#${esc(k)}</span>
   `).join("");
 
   return `
-    <div class="p-6 bg-surface-container-low/60 rounded-xl border border-outline-variant/50 space-y-4 animate-fade-in">
-      <div class="flex items-center justify-between flex-wrap gap-2 border-b border-outline-variant/30 pb-3">
+    <div class="preview-ai-card p-6 rounded-xl border space-y-4 animate-fade-in">
+      <div class="flex items-center justify-between flex-wrap gap-2 border-b border-amber-500/20 pb-3">
         <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-          <h3 class="font-headline font-bold text-base text-on-surface">บทสังเคราะห์ประเด็นสำคัญโดย AI</h3>
+          <span class="material-symbols-outlined text-amber-500 dark:text-amber-400 text-[20px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+          <h3 class="preview-ai-title font-headline font-bold text-base text-slate-900 dark:text-white">บทสังเคราะห์ประเด็นสำคัญโดย AI</h3>
         </div>
         ${s.sentiment ? `
-          <span class="font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-white border border-outline-variant/40 text-on-surface">
+          <span class="preview-ai-tone-badge font-mono text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 shadow-xs">
             TONE: ${esc(s.sentiment)}
           </span>
         ` : ""}
       </div>
 
-      ${s.summary ? `<p class="text-sm text-on-surface leading-relaxed">${esc(s.summary)}</p>` : ""}
+      ${s.summary ? `<p class="preview-ai-prose text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal">${esc(s.summary)}</p>` : ""}
 
       ${bullets ? `
         <div class="space-y-2 pt-2">
-          <h4 class="font-mono text-[10px] font-bold uppercase tracking-widest text-outline">KEY TAKEAWAYS</h4>
-          <ul class="space-y-2">${bullets}</ul>
+          <h4 class="preview-ai-label font-mono text-[11px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">checklist</span>
+            <span>KEY TAKEAWAYS</span>
+          </h4>
+          <ul class="space-y-2.5">${bullets}</ul>
         </div>
       ` : ""}
 
@@ -1154,12 +1159,12 @@ export function showInlineSummaryLoading() {
   const section = document.getElementById("preview-ai-section");
   if (!section) return;
   section.innerHTML = `
-    <div class="p-8 bg-surface-container-low/50 rounded-xl border border-outline-variant/40 text-center space-y-2">
-      <svg class="animate-spin h-6 w-6 text-primary mx-auto" fill="none" viewBox="0 0 24 24">
+    <div class="p-8 bg-slate-50 dark:bg-slate-900/80 rounded-xl border border-amber-500/30 text-center space-y-2 shadow-sm">
+      <svg class="animate-spin h-6 w-6 text-amber-500 mx-auto" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5"></circle>
         <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.5"></path>
       </svg>
-      <p class="text-xs font-bold text-on-surface">AI กำลังอ่านและสังเคราะห์ประเด็นสำคัญ...</p>
+      <p class="text-xs font-bold text-slate-800 dark:text-slate-100">AI กำลังอ่านและสังเคราะห์ประเด็นสำคัญ...</p>
     </div>
   `;
 }
@@ -1168,9 +1173,9 @@ export function showInlineSummaryError(msg, articleUrl) {
   const section = document.getElementById("preview-ai-section");
   if (!section) return;
   section.innerHTML = `
-    <div class="p-5 bg-error/5 border border-error/20 rounded-xl text-center space-y-2">
-      <p class="text-xs text-error font-bold">${esc(msg)}</p>
-      <button class="px-3.5 py-1.5 bg-[#141413] text-white rounded-lg text-xs font-bold"
+    <div class="p-5 bg-error/10 border border-error/30 rounded-xl text-center space-y-2">
+      <p class="text-xs text-rose-600 dark:text-rose-400 font-bold">${esc(msg)}</p>
+      <button class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
               onclick="window.__runPreviewAiSummary('${esc(articleUrl)}')">
         ลองใหม่อีกครั้ง
       </button>
@@ -1253,15 +1258,15 @@ export function renderPreviewView(article, isBookmarked = false, cachedSummary =
         <!-- AI Summary Section -->
         <div id="preview-ai-section" class="pt-2">
           ${cachedSummary ? renderInlineSummary(cachedSummary) : `
-            <div class="p-6 bg-surface-container-low/50 rounded-xl border border-outline-variant/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="p-6 bg-slate-50 dark:bg-slate-900/80 rounded-xl border border-amber-500/25 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
               <div class="space-y-1 text-center sm:text-left">
-                <h3 class="font-headline font-bold text-base text-on-surface flex items-center justify-center sm:justify-start gap-1.5">
-                  <span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <h3 class="font-headline font-bold text-base text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-1.5">
+                  <span class="material-symbols-outlined text-amber-500 dark:text-amber-400 text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
                   <span>ต้องการสรุปประเด็นสำคัญด้วย AI หรือไม่?</span>
                 </h3>
-                <p class="text-xs text-on-surface-variant">สังเคราะห์ใจความหลัก ดึง Key Takeaways และวิเคราะห์โทนของข่าวทันที</p>
+                <p class="text-xs text-slate-600 dark:text-slate-300">สังเคราะห์ใจความหลัก ดึง Key Takeaways และวิเคราะห์โทนของข่าวทันที</p>
               </div>
-              <button class="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-[#141413] text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+              <button class="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-md"
                       onclick="window.__runPreviewAiSummary('${esc(article.url)}')">
                 <span class="material-symbols-outlined text-[16px]">auto_awesome</span>
                 <span>สังเคราะห์ด้วย AI</span>
@@ -1456,21 +1461,113 @@ window.__inspectCitation = (evidenceId) => {
 window.__toggleQualityAuditPanel = () => {
   const panel = document.getElementById("dossier-audit-panel");
   if (!panel) return;
-  panel.classList.toggle("hidden");
+  if (panel.tagName === "DETAILS") {
+    panel.open = !panel.open;
+    if (panel.open) {
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  } else {
+    panel.classList.toggle("hidden");
+  }
 };
+
+const THAI_MONTHS_SHORT = [
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+];
+
+export function formatEditorialDateTime(dateStr) {
+  if (!dateStr) return "";
+  const str = String(dateStr).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::\d{1,2})?)?/);
+  if (isoMatch) {
+    const [, y, m, d, hh, mm] = isoMatch;
+    const day = parseInt(d, 10);
+    const month = THAI_MONTHS_SHORT[parseInt(m, 10) - 1] || m;
+    if (hh !== undefined && mm !== undefined) {
+      const hours = hh.padStart(2, "0");
+      const mins = mm.padStart(2, "0");
+      return `${day} ${month} • ${hours}:${mins} น.`;
+    }
+    const thaiYear = parseInt(y, 10) > 2400 ? y : parseInt(y, 10) + 543;
+    return `${day} ${month} ${thaiYear}`;
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const day = d.getDate();
+    const month = THAI_MONTHS_SHORT[d.getMonth()];
+    const hours = String(d.getHours()).padStart(2, "0");
+    const mins = String(d.getMinutes()).padStart(2, "0");
+    return `${day} ${month} • ${hours}:${mins} น.`;
+  }
+
+  return str;
+}
+
+export function formatEditorialDateOnly(dateStr) {
+  if (!dateStr) return "อัปเดตล่าสุด • วันนี้";
+  const str = String(dateStr).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    const day = parseInt(d, 10);
+    const month = THAI_MONTHS_SHORT[parseInt(m, 10) - 1] || m;
+    const thaiYear = parseInt(y, 10) > 2400 ? y : parseInt(y, 10) + 543;
+    return `อัปเดตล่าสุด • ${day} ${month} ${thaiYear}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const day = d.getDate();
+    const month = THAI_MONTHS_SHORT[d.getMonth()];
+    const thaiYear = d.getFullYear() > 2400 ? d.getFullYear() : d.getFullYear() + 543;
+    return `อัปเดตล่าสุด • ${day} ${month} ${thaiYear}`;
+  }
+  return str.startsWith("อัปเดตล่าสุด") ? str : `อัปเดตล่าสุด • ${str}`;
+}
+
+export function renderCitations(citations = []) {
+  if (!citations.length) return "";
+  const visible = citations.slice(0, 3);
+  const hidden = citations.slice(3);
+
+  const renderChip = (id) => `
+    <button type="button" onclick="window.__inspectCitation('${esc(id)}')" 
+      class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer">
+      🔗 ${esc(id)}
+    </button>`;
+
+  if (hidden.length === 0) {
+    return `<div class="flex items-center gap-1.5 flex-wrap pt-1">${visible.map(renderChip).join("")}</div>`;
+  }
+
+  return `
+    <div class="flex items-center gap-1.5 flex-wrap pt-1">
+      ${visible.map(renderChip).join("")}
+      <details class="inline">
+        <summary class="list-none inline-flex cursor-pointer px-2 py-0.5 text-[11px] font-mono font-semibold rounded bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
+          + อีก ${hidden.length} แหล่งข่าว
+        </summary>
+        <div class="flex items-center gap-1.5 flex-wrap mt-1.5 p-2 rounded-lg bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700">
+          ${hidden.map(renderChip).join("")}
+        </div>
+      </details>
+    </div>
+  `;
+}
 
 export function showStorylineAiLoading() {
   const section = document.getElementById("storyline-ai-section");
   if (!section) return;
   section.innerHTML = `
-    <div class="p-6 mt-4 bg-black/40 rounded-xl border border-white/15 text-center space-y-3 animate-fade-in">
-      <svg class="animate-spin h-7 w-7 text-amber-400 mx-auto" fill="none" viewBox="0 0 24 24">
+    <div class="p-6 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 text-center space-y-3 animate-fade-in">
+      <svg class="animate-spin h-7 w-7 text-amber-500 mx-auto" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5"></circle>
         <path class="opacity-80" d="M12 2a10 10 0 0110 10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.5"></path>
       </svg>
       <div>
-        <p class="text-xs sm:text-sm font-bold text-white">AI กำลังสร้างแบบจำลองพัฒนาการของเหตุการณ์...</p>
-        <p class="text-[11px] text-white/60 mt-0.5">คัดกรองหลักฐาน แยกข้อเท็จจริง ข้อขัดแย้ง และตรวจจับข่าวไม่เกี่ยวข้อง</p>
+        <p class="text-xs sm:text-sm font-bold text-slate-800 dark:text-zinc-200">AI กำลังสร้างแบบจำลองพัฒนาการของเหตุการณ์...</p>
+        <p class="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5">คัดกรองหลักฐาน แยกข้อเท็จจริง ข้อขัดแย้ง และตรวจจับข่าวไม่เกี่ยวข้อง</p>
       </div>
     </div>
   `;
@@ -1489,13 +1586,9 @@ export function renderStorylineAiSynthesis(synthesisData) {
   const politicalContexts = Array.isArray(s.political_contexts) ? s.political_contexts : [];
   const metrics = s.metrics;
 
-  const isAi = s.generated_by === "ai" || (!s.is_fallback && s.generated_by !== "heuristic_fallback");
-  const badgeLabel = isAi ? "AI SOURCED INTELLIGENCE" : "EVIDENCE CORROBORATION";
-  const badgeClass = isAi 
-    ? "bg-amber-500/20 text-amber-300 border-amber-500/40" 
-    : "bg-blue-500/20 text-blue-300 border-blue-500/40";
+  const summaryText = s.executive_summary || s.summary || "";
 
-  // Calculate evidence count and excluded count for compact audit status badge
+  // Optionally update the audit text & panel if present in DOM
   const totalExcluded = outliers.length + politicalContexts.length;
   const excludedCount = metrics?.excluded_count ?? totalExcluded;
   let evidenceCount = metrics?.synthesized_evidence_count;
@@ -1507,335 +1600,105 @@ export function renderStorylineAiSynthesis(synthesisData) {
     evidenceCount = usedIds.size || Math.max(1, (metrics?.candidate_count || 0) - excludedCount);
   }
 
-  // Compact Quality Audit Status Badge and Collapsible Audit Panel
-  const auditSectionHtml = `
-    <div class="space-y-3">
-      <div class="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/10 text-xs text-white/90 flex-wrap gap-2.5">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-amber-400 text-[18px]">verified_user</span>
-          <span>
-            ${excludedCount > 0 ? `
-              คัดกรองหลักฐานจริง <strong class="text-emerald-400 font-mono">${evidenceCount}</strong> รายการ 
-              <span class="text-white/60">(คัดแยกบริบท/นอกเรื่อง <strong class="text-amber-300 font-mono">${excludedCount}</strong> รายการ)</span>
-            ` : `
-              หลักฐานทั้งหมด <strong class="text-emerald-400 font-mono">${evidenceCount}</strong> รายการผ่านเกณฑ์การตรวจสอบ 
-              <span class="text-white/60">(ไม่พบข่าวนอกประเด็น)</span>
-            `}
-          </span>
-        </div>
-        <button type="button" 
-                onclick="window.__toggleQualityAuditPanel()" 
-                class="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-white/10">
-          <span class="material-symbols-outlined text-[14px]">tune</span>
-          <span>ตรวจสอบ</span>
-        </button>
-      </div>
-
-      <!-- Collapsible Audit Panel (Closed by default) -->
-      <div id="dossier-audit-panel" class="hidden p-4 sm:p-5 rounded-xl bg-black/65 border border-white/15 space-y-4 animate-fade-in text-xs text-white shadow-2xl">
-        <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
-          <div class="flex items-center gap-2 font-bold text-amber-400">
-            <span class="material-symbols-outlined text-[18px]">fact_check</span>
-            <span class="text-xs sm:text-sm font-headline">รายงานการตรวจสอบคุณภาพหลักฐานและบริบทแวดล้อม (Quality Audit)</span>
-          </div>
-          <button type="button" 
-                  onclick="window.__toggleQualityAuditPanel()" 
-                  class="text-white/60 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
-                  title="ปิดหน้าต่างตรวจสอบ">
-            <span class="material-symbols-outlined text-[16px]">close</span>
-          </button>
-        </div>
-
-        ${politicalContexts.length > 0 ? `
-          <div class="space-y-2">
-            <div class="flex items-center gap-1.5 text-blue-300 font-bold text-xs">
-              <span class="material-symbols-outlined text-[16px]">info</span>
-              <span>ข่าวบริบทการเมือง / ประเด็นแวดล้อม (${politicalContexts.length} รายการ)</span>
-            </div>
-            <p class="text-[11px] text-white/70 leading-relaxed">
-              ข่าวกลุ่มนี้ให้ข้อมูลบริบทเบื้องหลัง (เช่น การอภิปรายไม่ไว้วางใจ) แต่ถูกแยกออกจากสายหลักฐานโดยตรง เพื่อป้องกันการรบกวนลำดับเหตุการณ์ของประเด็นหลัก
-            </p>
-            <div class="space-y-2 pt-1 max-h-72 overflow-y-auto custom-scrollbar pr-1">
-              ${politicalContexts.map(pc => `
-                <div class="p-2.5 rounded bg-black/50 border border-blue-500/25 flex items-start gap-2.5 text-white/90">
-                  <button type="button" class="citation-chip shrink-0 mt-0.5" onclick="window.__inspectCitation('${esc(pc.article_id)}')">
-                    <span class="material-symbols-outlined text-[11px]">link</span>
-                    <span>${esc(pc.article_id)}</span>
-                  </button>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 mb-1 flex-wrap">
-                      <span class="font-mono text-[10px] text-blue-300 font-bold uppercase bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30">${esc(pc.source || "ข่าว")}</span>
-                      <span class="font-headline font-bold text-white text-xs truncate">${esc(pc.title)}</span>
-                    </div>
-                    <p class="text-[11px] text-blue-200/90 leading-normal">
-                      <span class="font-semibold text-blue-300">ความเชื่อมโยง/บริบท:</span> ${esc(pc.relation_to_event || pc.context_summary || "บริบทแวดล้อม")}
-                    </p>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          </div>
-        ` : ""}
-
-        ${outliers.length > 0 ? `
-          <div class="space-y-2 pt-2 ${politicalContexts.length > 0 ? 'border-t border-white/10' : ''}">
-            <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-              <span class="material-symbols-outlined text-[16px]">warning</span>
-              <span>ข่าวนอกประเด็น / ไม่เกี่ยวข้องกับเหตุการณ์หลัก (${outliers.length} รายการ)</span>
-            </div>
-            <p class="text-[11px] text-white/70 leading-relaxed">
-              แบบจำลองตรวจพบข่าวที่จัดกลุ่มเข้ามาผิดพลาดหรือมีเนื้อหาหลุดจากประเด็นสำคัญของเหตุการณ์นี้:
-            </p>
-            <div class="space-y-2 pt-1 max-h-72 overflow-y-auto custom-scrollbar pr-1">
-              ${outliers.map(irr => `
-                <div class="p-2.5 rounded bg-black/50 border border-amber-500/25 flex items-start gap-2.5 text-white/90">
-                  <button type="button" class="citation-chip shrink-0 mt-0.5" onclick="window.__inspectCitation('${esc(irr.article_id)}')">
-                    <span class="material-symbols-outlined text-[11px]">link</span>
-                    <span>${esc(irr.article_id)}</span>
-                  </button>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 mb-1 flex-wrap">
-                      <span class="font-mono text-[10px] text-amber-300 font-bold uppercase bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">${esc(irr.source || "ข่าว")}</span>
-                      <span class="font-headline font-bold text-white text-xs truncate">${esc(irr.title)}</span>
-                    </div>
-                    <p class="text-[11px] text-amber-200/90 leading-normal">
-                      <span class="font-semibold text-amber-400">เหตุผลที่คัดแยก:</span> ${esc(irr.reason)}
-                    </p>
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          </div>
-        ` : ""}
-
-        ${politicalContexts.length === 0 && outliers.length === 0 ? `
-          <div class="p-4 text-center text-xs text-white/60">
-            ไม่พบข่าวที่ถูกคัดแยกเป็นบริบทหรืออยู่นอกประเด็นหลักในกลุ่มนี้
-          </div>
-        ` : ""}
-      </div>
-    </div>
-  `;
-
-  // Panel 1: Timeline HTML
-  const timelineHtml = progressionTimeline.length > 0 ? `
-    <div id="dossier-panel-timeline" class="dossier-tab-panel space-y-3">
-      ${progressionTimeline.map(item => {
-        const phaseColor = item.phase === "จุดเริ่มต้น"
-          ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-          : (item.phase === "ความคืบหน้าล่าสุด"
-            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-            : "bg-amber-500/20 text-amber-300 border-amber-500/40");
-        const citationsHtml = (item.evidence_ids || []).map(id => `
-          <button type="button" class="citation-chip" onclick="window.__inspectCitation('${esc(id)}')">
-            <span class="material-symbols-outlined text-[11px]">link</span>
-            <span>${esc(id)}</span>
-          </button>
-        `).join("");
-        return `
-          <div class="p-3.5 sm:p-4 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-start gap-3">
-            <div class="sm:w-36 shrink-0 flex sm:flex-col items-center sm:items-start justify-between gap-1.5 border-b sm:border-b-0 sm:border-r border-white/10 pb-2 sm:pb-0 sm:pr-3">
-              <span class="font-mono text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${phaseColor}">
-                ${esc(item.phase || "พัฒนาการ")}
-              </span>
-              <span class="font-mono text-[10px] text-white/70">${esc(item.event_time || "")}</span>
-            </div>
-            <div class="flex-1 min-w-0 space-y-1.5">
-              <p class="text-xs sm:text-sm text-white/95 leading-relaxed font-headline">${esc(item.description)}</p>
-              ${item.significance ? `
-                <p class="text-[11px] text-white/70 italic flex items-center gap-1">
-                  <span class="material-symbols-outlined text-[13px] text-amber-400">info</span>
-                  <span>${esc(item.significance)}</span>
-                </p>
-              ` : ""}
-              ${citationsHtml ? `
-                <div class="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span class="font-mono text-[10px] text-white/40">หลักฐานอ้างอิง:</span>
-                  ${citationsHtml}
-                </div>
-              ` : ""}
-            </div>
-          </div>
-        `;
-      }).join("")}
-    </div>
-  ` : `<div id="dossier-panel-timeline" class="dossier-tab-panel p-6 text-center text-xs text-white/50">ยังไม่มีข้อมูลพัฒนาการของเหตุการณ์</div>`;
-
-  // Panel 2: Facts HTML
-  const factsHtml = confirmedFacts.length > 0 ? `
-    <div id="dossier-panel-facts" class="dossier-tab-panel space-y-3 hidden">
-      ${confirmedFacts.map((fact, i) => {
-        const rawSources = (fact.supporting_sources && fact.supporting_sources.length > 0) 
-          ? fact.supporting_sources 
-          : (fact.corroborating_sources || []);
-        const sourcesHtml = rawSources.map(src => {
-          const color = SOURCE_COLORS[src] ?? "#ffffff";
-          return `<span class="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-white"><span class="w-1.5 h-1.5 rounded-full" style="background:${color}"></span>${esc(src)}</span>`;
-        }).join("");
-        const citationsHtml = (fact.evidence_ids || []).map(id => `
-          <button type="button" class="citation-chip" onclick="window.__inspectCitation('${esc(id)}')">
-            <span class="material-symbols-outlined text-[11px]">link</span>
-            <span>${esc(id)}</span>
-          </button>
-        `).join("");
-        return `
-          <div class="fact-card space-y-2">
-            <div class="flex items-start justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                <span class="material-symbols-outlined text-[16px]">verified</span>
-                <span>ข้อเท็จจริง #${String(i+1).padStart(2, "0")}</span>
-              </div>
-              <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                ${esc(fact.confidence || "ยืนยันแล้ว")}
-              </span>
-            </div>
-            <p class="text-xs sm:text-sm text-white/95 leading-relaxed">${esc(fact.fact)}</p>
-            <div class="flex items-center justify-between gap-2 pt-2 border-t border-white/10 flex-wrap">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-mono text-[10px] text-white/40">แหล่งข่าวที่ยืนยันตรงกัน:</span>
-                ${sourcesHtml}
-              </div>
-              ${citationsHtml ? `
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="font-mono text-[10px] text-white/40">หลักฐาน:</span>
-                  ${citationsHtml}
-                </div>
-              ` : ""}
-            </div>
-          </div>
-        `;
-      }).join("")}
-    </div>
-  ` : `<div id="dossier-panel-facts" class="dossier-tab-panel p-6 text-center text-xs text-white/50 hidden">ไม่มีข้อเท็จจริงที่ตรงเกณฑ์การยืนยัน</div>`;
-
-  // Panel 3: Conflicts HTML
-  const conflictsHtml = conflicts.length > 0 ? `
-    <div id="dossier-panel-conflicts" class="dossier-tab-panel space-y-4 hidden">
-      ${conflicts.map((issue, i) => {
-        const sidesHtml = (issue.sides || []).map(side => {
-          const color = SOURCE_COLORS[side.source] ?? "#ffffff";
-          return `
-            <div class="p-3 rounded-lg bg-black/50 border border-white/10 space-y-2">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-                  <span class="font-bold text-xs text-white">${esc(side.speaker || "ผู้ให้ข้อมูล")}</span>
-                  <span class="font-mono text-[10px] text-white/60">(${esc(side.source || "สื่อ")})</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-                    ${esc(side.stance || "จุดยืน")}
-                  </span>
-                  <button type="button" class="citation-chip" onclick="window.__inspectCitation('${esc(side.evidence_id)}')">
-                    <span class="material-symbols-outlined text-[11px]">link</span>
-                    <span>${esc(side.evidence_id)}</span>
-                  </button>
-                </div>
-              </div>
-              <blockquote class="text-xs text-white/85 italic border-l-2 border-amber-400/60 pl-2.5 py-0.5 leading-relaxed">
-                "${esc(side.quote || "ไม่มีโควทคำพูด")}"
-              </blockquote>
-            </div>
-          `;
-        }).join("");
-        return `
-          <div class="conflict-matrix-card space-y-3">
-            <div class="flex items-center gap-2 text-amber-400 font-bold text-xs sm:text-sm">
-              <span class="material-symbols-outlined text-[17px]">balance</span>
-              <span>ประเด็นความขัดแย้ง #${String(i+1).padStart(2, "0")}: ${esc(issue.topic)}</span>
-            </div>
-            <div class="space-y-2">
-              ${sidesHtml}
-            </div>
-          </div>
-        `;
-      }).join("")}
-    </div>
-  ` : `<div id="dossier-panel-conflicts" class="dossier-tab-panel p-6 text-center text-xs text-white/50 hidden">ไม่พบข้อขัดแย้งหรือการโต้แย้งระหว่างแหล่งข่าวในเหตุการณ์นี้</div>`;
-
-  // Panel 4: Unknowns HTML
-  const unknownsHtml = unknowns.length > 0 ? `
-    <div id="dossier-panel-unknowns" class="dossier-tab-panel space-y-3 hidden">
-      ${unknowns.map((unk, i) => `
-        <div class="unknown-card space-y-2">
-          <div class="flex items-center gap-2 text-rose-300 font-bold text-xs sm:text-sm">
-            <span class="material-symbols-outlined text-[17px]">help_center</span>
-            <span>สิ่งที่ยังไม่ทราบ #${String(i+1).padStart(2, "0")}: ${esc(unk.question)}</span>
-          </div>
-          <p class="text-xs text-white/80 leading-relaxed">
-            <strong class="text-rose-200">สาเหตุที่ยังสรุปไม่ได้:</strong> ${esc(unk.why_unclear || unk.why_unknown || "")}
-          </p>
-          ${(unk.what_to_watch || unk.pending_action) ? `
-            <div class="pt-2 border-t border-white/10 text-[11px] text-amber-300/90 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[14px]">visibility</span>
-              <span><strong>จุดที่ต้องจับตา:</strong> ${esc(unk.what_to_watch || unk.pending_action)}</span>
-            </div>
-          ` : ""}
-        </div>
-      `).join("")}
-    </div>
-  ` : `<div id="dossier-panel-unknowns" class="dossier-tab-panel p-6 text-center text-xs text-white/50 hidden">ไม่มีประเด็นที่ยังคลุมเครือหรือรอการยืนยันเพิ่มเติม</div>`;
+  const toggleTextEl = document.getElementById("storyline-audit-toggle-text");
+  if (toggleTextEl) {
+    const totalCount = metrics?.candidate_count ?? (evidenceCount + excludedCount);
+    toggleTextEl.innerHTML = `สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCount} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+  }
 
   section.innerHTML = `
-    <div class="mt-4 p-5 sm:p-6 bg-black/45 rounded-xl border border-white/15 space-y-5 animate-fade-in shadow-2xl">
-      <!-- Intelligence Dossier Header -->
-      <div class="flex items-center justify-between flex-wrap gap-2.5 border-b border-white/10 pb-3">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-amber-400 text-[20px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-          <div>
-            <h3 class="font-headline font-bold text-sm sm:text-base text-white">Event Progression Intelligence Dossier</h3>
-            <span class="text-[11px] text-white/60">แบบจำลองวิเคราะห์พัฒนาการเหตุการณ์จากหลักฐานข่าว</span>
+    <!-- Executive Summary: กล่องสรุปใจความสำคัญ อ่านง่าย สบายตา -->
+    <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+      ${esc(summaryText || "รวบรวมและสังเคราะห์ประเด็นสำคัญจากสำนักข่าวทั้งหมด")}
+    </div>
+
+    <!-- Two-Column Content: ซ้าย = ไทม์ไลน์ (7 cols) | ขวา = จุดยืนที่ต่างกัน & สิ่งที่รอการยืนยัน (5 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+      <!-- คอลัมน์ซ้าย (7 ส่วน): ลำดับเหตุการณ์และข้อเท็จจริงที่ยืนยันแล้ว -->
+      <div class="lg:col-span-7 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400">timeline</span>
+            ลำดับเหตุการณ์สำคัญ (ยืนยันตรงกันทุกสื่อ)
+          </h3>
+        </div>
+
+        <!-- Vertical Timeline -->
+        <div class="relative pl-4 border-l-2 border-slate-200 dark:border-zinc-700 space-y-5">
+          ${progressionTimeline.length > 0 ? progressionTimeline.map((item, idx) => {
+            const isLatest = idx === progressionTimeline.length - 1;
+            const isFirst = idx === 0;
+            const dotBg = isLatest 
+              ? "bg-emerald-500" 
+              : (isFirst ? "bg-amber-500" : "bg-slate-300 dark:bg-zinc-600");
+            const timeFormatted = formatEditorialDateTime(item.event_time);
+
+            return `
+              <div class="relative space-y-1.5">
+                <div class="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ${dotBg} ring-4 ring-white dark:ring-zinc-900"></div>
+                ${timeFormatted ? `
+                  <div class="flex items-center gap-2 text-xs ${isLatest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 dark:text-zinc-500'} font-mono">
+                    <span>${isLatest ? 'ล่าสุด • ' : ''}${esc(timeFormatted)}</span>
+                  </div>
+                ` : ""}
+                <p class="text-sm ${isLatest ? 'font-medium text-slate-900 dark:text-white' : 'text-slate-800 dark:text-zinc-200'} leading-relaxed">
+                  ${esc(item.description)}
+                </p>
+                ${renderCitations(item.evidence_ids || [])}
+              </div>
+            `;
+          }).join("") : `
+            <p class="text-xs text-slate-400 dark:text-zinc-500">ยังไม่มีข้อมูลลำดับเหตุการณ์</p>
+          `}
+        </div>
+      </div>
+
+      <!-- คอลัมน์ขวา (5 ส่วน): มุมมองที่ต่างกัน & ประเด็นที่ยังไม่ชัดเจน -->
+      <div class="lg:col-span-5 space-y-5">
+        ${conflicts.length > 0 ? `
+          <div class="p-4 sm:p-5 rounded-xl bg-amber-50/50 dark:bg-amber-950/15 border border-amber-200/70 dark:border-amber-500/20 space-y-3.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">balance</span>
+              จุดยืนและมุมมองที่ต่างกัน (${conflicts.length} ประเด็น)
+            </h3>
+
+            <div class="space-y-2.5">
+              ${conflicts.map(c => `
+                <div class="p-3 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200/60 dark:border-zinc-700 space-y-2 shadow-2xs">
+                  <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase">${esc(c.topic || "ประเด็นข้อคิดเห็น")}</div>
+                  <div class="space-y-1.5 text-xs">
+                    ${(c.sides || []).map((sd, sIdx) => `
+                      <div class="flex items-start gap-2 ${sIdx > 0 ? 'border-t border-slate-100 dark:border-zinc-800 pt-1.5' : ''}">
+                        <span class="font-mono font-bold text-slate-700 dark:text-zinc-300 shrink-0">${esc(sd.source || "สื่อ")}:</span>
+                        <span class="text-slate-600 dark:text-zinc-400">"${esc(sd.quote || sd.stance || "")}"</span>
+                      </div>
+                    `).join("")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
           </div>
-        </div>
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="font-mono text-[10px] uppercase px-2 py-0.5 rounded border ${badgeClass}">${badgeLabel}</span>
-          ${s.overall_sentiment ? `<span class="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-white/10 text-white">TONE: ${esc(s.overall_sentiment)}</span>` : ""}
-        </div>
-      </div>
+        ` : `
+          <div class="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
+            <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px] shrink-0 mt-0.5">verified</span>
+            <div>
+              <div class="font-bold">ความสอดคล้องของข้อมูลข่าว</div>
+              <p class="text-emerald-700 dark:text-emerald-400/90 mt-0.5 leading-relaxed">ทุกสำนักข่าวรายงานข้อมูลสอดคล้องกัน ไม่พบจุดยืนหรือข้อเท็จจริงที่ขัดแย้งกันอย่างมีนัยสำคัญ</p>
+            </div>
+          </div>
+        `}
 
-      <!-- Executive Overview Prose -->
-      <div class="space-y-1.5">
-        <span class="font-mono text-[10px] uppercase tracking-wider text-amber-400 font-bold">EXECUTIVE SYNTHESIS BRIEFING</span>
-        <div class="p-3.5 sm:p-4 rounded-lg bg-white/5 border border-white/10 text-white/95 text-xs sm:text-sm leading-relaxed font-headline">
-          ${esc(s.executive_summary || s.summary || "")}
-        </div>
-      </div>
-
-      <!-- Evidence Quality & Relevance Audit Section -->
-      ${auditSectionHtml}
-
-      <!-- Dossier Tabs Navigation -->
-      <div>
-        <div class="dossier-tabs-bar">
-          <button type="button" class="dossier-tab-btn active" data-tab="timeline" onclick="window.__switchDossierTab('timeline')">
-            <span class="material-symbols-outlined text-[15px]">timeline</span>
-            <span>พัฒนาการเหตุการณ์</span>
-            <span class="tab-badge">${progressionTimeline.length}</span>
-          </button>
-          <button type="button" class="dossier-tab-btn" data-tab="facts" onclick="window.__switchDossierTab('facts')">
-            <span class="material-symbols-outlined text-[15px]">verified</span>
-            <span>ข้อเท็จจริงยืนยันแล้ว</span>
-            <span class="tab-badge">${confirmedFacts.length}</span>
-          </button>
-          <button type="button" class="dossier-tab-btn" data-tab="conflicts" onclick="window.__switchDossierTab('conflicts')">
-            <span class="material-symbols-outlined text-[15px]">balance</span>
-            <span>จุดยืนและความเห็นต่าง</span>
-            <span class="tab-badge">${conflicts.length}</span>
-          </button>
-          <button type="button" class="dossier-tab-btn" data-tab="unknowns" onclick="window.__switchDossierTab('unknowns')">
-            <span class="material-symbols-outlined text-[15px]">help_center</span>
-            <span>สิ่งที่ยังไม่ทราบ</span>
-            <span class="tab-badge">${unknowns.length}</span>
-          </button>
-        </div>
-
-        <!-- Panels Container -->
-        <div>
-          ${timelineHtml}
-          ${factsHtml}
-          ${conflictsHtml}
-          ${unknownsHtml}
-        </div>
+        ${unknowns.length > 0 ? `
+          <div class="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/15 border border-rose-200/70 dark:border-rose-500/20 flex items-start gap-3">
+            <span class="material-symbols-outlined text-rose-500 text-[18px] mt-0.5 shrink-0">help</span>
+            <div class="space-y-1 text-xs">
+              <div class="font-bold text-rose-900 dark:text-rose-300">ประเด็นที่รอการยืนยัน</div>
+              ${unknowns.map(u => `
+                <p class="text-rose-700 dark:text-rose-200/80 leading-relaxed">• ${esc(u.question || u.why_unclear || "")}</p>
+              `).join("")}
+            </div>
+          </div>
+        ` : ""}
       </div>
     </div>
   `;
@@ -2010,20 +1873,18 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
   ])).filter(Boolean).slice(0, 10);
 
   const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
-    <div class="storyline-tags-strip">
-      <span class="font-mono text-[10px] uppercase tracking-wider text-white/60">RELATED TAGS /</span>
-      <div class="flex items-center gap-1.5 flex-wrap">
-        ${storylineHashtags.map(tag => {
-          const clean = tag.startsWith("#") ? tag.slice(1) : tag;
-          return `
-            <button type="button"
-                    class="storyline-tag-pill"
-                    onclick="window.__filterByHashtag('${esc(clean)}')">
-              #${esc(clean)}
-            </button>
-          `;
-        }).join("")}
-      </div>
+    <div class="pt-4 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2 flex-wrap">
+      <span class="font-mono text-[11px] text-slate-400 uppercase">TAGS:</span>
+      ${storylineHashtags.map(tag => {
+        const clean = tag.startsWith("#") ? tag.slice(1) : tag;
+        return `
+          <button type="button"
+                  class="px-2.5 py-1 text-xs rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
+                  onclick="window.__filterByHashtag('${esc(clean)}')">
+            #${esc(clean)}
+          </button>
+        `;
+      }).join("")}
     </div>
   ` : "";
 
@@ -2149,6 +2010,12 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
     </div>
   ` : "";
 
+  const totalCandidates = metrics?.candidate_count ?? sortedArticles.length;
+  let evidenceCount = metrics?.synthesized_evidence_count;
+  if (typeof evidenceCount !== "number") {
+    evidenceCount = Math.max(1, totalCandidates - excludedCount);
+  }
+
   container.innerHTML = `
     <div class="storyline-container">
       <div class="storyline-top-bar" id="storyline-top-bar">
@@ -2161,71 +2028,121 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
         </span>
       </div>
 
-      <div class="storyline-hero-banner">
-        <div class="font-mono text-[10px] uppercase tracking-widest text-amber-400 mb-2">EXECUTIVE STORYLINE BRIEFING</div>
-        <h1 class="storyline-hero-title">${esc(heroTitle)}</h1>
-        <div class="storyline-meta-row font-mono text-[11px]">
-          ${metrics ? `
-            <span class="text-amber-400 font-bold">${metrics.candidate_count} ข่าวในกลุ่ม (${metrics.candidate_publishers_count} สำนักข่าว)</span>
-            <span class="text-white/40">•</span>
-            <span class="text-white/80">คัดแยก ${metrics.excluded_count} รายการ</span>
-            <span class="text-white/40">•</span>
-            <span class="text-emerald-400 font-bold">หลักฐานสังเคราะห์ ${metrics.synthesized_evidence_count} ข่าว (${metrics.synthesized_publishers_count} สำนักข่าว)</span>
-            ${storyData.updated_at ? `<span class="text-white/40">•</span><span>UPDATED ${esc(storyData.updated_at)}</span>` : ""}
-          ` : `
-            <span>${outlets.length} OUTLETS</span>
-            <span>/</span>
-            <span>${sortedArticles.length} REPORTS</span>
-            ${storyData.updated_at ? `<span>/</span><span>UPDATED ${esc(storyData.updated_at)}</span>` : ""}
-          `}
+      <div class="storyline-hero-banner bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 text-slate-800 dark:text-zinc-100">
+        
+        <!-- 1. Header & Tags: สะอาดตา ตรงประเด็น -->
+        <div class="space-y-3 border-b border-slate-100 dark:border-zinc-800 pb-5">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30">
+                <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+                AI Storyline Summary
+              </span>
+              <span class="text-xs text-slate-400 dark:text-zinc-500 font-medium">${formatEditorialDateOnly(storyData.updated_at)}</span>
+            </div>
+
+            <!-- ยุบรวมปุ่ม Audit มาไว้ตรงนี้จุดเดียว ไม่ให้รกเนื้อหาหลัก -->
+            <button type="button" 
+                    id="storyline-audit-toggle-btn"
+                    onclick="window.__toggleQualityAuditPanel()" 
+                    class="px-3 py-1.5 rounded-full bg-slate-50 hover:bg-slate-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-medium flex items-center gap-2 transition-colors border border-slate-200 dark:border-zinc-700 cursor-pointer"
+                    title="คลิกเพื่อคลี่ดูรายงานการตรวจสอบคุณภาพหลักฐาน">
+              <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[16px]">verified_user</span>
+              <span id="storyline-audit-toggle-text">สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCandidates} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}</span>
+            </button>
+          </div>
+
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug tracking-tight">
+            ${esc(heroTitle)}
+          </h1>
         </div>
 
-        ${synthesis ? `
-          <!-- AI Intelligence Dossier Mount Point (Prominent Placement) -->
-          <div id="storyline-ai-section"></div>
-
-          <!-- Demoted Baseline Briefing Card -->
-          <details class="storyline-baseline-collapsible mt-3 p-3.5 bg-black/25 rounded-lg border border-white/10 text-white/80 transition-all">
-            <summary class="cursor-pointer font-bold text-xs flex items-center justify-between text-white/70 hover:text-white select-none">
-              <span class="flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[16px]">description</span>
-                <span>บทสรุปภาพรวมพื้นฐาน (Baseline Overview)</span>
-              </span>
-              <span class="font-mono text-[10px] text-white/40 flex items-center gap-1">
-                <span>คลิกเพื่อคลี่ดู</span>
-                <span class="material-symbols-outlined text-[14px]">expand_more</span>
-              </span>
-            </summary>
-            <p class="storyline-overview-body mt-2.5 text-xs text-white/75 leading-relaxed">
-              ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
-            </p>
-          </details>
-
-          ${storylineHashtagsHtml}
-        ` : `
-          <!-- Baseline Briefing Card (Active when no synthesis yet) -->
-          <div class="storyline-overview-card">
-            <div class="storyline-overview-header">
-              <div class="storyline-overview-title">
-                <span class="material-symbols-outlined text-[18px]">description</span>
-                <span>บทสรุปภาพรวมพื้นฐาน (Baseline Overview)</span>
+        <!-- 2. Toggle List: รายงานการคัดกรองข่าวของ AI (Default ปิดไว้ ให้คลิกเปิดดูได้ทันที) -->
+        ${excludedCount > 0 ? `
+          <details id="dossier-audit-panel" class="group rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 overflow-hidden transition-all text-xs text-slate-800 dark:text-zinc-200 shadow-sm">
+            <summary class="p-3.5 sm:p-4 flex items-center justify-between cursor-pointer select-none hover:bg-slate-100/70 dark:hover:bg-zinc-700/40 transition-colors list-none">
+              <div class="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-400">
+                <span class="material-symbols-outlined text-[18px]">fact_check</span>
+                <span>รายงานการคัดกรองข่าวของ AI (คัดออก ${excludedCount} รายการที่นอกประเด็น)</span>
               </div>
-              <button type="button" id="storyline-ai-btn" class="storyline-ai-btn"
-                      onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
-                <span class="material-symbols-outlined text-[15px]">auto_awesome</span>
-                <span>สังเคราะห์ความคืบหน้าด้วย AI</span>
-              </button>
+              <div class="flex items-center gap-1.5 text-slate-400 dark:text-zinc-500 group-hover:text-slate-600 dark:group-hover:text-zinc-300 font-mono text-[11px]">
+                <span class="group-open:hidden">คลิกเพื่อดู</span>
+                <span class="hidden group-open:inline">ซ่อน</span>
+                <span class="material-symbols-outlined text-[18px] transition-transform duration-200 group-open:rotate-180">expand_more</span>
+              </div>
+            </summary>
+
+            <!-- แสดงหมวดหมู่ที่คัดออกเป็น Grid หรือ List สั้นๆ ที่อ่านง่าย -->
+            <div class="p-4 pt-1 border-t border-slate-200 dark:border-zinc-700 space-y-4 animate-fade-in">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <!-- ข่าวบริบทแวดล้อม -->
+                <div class="p-3.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-500/20 space-y-2">
+                  <div class="text-blue-800 dark:text-blue-300 font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">lightbulb</span>
+                    <span>ข่าวบริบทแวดล้อม (${contextList.length})</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600 dark:text-zinc-400">ข่าวที่มีเนื้อหาเกี่ยวโยงแต่ไม่ใช่ใจความหลัก</p>
+                  ${contextList.length > 0 ? `
+                    <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pt-1">
+                      ${contextList.map(pc => `
+                        <div class="p-1.5 rounded bg-white dark:bg-zinc-900 border border-blue-100 dark:border-blue-500/20 flex items-start justify-between gap-1.5">
+                          <div class="min-w-0 flex-1 truncate text-[11px] text-slate-800 dark:text-zinc-200">
+                            <span class="text-blue-700 dark:text-blue-400 font-bold">[${esc(pc.source || "ข่าว")}]</span>
+                            <span>${esc(pc.title)}</span>
+                          </div>
+                          <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(pc.article_id)}')">${esc(pc.article_id)}</button>
+                        </div>
+                      `).join("")}
+                    </div>
+                  ` : `<p class="text-[10px] text-slate-400 dark:text-zinc-500 italic">ไม่พบข่าวบริบทแยกต่างหาก</p>`}
+                </div>
+
+                <!-- ข่าวคนละเรื่อง/คลัสเตอร์อื่น -->
+                <div class="p-3.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/20 space-y-2">
+                  <div class="text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">shuffle</span>
+                    <span>ข่าวคนละเรื่อง (${irrelevantList.length})</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600 dark:text-zinc-400">เนื้อหาไม่ตรงกับประเด็นหลักนี้</p>
+                  ${irrelevantList.length > 0 ? `
+                    <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pt-1">
+                      ${irrelevantList.map(irr => `
+                        <div class="p-1.5 rounded bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-500/20 flex items-start justify-between gap-1.5">
+                          <div class="min-w-0 flex-1 truncate text-[11px] text-slate-800 dark:text-zinc-200">
+                            <span class="text-amber-700 dark:text-amber-400 font-bold">[${esc(irr.source || "ข่าว")}]</span>
+                            <span>${esc(irr.title)}</span>
+                          </div>
+                          <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(irr.article_id)}')">${esc(irr.article_id)}</button>
+                        </div>
+                      `).join("")}
+                    </div>
+                  ` : `<p class="text-[10px] text-slate-400 dark:text-zinc-500 italic">ไม่พบข่าวหลุดประเด็น</p>`}
+                </div>
+              </div>
             </div>
-            <p class="storyline-overview-body">
-              ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
-            </p>
-
-            <!-- AI Intelligence Dossier Mount Point -->
-            <div id="storyline-ai-section"></div>
-
-            ${storylineHashtagsHtml}
-          </div>
+          </details>
+        ` : `
+          <div id="dossier-audit-panel" class="hidden"></div>
         `}
+
+        <!-- 3. AI Main Summary Section (จุดสำคัญที่สุด วางเด่นๆ ให้คนอ่านทันที) -->
+        <div id="storyline-ai-section" class="space-y-4">
+          <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+            ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
+          </div>
+          <div class="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-3">
+            <span class="text-xs text-slate-500 dark:text-zinc-400">ต้องการสังเคราะห์พัฒนาการเหตุการณ์เชิงลึกหรือไม่?</span>
+            <button type="button" id="storyline-ai-btn" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                    onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
+              <span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+              <span>สังเคราะห์ความคืบหน้าด้วย AI</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Tags ประเด็นข่าว -->
+        ${storylineHashtagsHtml}
+
       </div>
 
       <div class="storyline-filter-bar">

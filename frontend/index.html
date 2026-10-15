@@ -23,6 +23,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/frontend/static/icons/icon-192.svg">
+  <script>
+    try {
+      const p = JSON.parse(localStorage.getItem("personalization") || "{}");
+      const t = localStorage.getItem("theme_pref");
+      if (p.darkMode === true || t === "dark") {
+        document.documentElement.classList.add("dark");
+        document.documentElement.classList.remove("light");
+      }
+    } catch (e) {}
+  </script>
 </head>
 <body class="bg-surface text-on-surface antialiased font-body selection:bg-primary selection:text-white">
 
@@ -97,6 +107,18 @@
 
       <!-- Utilities & Navigation -->
       <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Direct Theme Toggle (SVG Sun / Moon) -->
+        <button id="theme-toggle-direct-btn" class="editorial-icon-btn text-on-surface" onclick="window.__toggleThemeDirectly()" title="สลับโหมดมืด / สว่าง (Toggle Dark/Light Mode)">
+          <!-- Sun SVG (shows in dark mode) -->
+          <svg class="w-[18px] h-[18px] hidden dark:block text-amber-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41"></path>
+          </svg>
+          <!-- Moon SVG (shows in light mode) -->
+          <svg class="w-[18px] h-[18px] block dark:hidden text-[#141413]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+          </svg>
+        </button>
         <button class="editorial-icon-btn" onclick="window.__showHistory()" title="ประวัติการอ่าน (Reading History)">
           <span class="material-symbols-outlined text-[20px]">history</span>
         </button>
