@@ -17,6 +17,7 @@ CHANGELOG (security patch):
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Coroutine
 from datetime import datetime, timezone
 from typing import Any
@@ -49,12 +50,13 @@ async def _deny_unauthorized(sid: str, tab_id: str) -> None:
 
 @sio.event
 async def connect(sid: str, environ: dict) -> None:
-    repo  = get_news_repository()
-    news  = repo.load_news()
+    repo   = get_news_repository()
+    counts = await asyncio.to_thread(repo.get_category_counts)
+    total  = counts.get("all", 0)
     await sio.emit(
         "init",
         {
-            "total":   len(news),
+            "total":   total,
             "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         },
         to=sid,

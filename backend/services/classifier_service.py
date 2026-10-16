@@ -10,6 +10,7 @@ GRASP  Information Expert — รู้จัก keyword ของแต่ล�
 
 from __future__ import annotations
 
+import threading
 from urllib.parse import unquote, urlparse
 
 from pythainlp.tokenize import word_tokenize
@@ -418,6 +419,7 @@ except Exception as e:
 _WANGCHAN_DIR = _BASE_DIR / "model" / "wangchanberta_classifier"
 _WANGCHAN_TOKENIZER = None
 _WANGCHAN_MODEL = None
+_WANGCHAN_LOCK = threading.Lock()
 
 
 def get_wangchanberta():
@@ -426,38 +428,42 @@ def get_wangchanberta():
     if _WANGCHAN_MODEL is not None and _WANGCHAN_TOKENIZER is not None:
         return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
 
-    if not _WANGCHAN_DIR.exists():
-        return None, None
+    with _WANGCHAN_LOCK:
+        if _WANGCHAN_MODEL is not None and _WANGCHAN_TOKENIZER is not None:
+            return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
 
-    # 1. ตรวจสอบไฟล์ Config
-    has_config = (_WANGCHAN_DIR / "config.json").exists()
+        if not _WANGCHAN_DIR.exists():
+            return None, None
 
-    # 2. ตรวจสอบไฟล์ Model Weights (ต้องมี safetensors หรือ bin)
-    has_weights = (
-        (_WANGCHAN_DIR / "model.safetensors").exists()
-        or (_WANGCHAN_DIR / "pytorch_model.bin").exists()
-    )
+        # 1. ตรวจสอบไฟล์ Config
+        has_config = (_WANGCHAN_DIR / "config.json").exists()
 
-    # 3. ตรวจสอบไฟล์ Tokenizer (ต้องมี SentencePiece หรือ tokenizer.json)
-    has_tokenizer = (
-        (_WANGCHAN_DIR / "sentencepiece.bpe.model").exists()
-        or (_WANGCHAN_DIR / "tokenizer.json").exists()
-    )
+        # 2. ตรวจสอบไฟล์ Model Weights (ต้องมี safetensors หรือ bin)
+        has_weights = (
+            (_WANGCHAN_DIR / "model.safetensors").exists()
+            or (_WANGCHAN_DIR / "pytorch_model.bin").exists()
+        )
 
-    # หากไฟล์ไม่ครบ ให้ข้ามทันทีโดยไม่ต้องเสียเวลาเสี่ยงรัน from_pretrained
-    if not (has_config and has_weights and has_tokenizer):
-        return None, None
+        # 3. ตรวจสอบไฟล์ Tokenizer (ต้องมี SentencePiece หรือ tokenizer.json)
+        has_tokenizer = (
+            (_WANGCHAN_DIR / "sentencepiece.bpe.model").exists()
+            or (_WANGCHAN_DIR / "tokenizer.json").exists()
+        )
 
-    try:
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        # หากไฟล์ไม่ครบ ให้ข้ามทันทีโดยไม่ต้องเสียเวลาเสี่ยงรัน from_pretrained
+        if not (has_config and has_weights and has_tokenizer):
+            return None, None
 
-        _WANGCHAN_TOKENIZER = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
-        _WANGCHAN_MODEL = AutoModelForSequenceClassification.from_pretrained(str(_WANGCHAN_DIR))
-        _WANGCHAN_MODEL.eval()
-        return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
-    except Exception as e:
-        print(f"Warning: WangchanBERTa failed to load: {e}")
-        return None, None
+        try:
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+            _WANGCHAN_TOKENIZER = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
+            _WANGCHAN_MODEL = AutoModelForSequenceClassification.from_pretrained(str(_WANGCHAN_DIR))
+            _WANGCHAN_MODEL.eval()
+            return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL
+        except Exception as e:
+            print(f"Warning: WangchanBERTa failed to load: {e}")
+            return None, None
 
 
 _ML_MAPPING = {

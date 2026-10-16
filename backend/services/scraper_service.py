@@ -175,7 +175,7 @@ class ScraperService:
         """เรียกใน lifespan — รันจนกว่า task ถูก cancel"""
         from backend.scrapers import SOURCES  # import ในนี้เพื่อ lazy load
 
-        seen = self._repo.load_seen()
+        seen = await asyncio.to_thread(self._repo.load_seen)
         self.log_event("INFO", "Background Scraper Service started")
 
         while True:
@@ -185,7 +185,7 @@ class ScraperService:
             print(f"\n[{datetime.now(timezone.utc):%H:%M:%S}] 🔄 กำลังดึงข่าว...")
             self.log_event("INFO", "Starting news collection cycle", "scraper")
 
-            all_news = self._repo.load_news()
+            all_news = await asyncio.to_thread(self._repo.load_news)
 
             def _on_source_result(src, status_dict):
                 self._sources_status[src.name] = {
@@ -208,8 +208,8 @@ class ScraperService:
 
             if new_batch:
                 all_news.extend(new_batch)
-                self._repo.save_news(all_news)
-                self._repo.save_seen(seen)
+                await asyncio.to_thread(self._repo.save_news, all_news)
+                await asyncio.to_thread(self._repo.save_seen, seen)
 
                 # Invalidate L1 feed and trending caches so clients see new articles immediately
                 from backend.core.l1_cache import invalidate_feed_caches
