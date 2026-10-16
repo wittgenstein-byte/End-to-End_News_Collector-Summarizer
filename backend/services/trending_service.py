@@ -245,24 +245,30 @@ class WangchanEmbedder:
 
         import torch
 
-        miss_texts = [canonical_texts[i] for i in miss_indices]
-        batch_inputs = self._tokenizer(
-            miss_texts,
-            padding=True,
-            truncation=True,
-            max_length=128,
-            return_tensors="pt",
-        )
+        batch_size = 32
+        computed_chunks: list[np.ndarray] = []
+        for start_idx in range(0, len(miss_indices), batch_size):
+            chunk_indices = miss_indices[start_idx : start_idx + batch_size]
+            chunk_texts = [canonical_texts[i] for i in chunk_indices]
+            batch_inputs = self._tokenizer(
+                chunk_texts,
+                padding=True,
+                truncation=True,
+                max_length=128,
+                return_tensors="pt",
+            )
 
-        with torch.inference_mode():
-            outputs = self._model(**batch_inputs)
-            hidden = outputs.last_hidden_state
-            mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
-            summed = torch.sum(hidden * mask, dim=1)
-            counts = torch.clamp(mask.sum(dim=1), min=1e-9)
-            raw_embs = summed / counts
-            normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
-            computed_numpy = normalized.cpu().numpy().astype(np.float32)
+            with torch.inference_mode():
+                outputs = self._model(**batch_inputs)
+                hidden = outputs.last_hidden_state
+                mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
+                summed = torch.sum(hidden * mask, dim=1)
+                counts = torch.clamp(mask.sum(dim=1), min=1e-9)
+                raw_embs = summed / counts
+                normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
+                computed_chunks.append(normalized.cpu().numpy().astype(np.float32))
+
+        computed_numpy = np.vstack(computed_chunks)
 
         with self._cache_lock:
             for i, miss_idx in enumerate(miss_indices):
@@ -924,8 +930,15 @@ class TrendingService:
         if not eligible_stories:
             return []
 
-        # Load member articles from NewsRepositoryPort
-        raw_news = self._news_repo.load_news()
+        # Load only member articles needed by eligible stories (indexed lookup if supported)
+        needed_urls = list(
+            {u.strip() for s in eligible_stories for u in s.article_urls if u and isinstance(u, str) and u.strip()}
+        )
+        if hasattr(self._news_repo, "get_by_urls"):
+            raw_news = self._news_repo.get_by_urls(needed_urls)
+        else:
+            raw_news = self._news_repo.load_news()
+
         news_map: dict[str, dict[str, Any]] = {}
         for a in raw_news:
             if isinstance(a, dict):
@@ -1039,13 +1052,20 @@ class TrendingService:
         macro_repo = get_macro_event_repository()
         all_macros = macro_repo.list_macro_events(status="active", limit=500)
 
-        raw_news = self._news_repo.load_news()
         news_map: dict[str, dict[str, Any]] = {}
-        for a in raw_news:
-            if isinstance(a, dict):
-                u = a.get("url")
-                if u and isinstance(u, str):
-                    news_map[u.strip()] = a
+        if all_macros:
+            raw_news = (
+                self._news_repo.load_recent_news(hours=168.0)
+                if hasattr(self._news_repo, "load_recent_news") and now is None
+                else self._news_repo.load_news()
+            )
+            if not raw_news:
+                raw_news = self._news_repo.load_news()
+            for a in raw_news:
+                if isinstance(a, dict):
+                    u = a.get("url")
+                    if u and isinstance(u, str):
+                        news_map[u.strip()] = a
 
         scored_macros: list[dict[str, Any]] = []
 
@@ -1444,7 +1464,13 @@ class TrendingService:
         cohesion clustering, Tier 2 result caching, and batched LLM enrichment.
         """
         current_time = now or datetime.now(timezone.utc)
-        raw_news = self._news_repo.load_news()
+        window_hours = self._trending_window_hours
+        if now is None and window_hours > 0 and hasattr(self._news_repo, "load_recent_news"):
+            raw_news = self._news_repo.load_recent_news(hours=window_hours + 2.0)
+            if not raw_news:
+                raw_news = self._news_repo.load_news()
+        else:
+            raw_news = self._news_repo.load_news()
 
         if not raw_news:
             return TrendingListResponse(
@@ -1462,7 +1488,6 @@ class TrendingService:
             if category and category.strip().lower() not in {"", "all"}
             else None
         )
-        window_hours = self._trending_window_hours
 
         # 1. Parse article timestamps and find candidate window
         candidates: list[tuple[dict[str, Any], datetime]] = []
@@ -1495,8 +1520,7 @@ class TrendingService:
                 ref_time = latest_time
 
         # 2. Pre-filter articles by 48h window and category
-        filtered_news: list[dict[str, Any]] = []
-        filtered_times: list[datetime] = []
+        filtered_pairs: list[tuple[dict[str, Any], datetime]] = []
         for n, art_time in candidates:
             elapsed = (ref_time - art_time).total_seconds() / 3600.0
             if window_hours > 0 and (elapsed > window_hours or elapsed < -2.0):
@@ -1506,10 +1530,9 @@ class TrendingService:
             if cat_filter is None or cat == cat_filter:
                 n_copy = dict(n)
                 n_copy["category"] = cat
-                filtered_news.append(n_copy)
-                filtered_times.append(art_time)
+                filtered_pairs.append((n_copy, art_time))
 
-        if not filtered_news:
+        if not filtered_pairs:
             return TrendingListResponse(
                 total=0,
                 updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1519,6 +1542,15 @@ class TrendingService:
                 trending_hashtags=[],
                 hero=None,
             )
+
+        # Cap candidate pool to most recent 60 articles to prevent CPU starvation on 2-vCPU servers
+        max_candidates = max(60, min(limit * 2, 100))
+        if len(filtered_pairs) > max_candidates:
+            filtered_pairs.sort(key=lambda pair: pair[1], reverse=True)
+            filtered_pairs = filtered_pairs[:max_candidates]
+
+        filtered_news = [pair[0] for pair in filtered_pairs]
+        filtered_times = [pair[1] for pair in filtered_pairs]
 
         # 3. Check Tier 2 Result Cache using composite hash key
         content_hash = hashlib.sha256(
@@ -1688,15 +1720,21 @@ class TrendingService:
 
 # ── Factory / DI helper ───────────────────────────────────────────
 
+_TRENDING_SERVICE_INSTANCE: TrendingService | None = None
+
+
 def get_trending_service() -> TrendingService:
-    """FastAPI Depends() factory for TrendingService."""
-    news_repo = get_news_repository()
-    engagement_repo = get_engagement_repository()
-    story_repo = get_story_repository()
-    return TrendingService(
-        news_repo=news_repo,
-        engagement_repo=engagement_repo,
-        story_repo=story_repo,
-        half_life_hours=settings.recency_half_life_hours,
-        trending_window_hours=settings.trending_window_hours,
-    )
+    """FastAPI Depends() factory for TrendingService (Singleton)."""
+    global _TRENDING_SERVICE_INSTANCE
+    if _TRENDING_SERVICE_INSTANCE is None:
+        news_repo = get_news_repository()
+        engagement_repo = get_engagement_repository()
+        story_repo = get_story_repository()
+        _TRENDING_SERVICE_INSTANCE = TrendingService(
+            news_repo=news_repo,
+            engagement_repo=engagement_repo,
+            story_repo=story_repo,
+            half_life_hours=settings.recency_half_life_hours,
+            trending_window_hours=settings.trending_window_hours,
+        )
+    return _TRENDING_SERVICE_INSTANCE

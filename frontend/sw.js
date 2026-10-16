@@ -8,8 +8,8 @@
  * 4. Offline Fallback: Serves cached app shell and cached API data seamlessly
  */
 
-const CACHE_NAME = "newsroom-pwa-v3.2.0";
-const API_CACHE_NAME = "newsroom-api-v3.2.0";
+const CACHE_NAME = "newsroom-pwa-v3.3.1";
+const API_CACHE_NAME = "newsroom-api-v3.3.1";
 
 const PRECACHE_ASSETS = [
   "/",

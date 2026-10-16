@@ -339,7 +339,11 @@ let globalSocket = null;
 
 export function createSocket(handlers) {
   /* global io */
-  const socket = io(SOCKET_URL);
+  const socket = io(SOCKET_URL, {
+    transports: ["websocket", "polling"],
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+  });
   globalSocket = socket;
 
   socket.on("connect",      ()     => handlers.onConnect?.());

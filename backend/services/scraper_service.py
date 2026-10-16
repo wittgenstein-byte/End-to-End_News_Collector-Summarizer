@@ -185,7 +185,10 @@ class ScraperService:
             print(f"\n[{datetime.now(timezone.utc):%H:%M:%S}] 🔄 กำลังดึงข่าว...")
             self.log_event("INFO", "Starting news collection cycle", "scraper")
 
-            all_news = await asyncio.to_thread(self._repo.load_news)
+            from backend.repo.news_repo import FileNewsRepository
+
+            is_file_repo = isinstance(self._repo, FileNewsRepository)
+            all_news = await asyncio.to_thread(self._repo.load_news) if is_file_repo else []
 
             def _on_source_result(src, status_dict):
                 self._sources_status[src.name] = {
@@ -207,21 +210,29 @@ class ScraperService:
             )
 
             if new_batch:
-                all_news.extend(new_batch)
-                await asyncio.to_thread(self._repo.save_news, all_news)
-                await asyncio.to_thread(self._repo.save_seen, seen)
+                if is_file_repo:
+                    all_news.extend(new_batch)
+                    await asyncio.to_thread(self._repo.save_news, all_news)
+                    await asyncio.to_thread(self._repo.save_seen, seen)
+                    total_count = len(all_news)
+                else:
+                    new_urls = {a["url"] for a in new_batch if a.get("url")}
+                    await asyncio.to_thread(self._repo.save_news, new_batch)
+                    await asyncio.to_thread(self._repo.save_seen, new_urls)
+                    counts = await asyncio.to_thread(self._repo.get_category_counts)
+                    total_count = counts.get("all", len(seen))
 
                 # Invalidate L1 feed and trending caches so clients see new articles immediately
                 from backend.core.l1_cache import invalidate_feed_caches
                 await invalidate_feed_caches()
 
-                print(f"  💾 {len(new_batch)} บทความใหม่ (รวม {len(all_news)})")
-                self.log_event("SUCCESS", f"Collected {len(new_batch)} new articles (Total: {len(all_news)})", "scraper")
+                print(f"  💾 {len(new_batch)} บทความใหม่ (รวม {total_count})")
+                self.log_event("SUCCESS", f"Collected {len(new_batch)} new articles (Total: {total_count})", "scraper")
                 await self._emit(
                     "new_articles",
                     {
                         "count": len(new_batch),
-                        "total": len(all_news),
+                        "total": total_count,
                         "articles": new_batch,
                         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                     },

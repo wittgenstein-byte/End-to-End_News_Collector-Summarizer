@@ -13,6 +13,7 @@ POLICY Zero Crash Guarantee — Always returns HTTP 200 with fallback
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import datetime, timezone
 from typing import Any
@@ -20,6 +21,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend.config import settings
+from backend.core.l1_cache import trending_cache
 from backend.repo.macro_event_repo import (
     MacroEventRepositoryPort,
     get_macro_event_repository,
@@ -71,7 +74,7 @@ async def list_macro_events(
     macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
 ) -> MacroEventListResponse:
     """List macro-events with pagination and filtering."""
-    all_macros = macro_repo.list_macro_events(status=status_filter, limit=1000, offset=0)
+    all_macros = await asyncio.to_thread(macro_repo.list_macro_events, status=status_filter, limit=1000, offset=0)
 
     if category and category.strip().lower() not in ("", "all"):
         target_cat = category.strip().lower()
@@ -113,7 +116,14 @@ async def get_trending_macro_events(
     trending_service: TrendingService = Depends(get_trending_service),
 ) -> list[dict[str, Any]]:
     """Get ranked trending macro-events (storylines) with full score breakdown."""
-    return trending_service.get_trending_macro_events(limit=limit, category=category)
+    cache_key = f"trending_macro:{limit}:{category or 'all'}"
+    cached = await trending_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    res = await asyncio.to_thread(trending_service.get_trending_macro_events, limit=limit, category=category)
+    await trending_cache.set(cache_key, res, ttl_seconds=float(settings.trending_cache_ttl_seconds))
+    return res
 
 
 @router.get("/{macro_id}", response_model=MacroEventDetailResponse)

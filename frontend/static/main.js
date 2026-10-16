@@ -1063,40 +1063,8 @@ async function loadPage(page = 1) {
   UI.hideForYouOnboarding();
 
   currentPage = page;
-
-  // Handle Hero Trending Highlights: shown on Page 1 for 'all' and 'sports' categories, no search, no source filter
   const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all" || activeCategory === "sports") && !searchQuery && !activeSource;
-  if (shouldShowTrending) {
-    fetchTrendingStories(TRENDING_LIMIT, activeCategory)
-      .then(trendingList => {
-        if (Array.isArray(trendingList) && trendingList.length > 0) {
-          trendingList.forEach(a => {
-            if (a.url) currentArticleMap.set(a.url, a);
-            if (Array.isArray(a.articles)) {
-              a.articles.forEach(subArt => {
-                if (subArt.url) currentArticleMap.set(subArt.url, subArt);
-              });
-            }
-            if (Array.isArray(a.child_events)) {
-              a.child_events.forEach(ce => {
-                if (Array.isArray(ce.articles)) {
-                  ce.articles.forEach(subArt => {
-                    if (subArt.url) currentArticleMap.set(subArt.url, subArt);
-                  });
-                }
-              });
-            }
-          });
-          UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
-        } else {
-          document.getElementById("hero-trending")?.classList.add("hidden");
-        }
-      })
-      .catch(tErr => {
-        console.warn("Failed to load trending highlights:", tErr);
-        document.getElementById("hero-trending")?.classList.add("hidden");
-      });
-  } else {
+  if (!shouldShowTrending) {
     document.getElementById("hero-trending")?.classList.add("hidden");
   }
 
@@ -1104,6 +1072,8 @@ async function loadPage(page = 1) {
 
   try {
     const data = await fetchNews(page, activeSource, searchQuery, activeCategory);
+    UI.setWsBadge(true);
+    UI.showOfflineStatus(false);
     if (data.news && Array.isArray(data.news)) {
       data.news.forEach(a => { if (a.url) currentArticleMap.set(a.url, a); });
     }
@@ -1130,6 +1100,39 @@ async function loadPage(page = 1) {
     UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
     UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
+
+    // Load Hero Trending Highlights asynchronously AFTER main feed is rendered
+    if (shouldShowTrending) {
+      fetchTrendingStories(TRENDING_LIMIT, activeCategory)
+        .then(trendingList => {
+          if (Array.isArray(trendingList) && trendingList.length > 0) {
+            trendingList.forEach(a => {
+              if (a.url) currentArticleMap.set(a.url, a);
+              if (Array.isArray(a.articles)) {
+                a.articles.forEach(subArt => {
+                  if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+                });
+              }
+              if (Array.isArray(a.child_events)) {
+                a.child_events.forEach(ce => {
+                  if (Array.isArray(ce.articles)) {
+                    ce.articles.forEach(subArt => {
+                      if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+                    });
+                  }
+                });
+              }
+            });
+            UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
+          } else {
+            document.getElementById("hero-trending")?.classList.add("hidden");
+          }
+        })
+        .catch(tErr => {
+          console.warn("Failed to load trending highlights:", tErr);
+          document.getElementById("hero-trending")?.classList.add("hidden");
+        });
+    }
   } catch (e) {
     console.warn("fetchNews failed, attempting offline cache fallback:", e.message);
     // Offline fallback
@@ -1253,6 +1256,8 @@ window.__dismissNewArticlesBanner = (event) => {
 
 // ── WebSocket ─────────────────────────────────────────────────────
 
+let initialLoadStarted = false;
+
 const socket = createSocket({
   onConnect() {
     UI.setWsBadge(true);
@@ -1261,8 +1266,12 @@ const socket = createSocket({
     UI.setWsBadge(false);
   },
   onInit(data) {
+    UI.setWsBadge(true);
     UI.updateStats({ total: data.total, updated: data.updated });
-    loadPage(1);
+    if (!initialLoadStarted) {
+      initialLoadStarted = true;
+      loadPage(1);
+    }
     refreshCategoryCounts();
     refreshSourceFilters();
   },
@@ -2158,6 +2167,8 @@ if (hasConsent) {
 
 UI.renderCategoryNav(activeCategory, {}, personalizationData.bookmarkedArticles || {});
 UI.renderSourceFilters([], activeSource, {});
+initialLoadStarted = true;
+loadPage(1);
 refreshCategoryCounts();
 refreshSourceFilters();
 checkPDPA();
