@@ -59,3 +59,5 @@ graphify-out
 *.snm
 *.vrb
 build/
+
+SECURITY_AUDIT_REPORT.md

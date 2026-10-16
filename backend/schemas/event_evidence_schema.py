@@ -149,6 +149,65 @@ class IrrelevantArticle(BaseModel):
     reason: str = Field(description="Why this article is irrelevant to the central event")
 
 
+class RelevanceGateResult(BaseModel):
+    """
+    Stage 1 Event Relevance Gate classification result.
+    Triages candidate articles into direct event evidence, political/situational context,
+    and excluded off-topic articles.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    event_id: str = Field(description="Unique event or story identifier")
+    relevant_article_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of articles directly reporting on the core incident",
+    )
+    context_article_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of articles providing political/situational context",
+    )
+    excluded_article_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of unrelated or off-topic articles",
+    )
+    exclusion_reasons: dict[str, str] = Field(
+        default_factory=dict,
+        description="Reason for exclusion or context classification per article ID",
+    )
+
+
+class PoliticalContextItem(BaseModel):
+    """
+    Context article providing political or situational background (e.g. censure debate)
+    kept separate from the chronological direct incident progression timeline.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    article_id: str = Field(description="Article reference ID e.g. 'art_23'")
+    source: str = Field(default="", description="Publisher name")
+    title: str = Field(default="", description="Headline of the context article")
+    context_summary: str = Field(default="", description="Summary of the background context")
+    relation_to_event: str = Field(default="", description="How this context relates to the central event")
+
+
+class DossierMetrics(BaseModel):
+    """
+    Quantitative audit metrics for the synthesized intelligence dossier.
+    Provides complete transparency on candidate pool vs filtered evidence.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    candidate_count: int = Field(default=0, description="Total candidate articles in cluster")
+    excluded_count: int = Field(default=0, description="Articles classified as context or excluded")
+    synthesized_evidence_count: int = Field(default=0, description="Articles directly used for synthesis")
+    candidate_publishers_count: int = Field(default=0, description="Unique publishers among all candidates")
+    synthesized_publishers_count: int = Field(default=0, description="Unique publishers among synthesized evidence")
+    synthesized_publishers: list[str] = Field(
+        default_factory=list,
+        description="List of publisher names in synthesized evidence",
+    )
+
+
 class EventProgressionSynthesis(BaseModel):
     """
     Full 3-Layer Event Progression Intelligence Model.
@@ -178,6 +237,14 @@ class EventProgressionSynthesis(BaseModel):
     irrelevant_articles: list[IrrelevantArticle] = Field(
         default_factory=list,
         description="Outlier articles in this cluster that do not belong to the macro-event",
+    )
+    political_contexts: list[PoliticalContextItem] = Field(
+        default_factory=list,
+        description="Background political or environmental context articles separated from core event",
+    )
+    metrics: DossierMetrics | None = Field(
+        default=None,
+        description="Quantitative audit metrics for the dossier",
     )
     is_fallback: bool = Field(default=False, description="True if generated via deterministic heuristic")
     cached: bool = Field(default=False, description="True if served from cache")

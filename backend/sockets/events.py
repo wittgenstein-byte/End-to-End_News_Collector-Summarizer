@@ -28,10 +28,15 @@ from backend.services.browser_service import browser_service
 # tab_id -> sid that opened it. Lets every other handler verify the caller
 # actually owns the tab before touching it.
 _tab_owners: dict[str, str] = {}
+_MAX_TABS_PER_SID: int = 5
 
 
 def _owns_tab(sid: str, tab_id: str) -> bool:
     return _tab_owners.get(tab_id) == sid
+
+
+def _sid_tab_count(sid: str) -> int:
+    return sum(1 for owner in _tab_owners.values() if owner == sid)
 
 
 async def _deny_unauthorized(sid: str, tab_id: str) -> None:
@@ -73,6 +78,13 @@ async def disconnect(sid: str) -> None:
 async def browser_open_tab(sid: str, data: dict) -> None:
     tab_id = data.get("tab_id")
     if not tab_id:
+        return
+    if tab_id not in _tab_owners and _sid_tab_count(sid) >= _MAX_TABS_PER_SID:
+        await sio.emit(
+            "browser_snapshot",
+            {"tab_id": tab_id, "error": f"Tab limit reached (max {_MAX_TABS_PER_SID} tabs per session)"},
+            to=sid,
+        )
         return
     try:
         await browser_service.open_tab(tab_id)
@@ -121,6 +133,13 @@ async def browser_open_and_navigate(sid: str, data: dict) -> None:
     tab_id = data.get("tab_id")
     url = data.get("url")
     if not (tab_id and url):
+        return
+    if tab_id not in _tab_owners and _sid_tab_count(sid) >= _MAX_TABS_PER_SID:
+        await sio.emit(
+            "browser_snapshot",
+            {"tab_id": tab_id, "error": f"Tab limit reached (max {_MAX_TABS_PER_SID} tabs per session)"},
+            to=sid,
+        )
         return
     await sio.emit("browser_loading", {"tab_id": tab_id}, to=sid)
     try:

@@ -54,7 +54,6 @@ def _get(key: str, default: str = "") -> str:
 
 
 # ── Tiered Model Defaults (KKU OpenSDK / OpenAI-compatible endpoint) ──
-# อ้างอิงจากโมเดลที่เปิดใช้งานจริงและตอบสนองได้สมบูรณ์ในระบบ KKU OpenSDK ล่าสุด
 DEFAULT_TIER1_MODELS: list[str] = [
     "gemini-3.5-flash-lite",
     "nova-2-lite-v1",
@@ -103,10 +102,54 @@ def _build_cascade_models(primary_model: str, custom_cascade_env: str) -> list[s
     return result
 
 
+def _parse_csv(value: str, default: list[str]) -> list[str]:
+    """Parse comma-separated values into a stripped, non-empty list."""
+    if not value or not value.strip():
+        return list(default)
+    parsed = [v.strip() for v in value.split(",") if v.strip()]
+    return parsed or list(default)
+
+
 # ── Settings ─────────────────────────────────────────────────────
 
 class Settings:
-    # LLM
+    # ── Provider 1: KKU OpenSDK (Primary Campus Gateway) ──────────
+    kku_api_key: str        = _get("LLM_API_KEY", _get("LLM_API"))
+    kku_base_url: str       = _get("LLM_BASE_URL", "https://gen.ai.kku.ac.th/api/v1")
+    kku_models: ClassVar[list[str]] = _parse_csv(
+        _get("KKU_MODELS"),
+        ["gemini-3.5-flash-lite", "nova-2-lite-v1", "llama-4-maverick", "nova-pro-v1", "gpt-5.6-luna", "mistral-medium-3"],
+    )
+
+    # ── Provider 2: Google Gemini Direct API (Cloud High-Availability) ──
+    # Accepts GOOGLE_API_KEY, GEMINI_API_KEY, or legacy news_assistant key
+    google_api_key: str     = _get("GOOGLE_API_KEY", _get("GEMINI_API_KEY", _get("news_assistant")))
+    google_base_url: str    = _get("GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    google_models: ClassVar[list[str]] = _parse_csv(
+        _get("GOOGLE_MODELS"),
+        ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"],
+    )
+
+    # ── Provider 3: Thai LLM (Typhoon / Sovereign Thai Model - Disabled by default) ──
+    thai_llm_enabled: bool  = _get("THAI_LLM_ENABLED", "false").lower() == "true"
+    thai_llm_api_key: str   = _get("THAI_LLM_API_KEY", _get("THAI_LLM"))
+    thai_llm_base_url: str  = _get("THAI_LLM_BASE_URL", "https://api.opentyphoon.ai/v1")
+    thai_llm_models: ClassVar[list[str]] = _parse_csv(
+        _get("THAI_LLM_MODELS"),
+        ["typhoon-v2.5-30b-a3b-instruct"],
+    )
+
+    # ── High Availability Engine Tuning ──────────────────────────
+    llm_provider_order: ClassVar[list[str]] = _parse_csv(
+        _get("LLM_PROVIDER_ORDER"),
+        ["kku", "google", "thai_llm"],
+    )
+    llm_per_target_timeout: float      = float(_get("LLM_PER_TARGET_TIMEOUT", "10.0"))
+    llm_overall_request_timeout: float = float(_get("LLM_OVERALL_REQUEST_TIMEOUT", "30.0"))
+    llm_circuit_breaker_cooldown: float = float(_get("LLM_CIRCUIT_BREAKER_COOLDOWN", "45.0"))
+    fallback_cache_ttl_seconds: int    = int(_get("FALLBACK_CACHE_TTL_SECONDS", "7200"))
+
+    # ── Legacy / Backwards Compatibility Aliases ─────────────────
     llm_api_key: str        = _get("LLM_API_KEY", _get("LLM_API"))
     llm_base_url: str       = _get("LLM_BASE_URL", "https://gen.ai.kku.ac.th/api/v1")
     llm_model: str          = _get("LLM_MODEL",    "gemini-3.5-flash-lite")
@@ -155,7 +198,7 @@ class Settings:
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
     db_type: str            = _get("DB_TYPE", "sqlite").lower().strip()
     sqlite_wal_mode: bool   = _get("SQLITE_WAL_MODE", "true").lower() in {"1", "true", "yes"}
-    sqlite_cache_size_kb: int = int(_get("SQLITE_CACHE_SIZE_KB", "64000"))
+    sqlite_cache_size_kb: int = int(_get("SQLITE_CACHE_SIZE_KB", "16000"))
     sqlite_mmap_size_bytes: int = int(_get("SQLITE_MMAP_SIZE_BYTES", "268435456"))
 
     # Tiered In-Memory Caching (L1 RAM Layer)

@@ -34,14 +34,18 @@ from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.config import settings
+from backend.core.cascading_client import CascadingLLMClient, get_cascading_client
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.schemas.event_evidence_schema import (
     ConfirmedFact,
     DisputeIssue,
     DisputeSide,
+    DossierMetrics,
     EventProgressionSynthesis,
     IrrelevantArticle,
+    PoliticalContextItem,
     ProgressionMilestone,
+    RelevanceGateResult,
     UnknownPoint,
 )
 from backend.schemas.macro_event_schema import MacroEventRecord, MacroTimelineEvent
@@ -64,6 +68,39 @@ _BOILERPLATE_PATTERNS: tuple[str, ...] = (
     "ติดตามรายละเอียด",
     "อ่านต่อได้ที่",
 )
+
+_RELEVANCE_CONTEXT_KEYWORDS: tuple[str, ...] = (
+    "อภิปรายไม่ไว้วางใจ",
+    "ซักฟอก",
+    "ญัตติ",
+    "ไม่ไว้วางใจ",
+    "เปิดศึกซักฟอก",
+    "การแถลงนโยบาย",
+    "งบประมาณประจำปี",
+    "ฝ่ายค้านยื่น",
+    "ศึกซักฟอก",
+    "ลงมติไม่ไว้วางใจ",
+    "ญัตติอภิปราย",
+)
+
+_RELEVANCE_STOPWORDS: set[str] = {
+    "การ", "ความ", "และ", "ใน", "ของ", "ที่", "มี", "เป็น", "ไป", "มา", "กับ", "ให้",
+    "ได้", "โดย", "จาก", "เรื่อง", "กรณี", "ปม", "เปิด", "ชี้", "เผย", "สั่ง", "จ่อ",
+    "ยัน", "ลั่น", "แจง", "เร่ง", "พบ", "เตือน", "แนะ", "รับ", "ส่ง", "ยื่น", "ขอ",
+    "ข่าว", "รายงาน", "ล่าสุด",
+}
+
+
+def _tokenize_thai_words(text: str) -> list[str]:
+    """Tokenize Thai/English text using pythainlp with regex fallback."""
+    if not text:
+        return []
+    try:
+        from pythainlp.tokenize import word_tokenize
+        tokens = word_tokenize(text, engine="newmm")
+        return [t.strip().lower() for t in tokens if len(t.strip()) > 1]
+    except Exception:
+        return [w.lower() for w in re.findall(r"[\wก-๙]{2,}", text)]
 
 
 def normalize_timestamp(ts: Any) -> str:
@@ -94,6 +131,56 @@ def normalize_timestamp(ts: Any) -> str:
                 continue
         return clean
     return ""
+
+
+def _normalize_and_sort_candidate_articles(articles: Sequence[Any]) -> list[Any]:
+    """
+    Ensure candidate articles have a stable chronological order if article_id is not preset.
+    If all articles already have article_id preset, preserves incoming order for compatibility.
+    """
+    has_preset_ids = all(
+        bool(a.get("article_id") if isinstance(a, dict) else getattr(a, "article_id", None))
+        for a in articles
+    )
+    if has_preset_ids or not articles:
+        return list(articles)
+
+    def _sort_key(a: Any) -> tuple[str, str, str]:
+        if isinstance(a, dict):
+            ts = str(a.get("published_at") or a.get("fetched_at") or a.get("created_at") or "")
+            t = str(a.get("title") or "")
+            u = str(a.get("url") or "")
+        else:
+            ts = str(getattr(a, "published_at", None) or getattr(a, "fetched_at", None) or getattr(a, "created_at", None) or "")
+            t = str(getattr(a, "title", None) or "")
+            u = str(getattr(a, "url", None) or "")
+        return (ts, t, u)
+
+    return sorted(articles, key=_sort_key)
+
+
+def _check_is_sports_collection(title: str, articles: Sequence[Any]) -> bool:
+    """Detect whether a candidate collection is predominantly sports news."""
+    if not articles:
+        return False
+    sports_kw = {
+        "ucl", "ชปล", "พรีเมียร์ลีก", "ไทยลีก", "ฟุตบอล", "กีฬา", "วอลเลย์บอล",
+        "ลูกยาง", "ผลบอล", "แข่ง", "แชมป์", "แต้ม", "สโมสร", "นักเตะ", "เอเอฟซี",
+        "แชมเปียนส์", "แชมเปี้ยนส์", "พาราเกมส์", "เทนนิส", "แบดมินตัน",
+    }
+    sports_count = 0
+    for a in articles:
+        cat = getattr(a, "category", "") if not isinstance(a, dict) else a.get("category", "")
+        u = getattr(a, "url", "") if not isinstance(a, dict) else a.get("url", "")
+        t = getattr(a, "title", "") if not isinstance(a, dict) else a.get("title", "")
+        if (
+            cat == "sports"
+            or "/sport" in str(u).lower()
+            or "/football" in str(u).lower()
+            or any(k in str(t).lower() for k in sports_kw)
+        ):
+            sports_count += 1
+    return (sports_count / len(articles)) >= 0.35
 
 
 # ── Presentation Schemas ──────────────────────────────────────────
@@ -276,6 +363,33 @@ Rules:
 - Return ONLY valid JSON, no markdown code block fences (no ```json)."""
 
 
+RELEVANCE_GATE_SYSTEM_PROMPT = """You are a Senior News Verification and Relevance Gatekeeper for Thai News Intelligence.
+Your task is to analyze candidate articles grouped into a news topic and strictly triage them into three categories:
+
+1. `relevant_article_ids`: Articles reporting DIRECTLY on the central incident, core actors involved, and immediate factual developments.
+2. `context_article_ids`: Articles providing political, historical, or background context (e.g., general parliamentary debates, censure motions, broader political power struggles) that mention key figures but are NOT about the specific incident itself.
+3. `excluded_article_ids`: Articles that are completely off-topic, unrelated, or erroneously clustered.
+
+You must also provide:
+- `exclusion_reasons`: A dictionary mapping each context or excluded article_id to a concise Thai explanation of why it was categorized as context or excluded.
+
+Output MUST be strictly valid JSON matching this schema:
+{
+  "relevant_article_ids": ["art_01"],
+  "context_article_ids": ["art_23"],
+  "excluded_article_ids": ["art_30"],
+  "exclusion_reasons": {
+    "art_23": "บริบทการเมือง: การอภิปรายไม่ไว้วางใจในสภาผู้แทนราษฎร",
+    "art_30": "ข่าวนอกประเด็น: เนื้อหาไม่เกี่ยวข้องกับเหตุการณ์หลัก"
+  }
+}
+
+Rules:
+- Ground your triage strictly in the central incident stated in the title.
+- Do NOT allow political background debates to dilute the direct incident evidence.
+- Return ONLY valid JSON, no markdown code block fences (no ```json)."""
+
+
 EVENT_PROGRESSION_SYSTEM_PROMPT = """You are an elite Senior Intelligence Analyst and News Verification Director.
 Your task is NOT to write a generic summary of news articles.
 Instead, you must construct an Evidence-Grounded Event Progression Model (แบบจำลองความคืบหน้าของเหตุการณ์จากหลักฐาน) from the structured evidence provided in JSON.
@@ -365,19 +479,34 @@ class StoryPresentationService:
 
     def __init__(
         self,
-        client: OpenAI | None = None,
+        client: CascadingLLMClient | OpenAI | None = None,
         models: list[str] | None = None,
         temperature: float = 0.2,
         news_repo: NewsRepositoryPort | None = None,
         cache_max_size: int = 500,
         cache_file: Path | None = None,
     ) -> None:
-        self._client = client
-        self._models = list(models) if models else list(settings.llm_cascade_models)
         self._temperature = temperature
         self._news_repo = news_repo
         self._cache_max_size = cache_max_size
         self._cache_file = cache_file or (getattr(settings, "DATA_DIR", Path("data")) / "presentation_cache.json")
+
+        self._client: Any
+        if isinstance(client, CascadingLLMClient):
+            self._client = client
+            self._cascading_client: CascadingLLMClient | None = client
+            self._models = [t.model for t in client.targets]
+        elif client is not None:
+            self._client = client
+            self._models = list(models) if models else list(settings.llm_cascade_models)
+            self._cascading_client = CascadingLLMClient.from_client_and_models(
+                client=client,
+                models=self._models,
+            )
+        else:
+            self._client = None
+            self._cascading_client = None
+            self._models = list(models) if models else list(settings.llm_cascade_models)
 
         # In-memory thread-safe presentation cache keyed by (story_id, updated_at)
         self._cache: dict[tuple[str, str], StoryPresentation] = {}
@@ -468,6 +597,7 @@ class StoryPresentationService:
         event_id: str | None = None,
         articles: Sequence[dict[str, Any] | ArticleRecord] | None = None,
         title: str | None = None,
+        require_metrics: bool = True,
     ) -> EventProgressionSynthesis | None:
         """
         Multi-tier cache lookup resilient to cluster_id re-grouping and shifting:
@@ -483,8 +613,11 @@ class StoryPresentationService:
                 if isinstance(entry, dict) and entry.get("data"):
                     try:
                         data = dict(entry["data"])
-                        data["cached"] = True
-                        return EventProgressionSynthesis.model_validate(data)
+                        if require_metrics and data.get("metrics") is None:
+                            logger.debug("find_cached_synthesis: skipping legacy cache entry without metrics for %s", event_id)
+                        else:
+                            data["cached"] = True
+                            return EventProgressionSynthesis.model_validate(data)
                     except Exception as err:
                         logger.debug("find_cached_synthesis: direct id validate failed: %s", err)
 
@@ -496,10 +629,13 @@ class StoryPresentationService:
                 if isinstance(sig_entry, dict) and sig_entry.get("data"):
                     try:
                         data = dict(sig_entry["data"])
-                        data["cached"] = True
-                        if event_id:
-                            self._disk_cache[f"synthesis_{event_id}"] = sig_entry
-                        return EventProgressionSynthesis.model_validate(data)
+                        if require_metrics and data.get("metrics") is None:
+                            logger.debug("find_cached_synthesis: skipping legacy sig cache entry without metrics")
+                        else:
+                            data["cached"] = True
+                            if event_id:
+                                self._disk_cache[f"synthesis_{event_id}"] = sig_entry
+                            return EventProgressionSynthesis.model_validate(data)
                     except Exception as err:
                         logger.debug("find_cached_synthesis: sig validate failed: %s", err)
 
@@ -517,11 +653,11 @@ class StoryPresentationService:
                     for k, item in self._disk_cache.items():
                         if not k.startswith("synthesis_") or not isinstance(item, dict) or not item.get("data"):
                             continue
-                        cached_urls = set(
+                        cached_urls = {
                             str(u).strip().split("#")[0].rstrip("/").lower()
                             for u in (item.get("article_urls") or [])
                             if u and str(u).strip()
-                        )
+                        }
                         if not cached_urls:
                             continue
 
@@ -532,27 +668,29 @@ class StoryPresentationService:
                         min_len = min(len(target_urls), len(cached_urls))
                         overlap_ratio = len(intersection) / max(1, min_len)
 
-                        if overlap_ratio >= 0.5 or len(intersection) >= 2 or (min_len == 1 and len(intersection) == 1):
-                            if overlap_ratio > best_overlap_ratio:
-                                best_overlap_ratio = overlap_ratio
-                                best_match_entry = item
+                        if (overlap_ratio >= 0.5 or len(intersection) >= 2 or (min_len == 1 and len(intersection) == 1)) and overlap_ratio > best_overlap_ratio:
+                            best_overlap_ratio = overlap_ratio
+                            best_match_entry = item
 
                     if best_match_entry and best_match_entry.get("data"):
                         try:
                             data = dict(best_match_entry["data"])
-                            data["cached"] = True
-                            if event_id:
-                                self._disk_cache[f"synthesis_{event_id}"] = best_match_entry
-                            self._disk_cache[f"synthesis_sig_{articles_sig}"] = best_match_entry
-                            self._save_disk_cache()
-                            return EventProgressionSynthesis.model_validate(data)
+                            if require_metrics and data.get("metrics") is None:
+                                logger.debug("find_cached_synthesis: skipping legacy overlap cache entry without metrics")
+                            else:
+                                data["cached"] = True
+                                if event_id:
+                                    self._disk_cache[f"synthesis_{event_id}"] = best_match_entry
+                                self._disk_cache[f"synthesis_sig_{articles_sig}"] = best_match_entry
+                                self._save_disk_cache()
+                                return EventProgressionSynthesis.model_validate(data)
                         except Exception as err:
                             logger.debug("find_cached_synthesis: overlap validate failed: %s", err)
 
         return None
 
     @property
-    def client(self) -> OpenAI | None:
+    def client(self) -> Any:
         return self._client
 
     @property
@@ -621,7 +759,7 @@ class StoryPresentationService:
         Generates macro headline, multi-event summary, and chronological timeline.
         Uses SHA-256 fingerprint for persistent caching and cache invalidation.
         """
-        resolved_articles = list(articles or [])
+        resolved_articles: list[Any] = list(articles or [])
         if not resolved_articles and self._news_repo is not None:
             all_urls: list[str] = []
             for cs in child_stories:
@@ -629,7 +767,7 @@ class StoryPresentationService:
             if all_urls:
                 unique_urls = list(dict.fromkeys(all_urls))
                 if hasattr(self._news_repo, "get_by_urls"):
-                    resolved_articles = self._news_repo.get_by_urls(unique_urls)
+                    resolved_articles = list(self._news_repo.get_by_urls(unique_urls))
                 elif hasattr(self._news_repo, "load_news"):
                     u_set = set(unique_urls)
                     resolved_articles = [a for a in self._news_repo.load_news() if a.get("url") in u_set]
@@ -706,6 +844,259 @@ class StoryPresentationService:
 
     # ── Event Progression Synthesis (3-Layer Architecture) ───────────
 
+    def evaluate_event_relevance(
+        self,
+        event_id: str,
+        title: str,
+        articles: Sequence[ArticleRecord | dict[str, Any]],
+        allow_llm: bool = True,
+    ) -> RelevanceGateResult:
+        """
+        Stage 1: Evaluate candidate articles and triage into direct relevant evidence,
+        political/situational context, and excluded off-topic articles.
+        Guarantees deterministic heuristic fallback when LLM is unavailable or offline.
+        """
+        if not articles:
+            return RelevanceGateResult(
+                event_id=event_id,
+                relevant_article_ids=[],
+                context_article_ids=[],
+                excluded_article_ids=[],
+                exclusion_reasons={},
+            )
+
+        ordered_articles = _normalize_and_sort_candidate_articles(articles)
+        candidate_items: list[dict[str, Any]] = []
+        for idx, art in enumerate(ordered_articles, start=1):
+            if isinstance(art, dict):
+                art_id = str(art.get("article_id") or f"art_{idx:02d}")
+                t = str(art.get("title") or "").strip()
+                s = str(art.get("summary") or "").strip()
+                src = str(art.get("source") or "สำนักข่าว").strip()
+                u = str(art.get("url") or "").strip()
+                ts = str(art.get("fetched_at") or art.get("published_at") or "").strip()
+                is_ctx = bool(art.get("is_context", False))
+                is_excl = bool(art.get("is_excluded", False))
+                is_rel = bool(art.get("is_relevant", False))
+            else:
+                art_id = str(getattr(art, "article_id", None) or f"art_{idx:02d}")
+                t = getattr(art, "title", "")
+                s = getattr(art, "summary", "")
+                src = getattr(art, "source", "สำนักข่าว")
+                u = getattr(art, "url", "")
+                ts = str(getattr(art, "fetched_at", "") or getattr(art, "published_at", "") or "")
+                is_ctx = bool(getattr(art, "is_context", False))
+                is_excl = bool(getattr(art, "is_excluded", False))
+                is_rel = bool(getattr(art, "is_relevant", False))
+
+            candidate_items.append({
+                "article_id": art_id,
+                "title": t,
+                "summary": s,
+                "source": src,
+                "url": u,
+                "published_at": ts,
+                "is_context": is_ctx,
+                "is_excluded": is_excl,
+                "is_relevant": is_rel,
+            })
+
+        all_ids = [item["article_id"] for item in candidate_items]
+
+        # Multi-sport roundup gate: Sports collections combine distinct matches & disciplines.
+        # Genuine sports reports must not be discarded as off-topic outliers.
+        if _check_is_sports_collection(title, candidate_items):
+            return RelevanceGateResult(
+                event_id=event_id,
+                relevant_article_ids=all_ids,
+                context_article_ids=[],
+                excluded_article_ids=[],
+                exclusion_reasons={},
+            )
+
+        # 1. Attempt LLM Gatekeeper if allowed
+        if allow_llm and self._should_attempt_llm():
+            prompt_candidates = [
+                {
+                    "article_id": item["article_id"],
+                    "title": item["title"],
+                    "summary": item["summary"][:200],
+                    "source": item["source"],
+                    "published_at": item["published_at"],
+                }
+                for item in candidate_items
+            ]
+            user_content = (
+                f"โปรดจำแนกความเกี่ยวข้องของข่าว (Event Relevance Gate) สำหรับเหตุการณ์: '{title}' (ID: {event_id})\n\n"
+                f"รายการข่าวที่ต้องคัดกรอง ({len(candidate_items)} ข่าว):\n"
+                f"{json.dumps(prompt_candidates, ensure_ascii=False, indent=2)}"
+            )
+
+            def _parse_relevance(raw_text: str) -> RelevanceGateResult:
+                parsed = self._parse_llm_json(raw_text)
+                if not isinstance(parsed, dict):
+                    raise TypeError("Malformed relevance gate JSON response.")
+                rel_ids = [str(x) for x in parsed.get("relevant_article_ids", []) if str(x) in all_ids]
+                ctx_ids = [str(x) for x in parsed.get("context_article_ids", []) if str(x) in all_ids]
+                excl_ids = [str(x) for x in parsed.get("excluded_article_ids", []) if str(x) in all_ids]
+                reasons = {
+                    str(k): str(v)
+                    for k, v in parsed.get("exclusion_reasons", {}).items()
+                    if str(k) in all_ids
+                }
+
+                if rel_ids:
+                    accounted = set(rel_ids) | set(ctx_ids) | set(excl_ids)
+                    for cid in all_ids:
+                        if cid not in accounted:
+                            rel_ids.append(cid)
+                    return RelevanceGateResult(
+                        event_id=event_id,
+                        relevant_article_ids=rel_ids,
+                        context_article_ids=ctx_ids,
+                        excluded_article_ids=excl_ids,
+                        exclusion_reasons=reasons,
+                    )
+                raise ValueError("No relevant article IDs found in LLM response.")
+
+            try:
+                assert self._cascading_client is not None
+                res = self._cascading_client.complete(
+                    messages=[
+                        {"role": "system", "content": RELEVANCE_GATE_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    validator=_parse_relevance,
+                    temperature=0.1,
+                )
+                if isinstance(res.parsed, RelevanceGateResult):
+                    return res.parsed
+            except Exception as exc:
+                logger.debug("evaluate_event_relevance cascade error: %s", exc)
+
+        # 2. Robust Deterministic Heuristic Gatekeeper
+        return self._evaluate_event_relevance_heuristic(event_id, title, candidate_items)
+
+    def _evaluate_event_relevance_heuristic(
+        self,
+        event_id: str,
+        title: str,
+        candidate_items: list[dict[str, Any]],
+    ) -> RelevanceGateResult:
+        """
+        Deterministic heuristic triage for candidate articles.
+        Separates direct incident evidence, political context (e.g. censure debate),
+        and excluded off-topic outliers.
+        """
+        relevant_ids: list[str] = []
+        context_ids: list[str] = []
+        excluded_ids: list[str] = []
+        reasons: dict[str, str] = {}
+
+        # Tokenize event title
+        title_raw_tokens = _tokenize_thai_words(title)
+        title_tokens = [w for w in title_raw_tokens if w not in _RELEVANCE_STOPWORDS and len(w) > 1]
+        core_incident_tokens = [
+            w for w in title_tokens
+            if not any(ck in w for ck in _RELEVANCE_CONTEXT_KEYWORDS) and len(w) > 1
+        ]
+        if not core_incident_tokens:
+            core_incident_tokens = list(title_tokens)
+
+        for item in candidate_items:
+            art_id = item["article_id"]
+
+            # Explicit flags take precedence if provided
+            if item.get("is_relevant"):
+                relevant_ids.append(art_id)
+                continue
+            if item.get("is_context"):
+                context_ids.append(art_id)
+                reasons[art_id] = "บริบทการเมือง: การอภิปรายไม่ไว้วางใจหรือเวทีสภาที่แวดล้อมเหตุการณ์"
+                continue
+            if item.get("is_excluded"):
+                excluded_ids.append(art_id)
+                reasons[art_id] = "ข่าวนอกประเด็น: เนื้อหาไม่เกี่ยวข้องกับเหตุการณ์หลัก"
+                continue
+
+            content = f"{item['title']} {item['summary']}".lower()
+
+            has_context = any(ck in content for ck in _RELEVANCE_CONTEXT_KEYWORDS)
+            matched_incident = [w for w in core_incident_tokens if w in content]
+            matched_title = [w for w in title_tokens if w in content]
+
+            # 1. Check if article is political context (mentions censure/parliament debate but not the specific incident)
+            if has_context and not matched_incident:
+                context_ids.append(art_id)
+                reasons[art_id] = "บริบทการเมือง: ข่าวการอภิปรายไม่ไว้วางใจหรือเวทีสภาที่เกิดขึ้นแวดล้อมเหตุการณ์"
+            # 2. Check if article is completely off-topic (0 shared tokens with title)
+            elif title_tokens and len(matched_title) == 0 and len(candidate_items) > 2:
+                excluded_ids.append(art_id)
+                reasons[art_id] = "ข่าวนอกประเด็น: เนื้อหาและหัวข้อข่าวไม่มีคำสำคัญร่วมกับเหตุการณ์หลัก"
+            # 3. Direct incident evidence
+            else:
+                relevant_ids.append(art_id)
+
+        # Safety guardrail: Ensure we don't have 0 relevant articles
+        if not relevant_ids and candidate_items:
+            relevant_ids = [item["article_id"] for item in candidate_items]
+            context_ids.clear()
+            excluded_ids.clear()
+            reasons.clear()
+
+        return RelevanceGateResult(
+            event_id=event_id,
+            relevant_article_ids=relevant_ids,
+            context_article_ids=context_ids,
+            excluded_article_ids=excluded_ids,
+            exclusion_reasons=reasons,
+        )
+
+    def validate_dossier_citations(
+        self,
+        synthesis: EventProgressionSynthesis | dict[str, Any],
+        allowed_article_ids: Sequence[str] | set[str],
+    ) -> tuple[bool, list[str]]:
+        """
+        Stage 3 Output Validator: Verifies that every milestone, confirmed fact,
+        and conflict stance strictly cites ONLY article IDs from allowed_article_ids.
+        Returns (is_valid, list_of_errors).
+        """
+        allowed = {str(aid).strip().lower() for aid in allowed_article_ids}
+        errors: list[str] = []
+
+        if isinstance(synthesis, EventProgressionSynthesis):
+            timeline = synthesis.progression_timeline
+            facts = synthesis.confirmed_facts
+            conflicts = synthesis.conflicts
+        else:
+            timeline = synthesis.get("progression_timeline") or []
+            facts = synthesis.get("confirmed_facts") or []
+            conflicts = synthesis.get("conflicts") or []
+
+        for m in timeline:
+            m_id = getattr(m, "milestone_id", "") if not isinstance(m, dict) else m.get("milestone_id", "")
+            ev_ids = getattr(m, "evidence_ids", []) if not isinstance(m, dict) else m.get("evidence_ids", [])
+            for eid in ev_ids:
+                if str(eid).strip().lower() not in allowed:
+                    errors.append(f"Milestone '{m_id}' cited disallowed article ID '{eid}'")
+
+        for f in facts:
+            f_id = getattr(f, "fact_id", "") if not isinstance(f, dict) else f.get("fact_id", "")
+            ev_ids = getattr(f, "evidence_ids", []) if not isinstance(f, dict) else f.get("evidence_ids", [])
+            for eid in ev_ids:
+                if str(eid).strip().lower() not in allowed:
+                    errors.append(f"Fact '{f_id}' cited disallowed article ID '{eid}'")
+
+        for c in conflicts:
+            sides = getattr(c, "sides", []) if not isinstance(c, dict) else c.get("sides", [])
+            for s in sides:
+                eid = getattr(s, "evidence_id", "") if not isinstance(s, dict) else s.get("evidence_id", "")
+                if eid and str(eid).strip().lower() not in allowed:
+                    errors.append(f"Conflict stance cited disallowed article ID '{eid}'")
+
+        return (len(errors) == 0, errors)
+
     def synthesize_event_progression(
         self,
         event_id: str,
@@ -717,8 +1108,10 @@ class StoryPresentationService:
         """
         Synthesize an evidence-grounded Event Progression Intelligence Model
         from member articles (Layer 1: Evidence -> Layer 2: Synthesis -> Layer 3: Executive Dossier).
-        Separates Confirmed Facts, Claim-vs-Claim Conflicts, Blindspots/Unknowns,
-        and flags Outlier/Irrelevant articles.
+        Two-stage pipeline:
+        Stage 1: Event Relevance Gate triages articles into relevant evidence, political context, and excluded outliers.
+        Stage 2: LLM Progression Synthesis receives ONLY relevant evidence articles.
+        Stage 3: Output Validator enforces citation integrity via Hard Reject + Bounded Retry + Fallback.
         Cached by (event_id, fingerprint) with 100% resilient heuristic fallback.
         """
         fingerprint = self.compute_sha256_fingerprint(event_id, articles)
@@ -730,72 +1123,170 @@ class StoryPresentationService:
             if cached is not None:
                 return cached
 
-        # 2. Extract structured evidence payload (Layer 1)
+        # 2. Stage 1: Event Relevance Gate Triage
+        ordered_articles = _normalize_and_sort_candidate_articles(articles)
+        gate_result = self.evaluate_event_relevance(
+            event_id=event_id,
+            title=title,
+            articles=ordered_articles,
+            allow_llm=allow_llm,
+        )
+
+        # Build candidate item index with stable article IDs
+        candidate_articles_by_id: dict[str, Any] = {}
+        for idx, a in enumerate(ordered_articles, start=1):
+            existing_id = (
+                a.get("article_id") if isinstance(a, dict) else getattr(a, "article_id", None)
+            )
+            art_id = existing_id or f"art_{idx:02d}"
+            if isinstance(a, dict):
+                a_copy = dict(a)
+                a_copy["article_id"] = art_id
+                candidate_articles_by_id[art_id] = a_copy
+            else:
+                candidate_articles_by_id[art_id] = a
+
+        relevant_ids_set = set(gate_result.relevant_article_ids)
+        relevant_articles = [
+            candidate_articles_by_id[aid]
+            for aid in gate_result.relevant_article_ids
+            if aid in candidate_articles_by_id
+        ]
+        if not relevant_articles:
+            relevant_articles = list(candidate_articles_by_id.values())
+            relevant_ids_set = set(candidate_articles_by_id.keys())
+
+        # Construct PoliticalContextItem and IrrelevantArticle lists from gate results
+        political_contexts: list[PoliticalContextItem] = []
+        for cid in gate_result.context_article_ids:
+            art = candidate_articles_by_id.get(cid)
+            if art:
+                t = str((art.get("title") if isinstance(art, dict) else getattr(art, "title", "")) or "")
+                s = str((art.get("summary") if isinstance(art, dict) else getattr(art, "summary", "")) or "")
+                src = str((art.get("source") if isinstance(art, dict) else getattr(art, "source", "สำนักข่าว")) or "สำนักข่าว")
+                reason = str(gate_result.exclusion_reasons.get(cid, "บริบทการเมืองแวดล้อมเหตุการณ์"))
+                political_contexts.append(
+                    PoliticalContextItem(
+                        article_id=cid,
+                        source=src,
+                        title=t,
+                        context_summary=s or t,
+                        relation_to_event=reason,
+                    )
+                )
+
+        irrelevant_articles: list[IrrelevantArticle] = []
+        for xid in gate_result.excluded_article_ids:
+            art = candidate_articles_by_id.get(xid)
+            if art:
+                t = str((art.get("title") if isinstance(art, dict) else getattr(art, "title", "")) or "")
+                src = str((art.get("source") if isinstance(art, dict) else getattr(art, "source", "สำนักข่าว")) or "สำนักข่าว")
+                reason = str(gate_result.exclusion_reasons.get(xid, "ข่าวนอกประเด็นหลัก"))
+                irrelevant_articles.append(
+                    IrrelevantArticle(
+                        article_id=xid,
+                        source=src,
+                        title=t,
+                        reason=reason,
+                    )
+                )
+
+        # Compute DossierMetrics
+        candidate_publishers: set[str] = {
+            str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+            for a in articles
+            if str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+        }
+        synthesized_publishers_set: set[str] = {
+            str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+            for a in relevant_articles
+            if str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+        }
+        synthesized_publishers = sorted(synthesized_publishers_set)
+
+        dossier_metrics = DossierMetrics(
+            candidate_count=len(articles),
+            excluded_count=len(gate_result.context_article_ids) + len(gate_result.excluded_article_ids),
+            synthesized_evidence_count=len(relevant_articles),
+            candidate_publishers_count=len(candidate_publishers),
+            synthesized_publishers_count=len(synthesized_publishers),
+            synthesized_publishers=synthesized_publishers,
+        )
+
+        # 3. Stage 2: Extract structured evidence payload ONLY for relevant evidence articles
         evidence_payload = EvidenceExtractor.build_payload(
             event_id=event_id,
             title=title,
-            articles=articles,
+            articles=relevant_articles,
         )
 
-        # 3. Attempt LLM Synthesis (Layer 2)
+        # 4. Attempt LLM Synthesis (Layer 2) with Stage 3 Output Validator
         synthesis: EventProgressionSynthesis | None = None
         if allow_llm and self._should_attempt_llm() and evidence_payload.articles:
             payload_json = evidence_payload.model_dump_json(indent=2)
             user_content = (
                 f"โปรดวิเคราะห์หลักฐานข่าวและสร้างแบบจำลองความคืบหน้าของเหตุการณ์ (Event Progression Synthesis) "
                 f"สำหรับเหตุการณ์: '{title}' (ID: {event_id})\n\n"
-                f"ชุดข้อมูลหลักฐาน (Evidence Input JSON):\n{payload_json}"
+                f"ชุดข้อมูลหลักฐานเฉพาะที่ผ่านเกณฑ์ (Evidence Input JSON):\n{payload_json}"
             )
 
-            for model_idx, model_name in enumerate(self._models):
-                try:
-                    assert self._client is not None
-                    response = self._client.chat.completions.create(
-                        model=model_name,
-                        messages=[
-                            {"role": "system", "content": EVENT_PROGRESSION_SYSTEM_PROMPT},
-                            {"role": "user", "content": user_content},
-                        ],
-                        temperature=self._temperature,
-                        timeout=30.0,
-                        stream=False,
-                    )
-                    raw_text = (response.choices[0].message.content or "").strip()
-                    if not raw_text:
-                        continue
+            def _parse_synthesis(raw_text: str) -> dict[str, Any]:
+                parsed_dict = self._parse_llm_json(raw_text)
+                if parsed_dict is None or not isinstance(parsed_dict, dict):
+                    raise ValueError("Malformed dossier synthesis JSON.")
+                is_valid, errors = self.validate_dossier_citations(parsed_dict, relevant_ids_set)
+                if not is_valid:
+                    raise ValueError(f"Citation validation failed: {errors}")
+                return parsed_dict
 
-                    parsed = self._parse_llm_json(raw_text)
-                    if parsed is not None:
-                        parsed["event_id"] = event_id
-                        parsed["is_fallback"] = False
-                        parsed["cached"] = False
-                        parsed["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            parsed: dict[str, Any] | None = None
+            try:
+                assert self._cascading_client is not None
+                res = self._cascading_client.complete(
+                    messages=[
+                        {"role": "system", "content": EVENT_PROGRESSION_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    validator=_parse_synthesis,
+                    temperature=self._temperature,
+                )
+                if isinstance(res.parsed, dict):
+                    parsed = res.parsed
+            except Exception as exc:
+                logger.warning("synthesize_event_progression cascade failed: %s", exc)
 
-                        synthesis = EventProgressionSynthesis.model_validate(parsed)
-                        if model_idx > 0:
-                            logger.info(
-                                "synthesize_event_progression: succeeded via cascade model '%s' (attempt %d/%d)",
-                                model_name,
-                                model_idx + 1,
-                                len(self._models),
-                            )
-                        break
-                except Exception as exc:
-                    logger.warning(
-                        "synthesize_event_progression error with model '%s': %s",
-                        model_name,
-                        exc,
-                    )
-                    continue
+            if parsed is not None:
+                parsed["event_id"] = event_id
+                parsed["is_fallback"] = False
+                parsed["cached"] = False
+                parsed["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                parsed["metrics"] = dossier_metrics.model_dump(mode="json")
+                parsed["political_contexts"] = [p.model_dump(mode="json") for p in political_contexts]
+                if not parsed.get("irrelevant_articles"):
+                    parsed["irrelevant_articles"] = [i.model_dump(mode="json") for i in irrelevant_articles]
+                else:
+                    existing_excl_ids = {
+                        str(irr.get("article_id") or irr.get("id") or "").strip().lower()
+                        for irr in parsed["irrelevant_articles"]
+                        if isinstance(irr, dict)
+                    }
+                    for irr in irrelevant_articles:
+                        if irr.article_id.lower() not in existing_excl_ids:
+                            parsed["irrelevant_articles"].append(irr.model_dump(mode="json"))
 
-        # 4. Deterministic Heuristic Fallback if LLM disabled or failed
+                synthesis = EventProgressionSynthesis.model_validate(parsed)
+
+        # 5. Deterministic Heuristic Fallback if LLM disabled, failed, or hard-rejected
         if synthesis is None:
             synthesis = self._build_fallback_event_synthesis(
                 event_id=event_id,
                 title=title,
-                articles=articles,
+                articles=relevant_articles,
                 payload=evidence_payload,
                 fingerprint=fingerprint,
+                metrics=dossier_metrics,
+                political_contexts=political_contexts,
+                irrelevant_articles=irrelevant_articles,
             )
 
         # 5. Persist to cache (both by event_id AND by content signature and URL list)
@@ -848,6 +1339,9 @@ class StoryPresentationService:
         articles: Sequence[Any],
         payload: Any,
         fingerprint: str = "",
+        metrics: DossierMetrics | None = None,
+        political_contexts: list[PoliticalContextItem] | None = None,
+        irrelevant_articles: list[IrrelevantArticle] | None = None,
     ) -> EventProgressionSynthesis:
         """
         Deterministic heuristic fallback for Event Progression Synthesis.
@@ -869,7 +1363,9 @@ class StoryPresentationService:
                         pending_action="รอการอัปเดตข้อมูลเพิ่มเติม",
                     )
                 ],
-                irrelevant_articles=[],
+                irrelevant_articles=list(irrelevant_articles or []),
+                political_contexts=list(political_contexts or []),
+                metrics=metrics,
                 is_fallback=True,
                 cached=False,
                 generated_at=now_str,
@@ -880,11 +1376,18 @@ class StoryPresentationService:
         lead_summary = rep_articles[0].summary or rep_articles[0].title
         sources = sorted({a.source for a in payload.articles if a.source})
         sources_str = ", ".join(sources[:3])
-        exec_summary = (
-            f"เกาะติดสถานการณ์สำคัญ '{title}' รวบรวมหลักฐานจาก {sources_str} "
-            f"รวม {len(payload.articles)} รายงาน ล่าสุดมีพัฒนาการต่อเนื่องเกี่ยวกับ: "
-            f"{self._clean_text(lead_summary)[:180]}..."
-        )
+        if _check_is_sports_collection(title, payload.articles):
+            exec_summary = (
+                f"ศูนย์รวมข่าวกีฬาเด่น ผลการแข่งขัน และไฮไลต์สำคัญประจำวัน รวบรวมรายงานจาก {sources_str} "
+                f"รวม {len(payload.articles)} รายการ ครอบคลุมการแข่งขันฟุตบอลยุโรป ฟุตบอลไทย วอลเลย์บอล "
+                f"และความเคลื่อนไหวล่าสุดของทัพนักกีฬา"
+            )
+        else:
+            exec_summary = (
+                f"เกาะติดสถานการณ์สำคัญ '{title}' รวบรวมหลักฐานจาก {sources_str} "
+                f"รวม {len(payload.articles)} รายงาน ล่าสุดมีพัฒนาการต่อเนื่องเกี่ยวกับ: "
+                f"{self._clean_text(lead_summary)[:180]}..."
+            )
 
         # 2. Progression Timeline
         timeline: list[ProgressionMilestone] = []
@@ -992,6 +1495,25 @@ class StoryPresentationService:
                     )
                 )
 
+        final_irrelevant: list[IrrelevantArticle] = list(irrelevant_articles or [])
+        seen_irr_ids = {irr.article_id for irr in final_irrelevant}
+        for irr in irrelevant:
+            if irr.article_id not in seen_irr_ids:
+                final_irrelevant.append(irr)
+                seen_irr_ids.add(irr.article_id)
+
+        final_metrics = metrics
+        if final_metrics is None:
+            publishers = sorted({a.source for a in payload.articles if a.source})
+            final_metrics = DossierMetrics(
+                candidate_count=len(payload.articles),
+                excluded_count=len(final_irrelevant),
+                synthesized_evidence_count=len(payload.articles),
+                candidate_publishers_count=len(publishers),
+                synthesized_publishers_count=len(publishers),
+                synthesized_publishers=publishers,
+            )
+
         return EventProgressionSynthesis(
             event_id=event_id,
             executive_summary=exec_summary,
@@ -999,7 +1521,9 @@ class StoryPresentationService:
             confirmed_facts=facts,
             conflicts=conflicts,
             unknowns=unknowns,
-            irrelevant_articles=irrelevant,
+            irrelevant_articles=final_irrelevant,
+            political_contexts=list(political_contexts or []),
+            metrics=final_metrics,
             is_fallback=True,
             cached=False,
             generated_at=now_str,
@@ -1150,10 +1674,14 @@ class StoryPresentationService:
 
     def _should_attempt_llm(self) -> bool:
         """Check if LLM client is configured with an active API key."""
-        if self._client is None:
+        if self._cascading_client is None:
             return False
-        key = getattr(settings, "llm_api_key", "")
-        return bool(key and str(key).strip() and str(key).strip() != "dummy_key")
+        if not self._cascading_client.targets:
+            return False
+        if not isinstance(self._client, CascadingLLMClient):
+            key = getattr(settings, "llm_api_key", "")
+            return bool(key and str(key).strip() and str(key).strip() != "dummy_key")
+        return True
 
     def _generate_llm_presentation(
         self,
@@ -1198,85 +1726,68 @@ class StoryPresentationService:
             prompt_lines.append("")
 
         user_content = "\n".join(prompt_lines)
+        messages = [
+            {"role": "system", "content": STORY_PRESENTATION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
 
-        # Tiered Cascading Call
-        for model_idx, model_name in enumerate(self._models):
-            try:
-                assert self._client is not None
-                response = self._client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": STORY_PRESENTATION_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    temperature=self._temperature,
-                    timeout=25.0,
-                    stream=False,
-                )
+        def _parse(raw: str) -> StoryPresentation:
+            parsed = self._parse_llm_json(raw)
+            if parsed is None or not isinstance(parsed, dict):
+                raise ValueError("Malformed story presentation JSON from LLM output.")
 
-                raw_text = (response.choices[0].message.content or "").strip()
-                if not raw_text:
-                    continue
+            headline = str(parsed.get("headline") or "").strip() or title
+            summary = str(parsed.get("summary") or "").strip()
+            if not summary:
+                summary = self._clean_text(str(rep_articles[0].get("summary") or title))
 
-                parsed = self._parse_llm_json(raw_text)
-                if parsed is not None:
-                    headline = str(parsed.get("headline") or "").strip() or title
-                    summary = str(parsed.get("summary") or "").strip()
-                    if not summary:
-                        summary = self._clean_text(str(rep_articles[0].get("summary") or title))
+            # Parse timeline events
+            timeline_events: list[TimelineEvent] = []
+            raw_timeline = parsed.get("timeline")
+            if isinstance(raw_timeline, list):
+                for item in raw_timeline:
+                    if isinstance(item, dict):
+                        timeline_events.append(TimelineEvent.model_validate(item))
 
-                    # Parse timeline events
-                    timeline_events: list[TimelineEvent] = []
-                    raw_timeline = parsed.get("timeline")
-                    if isinstance(raw_timeline, list):
-                        for item in raw_timeline:
-                            if isinstance(item, dict):
-                                timeline_events.append(TimelineEvent.model_validate(item))
+            if not timeline_events:
+                timeline_events = self._build_timeline_from_articles(rep_articles)
 
-                    # If timeline from LLM is empty, generate from articles
-                    if not timeline_events:
-                        timeline_events = self._build_timeline_from_articles(rep_articles)
+            # Parse citations
+            citations: list[dict[str, Any]] = []
+            raw_citations = parsed.get("citations")
+            if isinstance(raw_citations, list):
+                for item in raw_citations:
+                    if isinstance(item, dict) and item.get("source_url"):
+                        citations.append(item)
 
-                    # Parse citations
-                    citations: list[dict[str, Any]] = []
-                    raw_citations = parsed.get("citations")
-                    if isinstance(raw_citations, list):
-                        for item in raw_citations:
-                            if isinstance(item, dict) and item.get("source_url"):
-                                citations.append(item)
+            if not citations:
+                citations = self._build_citations_from_articles(rep_articles)
 
-                    if not citations:
-                        citations = self._build_citations_from_articles(rep_articles)
+            return StoryPresentation(
+                story_id=story_id,
+                headline=headline,
+                summary=summary,
+                timeline=timeline_events,
+                citations=citations,
+                is_fallback=False,
+                cached=False,
+                updated_at=updated_at,
+            )
 
-                    if model_idx > 0:
-                        logger.info(
-                            "StoryPresentationService: succeeded using cascade model '%s' (attempt %d/%d)",
-                            model_name,
-                            model_idx + 1,
-                            len(self._models),
-                        )
-
-                    return StoryPresentation(
-                        story_id=story_id,
-                        headline=headline,
-                        summary=summary,
-                        timeline=timeline_events,
-                        citations=citations,
-                        is_fallback=False,
-                        cached=False,
-                        updated_at=updated_at,
-                    )
-
-            except Exception as exc:
-                logger.warning(
-                    "StoryPresentationService: model '%s' failed (%s). Cascading...",
-                    model_name,
-                    exc,
-                )
-                continue
-
-        logger.warning("StoryPresentationService: all cascade models failed. Falling back to deterministic heuristics.")
-        return None
+        try:
+            assert self._cascading_client is not None
+            res = self._cascading_client.complete(
+                messages=messages,
+                validator=_parse,
+                temperature=self._temperature,
+            )
+            return res.parsed
+        except Exception as exc:
+            logger.warning(
+                "StoryPresentationService: all cascade candidates failed (%s). Falling back to heuristics.",
+                exc,
+            )
+            return None
 
     def _build_fallback_presentation(
         self,
@@ -1601,16 +2112,9 @@ def get_story_presentation_service() -> StoryPresentationService:
         if _PRESENTATION_SERVICE_INSTANCE is not None:
             return _PRESENTATION_SERVICE_INSTANCE
 
-        client: OpenAI | None = None
-        if settings.llm_api_key and settings.llm_api_key.strip():
-            client = OpenAI(
-                api_key=settings.llm_api_key,
-                base_url=settings.llm_base_url,
-            )
-
+        cascading_client = get_cascading_client()
         _PRESENTATION_SERVICE_INSTANCE = StoryPresentationService(
-            client=client,
-            models=list(settings.llm_cascade_models),
+            client=cascading_client,
             temperature=settings.llm_temperature,
             news_repo=get_news_repository(),
         )

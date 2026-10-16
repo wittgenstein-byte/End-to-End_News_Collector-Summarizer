@@ -96,7 +96,7 @@ body[data-density="compact"] article .px-8 {
 
 /* ── Layout Density: Spacious ── */
 body[data-density="spacious"] #news-grid {
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
   gap: 2.5rem;
   max-width: 1600px;
   margin-left: auto;
@@ -105,8 +105,10 @@ body[data-density="spacious"] #news-grid {
 body[data-density="spacious"] article {
   border-radius: 1rem;
 }
-body[data-density="spacious"] article .p-8 {
-  padding: 2.5rem 2.5rem 1.5rem 2.5rem;
+@media (min-width: 640px) {
+  body[data-density="spacious"] article .p-8 {
+    padding: 2.5rem 2.5rem 1.5rem 2.5rem;
+  }
 }
 body[data-density="spacious"] article h2 {
   font-size: 1.65rem;
@@ -119,10 +121,12 @@ body[data-density="spacious"] article p {
   line-height: 1.8;
   -webkit-line-clamp: 5;
 }
-body[data-density="spacious"] article .px-8 {
-  padding-left: 2.5rem;
-  padding-right: 2.5rem;
-  padding-bottom: 2rem;
+@media (min-width: 640px) {
+  body[data-density="spacious"] article .px-8 {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+    padding-bottom: 2rem;
+  }
 }
 
 /* ── Dark Mode ── */
@@ -333,10 +337,18 @@ html.dark .text-error {
   overflow: hidden;
   box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(196, 198, 209, 0.3);
-  aspect-ratio: 16 / 9;
-  min-height: 380px;
-  max-height: 480px;
+  aspect-ratio: auto;
+  min-height: 440px;
+  max-height: 540px;
   background-color: #0f172a;
+}
+
+@media (min-width: 640px) {
+  .hero-carousel-container {
+    aspect-ratio: 16 / 9;
+    min-height: 400px;
+    max-height: 480px;
+  }
 }
 
 @media (min-width: 768px) {
@@ -364,7 +376,7 @@ html.dark .text-error {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 1.5rem;
+  padding: 1rem 1rem 1.75rem 1rem;
   pointer-events: none;
   z-index: 10;
 }
@@ -378,10 +390,10 @@ html.dark .text-error {
 /* Navigation Arrow Buttons */
 .hero-nav-btn {
   position: absolute;
-  top: 50%;
+  top: 36%;
   transform: translateY(-50%);
-  width: 46px;
-  height: 46px;
+  width: 36px;
+  height: 36px;
   border-radius: 9999px;
   background-color: rgba(0, 0, 0, 0.65);
   color: #ffffff;
@@ -398,6 +410,14 @@ html.dark .text-error {
   opacity: 0.95;
 }
 
+@media (min-width: 640px) {
+  .hero-nav-btn {
+    top: 50%;
+    width: 46px;
+    height: 46px;
+  }
+}
+
 .hero-nav-btn:hover {
   background-color: rgba(0, 0, 0, 0.95);
   border-color: rgba(255, 255, 255, 0.8);
@@ -410,11 +430,21 @@ html.dark .text-error {
 }
 
 .hero-nav-btn-left {
-  left: 1rem;
+  left: 0.5rem;
+}
+@media (min-width: 640px) {
+  .hero-nav-btn-left {
+    left: 1rem;
+  }
 }
 
 .hero-nav-btn-right {
-  right: 1rem;
+  right: 0.5rem;
+}
+@media (min-width: 640px) {
+  .hero-nav-btn-right {
+    right: 1rem;
+  }
 }
 
 /* Bottom Progress Segments */
@@ -733,6 +763,41 @@ html.dark .editorial-card:hover {
   box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
 }
 
+.editorial-card-body {
+  padding: 0.125rem 0.25rem 0.125rem 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .editorial-card-body {
+    padding: 0.875rem 1rem 0.75rem 1rem;
+  }
+}
+
+/* ── Mobile Newsfeed List Layout (Clean Row Item Layout) ── */
+@media (max-width: 639px) {
+  #news-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+  }
+
+  body[data-density="compact"] #news-grid,
+  body[data-density="spacious"] #news-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+  }
+
+  .editorial-card {
+    border-radius: 0.75rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .editorial-card:active {
+    transform: scale(0.99);
+  }
+}
+
 /* ── Standardized Editorial Badges ── */
 .editorial-badge {
   font-family: "JetBrains Mono", monospace;
@@ -872,7 +937,13 @@ html.dark .editorial-badge-neutral {
 .storyline-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1rem 1.25rem 4rem 1.25rem;
+  padding: 0.75rem 0.75rem calc(5rem + env(safe-area-inset-bottom, 0px)) 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .storyline-container {
+    padding: 1rem 1.25rem 4rem 1.25rem;
+  }
 }
 
 .storyline-top-bar {
@@ -882,18 +953,92 @@ html.dark .editorial-badge-neutral {
   gap: 1rem;
   margin-bottom: 1.5rem;
   position: sticky;
-  top: 72px;
+  top: 56px;
   z-index: 30;
   background: rgba(247, 244, 237, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--ed-border);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  will-change: transform, opacity;
+}
+
+@media (min-width: 640px) {
+  .storyline-top-bar {
+    top: 72px;
+  }
+}
+
+.storyline-top-bar.is-hidden {
+  transform: translateY(-135%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 html.dark .storyline-top-bar {
   background: rgba(15, 16, 18, 0.95) !important;
   border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Floating Back Button when scrolled down */
+.storyline-floating-back-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background: #141413;
+  color: #f7f4ed;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, background 0.15s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.storyline-floating-back-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 14px 28px -5px rgba(0, 0, 0, 0.45);
+  background: #232320;
+}
+
+.storyline-floating-back-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.storyline-floating-back-btn.hidden-fade {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(16px) !important;
+}
+
+html.dark .storyline-floating-back-btn {
+  background: #f7f4ed !important;
+  color: #141413 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
+}
+
+html.dark .storyline-floating-back-btn:hover {
+  background: #ffffff !important;
+}
+
+@media (max-width: 767px) {
+  .storyline-floating-back-btn {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    left: 1rem;
+    padding: 0.55rem 1rem;
+  }
 }
 
 .storyline-back-btn {
@@ -922,23 +1067,14 @@ html.dark .storyline-back-btn:hover {
 }
 
 .storyline-hero-banner {
-  background: #141413 !important;
-  color: #f7f4ed !important;
-  border-radius: 0.75rem !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  padding: 2rem !important;
-  margin-bottom: 2rem !important;
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.35) !important;
+  margin-bottom: 2rem;
 }
 
 .storyline-hero-title {
   font-family: "Newsreader", "Noto Serif Thai", Georgia, serif;
-  font-size: clamp(1.6rem, 3vw, 2.5rem);
-  font-weight: 700;
   line-height: 1.25;
-  color: #ffffff !important;
-  margin-bottom: 0.75rem;
 }
+
 
 .storyline-meta-row {
   display: flex;
@@ -1157,9 +1293,9 @@ html.dark .storyline-back-btn:hover {
   align-items: center;
   gap: 0.25rem;
   padding: 0.15rem 0.45rem;
-  background: rgba(251, 191, 36, 0.15);
-  color: #fde68a;
-  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(217, 119, 6, 0.3);
   border-radius: 0.25rem;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.7rem;
@@ -1168,10 +1304,21 @@ html.dark .storyline-back-btn:hover {
   transition: all 0.15s ease;
 }
 
+html.dark .citation-chip {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
 .citation-chip:hover {
+  background: #d97706;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+html.dark .citation-chip:hover {
   background: #fbbf24;
   color: #141413;
-  transform: translateY(-1px);
 }
 
 @keyframes citationPulse {
@@ -1227,3 +1374,296 @@ html.dark .storyline-back-btn:hover {
   border-radius: 0.5rem;
   padding: 1rem;
 }
+
+.storyline-baseline-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.storyline-baseline-collapsible[open] summary .material-symbols-outlined:last-child {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+/* ── Hero Read Abstract Button (Always High-Contrast Light on Dark Backdrop) ── */
+.hero-read-abstract-btn {
+  background-color: #ffffff !important;
+  color: #121316 !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  font-weight: 700 !important;
+  transition: all 0.15s ease-in-out !important;
+}
+.hero-read-abstract-btn:hover {
+  background-color: #f4f4f5 !important;
+  color: #000000 !important;
+  transform: translateY(-1px);
+}
+html.dark .hero-read-abstract-btn {
+  background-color: #ffffff !important;
+  color: #121316 !important;
+}
+html.dark .hero-read-abstract-btn:hover {
+  background-color: #f4f4f5 !important;
+  color: #000000 !important;
+}
+
+/* ── Hero Storyline Action Button (Far Right, Highly Prominent) ── */
+.hero-storyline-action-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  color: #0b0f19 !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4) !important;
+  font-weight: 800 !important;
+  transition: all 0.15s ease-in-out !important;
+}
+.hero-storyline-action-btn:hover {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  color: #020617 !important;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.55) !important;
+}
+html.dark .hero-storyline-action-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  color: #0b0f19 !important;
+}
+
+/* ── Preview AI Summary Card High Contrast & Dark Mode Clarity ── */
+.preview-ai-card {
+  background-color: #ffffff;
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 16px -2px rgba(245, 158, 11, 0.08);
+}
+html.dark .preview-ai-card {
+  background-color: #16171c !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+  box-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.5) !important;
+}
+html.dark .preview-ai-card .preview-ai-title {
+  color: #ffffff !important;
+}
+html.dark .preview-ai-card .preview-ai-prose {
+  color: #e2e8f0 !important;
+}
+html.dark .preview-ai-card .preview-ai-label {
+  color: #fbbf24 !important;
+}
+html.dark .preview-ai-card .preview-ai-bullet-num {
+  color: #fbbf24 !important;
+}
+html.dark .preview-ai-card .preview-ai-bullet-text {
+  color: #f1f5f9 !important;
+}
+html.dark .preview-ai-card .preview-ai-tag {
+  background-color: #22232a !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.dark .preview-ai-card .preview-ai-tone-badge {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+/* ── Collapsible Audit Details Clean Reset ── */
+#dossier-audit-panel summary::-webkit-details-marker {
+  display: none !important;
+}
+#dossier-audit-panel summary {
+  list-style: none !important;
+}
+
+/* ── Sports Intelligence Roundup & Multi-Sport Layout ── */
+.sports-hub-hero {
+  border-radius: 1rem;
+  background: var(--ed-card);
+  border: 1px solid var(--ed-border);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.sports-discipline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  color: var(--ed-ink-muted);
+  border: 1px solid var(--ed-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.sports-discipline-pill:hover {
+  border-color: #2563eb;
+  color: var(--ed-ink);
+  transform: translateY(-1px);
+}
+
+.sports-discipline-pill.active {
+  background: #1e3a8a !important;
+  color: #ffffff !important;
+  border-color: #1e3a8a !important;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.25);
+}
+
+.sports-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  color: var(--ed-ink-muted);
+  border: 1px solid var(--ed-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.sports-type-pill:hover {
+  border-color: var(--ed-ink);
+  color: var(--ed-ink);
+}
+
+.sports-type-pill.active {
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+.sports-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+}
+
+.sports-result-badge {
+  background: rgba(16, 185, 129, 0.95);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sports-schedule-badge {
+  background: rgba(14, 165, 233, 0.95);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sports-general-badge {
+  background: rgba(71, 85, 105, 0.9);
+  color: #ffffff;
+}
+
+.sports-score-highlight {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+html.dark .sports-score-highlight {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.sports-digest-section-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--ed-border);
+  background: var(--ed-card);
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+html.dark .sports-discipline-pill.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+
+/* ── Dedicated Sports Hero Montage & Stat Chips ── */
+.sports-hero-collage-container {
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--ed-border);
+  background: #0b0f17;
+}
+
+.sports-hero-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  border: 1px solid var(--ed-border);
+  color: var(--ed-ink-muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.sports-hero-stat-chip:hover {
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.sports-hero-stat-chip.active {
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+html.dark .sports-hero-stat-chip:hover {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+/* ── Sports Hub Hero in Main Page Hero Carousel ── */
+.sports-hub-hero .hero-progress-segment {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.sports-hub-hero .hero-progress-segment-active {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.sports-hub-hero .hero-progress-bar-fill {
+  background-color: #059669;
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.6);
+}
+
+html.dark .sports-hub-hero .hero-progress-segment {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+html.dark .sports-hub-hero .hero-progress-segment-active {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+html.dark .sports-hub-hero .hero-progress-bar-fill {
+  background-color: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
+}
+
+
+

@@ -36,7 +36,7 @@ class SqliteNewsRepository:
         self,
         db_path: Path | str,
         wal_mode: bool = True,
-        cache_size_kb: int = 64000,
+        cache_size_kb: int = 16000,
         mmap_size_bytes: int = 268435456,
     ) -> None:
         self._db_path = Path(db_path)
@@ -63,10 +63,12 @@ class SqliteNewsRepository:
             )
             conn.row_factory = sqlite3.Row
 
-            # Apply performance PRAGMAs
+            # Apply performance and disk-safety PRAGMAs
             if self._wal_mode:
                 conn.execute("PRAGMA journal_mode = WAL;")
                 conn.execute("PRAGMA synchronous = NORMAL;")
+                conn.execute("PRAGMA wal_autocheckpoint = 1000;")
+                conn.execute("PRAGMA journal_size_limit = 67108864;")
 
             conn.execute(f"PRAGMA cache_size = -{self._cache_size_kb};")
             conn.execute(f"PRAGMA mmap_size = {self._mmap_size_bytes};")

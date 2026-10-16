@@ -52,6 +52,8 @@ let cachedStorylineSyntheses = {};
 let returnViewHash = "#/";
 let currentStorylineData = null;
 let activeStorylineSourceFilter = "";
+let activeSportDisciplineFilter = "";
+let activeSportContentTypeFilter = "";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -395,9 +397,24 @@ window.__toggleDarkMode = (isDark) => {
     document.documentElement.classList.remove("dark");
     document.documentElement.classList.add("light");
   }
+  personalizationData.darkMode = isDark;
   if (hasConsent && privacyPermissions.ui) {
-    personalizationData.darkMode = isDark;
     savePersonalization();
+  } else {
+    try {
+      localStorage.setItem("theme_pref", isDark ? "dark" : "light");
+    } catch (e) {}
+  }
+};
+
+window.__toggleThemeDirectly = () => {
+  const isDarkNow = document.documentElement.classList.contains("dark");
+  const newDark = !isDarkNow;
+  window.__toggleDarkMode(newDark);
+  const dmEl = document.getElementById("setting-darkmode");
+  if (dmEl) dmEl.checked = newDark;
+  if (typeof UI !== "undefined" && UI.showToast) {
+    UI.showToast(newDark ? "เปิดโหมดมืด (Dark Mode)" : "เปิดโหมดสว่าง (Light Mode)");
   }
 };
 
@@ -1047,8 +1064,8 @@ async function loadPage(page = 1) {
 
   currentPage = page;
 
-  // Handle Hero Trending Highlights: shown only on Page 1, 'all' category, no search, no source filter
-  const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all") && !searchQuery && !activeSource;
+  // Handle Hero Trending Highlights: shown on Page 1 for 'all' and 'sports' categories, no search, no source filter
+  const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all" || activeCategory === "sports") && !searchQuery && !activeSource;
   if (shouldShowTrending) {
     fetchTrendingStories(TRENDING_LIMIT, activeCategory)
       .then(trendingList => {
@@ -1587,14 +1604,47 @@ window.__backFromStoryline = () => {
 };
 
 window.__filterStorylinePublisher = (source) => {
-  activeStorylineSourceFilter = source || "";
+  activeStorylineSourceFilter = (activeStorylineSourceFilter === source) ? "" : (source || "");
   if (currentStorylineData) {
     UI.renderStorylineView(
       currentStorylineData,
       activeStorylineSourceFilter,
-      personalizationData.bookmarkedArticles || {}
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
     );
   }
+};
+
+window.__filterSportDiscipline = (discipline) => {
+  activeSportDisciplineFilter = (activeSportDisciplineFilter === discipline) ? "" : (discipline || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
+    );
+  }
+};
+
+window.__filterSportContentType = (ctype) => {
+  activeSportContentTypeFilter = (activeSportContentTypeFilter === ctype) ? "" : (ctype || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
+    );
+  }
+};
+
+window.__openHeroSportDiscipline = (discipline) => {
+  activeSportDisciplineFilter = discipline || "";
+  window.__openCurrentHeroStoryline();
 };
 
 window.__runStorylineAiSummary = async (storyId) => {
@@ -1628,7 +1678,9 @@ window.__runStorylineAiSummary = async (storyId) => {
         UI.renderStorylineView(
           currentStorylineData,
           activeStorylineSourceFilter,
-          personalizationData.bookmarkedArticles || {}
+          personalizationData.bookmarkedArticles || {},
+          activeSportDisciplineFilter,
+          activeSportContentTypeFilter
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
@@ -1686,6 +1738,8 @@ async function loadStorylineView(storyId) {
   UI.showStorylineLoading();
   UI.switchView("storyline");
   activeStorylineSourceFilter = "";
+  activeSportDisciplineFilter = "";
+  activeSportContentTypeFilter = "";
 
   try {
     // 1. First attempt: fetch macro-event detail from API
@@ -1828,7 +1882,9 @@ async function loadStorylineView(storyId) {
     UI.renderStorylineView(
       storyData,
       activeStorylineSourceFilter,
-      personalizationData.bookmarkedArticles || {}
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
     );
   } catch (err) {
     console.error("Failed to load storyline view:", err);
@@ -2105,6 +2161,54 @@ UI.renderSourceFilters([], activeSource, {});
 refreshCategoryCounts();
 refreshSourceFilters();
 checkPDPA();
+
+// ── Storyline Scroll Management (Auto-hide top bar on scroll-down, floating back button) ──
+let lastStorylineScrollY = window.scrollY;
+let storylineScrollTicking = false;
+
+function onStorylineWindowScroll() {
+  const currentY = window.scrollY;
+  const isStorylineActive = window.location.hash.startsWith("#/storyline/") ||
+    (document.getElementById("storyline-view") && !document.getElementById("storyline-view").classList.contains("hidden"));
+
+  const floatingBtn = document.getElementById("storyline-floating-back");
+  const topBar = document.getElementById("storyline-top-bar");
+
+  if (!isStorylineActive) {
+    if (floatingBtn) floatingBtn.classList.add("hidden-fade");
+    if (topBar) topBar.classList.remove("is-hidden");
+    lastStorylineScrollY = currentY;
+    return;
+  }
+
+  // Show floating back button when scrolled down past header
+  if (currentY > 80) {
+    if (floatingBtn) floatingBtn.classList.remove("hidden-fade");
+  } else {
+    if (floatingBtn) floatingBtn.classList.add("hidden-fade");
+  }
+
+  // Auto-hide top bar when scrolling down, show when scrolling up
+  if (topBar) {
+    if (currentY > 80 && currentY > lastStorylineScrollY + 6) {
+      topBar.classList.add("is-hidden");
+    } else if (currentY < lastStorylineScrollY - 6 || currentY <= 80) {
+      topBar.classList.remove("is-hidden");
+    }
+  }
+
+  lastStorylineScrollY = currentY;
+}
+
+window.addEventListener("scroll", () => {
+  if (!storylineScrollTicking) {
+    window.requestAnimationFrame(() => {
+      onStorylineWindowScroll();
+      storylineScrollTicking = false;
+    });
+    storylineScrollTicking = true;
+  }
+}, { passive: true });
 
 // Handle initial route on startup
 handleHashRouting();

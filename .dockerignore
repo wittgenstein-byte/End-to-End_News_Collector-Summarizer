@@ -1,22 +1,52 @@
+# Python caches & virtual environments
 **/__pycache__/
 *.py[cod]
 *.pyo
 .Python
 .venv/
 venv/
-.env
-backend/.env
-.git/
-.gitignore
+.uv-cache/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+
+# Secrets & local environment
+.env
+backend/.env
+*.swp
+
+# Version control & IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+.agents/
+.rtk/
+
+# Node & Frontend build artifacts
 node_modules/
 frontend/node_modules/
+frontend/stitch_export/
+
+# Runtime data & other microservice contexts
 data/
 playwright-service/
 supabase/
-frontend/stitch_export/
-deployment_guide.md
-Readme.md
-AGENTS.md
+
+# Heavy ML model weights (mounted at runtime via ./backend:/app/backend)
+backend/model/wangchanberta_classifier/
+*.safetensors
+*.bin
+
+# Documentation, graphs, scripts, notebooks & tests (not needed in production container)
+docs/
+build/
+graphify-out/
+notebooks/
+scripts/
+backend/tests/
+*.md
+*.tex
+*.pdf
+uv.lock
+

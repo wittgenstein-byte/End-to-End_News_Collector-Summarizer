@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    init: true
     restart: unless-stopped
     ports:
       - "5000:5000"
@@ -10,6 +11,7 @@ services:
       - ./backend/.env
     environment:
       PLAYWRIGHT_SERVICE_URL: http://playwright:8001/scrape
+      DB_TYPE: ${DB_TYPE:-sqlite}
       MONGO_URI: mongodb://mongodb:27017
       MONGO_DB_NAME: news_collector
     volumes:
@@ -17,7 +19,6 @@ services:
       - ./data:/app/data
       - ./backend:/app/backend
       - ./frontend:/app/frontend
-
     depends_on:
       playwright:
         condition: service_healthy
@@ -33,12 +34,20 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   playwright:
     build:
       context: ./playwright-service
       dockerfile: Dockerfile
+    init: true
     restart: unless-stopped
+    shm_size: "512mb"
+    mem_limit: 1536m
     expose:
       - "8001"
     healthcheck:
@@ -53,21 +62,37 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
 
+  # Optional MongoDB service — only starts when explicitly requested via:
+  # docker compose --profile mongodb up -d
   mongodb:
-    image: mongo:latest
+    image: mongo:7
+    profiles:
+      - mongodb
     restart: unless-stopped
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25", "--bind_ip_all"]
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
 
 volumes:
   mongo_data:
+
 

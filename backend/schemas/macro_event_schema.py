@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.schemas.event_evidence_schema import EventProgressionSynthesis
 from backend.schemas.story_schema import (
     StoryRecord,
     StorySummary,
@@ -325,6 +326,8 @@ class MacroEventDetailResponse(BaseModel):
     child_events: list[StorySummary] = Field(default_factory=list)
     relations: list[EventRelationRecord] = Field(default_factory=list)
     timeline: list[MacroTimelineEvent] = Field(default_factory=list)
+    articles: list[dict[str, Any]] = Field(default_factory=list)
+    synthesis: EventProgressionSynthesis | None = None
     trending_score: float | None = None
     breakdown: dict[str, Any] | None = None
     coverage_disclaimer: str = (
