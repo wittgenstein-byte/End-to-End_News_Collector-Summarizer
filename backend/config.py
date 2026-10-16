@@ -198,7 +198,7 @@ class Settings:
     collected_md_dir: Path  = DATA_DIR / _get("COLLECTED_MD_DIR", "collected_md")
     db_type: str            = _get("DB_TYPE", "sqlite").lower().strip()
     sqlite_wal_mode: bool   = _get("SQLITE_WAL_MODE", "true").lower() in {"1", "true", "yes"}
-    sqlite_cache_size_kb: int = int(_get("SQLITE_CACHE_SIZE_KB", "64000"))
+    sqlite_cache_size_kb: int = int(_get("SQLITE_CACHE_SIZE_KB", "16000"))
     sqlite_mmap_size_bytes: int = int(_get("SQLITE_MMAP_SIZE_BYTES", "268435456"))
 
     # Tiered In-Memory Caching (L1 RAM Layer)
