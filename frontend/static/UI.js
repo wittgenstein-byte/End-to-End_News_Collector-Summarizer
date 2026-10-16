@@ -5,7 +5,7 @@
  * รับ data สำเร็จรูปจาก main.js — ไม่ fetch เอง
  */
 
-import { SOURCE_COLORS, CATEGORIES, getCategoryById, getSentimentConfig, SENTIMENT_CONFIG, HERO_CLUSTER_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js";
+import { SOURCE_COLORS, CATEGORIES, getCategoryById, getSentimentConfig, SENTIMENT_CONFIG, HERO_CLUSTER_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js?v=3.3.3";
 
 // ── Escape ────────────────────────────────────────────────────────
 

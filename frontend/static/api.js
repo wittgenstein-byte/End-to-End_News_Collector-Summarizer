@@ -5,7 +5,7 @@
  * ไม่แตะ DOM, ไม่รู้จัก UI element ใด ๆ
  */
 
-import { API_BASE, SOCKET_URL } from "./config.js";
+import { API_BASE, SOCKET_URL } from "./config.js?v=3.3.3";
 
 async function buildHttpError(res) {
   const contentType = res.headers.get("content-type") ?? "";
@@ -342,6 +342,7 @@ let globalSocket = null;
 
 export function createSocket(handlers) {
   /* global io */
+  console.log("[SOCKET] Initializing connection to:", SOCKET_URL);
   const socket = io(SOCKET_URL, {
     transports: ["websocket", "polling"],
     reconnectionAttempts: Infinity,
@@ -349,10 +350,28 @@ export function createSocket(handlers) {
   });
   globalSocket = socket;
 
-  socket.on("connect",      ()     => handlers.onConnect?.());
-  socket.on("disconnect",   ()     => handlers.onDisconnect?.());
-  socket.on("init",         data   => handlers.onInit?.(data));
-  socket.on("new_articles", data   => handlers.onNewArticles?.(data));
+  socket.on("connect", () => {
+    console.log("[SOCKET] Connected successfully! ID:", socket.id);
+    handlers.onConnect?.();
+  });
+
+  socket.on("connect_error", (err) => {
+    console.warn("[SOCKET] Connect error:", err.message, err);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.warn("[SOCKET] Disconnected, reason:", reason);
+    handlers.onDisconnect?.();
+  });
+
+  socket.on("init", (data) => {
+    console.log("[SOCKET] Received init data:", data);
+    handlers.onInit?.(data);
+  });
+
+  socket.on("new_articles", (data) => {
+    handlers.onNewArticles?.(data);
+  });
 
   return socket;
 }

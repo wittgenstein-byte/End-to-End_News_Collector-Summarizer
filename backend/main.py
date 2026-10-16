@@ -202,9 +202,16 @@ async def readyz() -> JSONResponse:
     )
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 if settings.frontend_dir.exists():
     app.mount(
-        "/frontend", StaticFiles(directory=str(settings.frontend_dir)), name="frontend"
+        "/frontend", _NoCacheStaticFiles(directory=str(settings.frontend_dir)), name="frontend"
     )
 
 
