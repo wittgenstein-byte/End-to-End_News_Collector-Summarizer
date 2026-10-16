@@ -1519,5 +1519,47 @@ html.dark .sports-discipline-pill.active {
   border-color: #3b82f6 !important;
 }
 
+/* ── Dedicated Sports Hero Montage & Stat Chips ── */
+.sports-hero-collage-container {
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--ed-border);
+  background: #0b0f17;
+}
+
+.sports-hero-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  border: 1px solid var(--ed-border);
+  color: var(--ed-ink-muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.sports-hero-stat-chip:hover {
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.sports-hero-stat-chip.active {
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+html.dark .sports-hero-stat-chip:hover {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
 
 
