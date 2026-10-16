@@ -7,7 +7,7 @@
  */
 
 import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js";
-import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
+import { CATEGORIES, TRENDING_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js";
 import * as UI from "./UI.js";
 
 // ── PDPA & Personalization ────────────────────────────────────────
@@ -1226,6 +1226,7 @@ async function handleSummarize(event, url) {
     const data = await summarizeArticle(url);
     if (data.ok && data.summary) {
       UI.showModalResult(data.summary, url);
+      promptFeedbackIfEligible();
     } else {
       throw new Error(data.error ?? "เกิดข้อผิดพลาดในการสรุปข่าว");
     }
@@ -1236,6 +1237,42 @@ async function handleSummarize(event, url) {
 
 // expose ให้ onclick attribute ใน ui.js เรียกได้
 window.__summarize = handleSummarize;
+
+// ── Project Evaluation Feedback Handlers ──────────────────────────
+
+function promptFeedbackIfEligible() {
+  if (localStorage.getItem(FEEDBACK_COMPLETED_KEY) === "true") return;
+  setTimeout(() => {
+    UI.showFeedbackPromptModal();
+  }, 1400);
+}
+
+window.__handleFeedbackFormClick = (event) => {
+  try {
+    localStorage.setItem(FEEDBACK_COMPLETED_KEY, "true");
+  } catch (e) {
+    console.warn("Could not save feedback completed flag:", e);
+  }
+  UI.hideFeedbackPromptModal();
+
+  const modalCallout = document.getElementById("modal-feedback-callout");
+  if (modalCallout) modalCallout.remove();
+  const inlineCallout = document.getElementById("inline-feedback-callout");
+  if (inlineCallout) inlineCallout.remove();
+  const evalStatus = document.getElementById("eval-status-banner");
+  if (evalStatus) evalStatus.classList.remove("hidden");
+
+  UI.showToast("ขอบพระคุณสำหรับความคิดเห็นของคุณ");
+};
+
+window.__dismissFeedbackPrompt = () => {
+  UI.hideFeedbackPromptModal();
+};
+
+window.__openFeedbackLandingPage = () => {
+  UI.hideFeedbackPromptModal();
+  window.location.hash = "#/evaluation";
+};
 
 // ── Floating Live Update Actions ──────────────────────────────────
 
@@ -1546,6 +1583,9 @@ function handleHashRouting() {
     const params = new URLSearchParams(queryStr || "");
     const autoSummarize = params.get("summarize") === "1" || params.get("summarize") === "true";
     showPreviewByUrl(articleUrl, autoSummarize);
+  } else if (hash.startsWith("#/evaluation") || hash.startsWith("#/feedback") || hash.startsWith("#/survey")) {
+    UI.renderEvaluationView();
+    UI.switchView("evaluation");
   } else {
     UI.switchView("feed");
   }
@@ -1693,6 +1733,7 @@ window.__runStorylineAiSummary = async (storyId) => {
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
+      promptFeedbackIfEligible();
       return;
     }
 
@@ -1927,6 +1968,7 @@ window.__runPreviewAiSummary = async (url) => {
       if (section) {
         section.innerHTML = UI.renderInlineSummary(data.summary);
       }
+      promptFeedbackIfEligible();
     } else {
       throw new Error(data.error || "เกิดข้อผิดพลาดในการสังเคราะห์ข้อมูล");
     }

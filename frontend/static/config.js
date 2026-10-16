@@ -17,6 +17,9 @@ export const PAGE_SIZE  = 20;
 export const TRENDING_LIMIT = 50;
 export const HERO_CLUSTER_LIMIT = 12;
 
+export const FEEDBACK_FORM_URL = "https://forms.gle/GKWw4otqQrsuqd4L7";
+export const FEEDBACK_COMPLETED_KEY = "newsroom_feedback_completed";
+
 /**
  * Sentiment visual token configurations
  */
