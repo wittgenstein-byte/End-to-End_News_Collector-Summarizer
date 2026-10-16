@@ -1064,8 +1064,8 @@ async function loadPage(page = 1) {
 
   currentPage = page;
 
-  // Handle Hero Trending Highlights: shown only on Page 1, 'all' category, no search, no source filter
-  const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all") && !searchQuery && !activeSource;
+  // Handle Hero Trending Highlights: shown on Page 1 for 'all' and 'sports' categories, no search, no source filter
+  const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all" || activeCategory === "sports") && !searchQuery && !activeSource;
   if (shouldShowTrending) {
     fetchTrendingStories(TRENDING_LIMIT, activeCategory)
       .then(trendingList => {
@@ -1640,6 +1640,11 @@ window.__filterSportContentType = (ctype) => {
       activeSportContentTypeFilter
     );
   }
+};
+
+window.__openHeroSportDiscipline = (discipline) => {
+  activeSportDisciplineFilter = discipline || "";
+  window.__openCurrentHeroStoryline();
 };
 
 window.__runStorylineAiSummary = async (storyId) => {

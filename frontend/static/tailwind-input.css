@@ -1561,5 +1561,32 @@ html.dark .sports-hero-stat-chip:hover {
   color: #34d399;
 }
 
+/* ── Sports Hub Hero in Main Page Hero Carousel ── */
+.sports-hub-hero .hero-progress-segment {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.sports-hub-hero .hero-progress-segment-active {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.sports-hub-hero .hero-progress-bar-fill {
+  background-color: #059669;
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.6);
+}
+
+html.dark .sports-hub-hero .hero-progress-segment {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+html.dark .sports-hub-hero .hero-progress-segment-active {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+html.dark .sports-hub-hero .hero-progress-bar-fill {
+  background-color: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
+}
+
 
 

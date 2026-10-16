@@ -662,6 +662,321 @@ function updateHeroTrendingSlide() {
     `;
   }).join("");
 
+  // Extract all articles belonging to this trending story
+  const allSlideArticles = [];
+  const seenArtUrls = new Set();
+  (n.articles || []).forEach(a => {
+    if (a && a.url && !seenArtUrls.has(a.url)) {
+      seenArtUrls.add(a.url);
+      allSlideArticles.push(a);
+    }
+  });
+  (n.child_events || []).forEach(ce => {
+    (ce.articles || []).forEach(a => {
+      if (a && a.url && !seenArtUrls.has(a.url)) {
+        seenArtUrls.add(a.url);
+        allSlideArticles.push(a);
+      }
+    });
+  });
+  if (allSlideArticles.length === 0 && n.url) {
+    allSlideArticles.push(n);
+  }
+
+  const isSportsStory = checkIsSportsCluster(n, allSlideArticles) || n.category === "sports";
+
+  // Dedicated Sports Multi-Image Hero Montage on Main Page
+  if (isSportsStory) {
+    allSlideArticles.forEach(art => {
+      if (!art._sportsMeta) art._sportsMeta = classifySportsArticle(art);
+    });
+
+    const disciplineCounts = {
+      football_europe: 0,
+      football_thai: 0,
+      volleyball: 0,
+      other_sports: 0,
+    };
+    const contentTypeCounts = {
+      result: 0,
+      schedule: 0,
+      general: 0,
+    };
+    allSlideArticles.forEach(art => {
+      const meta = art._sportsMeta;
+      if (disciplineCounts[meta.discipline] !== undefined) {
+        disciplineCounts[meta.discipline]++;
+      } else {
+        disciplineCounts.other_sports++;
+      }
+      if (contentTypeCounts[meta.contentType] !== undefined) {
+        contentTypeCounts[meta.contentType]++;
+      } else {
+        contentTypeCounts.general++;
+      }
+    });
+
+    const discTabs = [
+      { id: "", label: "ทุกประเภทกีฬา", icon: "🌟", count: allSlideArticles.length },
+      { id: "football_europe", label: "ฟุตบอลยุโรป & UCL", icon: "⚽", count: disciplineCounts.football_europe },
+      { id: "football_thai", label: "ฟุตบอลไทย & เอเชีย", icon: "🇹🇭", count: disciplineCounts.football_thai },
+      { id: "volleyball", label: "วอลเลย์บอล & ในร่ม", icon: "🏐", count: disciplineCounts.volleyball },
+      { id: "other_sports", label: "กีฬาอื่นๆ & พาราเกมส์", icon: "🏃", count: disciplineCounts.other_sports },
+    ].filter(t => t.id === "" || t.count > 0);
+
+    const sportsImages = [];
+    const seenImageUrls = new Set();
+    for (const art of allSlideArticles) {
+      const img = art.image_url;
+      if (img && typeof img === "string" && img.startsWith("http") && !seenImageUrls.has(img)) {
+        seenImageUrls.add(img);
+        sportsImages.push({
+          url: img,
+          title: art.title || "",
+          articleUrl: art.url || "",
+          source: art.source || "ข่าว",
+          meta: art._sportsMeta || classifySportsArticle(art),
+        });
+      }
+    }
+
+    let sportsCollageHtml = "";
+    if (sportsImages.length >= 3) {
+      const mainImg = sportsImages[0];
+      const subImgs = sportsImages.slice(1, 3);
+      sportsCollageHtml = `
+        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-1.5 p-1.5">
+            <!-- Featured Main Photo (7 cols) -->
+            <div class="md:col-span-7 relative group rounded-xl overflow-hidden h-60 sm:h-72 md:h-80 cursor-pointer bg-slate-900"
+                 onclick="window.__openPreview('${esc(mainImg.articleUrl)}')">
+              <img src="${esc(mainImg.url)}" 
+                   alt="${esc(mainImg.title)}" 
+                   class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                   loading="eager"
+                   onerror="this.style.display='none';">
+              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-4 sm:p-5 text-white pointer-events-none">
+                <div class="flex items-center gap-1.5 mb-2 flex-wrap">
+                  <span class="sports-tag-badge ${mainImg.meta.leagueBadgeClass}">${mainImg.meta.leagueBadge}</span>
+                  ${mainImg.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge">🏆 ${esc(mainImg.meta.scoreHighlight)}</span>` : ''}
+                  <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded">${esc(mainImg.source)}</span>
+                </div>
+                <h3 class="text-base sm:text-lg font-bold text-white line-clamp-2 drop-shadow-md group-hover:text-emerald-300 transition-colors leading-snug">
+                  ${esc(mainImg.title)}
+                </h3>
+                <span class="text-[11px] text-emerald-400 font-mono mt-1.5 flex items-center gap-1 font-semibold">
+                  คลิกอ่านข่าวย่อ ➔
+                </span>
+              </div>
+            </div>
+
+            <!-- Secondary Stacked Photos (5 cols, 2 rows) -->
+            <div class="md:col-span-5 grid grid-rows-2 gap-1.5 h-60 sm:h-72 md:h-80">
+              ${subImgs.map((item) => `
+                <div class="relative group rounded-xl overflow-hidden h-full cursor-pointer bg-slate-900"
+                     onclick="window.__openPreview('${esc(item.articleUrl)}')">
+                  <img src="${esc(item.url)}" 
+                       alt="${esc(item.title)}" 
+                       class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                       loading="lazy"
+                       onerror="this.style.display='none';">
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-3 text-white pointer-events-none">
+                    <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <span class="sports-tag-badge text-[9px] py-0.5 px-1.5 ${item.meta.leagueBadgeClass}">${item.meta.leagueBadge}</span>
+                      ${item.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge text-[9px] py-0.5 px-1.5">🏆 ${esc(item.meta.scoreHighlight)}</span>` : ''}
+                      <span class="text-[9px] font-mono text-slate-300 bg-black/40 px-1.5 py-0.5 rounded">${esc(item.source)}</span>
+                    </div>
+                    <h4 class="text-xs sm:text-sm font-semibold text-white line-clamp-1 drop-shadow-md group-hover:text-emerald-300 transition-colors">
+                      ${esc(item.title)}
+                    </h4>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Footer Strip -->
+          <div class="px-4 py-2 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-emerald-400">📸</span>
+              <span class="font-mono text-[11px] font-bold text-slate-200">ประมวลภาพและไฮไลต์ ${sportsImages.length} ภาพจากสนามแข่ง</span>
+            </div>
+            <span class="text-[10px] font-mono text-slate-400">คลิกที่ภาพเพื่อดูรายละเอียดข่าว</span>
+          </div>
+        </div>
+      `;
+    } else if (sportsImages.length === 2) {
+      sportsCollageHtml = `
+        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-1.5 h-60 sm:h-72">
+            ${sportsImages.map(item => `
+              <div class="relative group rounded-xl overflow-hidden h-full cursor-pointer bg-slate-900"
+                   onclick="window.__openPreview('${esc(item.articleUrl)}')">
+                <img src="${esc(item.url)}" alt="${esc(item.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-4 text-white pointer-events-none">
+                  <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span class="sports-tag-badge ${item.meta.leagueBadgeClass}">${item.meta.leagueBadge}</span>
+                    ${item.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge">🏆 ${esc(item.meta.scoreHighlight)}</span>` : ''}
+                    <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 px-2 py-0.5 rounded">${esc(item.source)}</span>
+                  </div>
+                  <h3 class="text-sm sm:text-base font-bold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors leading-snug">
+                    ${esc(item.title)}
+                  </h3>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="px-4 py-2 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+            <span class="font-mono text-[11px] text-slate-200">📸 รวมภาพข่าวกีฬา 2 รายงาน</span>
+            <span class="text-[10px] font-mono text-slate-400">คลิกที่ภาพเพื่อดูรายละเอียด</span>
+          </div>
+        </div>
+      `;
+    } else if (sportsImages.length === 1) {
+      const singleImg = sportsImages[0];
+      sportsCollageHtml = `
+        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
+          <div class="p-1.5">
+            <div class="relative group rounded-xl overflow-hidden h-60 sm:h-72 cursor-pointer bg-slate-900"
+                 onclick="window.__openPreview('${esc(singleImg.articleUrl)}')">
+              <img src="${esc(singleImg.url)}" alt="${esc(singleImg.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-5 text-white pointer-events-none">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  <span class="sports-tag-badge ${singleImg.meta.leagueBadgeClass}">${singleImg.meta.leagueBadge}</span>
+                  <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 px-2 py-0.5 rounded">${esc(singleImg.source)}</span>
+                </div>
+                <h3 class="text-base sm:text-lg font-bold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors">${esc(singleImg.title)}</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      ${quickSwitchStripHtml}
+
+      <div class="sports-hub-hero bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-sm space-y-5 text-slate-800 dark:text-zinc-100 relative group"
+           onmouseenter="window.__pauseTrendingAutoPlay()"
+           onmouseleave="window.__resumeTrendingAutoPlay()">
+        
+        <!-- Navigation Buttons -->
+        <button type="button" class="hero-nav-btn hero-nav-btn-left" onclick="window.__prevTrendingSlide(event)" title="ก่อนหน้า">
+          <span class="material-symbols-outlined text-[22px]">chevron_left</span>
+        </button>
+        <button type="button" class="hero-nav-btn hero-nav-btn-right" onclick="window.__nextTrendingSlide(event)" title="ถัดไป">
+          <span class="material-symbols-outlined text-[22px]">chevron_right</span>
+        </button>
+
+        <!-- Top Header & Status -->
+        <div class="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-700/40">
+                <span class="material-symbols-outlined text-[14px]">sports_soccer</span>
+                ศูนย์รวมข่าวกีฬา • SPORTS ROUNDUP
+              </span>
+              <span class="px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300 font-mono text-[10px]">
+                FEATURED #${String(rankNum).padStart(2, "0")}
+              </span>
+              <span class="text-xs text-slate-400 dark:text-zinc-500 font-medium">${formatEditorialDateOnly(n.updated_at || n.fetched_at)}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="px-3 py-1 rounded-full bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700 flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>รวม ${allSlideArticles.length} รายงาน • ${outletMap.size} สำนักข่าว</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-2 flex-wrap cursor-pointer"
+                onclick="window.__openCurrentHeroStoryline()">
+              <span>รวมข่าวกีฬาล่าสุด</span>
+              <span class="text-xs sm:text-sm font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
+                สดรอบวัน
+              </span>
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed max-w-3xl">
+              สรุปผลการแข่งขัน ไฮไลต์ฟุตบอลไทย บอลยุโรป วอลเลย์บอล และความเคลื่อนไหววงการกีฬา รวบรวมทั้งหมด ${allSlideArticles.length} รายงาน จาก ${outletMap.size} สำนักข่าว
+            </p>
+          </div>
+
+          <!-- Quick Sports Summary Badges / Stat Chips -->
+          <div class="flex items-center gap-2 flex-wrap pt-1">
+            ${discTabs.map(tab => `
+              <button type="button"
+                      class="sports-hero-stat-chip"
+                      onclick="window.__openHeroSportDiscipline('${tab.id}')">
+                <span>${tab.icon} ${tab.label}</span>
+                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">(${tab.count})</span>
+              </button>
+            `).join("")}
+            ${contentTypeCounts.result > 0 ? `
+              <button type="button"
+                      class="sports-hero-stat-chip"
+                      onclick="window.__openHeroSportDiscipline('')">
+                <span>🏆 ผลการแข่งขัน</span>
+                <span class="font-mono font-bold text-amber-600 dark:text-amber-400">(${contentTypeCounts.result})</span>
+              </button>
+            ` : ""}
+          </div>
+        </div>
+
+        <!-- Multi-Image Montage Showcase (เอาหลายภาพมารวม) -->
+        ${sportsCollageHtml}
+
+        <!-- Bottom Action Strip & Storyline Navigation -->
+        <div class="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-slate-100 dark:border-zinc-800">
+          <span class="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+            ${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}
+          </span>
+
+          <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
+            <button type="button" 
+                    class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
+                    data-url="${esc(n.url)}"
+                    onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                    title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+              <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+              </span>
+            </button>
+            <button type="button" 
+                    class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 transition-all cursor-pointer shadow-2xs" 
+                    onclick="window.__openPreview('${esc(n.url)}')">
+              <span class="material-symbols-outlined text-[15px]">article</span>
+              <span>อ่านบทคัดย่อ</span>
+            </button>
+            <button type="button" 
+                    class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                    onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
+              <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+              <span>สรุป AI</span>
+            </button>
+            <button type="button" 
+                    class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950" 
+                    onclick="window.__openCurrentHeroStoryline()"
+                    title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
+              <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">sports_and_outdoors</span>
+              <span>ดูข่าวกีฬาทั้งหมดในประเด็นนี้</span>
+              <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ (${allSlideArticles.length} ข่าว)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Carousel Progress Indicators -->
+        <div class="relative pt-2">
+          <div class="flex gap-2">
+            ${indicatorsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   container.innerHTML = `
     ${quickSwitchStripHtml}
 
