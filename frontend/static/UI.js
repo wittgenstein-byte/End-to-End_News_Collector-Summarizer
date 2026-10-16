@@ -685,7 +685,7 @@ function updateHeroTrendingSlide() {
 
   const isSportsStory = checkIsSportsCluster(n, allSlideArticles) || n.category === "sports";
 
-  // Dedicated Sports Multi-Image Hero Montage on Main Page
+  // Dedicated Sports Multi-Image Hero Montage on Main Page (contained strictly inside hero-carousel-container)
   if (isSportsStory) {
     allSlideArticles.forEach(art => {
       if (!art._sportsMeta) art._sportsMeta = classifySportsArticle(art);
@@ -717,11 +717,11 @@ function updateHeroTrendingSlide() {
     });
 
     const discTabs = [
-      { id: "", label: "ทุกประเภทกีฬา", icon: "🌟", count: allSlideArticles.length },
-      { id: "football_europe", label: "ฟุตบอลยุโรป & UCL", icon: "⚽", count: disciplineCounts.football_europe },
-      { id: "football_thai", label: "ฟุตบอลไทย & เอเชีย", icon: "🇹🇭", count: disciplineCounts.football_thai },
-      { id: "volleyball", label: "วอลเลย์บอล & ในร่ม", icon: "🏐", count: disciplineCounts.volleyball },
-      { id: "other_sports", label: "กีฬาอื่นๆ & พาราเกมส์", icon: "🏃", count: disciplineCounts.other_sports },
+      { id: "", label: "ทุกกีฬา", icon: "🌟", count: allSlideArticles.length },
+      { id: "football_europe", label: "บอลยุโรป & UCL", icon: "⚽", count: disciplineCounts.football_europe },
+      { id: "football_thai", label: "บอลไทย & เอเชีย", icon: "🇹🇭", count: disciplineCounts.football_thai },
+      { id: "volleyball", label: "วอลเลย์บอล", icon: "🏐", count: disciplineCounts.volleyball },
+      { id: "other_sports", label: "กีฬาอื่นๆ", icon: "🏃", count: disciplineCounts.other_sports },
     ].filter(t => t.id === "" || t.count > 0);
 
     const sportsImages = [];
@@ -740,126 +740,61 @@ function updateHeroTrendingSlide() {
       }
     }
 
-    let sportsCollageHtml = "";
-    if (sportsImages.length >= 3) {
-      const mainImg = sportsImages[0];
-      const subImgs = sportsImages.slice(1, 3);
-      sportsCollageHtml = `
-        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
-          <div class="grid grid-cols-1 md:grid-cols-12 gap-1.5 p-1.5">
-            <!-- Featured Main Photo (7 cols) -->
-            <div class="md:col-span-7 relative group rounded-xl overflow-hidden h-60 sm:h-72 md:h-80 cursor-pointer bg-slate-900"
-                 onclick="window.__openPreview('${esc(mainImg.articleUrl)}')">
-              <img src="${esc(mainImg.url)}" 
-                   alt="${esc(mainImg.title)}" 
-                   class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                   loading="eager"
-                   onerror="this.style.display='none';">
-              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-4 sm:p-5 text-white pointer-events-none">
-                <div class="flex items-center gap-1.5 mb-2 flex-wrap">
-                  <span class="sports-tag-badge ${mainImg.meta.leagueBadgeClass}">${mainImg.meta.leagueBadge}</span>
-                  ${mainImg.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge">🏆 ${esc(mainImg.meta.scoreHighlight)}</span>` : ''}
-                  <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded">${esc(mainImg.source)}</span>
-                </div>
-                <h3 class="text-base sm:text-lg font-bold text-white line-clamp-2 drop-shadow-md group-hover:text-emerald-300 transition-colors leading-snug">
-                  ${esc(mainImg.title)}
-                </h3>
-                <span class="text-[11px] text-emerald-400 font-mono mt-1.5 flex items-center gap-1 font-semibold">
-                  คลิกอ่านข่าวย่อ ➔
-                </span>
+    container.innerHTML = `
+      ${quickSwitchStripHtml}
+
+      <div class="hero-carousel-container group"
+           onmouseenter="window.__pauseTrendingAutoPlay()"
+           onmouseleave="window.__resumeTrendingAutoPlay()">
+        
+        <!-- Sports Multi-Image Split Montage (Fills 100% of hero container with no vertical expansion) -->
+        ${sportsImages.length >= 2 ? `
+          <div class="absolute inset-0 w-full h-full grid grid-cols-1 md:grid-cols-12 gap-1 bg-slate-950 pointer-events-auto">
+            <!-- Left: Featured Main Action Photo (7 cols) -->
+            <div class="relative md:col-span-7 h-full overflow-hidden cursor-pointer group/main"
+                 onclick="window.__openPreview('${esc(sportsImages[0].articleUrl)}')">
+              <img src="${esc(sportsImages[0].url)}" 
+                   alt="${esc(sportsImages[0].title)}" 
+                   class="w-full h-full object-cover group-hover/main:scale-105 transition-transform duration-700" 
+                   loading="eager" />
+              <div class="absolute top-12 sm:top-14 left-4 sm:left-6 flex items-center gap-1.5 z-20 flex-wrap">
+                <span class="sports-tag-badge text-[9px] ${sportsImages[0].meta.leagueBadgeClass}">${sportsImages[0].meta.leagueBadge}</span>
+                ${sportsImages[0].meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge text-[9px]">🏆 ${esc(sportsImages[0].meta.scoreHighlight)}</span>` : ''}
+                <span class="text-[9px] font-mono text-white/90 bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded font-bold">${esc(sportsImages[0].source)}</span>
               </div>
             </div>
 
-            <!-- Secondary Stacked Photos (5 cols, 2 rows) -->
-            <div class="md:col-span-5 grid grid-rows-2 gap-1.5 h-60 sm:h-72 md:h-80">
-              ${subImgs.map((item) => `
-                <div class="relative group rounded-xl overflow-hidden h-full cursor-pointer bg-slate-900"
+            <!-- Right: Secondary Stacked Photos (5 cols, 2 rows) -->
+            <div class="hidden md:grid md:col-span-5 grid-rows-2 gap-1 h-full">
+              ${sportsImages.slice(1, 3).map((item) => `
+                <div class="relative h-full overflow-hidden cursor-pointer group/sub"
                      onclick="window.__openPreview('${esc(item.articleUrl)}')">
                   <img src="${esc(item.url)}" 
                        alt="${esc(item.title)}" 
-                       class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                       loading="lazy"
-                       onerror="this.style.display='none';">
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-3 text-white pointer-events-none">
-                    <div class="flex items-center gap-1.5 mb-1 flex-wrap">
-                      <span class="sports-tag-badge text-[9px] py-0.5 px-1.5 ${item.meta.leagueBadgeClass}">${item.meta.leagueBadge}</span>
-                      ${item.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge text-[9px] py-0.5 px-1.5">🏆 ${esc(item.meta.scoreHighlight)}</span>` : ''}
-                      <span class="text-[9px] font-mono text-slate-300 bg-black/40 px-1.5 py-0.5 rounded">${esc(item.source)}</span>
-                    </div>
-                    <h4 class="text-xs sm:text-sm font-semibold text-white line-clamp-1 drop-shadow-md group-hover:text-emerald-300 transition-colors">
-                      ${esc(item.title)}
-                    </h4>
+                       class="w-full h-full object-cover group-hover/sub:scale-105 transition-transform duration-700" 
+                       loading="lazy" />
+                  <div class="absolute inset-0 bg-black/35 group-hover/sub:bg-black/15 transition-colors"></div>
+                  <div class="absolute top-2.5 right-2.5 flex items-center gap-1 z-20">
+                    <span class="sports-tag-badge text-[9px] py-0.5 px-1.5 ${item.meta.leagueBadgeClass}">${item.meta.leagueBadge}</span>
+                    ${item.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge text-[9px] py-0.5 px-1.5">🏆 ${esc(item.meta.scoreHighlight)}</span>` : ''}
+                    <span class="text-[9px] font-mono text-white/90 bg-black/70 px-1.5 py-0.5 rounded font-bold">${esc(item.source)}</span>
+                  </div>
+                  <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20">
+                    <p class="text-xs font-semibold text-white line-clamp-1 drop-shadow-md group-hover/sub:text-emerald-300 transition-colors">${esc(item.title)}</p>
                   </div>
                 </div>
               `).join("")}
             </div>
           </div>
+        ` : `
+          <img src="${esc(imgSrc)}" 
+               alt="${esc(n.title)}" 
+               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 cursor-pointer"
+               onclick="window.__openPreview('${esc(n.url)}')"
+               onerror="this.onerror=null; this.src='${getCategoryPlaceholder(n.category)}';" 
+               loading="eager" />
+        `}
 
-          <!-- Footer Strip -->
-          <div class="px-4 py-2 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
-            <div class="flex items-center gap-2">
-              <span class="text-emerald-400">📸</span>
-              <span class="font-mono text-[11px] font-bold text-slate-200">ประมวลภาพและไฮไลต์ ${sportsImages.length} ภาพจากสนามแข่ง</span>
-            </div>
-            <span class="text-[10px] font-mono text-slate-400">คลิกที่ภาพเพื่อดูรายละเอียดข่าว</span>
-          </div>
-        </div>
-      `;
-    } else if (sportsImages.length === 2) {
-      sportsCollageHtml = `
-        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-1.5 h-60 sm:h-72">
-            ${sportsImages.map(item => `
-              <div class="relative group rounded-xl overflow-hidden h-full cursor-pointer bg-slate-900"
-                   onclick="window.__openPreview('${esc(item.articleUrl)}')">
-                <img src="${esc(item.url)}" alt="${esc(item.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
-                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-4 text-white pointer-events-none">
-                  <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span class="sports-tag-badge ${item.meta.leagueBadgeClass}">${item.meta.leagueBadge}</span>
-                    ${item.meta.scoreHighlight ? `<span class="sports-tag-badge sports-result-badge">🏆 ${esc(item.meta.scoreHighlight)}</span>` : ''}
-                    <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 px-2 py-0.5 rounded">${esc(item.source)}</span>
-                  </div>
-                  <h3 class="text-sm sm:text-base font-bold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors leading-snug">
-                    ${esc(item.title)}
-                  </h3>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-          <div class="px-4 py-2 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-            <span class="font-mono text-[11px] text-slate-200">📸 รวมภาพข่าวกีฬา 2 รายงาน</span>
-            <span class="text-[10px] font-mono text-slate-400">คลิกที่ภาพเพื่อดูรายละเอียด</span>
-          </div>
-        </div>
-      `;
-    } else if (sportsImages.length === 1) {
-      const singleImg = sportsImages[0];
-      sportsCollageHtml = `
-        <div class="sports-hero-collage-container shadow-md border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-slate-950">
-          <div class="p-1.5">
-            <div class="relative group rounded-xl overflow-hidden h-60 sm:h-72 cursor-pointer bg-slate-900"
-                 onclick="window.__openPreview('${esc(singleImg.articleUrl)}')">
-              <img src="${esc(singleImg.url)}" alt="${esc(singleImg.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
-              <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-5 text-white pointer-events-none">
-                <div class="flex items-center gap-2 mb-2 flex-wrap">
-                  <span class="sports-tag-badge ${singleImg.meta.leagueBadgeClass}">${singleImg.meta.leagueBadge}</span>
-                  <span class="text-[10px] font-mono text-slate-300 font-bold bg-white/20 px-2 py-0.5 rounded">${esc(singleImg.source)}</span>
-                </div>
-                <h3 class="text-base sm:text-lg font-bold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors">${esc(singleImg.title)}</h3>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    container.innerHTML = `
-      ${quickSwitchStripHtml}
-
-      <div class="sports-hub-hero bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-sm space-y-5 text-slate-800 dark:text-zinc-100 relative group"
-           onmouseenter="window.__pauseTrendingAutoPlay()"
-           onmouseleave="window.__resumeTrendingAutoPlay()">
-        
         <!-- Navigation Buttons -->
         <button type="button" class="hero-nav-btn hero-nav-btn-left" onclick="window.__prevTrendingSlide(event)" title="ก่อนหน้า">
           <span class="material-symbols-outlined text-[22px]">chevron_left</span>
@@ -868,109 +803,110 @@ function updateHeroTrendingSlide() {
           <span class="material-symbols-outlined text-[22px]">chevron_right</span>
         </button>
 
-        <!-- Top Header & Status -->
-        <div class="space-y-3.5 border-b border-slate-100 dark:border-zinc-800 pb-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
+        <!-- Gradient Scrim Overlay -->
+        <div class="hero-gradient-overlay">
+          <!-- Top Telemetry Row -->
+          <div class="flex items-center justify-between gap-2 pointer-events-auto">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-700/40">
-                <span class="material-symbols-outlined text-[14px]">sports_soccer</span>
-                ศูนย์รวมข่าวกีฬา • SPORTS ROUNDUP
+              <span class="px-2.5 py-1 rounded bg-emerald-600 text-white font-mono font-bold text-[10px] tracking-widest uppercase flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px]">sports_soccer</span>
+                SPORTS ROUNDUP
               </span>
-              <span class="px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-300 font-mono text-[10px]">
+              <span class="px-2.5 py-1 rounded bg-black/60 text-white/90 backdrop-blur-md font-mono text-[10px] border border-white/20">
                 FEATURED #${String(rankNum).padStart(2, "0")}
               </span>
-              <span class="text-xs text-slate-400 dark:text-zinc-500 font-medium">${formatEditorialDateOnly(n.updated_at || n.fetched_at)}</span>
+              <span class="px-2.5 py-1 rounded bg-black/60 text-white/90 backdrop-blur-md font-mono text-[10px] border border-white/20 hidden sm:inline-block">
+                IMPACT SCORE ${scoreVal}
+              </span>
             </div>
+            <div class="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded border border-white/20">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="text-[11px] font-mono font-bold text-white uppercase tracking-wider">
+                รวม ${allSlideArticles.length} รายงาน • ${outletMap.size} สำนักข่าว
+              </span>
+            </div>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <div class="px-3 py-1 rounded-full bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700 flex items-center gap-1.5">
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>รวม ${allSlideArticles.length} รายงาน • ${outletMap.size} สำนักข่าว</span>
+          <!-- Bottom Editorial Feature Content -->
+          <div class="space-y-2 pointer-events-auto pb-3 max-w-4xl">
+            <div class="space-y-1">
+              <h1 class="text-xl sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-tight cursor-pointer hover:underline decoration-white/40 underline-offset-4 flex items-center gap-2 flex-wrap"
+                  onclick="window.__openCurrentHeroStoryline()">
+                <span>⚡ รวมข่าวกีฬาล่าสุด</span>
+                <span class="text-[10px] sm:text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/90 text-white border border-emerald-400/50 shadow-xs">
+                  สดรอบวัน
+                </span>
+              </h1>
+
+              <p class="text-xs sm:text-sm text-white/90 line-clamp-1 leading-relaxed hidden sm:block font-body max-w-3xl drop-shadow cursor-pointer"
+                 onclick="window.__openCurrentHeroStoryline()">
+                ${esc(n.title)} • รวบรวมไฮไลต์ ผลบอลไทย บอลยุโรป วอลเลย์บอล จาก ${outletMap.size} สำนักข่าว (${allSlideArticles.length} ข่าว)
+              </p>
+
+              <!-- Quick Sports Discipline Pills (Frosted Glass Chips) -->
+              <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                ${discTabs.map(tab => `
+                  <button type="button"
+                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs"
+                          onclick="event.stopPropagation(); window.__openHeroSportDiscipline('${tab.id}')">
+                    <span>${tab.icon}</span>
+                    <span>${tab.label}</span>
+                    <span class="text-emerald-400 font-bold">(${tab.count})</span>
+                  </button>
+                `).join("")}
+                ${contentTypeCounts.result > 0 ? `
+                  <button type="button"
+                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs"
+                          onclick="event.stopPropagation(); window.__openHeroSportDiscipline('')">
+                    <span>🏆 ผลแข่ง</span>
+                    <span class="text-amber-400 font-bold">(${contentTypeCounts.result})</span>
+                  </button>
+                ` : ""}
               </div>
             </div>
-          </div>
 
-          <div class="space-y-1">
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-2 flex-wrap cursor-pointer"
-                onclick="window.__openCurrentHeroStoryline()">
-              <span>รวมข่าวกีฬาล่าสุด</span>
-              <span class="text-xs sm:text-sm font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
-                สดรอบวัน
+            <div class="flex items-center justify-between gap-4 flex-wrap pt-2 border-t border-white/15">
+              <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">
+                ${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}
               </span>
-            </h1>
-            <p class="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed max-w-3xl">
-              สรุปผลการแข่งขัน ไฮไลต์ฟุตบอลไทย บอลยุโรป วอลเลย์บอล และความเคลื่อนไหววงการกีฬา รวบรวมทั้งหมด ${allSlideArticles.length} รายงาน จาก ${outletMap.size} สำนักข่าว
-            </p>
-          </div>
-
-          <!-- Quick Sports Summary Badges / Stat Chips -->
-          <div class="flex items-center gap-2 flex-wrap pt-1">
-            ${discTabs.map(tab => `
-              <button type="button"
-                      class="sports-hero-stat-chip"
-                      onclick="window.__openHeroSportDiscipline('${tab.id}')">
-                <span>${tab.icon} ${tab.label}</span>
-                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">(${tab.count})</span>
-              </button>
-            `).join("")}
-            ${contentTypeCounts.result > 0 ? `
-              <button type="button"
-                      class="sports-hero-stat-chip"
-                      onclick="window.__openHeroSportDiscipline('')">
-                <span>🏆 ผลการแข่งขัน</span>
-                <span class="font-mono font-bold text-amber-600 dark:text-amber-400">(${contentTypeCounts.result})</span>
-              </button>
-            ` : ""}
-          </div>
-        </div>
-
-        <!-- Multi-Image Montage Showcase (เอาหลายภาพมารวม) -->
-        ${sportsCollageHtml}
-
-        <!-- Bottom Action Strip & Storyline Navigation -->
-        <div class="flex items-center justify-between gap-4 flex-wrap pt-3 border-t border-slate-100 dark:border-zinc-800">
-          <span class="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
-            ${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}
-          </span>
-
-          <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
-            <button type="button" 
-                    class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
-                    data-url="${esc(n.url)}"
-                    onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
-                    title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-              <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
-                ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-              </span>
-            </button>
-            <button type="button" 
-                    class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 transition-all cursor-pointer shadow-2xs" 
-                    onclick="window.__openPreview('${esc(n.url)}')">
-              <span class="material-symbols-outlined text-[15px]">article</span>
-              <span>อ่านบทคัดย่อ</span>
-            </button>
-            <button type="button" 
-                    class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                    onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-              <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-              <span>สรุป AI</span>
-            </button>
-            <button type="button" 
-                    class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950" 
-                    onclick="window.__openCurrentHeroStoryline()"
-                    title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
-              <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">sports_and_outdoors</span>
-              <span>ดูข่าวกีฬาทั้งหมดในประเด็นนี้</span>
-              <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ (${allSlideArticles.length} ข่าว)</span>
-            </button>
+              <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
+                <button type="button" 
+                        class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
+                        data-url="${esc(n.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>
+                <button type="button" 
+                        class="hero-read-abstract-btn flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        onclick="window.__openPreview('${esc(n.url)}')">
+                  <span class="material-symbols-outlined text-[15px]">article</span>
+                  <span>อ่านบทคัดย่อ</span>
+                </button>
+                <button type="button" 
+                        class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
+                  <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                  <span>สรุป AI</span>
+                </button>
+                <button type="button" 
+                        class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950" 
+                        onclick="window.__openCurrentHeroStoryline()"
+                        title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
+                  <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">sports_and_outdoors</span>
+                  <span>ดูข่าวกีฬาทั้งหมดในประเด็นนี้</span>
+                  <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Carousel Progress Indicators -->
-        <div class="relative pt-2">
-          <div class="flex gap-2">
-            ${indicatorsHtml}
-          </div>
+        <div class="hero-progress-container">
+          ${indicatorsHtml}
         </div>
       </div>
     `;
