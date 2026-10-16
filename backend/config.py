@@ -171,8 +171,8 @@ class Settings:
 
     # Trending
     trending_window_hours: float                = float(_get("TRENDING_WINDOW_HOURS",                "48.0"))
-    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.92"))
-    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.88"))
+    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.76"))
+    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.70"))
     trending_cluster_time_window_hours: float   = float(_get("TRENDING_CLUSTER_TIME_WINDOW_HOURS",   "36.0"))
     embedding_cache_max_size: int              = int(_get("EMBEDDING_CACHE_MAX_SIZE",              "2000"))
     trending_result_cache_ttl_seconds: int     = int(_get("TRENDING_RESULT_CACHE_TTL_SECONDS",     "600"))

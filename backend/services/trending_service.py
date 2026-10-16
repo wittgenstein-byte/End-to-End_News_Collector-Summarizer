@@ -326,8 +326,8 @@ class SemanticClusterer:
 
     def __init__(
         self,
-        cosine_threshold: float = 0.92,
-        cohesion_threshold: float = 0.88,
+        cosine_threshold: float = 0.76,
+        cohesion_threshold: float = 0.70,
         time_window_hours: float = 36.0,
     ) -> None:
         self.cosine_threshold = cosine_threshold
