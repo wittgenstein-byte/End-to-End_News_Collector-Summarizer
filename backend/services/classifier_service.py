@@ -464,10 +464,26 @@ def get_wangchanberta():
                 from transformers.models.auto.tokenization_auto import AutoTokenizer  # type: ignore[no-redef]
 
             tokenizer = None
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
-            except Exception:
-                pass
+            tok_json = _WANGCHAN_DIR / "tokenizer.json"
+            if tok_json.exists():
+                try:
+                    from transformers import PreTrainedTokenizerFast
+                    tokenizer = PreTrainedTokenizerFast(
+                        tokenizer_file=str(tok_json),
+                        bos_token="<s>",
+                        eos_token="</s>",
+                        unk_token="<unk>",
+                        pad_token="<pad>",
+                        mask_token="<mask<",
+                    )
+                except Exception:
+                    tokenizer = None
+
+            if not callable(tokenizer):
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
+                except Exception:
+                    pass
             if not callable(tokenizer):
                 try:
                     tokenizer = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=True)

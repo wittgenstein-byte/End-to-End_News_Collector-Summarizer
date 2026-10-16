@@ -177,15 +177,35 @@ class WangchanEmbedder:
 
             try:
                 import torch
-                from transformers import AutoModel, AutoTokenizer
+                from transformers import AutoModel, AutoTokenizer, PreTrainedTokenizerFast
 
                 device = torch.device("cpu")
                 tokenizer = None
-                try:
-                    tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
-                except Exception:
-                    pass
 
+                # 1. Primary: Load directly from tokenizer.json (fast, exact, no sentencepiece dependency)
+                tok_json = self._model_dir / "tokenizer.json"
+                if tok_json.exists():
+                    try:
+                        tokenizer = PreTrainedTokenizerFast(
+                            tokenizer_file=str(tok_json),
+                            bos_token="<s>",
+                            eos_token="</s>",
+                            unk_token="<unk>",
+                            pad_token="<pad>",
+                            mask_token="<mask<",
+                        )
+                    except Exception as tok_err:
+                        print(f"PreTrainedTokenizerFast load failed: {tok_err}")
+                        tokenizer = None
+
+                # 2. Secondary fallback: AutoTokenizer
+                if not callable(tokenizer):
+                    try:
+                        tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                    except Exception:
+                        pass
+
+                # 3. Tertiary fallback: AutoTokenizer with use_fast=True
                 if not callable(tokenizer):
                     try:
                         tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=True)
