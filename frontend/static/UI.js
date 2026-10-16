@@ -745,7 +745,9 @@ function updateHeroTrendingSlide() {
 
       <div class="hero-carousel-container group"
            onmouseenter="window.__pauseTrendingAutoPlay()"
-           onmouseleave="window.__resumeTrendingAutoPlay()">
+           onmouseleave="window.__resumeTrendingAutoPlay()"
+           ontouchstart="window.__heroTouchStart(event)"
+           ontouchend="window.__heroTouchEnd(event)">
         
         <!-- Sports Multi-Image Split Montage (Fills 100% of hero container with no vertical expansion) -->
         ${sportsImages.length >= 2 ? `
@@ -838,16 +840,18 @@ function updateHeroTrendingSlide() {
                 </span>
               </h1>
 
-              <p class="text-xs sm:text-sm text-white/90 line-clamp-1 leading-relaxed hidden sm:block font-body max-w-3xl drop-shadow cursor-pointer"
-                 onclick="window.__openCurrentHeroStoryline()">
-                ${esc(n.title)} • รวบรวมไฮไลต์ ผลบอลไทย บอลยุโรป วอลเลย์บอล จาก ${outletMap.size} สำนักข่าว (${allSlideArticles.length} ข่าว)
-              </p>
+              <div class="hidden sm:block">
+                <p class="text-xs sm:text-sm text-white/90 line-clamp-1 leading-relaxed font-body max-w-3xl drop-shadow cursor-pointer"
+                   onclick="window.__openCurrentHeroStoryline()">
+                  ${esc(n.title)} • รวบรวมไฮไลต์ ผลบอลไทย บอลยุโรป วอลเลย์บอล จาก ${outletMap.size} สำนักข่าว (${allSlideArticles.length} ข่าว)
+                </p>
+              </div>
 
-              <!-- Quick Sports Discipline Pills (Frosted Glass Chips) -->
-              <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+              <!-- Quick Sports Discipline Pills (Frosted Glass Chips, scrollable on mobile) -->
+              <div class="flex items-center gap-1.5 overflow-x-auto flex-nowrap sm:flex-wrap custom-scrollbar max-w-full pb-0.5 pt-0.5">
                 ${discTabs.map(tab => `
                   <button type="button"
-                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs"
+                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs shrink-0"
                           onclick="event.stopPropagation(); window.__openHeroSportDiscipline('${tab.id}')">
                     <span>${tab.icon}</span>
                     <span>${tab.label}</span>
@@ -856,7 +860,7 @@ function updateHeroTrendingSlide() {
                 `).join("")}
                 ${contentTypeCounts.result > 0 ? `
                   <button type="button"
-                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs"
+                          class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono font-bold bg-white/10 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-2xs shrink-0"
                           onclick="event.stopPropagation(); window.__openHeroSportDiscipline('')">
                     <span>🏆 ผลแข่ง</span>
                     <span class="text-amber-400 font-bold">(${contentTypeCounts.result})</span>
@@ -865,34 +869,36 @@ function updateHeroTrendingSlide() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-4 flex-wrap pt-2 border-t border-white/15">
+            <div class="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-white/15 w-full">
               <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">
                 ${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}
               </span>
-              <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
+              <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
+                <div class="flex items-center gap-2 flex-1 sm:flex-initial">
+                  <button type="button" 
+                          class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
+                          data-url="${esc(n.url)}"
+                          onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                    <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                    </span>
+                  </button>
+                  <button type="button" 
+                          class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                          onclick="window.__openPreview('${esc(n.url)}')">
+                    <span class="material-symbols-outlined text-[15px]">article</span>
+                    <span>อ่านบทคัดย่อ</span>
+                  </button>
+                  <button type="button" 
+                          class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                          onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
+                    <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                    <span>สรุป AI</span>
+                  </button>
+                </div>
                 <button type="button" 
-                        class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
-                        data-url="${esc(n.url)}"
-                        onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
-                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                  <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
-                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                  </span>
-                </button>
-                <button type="button" 
-                        class="hero-read-abstract-btn flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                        onclick="window.__openPreview('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[15px]">article</span>
-                  <span>อ่านบทคัดย่อ</span>
-                </button>
-                <button type="button" 
-                        class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                        onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                  <span>สรุป AI</span>
-                </button>
-                <button type="button" 
-                        class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950" 
+                        class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shrink-0" 
                         onclick="window.__openCurrentHeroStoryline()"
                         title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
                   <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">sports_and_outdoors</span>
@@ -918,7 +924,9 @@ function updateHeroTrendingSlide() {
 
     <div class="hero-carousel-container group"
          onmouseenter="window.__pauseTrendingAutoPlay()"
-         onmouseleave="window.__resumeTrendingAutoPlay()">
+         onmouseleave="window.__resumeTrendingAutoPlay()"
+         ontouchstart="window.__heroTouchStart(event)"
+         ontouchend="window.__heroTouchEnd(event)">
       
       <img src="${esc(imgSrc)}" 
            alt="${esc(n.title)}" 
@@ -960,44 +968,48 @@ function updateHeroTrendingSlide() {
             </h1>
 
             ${n.summary ? `
-              <p class="text-xs sm:text-sm text-white/85 line-clamp-2 leading-relaxed hidden sm:block font-body max-w-3xl cursor-pointer"
-                 onclick="window.__openPreview('${esc(n.url)}')">
-                ${esc(n.summary)}
-              </p>
+              <div class="hidden sm:block">
+                <p class="text-xs sm:text-sm text-white/85 line-clamp-2 leading-relaxed font-body max-w-3xl cursor-pointer"
+                   onclick="window.__openPreview('${esc(n.url)}')">
+                  ${esc(n.summary)}
+                </p>
+              </div>
             ` : ""}
 
-            <div class="flex items-center gap-3 flex-wrap pt-1">
+            <div class="flex items-center gap-2 overflow-x-auto flex-nowrap sm:flex-wrap custom-scrollbar max-w-full pb-0.5 pt-1">
               ${publisherPillsHtml}
               ${storylineHashtagsHtml}
             </div>
           </div>
 
-          <div class="flex items-center justify-between gap-4 flex-wrap pt-2 border-t border-white/15">
+          <div class="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-white/15 w-full">
             <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
-            <div class="flex items-center gap-2 flex-wrap" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
+              <div class="flex items-center gap-2 flex-1 sm:flex-initial">
+                <button type="button" 
+                        class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
+                        data-url="${esc(n.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>
+                <button type="button" 
+                        class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        onclick="window.__openPreview('${esc(n.url)}')">
+                  <span class="material-symbols-outlined text-[15px]">article</span>
+                  <span>อ่านบทคัดย่อ</span>
+                </button>
+                <button type="button" 
+                        class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
+                  <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                  <span>สรุป AI</span>
+                </button>
+              </div>
               <button type="button" 
-                      class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer ${isBookmarked ? 'active' : ''}"
-                      data-url="${esc(n.url)}"
-                      onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
-                      title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
-                  ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                </span>
-              </button>
-              <button type="button" 
-                      class="hero-read-abstract-btn flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                      onclick="window.__openPreview('${esc(n.url)}')">
-                <span class="material-symbols-outlined text-[15px]">article</span>
-                <span>อ่านบทคัดย่อ</span>
-              </button>
-              <button type="button" 
-                      class="flex items-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                      onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                <span>สรุป AI</span>
-              </button>
-              <button type="button" 
-                      class="hero-storyline-action-btn flex items-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg" 
+                      class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg shrink-0" 
                       onclick="window.__openCurrentHeroStoryline()"
                       title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
                 <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">account_tree</span>
@@ -1015,6 +1027,31 @@ function updateHeroTrendingSlide() {
     </div>
   `;
 }
+
+// Touch swipe detection for mobile Hero Carousel
+let heroTouchStartX = 0;
+let heroTouchStartY = 0;
+
+window.__heroTouchStart = (event) => {
+  if (!event.touches || event.touches.length === 0) return;
+  heroTouchStartX = event.touches[0].clientX;
+  heroTouchStartY = event.touches[0].clientY;
+  window.__pauseTrendingAutoPlay();
+};
+
+window.__heroTouchEnd = (event) => {
+  if (!event.changedTouches || event.changedTouches.length === 0) return;
+  const dx = event.changedTouches[0].clientX - heroTouchStartX;
+  const dy = event.changedTouches[0].clientY - heroTouchStartY;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+    if (dx < 0) {
+      window.__nextTrendingSlide();
+    } else {
+      window.__prevTrendingSlide();
+    }
+  }
+  window.__resumeTrendingAutoPlay();
+};
 
 // Safe stubs for legacy timeline/subevent toggles
 window.__toggleTimelinePanel = () => {};
@@ -1073,21 +1110,21 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
 
     return `
       <article class="editorial-card group" data-url="${esc(n.url)}" style="animation: fadeUp 0.35s ease-out ${Math.min(i * 0.03, 0.4)}s both;">
-        <div class="flex flex-col flex-1 cursor-pointer" data-url="${esc(n.url)}" onclick="window.__openPreview(this.dataset.url)">
-          <!-- Card Thumbnail -->
-          <div class="aspect-[16/10] overflow-hidden relative shrink-0 bg-surface-container-low border-b border-outline-variant/25">
+        <div class="flex flex-row sm:flex-col flex-1 p-2.5 sm:p-0 cursor-pointer" data-url="${esc(n.url)}" onclick="window.__openPreview(this.dataset.url)">
+          <!-- Card Thumbnail: Left on mobile (108px x 76px, rounded), Top on Desktop (compact 144px height) -->
+          <div class="w-[108px] h-[76px] sm:w-full sm:h-36 overflow-hidden relative shrink-0 rounded-lg sm:rounded-none bg-surface-container-low sm:border-b sm:border-outline-variant/25">
             <img alt="thumbnail" class="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105" src="${esc(imgSrc)}" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy" />
             ${catObj && catObj.id !== "all" ? `
-              <span class="absolute top-2.5 left-2.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/70 text-white backdrop-blur-xs">
+              <span class="hidden sm:inline-block absolute top-2 left-2.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/70 text-white backdrop-blur-xs">
                 ${esc(catObj.label)}
               </span>
             ` : ""}
           </div>
 
-          <!-- Card Content -->
-          <div class="p-4 sm:p-5 flex flex-col flex-1">
-            <!-- Dateline: Source & Badges (Single clean row) -->
-            <div class="flex items-center justify-between gap-2 mb-2.5">
+          <!-- Card Content: Right on mobile, Below on Desktop -->
+          <div class="editorial-card-body flex flex-col justify-between sm:justify-start flex-1 min-w-0">
+            <!-- Dateline: Desktop top row -->
+            <div class="hidden sm:flex items-center justify-between gap-2 mb-1.5">
               <div class="flex items-center gap-1.5 min-w-0">
                 <span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>
                 <span class="text-[11px] font-mono font-bold text-on-surface-variant uppercase tracking-wider truncate">${esc(n.source)}</span>
@@ -1097,21 +1134,54 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
               </div>
             </div>
 
-            <!-- Headline -->
-            <h2 class="text-[17px] sm:text-[18px] font-headline font-bold text-on-surface leading-snug transition-colors group-hover:text-primary line-clamp-3 mb-2">
+            <!-- Headline: Directly at top on mobile (matching reference image) -->
+            <h2 class="text-[14px] sm:text-[15.5px] font-headline font-bold text-on-surface leading-snug transition-colors group-hover:text-primary line-clamp-2 mb-1 sm:mb-1.5">
               ${esc(n.title)}
             </h2>
 
+            <!-- Summary excerpt (Desktop only) -->
             ${n.summary ? `
-              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-auto pt-1">
-                ${esc(n.summary)}
-              </p>
+              <div class="hidden sm:block">
+                <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
+                  ${esc(n.summary)}
+                </p>
+              </div>
             ` : ""}
+
+            <!-- Mobile Dateline & Source: directly below headline (just like the user's reference screenshot) -->
+            <div class="flex sm:hidden items-center justify-between gap-1 mt-auto pt-1 text-xs">
+              <div class="flex items-center gap-1.5 min-w-0 text-outline">
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>
+                <span class="text-[11px] font-medium text-on-surface-variant/90 truncate">${esc(n.source)}</span>
+                <span class="text-[10px] font-mono opacity-60 shrink-0">• ${esc(n.fetched_at ?? "")}</span>
+              </div>
+              <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                ${n.url ? `
+                <button type="button"
+                        class="p-1 rounded text-outline hover:text-on-surface bookmark-btn ${isBookmarked ? 'active text-amber-500' : ''}"
+                        data-url="${esc(n.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')"
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>` : ""}
+                <button type="button"
+                        class="px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 hover:bg-amber-500 hover:text-black text-[10px] font-bold text-on-surface flex items-center gap-0.5 transition-colors cursor-pointer"
+                        data-url="${esc(n.url)}"
+                        onclick="window.__openPreviewAndSummarize(this.dataset.url)"
+                        title="สรุปประเด็นด้วย AI">
+                  <span class="material-symbols-outlined text-[11px] text-amber-500" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                  <span>AI</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
 
-        <!-- Card Footer Actions -->
-        <div class="px-4 sm:px-5 py-3 mt-auto border-t border-outline-variant/25 flex items-center justify-between gap-2 bg-surface/40">
+        <!-- Card Footer Actions (Desktop Only) -->
+        <div class="hidden sm:flex px-4 py-2 mt-auto border-t border-outline-variant/25 items-center justify-between gap-2 bg-surface/40">
           <span class="text-[10px] font-mono text-outline uppercase truncate">${esc(n.fetched_at ?? "")}</span>
           <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
             ${n.url ? `
@@ -1863,8 +1933,8 @@ export function renderStorylineAiSynthesis(synthesisData) {
   }
 
   section.innerHTML = `
-    <!-- Executive Summary: กล่องสรุปใจความสำคัญ อ่านง่าย สบายตา -->
-    <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+    <!-- Executive Summary: เส้นขอบดิ่งบางหรูหราแบบฉบับ Editorial -->
+    <div class="pl-4 sm:pl-5 py-1 border-l-2 border-amber-600/80 dark:border-amber-400/80 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
       ${esc(summaryText || "รวบรวมและสังเคราะห์ประเด็นสำคัญจากสำนักข่าวทั้งหมด")}
     </div>
 
@@ -1918,15 +1988,20 @@ export function renderStorylineAiSynthesis(synthesisData) {
               จุดยืนและมุมมองที่ต่างกัน (${conflicts.length} ประเด็น)
             </h3>
 
-            <div class="space-y-2.5">
+            <div class="space-y-3">
               ${conflicts.map(c => `
-                <div class="p-3 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200/60 dark:border-zinc-700 space-y-2 shadow-2xs">
-                  <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase">${esc(c.topic || "ประเด็นข้อคิดเห็น")}</div>
-                  <div class="space-y-1.5 text-xs">
+                <div class="p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200/60 dark:border-zinc-700 space-y-2.5 shadow-2xs">
+                  <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wide">${esc(c.topic || "ประเด็นข้อคิดเห็น")}</div>
+                  <div class="space-y-2.5 text-xs">
                     ${(c.sides || []).map((sd, sIdx) => `
-                      <div class="flex items-start gap-2 ${sIdx > 0 ? 'border-t border-slate-100 dark:border-zinc-800 pt-1.5' : ''}">
-                        <span class="font-mono font-bold text-slate-700 dark:text-zinc-300 shrink-0">${esc(sd.source || "สื่อ")}:</span>
-                        <span class="text-slate-600 dark:text-zinc-400">"${esc(sd.quote || sd.stance || "")}"</span>
+                      <div class="${sIdx > 0 ? 'border-t border-slate-100 dark:border-zinc-800/80 pt-2.5' : ''} space-y-1">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                          <span class="font-mono font-bold text-[11px] text-slate-800 dark:text-zinc-200">${esc(sd.source || "สื่อ")}</span>
+                        </div>
+                        <p class="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed pl-3 border-l-2 border-amber-300 dark:border-amber-500/40 break-words">
+                          "${esc(sd.quote || sd.stance || "")}"
+                        </p>
                       </div>
                     `).join("")}
                   </div>
@@ -2147,7 +2222,7 @@ export function renderSportsAiDigest(synthesisData, articles = []) {
 
   section.innerHTML = `
     <!-- Sports Overview Card -->
-    <div class="p-4 sm:p-5 rounded-xl bg-slate-50/90 dark:bg-zinc-800/50 border-l-4 border-amber-500 text-slate-800 dark:text-zinc-100 text-sm sm:text-base leading-relaxed shadow-sm space-y-2">
+    <div class="pl-4 sm:pl-5 py-1 border-l-2 border-amber-600/80 dark:border-amber-400/80 text-slate-800 dark:text-zinc-100 text-sm sm:text-base leading-relaxed space-y-1.5">
       <div class="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-400 text-xs uppercase font-mono tracking-wider">
         <span class="material-symbols-outlined text-[18px]">sports_and_outdoors</span>
         <span>กระดานสรุปผลและไฮไลต์กีฬา (AI Sports Intelligence Digest)</span>
@@ -2390,74 +2465,109 @@ export function renderSportsStorylineView(
         return `
           <article class="editorial-card transition-all duration-300"
                    data-url="${esc(art.url)}">
-            <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-low cursor-pointer border-b border-outline-variant/25"
-                 onclick="window.__openPreview('${esc(art.url)}')">
-              <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
-              
-              <!-- Top-Left: Sport Discipline / League Badge -->
-              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="sports-tag-badge ${meta.leagueBadgeClass}">
-                  ${meta.leagueBadge}
-                </span>
+            <div class="flex flex-row sm:flex-col flex-1 p-2.5 sm:p-0 cursor-pointer" data-url="${esc(art.url)}" onclick="window.__openPreview(this.dataset.url)">
+              <!-- Thumbnail: Left on mobile (108px x 76px), Top on Desktop (compact 144px) -->
+              <div class="w-[108px] h-[76px] sm:w-full sm:h-36 relative overflow-hidden shrink-0 rounded-lg sm:rounded-none bg-surface-container-low sm:border-b sm:border-outline-variant/25">
+                <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
+                
+                <!-- Desktop Only: Sport Discipline / League Badge -->
+                <div class="hidden sm:flex absolute top-2 left-2.5 items-center gap-1.5 flex-wrap">
+                  <span class="sports-tag-badge ${meta.leagueBadgeClass}">
+                    ${meta.leagueBadge}
+                  </span>
+                </div>
+
+                <!-- Desktop Only: Content Type Badge / Score Callout -->
+                <div class="hidden sm:flex absolute top-2 right-2.5 items-center gap-1.5 flex-wrap">
+                  ${meta.isResult ? `
+                    <span class="sports-tag-badge sports-result-badge">
+                      🏆 ผลแข่ง ${meta.scoreHighlight ? `• ${esc(meta.scoreHighlight)}` : ''}
+                    </span>
+                  ` : (meta.contentType === "schedule" ? `
+                    <span class="sports-tag-badge sports-schedule-badge">
+                      📅 โปรแกรมแข่ง
+                    </span>
+                  ` : `
+                    <span class="sports-tag-badge sports-general-badge">
+                      📢 ความเคลื่อนไหว
+                    </span>
+                  `)}
+                </div>
               </div>
 
-              <!-- Top-Right: Content Type Badge / Score Callout -->
-              <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 flex-wrap">
-                ${meta.isResult ? `
-                  <span class="sports-tag-badge sports-result-badge">
-                    🏆 ผลแข่ง ${meta.scoreHighlight ? `• ${esc(meta.scoreHighlight)}` : ''}
-                  </span>
-                ` : (meta.contentType === "schedule" ? `
-                  <span class="sports-tag-badge sports-schedule-badge">
-                    📅 โปรแกรมแข่ง
-                  </span>
-                ` : `
-                  <span class="sports-tag-badge sports-general-badge">
-                    📢 ความเคลื่อนไหว
-                  </span>
-                `)}
+              <!-- Content: Right on mobile, Below on Desktop -->
+              <div class="editorial-card-body flex flex-col justify-between sm:justify-start flex-1 min-w-0">
+                <!-- Dateline: Desktop top row -->
+                <div class="hidden sm:flex items-center justify-between gap-2 mb-1.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
+                    <span class="font-mono text-[11px] font-bold uppercase text-on-surface">${esc(art.source || "ข่าวกีฬา")}</span>
+                  </div>
+                  <span class="font-mono text-[10px] text-secondary font-semibold">${esc(perspective)}</span>
+                </div>
+
+                <!-- Headline -->
+                <h3 class="text-[14px] sm:text-[15.5px] font-headline font-bold text-on-surface leading-snug transition-colors group-hover:text-primary line-clamp-2 mb-1 sm:mb-1.5">
+                  ${esc(art.title)}
+                </h3>
+
+                <!-- Summary (Desktop only) -->
+                <div class="hidden sm:block">
+                  <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
+                    ${esc(art.summary || "")}
+                  </p>
+                </div>
+
+                <!-- Mobile Dateline & Source: directly below headline -->
+                <div class="flex sm:hidden items-center justify-between gap-1 mt-auto pt-1 text-xs">
+                  <div class="flex items-center gap-1.5 min-w-0 text-outline">
+                    <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>
+                    <span class="text-[11px] font-medium text-on-surface-variant/90 truncate">${esc(art.source || "กีฬา")}</span>
+                    ${meta.scoreHighlight ? `<span class="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">🏆 ${esc(meta.scoreHighlight)}</span>` : ''}
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                    <button type="button" 
+                            class="p-1 rounded text-outline hover:text-on-surface bookmark-btn ${isBookmarked ? 'active text-amber-500' : ''}"
+                            data-url="${esc(art.url)}"
+                            onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                            title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                      <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                        ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                      </span>
+                    </button>
+                    <button type="button" 
+                            class="px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 hover:bg-amber-500 hover:text-black text-[10px] font-bold text-on-surface flex items-center gap-0.5 transition-colors cursor-pointer"
+                            onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">
+                      <span class="material-symbols-outlined text-[11px] text-amber-500" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                      <span>AI</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
 
-            <div class="p-4 sm:p-5 flex flex-col flex-1">
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-                  <span class="font-mono text-[11px] font-bold uppercase text-on-surface">${esc(art.source || "ข่าวกีฬา")}</span>
-                </div>
-                <span class="font-mono text-[10px] text-secondary font-semibold">${esc(perspective)}</span>
-              </div>
-
-              <h3 class="font-headline font-bold text-base sm:text-lg text-on-surface leading-snug mb-2 cursor-pointer hover:text-primary line-clamp-2"
-                  onclick="window.__openPreview('${esc(art.url)}')">
-                ${esc(art.title)}
-              </h3>
-
-              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mb-4">
-                ${esc(art.summary || "")}
-              </p>
-
-              <div class="mt-auto pt-3 border-t border-outline-variant/25 flex items-center justify-between gap-2">
-                <span class="font-mono text-[10px] text-outline uppercase">${formatEditorialDateTime(art.fetched_at || art.created_at)}</span>
-                <div class="flex items-center gap-1" onclick="event.stopPropagation()">
-                  <button type="button" 
-                          class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
-                          data-url="${esc(art.url)}"
-                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
-                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                    <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
-                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                    </span>
-                  </button>
-                  <button type="button" 
-                          class="editorial-card-icon-btn"
-                          onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
-                          title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
-                    <span class="material-symbols-outlined text-[15px]">visibility_off</span>
-                  </button>
-                  <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
-                  <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>
-                </div>
+            <!-- Card Footer Actions (Desktop Only) -->
+            <div class="hidden sm:flex mt-auto px-4 py-2 border-t border-outline-variant/25 items-center justify-between gap-2 bg-surface/40">
+              <span class="font-mono text-[10px] text-outline uppercase">${formatEditorialDateTime(art.fetched_at || art.created_at)}</span>
+              <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                <button type="button" 
+                        class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
+                        data-url="${esc(art.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>
+                <button type="button" 
+                        class="editorial-card-icon-btn"
+                        onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
+                        title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
+                  <span class="material-symbols-outlined text-[15px]">visibility_off</span>
+                </button>
+                <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
+                <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>
               </div>
             </div>
           </article>
@@ -2543,8 +2653,8 @@ export function renderSportsStorylineView(
             </div>
           </div>
 
-          <!-- Secondary Stacked Photos (5 cols, 2 rows) -->
-          <div class="md:col-span-5 grid grid-rows-2 gap-1.5 h-64 sm:h-80">
+          <!-- Secondary Stacked Photos (5 cols on desktop, 2 cols side-by-side on mobile) -->
+          <div class="md:col-span-5 grid grid-cols-2 md:grid-cols-1 md:grid-rows-2 gap-1.5 h-28 sm:h-80">
             ${subImgs.map((item) => `
               <div class="relative group rounded-xl overflow-hidden h-full cursor-pointer bg-slate-900"
                    onclick="window.__openPreview('${esc(item.articleUrl)}')">
@@ -2696,7 +2806,7 @@ export function renderSportsStorylineView(
 
         <!-- AI Digest Board Section -->
         <div id="storyline-ai-section" class="space-y-4">
-          <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+          <div class="pl-4 sm:pl-5 py-1 border-l-2 border-amber-600/80 dark:border-amber-400/80 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
             ${esc(storyData.summary || "รวบรวมรายงานผลการแข่งขัน ฟุตบอลยุโรป ฟุตบอลไทย วอลเลย์บอล และความเคลื่อนไหวในวงการกีฬาจากทุกสำนักข่าว")}
           </div>
           <div class="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-3">
@@ -2955,87 +3065,124 @@ export function renderStorylineView(
                    id="article-evidence-${evidenceId.toLowerCase()}" 
                    data-evidence-id="${evidenceId.toLowerCase()}" 
                    data-url="${esc(art.url)}">
-            <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-low cursor-pointer border-b border-outline-variant/25"
-                 onclick="window.__openPreview('${esc(art.url)}')">
-              <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
-              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="bg-black/75 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded">
-                  CHRONOLOGY #${String(chronologyNum).padStart(2, '0')}
-                </span>
-                <span class="citation-chip" title="รหัสหลักฐานสำหรับตรวจสอบย้อนกลับ">
-                  ${evidenceId.toUpperCase()}
-                </span>
+            <div class="flex flex-row sm:flex-col flex-1 p-2.5 sm:p-0 cursor-pointer" data-url="${esc(art.url)}" onclick="window.__openPreview(this.dataset.url)">
+              <!-- Thumbnail: Left on mobile (108px x 76px), Top on Desktop (compact 144px) -->
+              <div class="w-[108px] h-[76px] sm:w-full sm:h-36 relative overflow-hidden shrink-0 rounded-lg sm:rounded-none bg-surface-container-low sm:border-b sm:border-outline-variant/25">
+                <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
+                
+                <!-- Desktop Only: Chronology Badges -->
+                <div class="hidden sm:flex absolute top-2 left-2.5 items-center gap-1.5 flex-wrap">
+                  <span class="bg-black/75 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded">
+                    CHRONOLOGY #${String(chronologyNum).padStart(2, '0')}
+                  </span>
+                  <span class="citation-chip" title="รหัสหลักฐานสำหรับตรวจสอบย้อนกลับ">
+                    ${evidenceId.toUpperCase()}
+                  </span>
+                </div>
+                ${isOutlier ? `
+                  <div class="hidden sm:flex absolute top-2 right-2.5 bg-amber-500/90 text-black font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow items-center gap-1">
+                    <span class="material-symbols-outlined text-[11px]">filter_alt</span>
+                    <span>คัดแยก</span>
+                  </div>
+                ` : (isContext ? `
+                  <div class="hidden sm:flex absolute top-2 right-2.5 bg-blue-600/90 text-white font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow items-center gap-1">
+                    <span class="material-symbols-outlined text-[11px]">info</span>
+                    <span>บริบท</span>
+                  </div>
+                ` : "")}
               </div>
-              ${isOutlier ? `
-                <div class="absolute top-2.5 right-2.5 bg-amber-500/90 text-black font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow flex items-center gap-1">
-                  <span class="material-symbols-outlined text-[11px]">filter_alt</span>
-                  <span>คัดแยก</span>
+
+              <!-- Content: Right on mobile, Below on Desktop -->
+              <div class="editorial-card-body flex flex-col justify-between sm:justify-start flex-1 min-w-0">
+                ${isContext ? `
+                  <div class="hidden sm:flex mb-2 px-2.5 py-1.5 rounded bg-blue-500/10 border border-blue-500/25 text-blue-900 dark:text-blue-200 text-xs items-start gap-1.5">
+                    <span class="material-symbols-outlined text-[14px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">info</span>
+                    <div class="min-w-0 flex-1 leading-normal text-[11px]">
+                      <span class="font-bold text-blue-700 dark:text-blue-300">บริบทการเมือง (อยู่นอกสารบบหลักฐาน):</span>
+                      <span class="text-on-surface-variant ml-1">${esc(contextRelation || "ข้อมูลบริบทเบื้องหลัง")}</span>
+                    </div>
+                  </div>
+                ` : (isOutlier ? `
+                  <div class="hidden sm:flex mb-2 px-2.5 py-1.5 rounded bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs items-start gap-1.5">
+                    <span class="material-symbols-outlined text-[14px] text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">filter_alt</span>
+                    <div class="min-w-0 flex-1 leading-normal text-[11px]">
+                      <span class="font-bold text-amber-700 dark:text-amber-300">ข่าวนอกประเด็นหลัก:</span>
+                      <span class="text-on-surface-variant ml-1">${esc(outlierReason || "คัดแยกออกจากเหตุการณ์")}</span>
+                    </div>
+                  </div>
+                ` : "")}
+
+                <!-- Dateline: Desktop top row -->
+                <div class="hidden sm:flex items-center justify-between gap-2 mb-1.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
+                    <span class="font-mono text-[11px] font-bold uppercase text-on-surface">${esc(art.source || "ข่าว")}</span>
+                  </div>
+                  <span class="font-mono text-[10px] text-secondary font-semibold">${esc(perspective)}</span>
                 </div>
-              ` : (isContext ? `
-                <div class="absolute top-2.5 right-2.5 bg-blue-600/90 text-white font-mono font-bold text-[9px] px-2 py-0.5 rounded shadow flex items-center gap-1">
-                  <span class="material-symbols-outlined text-[11px]">info</span>
-                  <span>บริบท</span>
+
+                <!-- Headline -->
+                <h3 class="text-[14px] sm:text-[15.5px] font-headline font-bold text-on-surface leading-snug transition-colors group-hover:text-primary line-clamp-2 mb-1 sm:mb-1.5">
+                  ${esc(art.title)}
+                </h3>
+
+                <!-- Summary (Desktop only) -->
+                <div class="hidden sm:block">
+                  <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
+                    ${esc(art.summary || "")}
+                  </p>
                 </div>
-              ` : "")}
+
+                <!-- Mobile Dateline & Source: directly below headline -->
+                <div class="flex sm:hidden items-center justify-between gap-1 mt-auto pt-1 text-xs">
+                  <div class="flex items-center gap-1.5 min-w-0 text-outline">
+                    <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>
+                    <span class="text-[11px] font-medium text-on-surface-variant/90 truncate">${esc(art.source || "ข่าว")}</span>
+                    <span class="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold shrink-0">[${evidenceId.toUpperCase()}]</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                    <button type="button" 
+                            class="p-1 rounded text-outline hover:text-on-surface bookmark-btn ${isBookmarked ? 'active text-amber-500' : ''}"
+                            data-url="${esc(art.url)}"
+                            onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                            title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                      <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                        ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                      </span>
+                    </button>
+                    <button type="button" 
+                            class="px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 hover:bg-amber-500 hover:text-black text-[10px] font-bold text-on-surface flex items-center gap-0.5 transition-colors cursor-pointer"
+                            onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">
+                      <span class="material-symbols-outlined text-[11px] text-amber-500" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                      <span>AI</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-            <div class="p-4 sm:p-5 flex flex-col flex-1">
-              ${isContext ? `
-                <div class="mb-2.5 px-2.5 py-1.5 rounded bg-blue-500/10 border border-blue-500/25 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-1.5">
-                  <span class="material-symbols-outlined text-[14px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">info</span>
-                  <div class="min-w-0 flex-1 leading-normal text-[11px]">
-                    <span class="font-bold text-blue-700 dark:text-blue-300">บริบทการเมือง (อยู่นอกสารบบหลักฐาน):</span>
-                    <span class="text-on-surface-variant ml-1">${esc(contextRelation || "ข้อมูลบริบทเบื้องหลัง")}</span>
-                  </div>
-                </div>
-              ` : (isOutlier ? `
-                <div class="mb-2.5 px-2.5 py-1.5 rounded bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-1.5">
-                  <span class="material-symbols-outlined text-[14px] text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">filter_alt</span>
-                  <div class="min-w-0 flex-1 leading-normal text-[11px]">
-                    <span class="font-bold text-amber-700 dark:text-amber-300">ข่าวนอกประเด็นหลัก:</span>
-                    <span class="text-on-surface-variant ml-1">${esc(outlierReason || "คัดแยกออกจากเหตุการณ์")}</span>
-                  </div>
-                </div>
-              ` : "")}
-
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-                  <span class="font-mono text-[11px] font-bold uppercase text-on-surface">${esc(art.source || "ข่าว")}</span>
-                </div>
-                <span class="font-mono text-[10px] text-secondary font-semibold">${esc(perspective)}</span>
-              </div>
-
-              <h3 class="font-headline font-bold text-base sm:text-lg text-on-surface leading-snug mb-2 cursor-pointer hover:text-primary line-clamp-2"
-                  onclick="window.__openPreview('${esc(art.url)}')">
-                ${esc(art.title)}
-              </h3>
-
-              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mb-4">
-                ${esc(art.summary || "")}
-              </p>
-
-              <div class="mt-auto pt-3 border-t border-outline-variant/25 flex items-center justify-between gap-2">
-                <span class="font-mono text-[10px] text-outline uppercase">${esc(art.fetched_at || "")}</span>
-                <div class="flex items-center gap-1" onclick="event.stopPropagation()">
-                  <button type="button" 
-                          class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
-                          data-url="${esc(art.url)}"
-                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
-                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                    <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
-                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                    </span>
-                  </button>
-                  <button type="button" 
-                          class="editorial-card-icon-btn"
-                          onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
-                          title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
-                    <span class="material-symbols-outlined text-[15px]">visibility_off</span>
-                  </button>
-                  <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
-                  <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>
-                </div>
+            <!-- Card Footer Actions (Desktop Only) -->
+            <div class="hidden sm:flex mt-auto px-4 py-2 border-t border-outline-variant/25 items-center justify-between gap-2 bg-surface/40">
+              <span class="font-mono text-[10px] text-outline uppercase">${esc(art.fetched_at || "")}</span>
+              <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                <button type="button" 
+                        class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
+                        data-url="${esc(art.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>
+                <button type="button" 
+                        class="editorial-card-icon-btn"
+                        onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
+                        title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
+                  <span class="material-symbols-outlined text-[15px]">visibility_off</span>
+                </button>
+                <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
+                <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>
               </div>
             </div>
           </article>
@@ -3062,7 +3209,7 @@ export function renderStorylineView(
         </span>
       </div>
 
-      <div class="storyline-hero-banner bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 text-slate-800 dark:text-zinc-100">
+      <div class="storyline-hero-banner bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 sm:p-8 shadow-sm space-y-6 text-slate-800 dark:text-zinc-100">
         
         <!-- 1. Header & Tags: สะอาดตา ตรงประเด็น -->
         <div class="space-y-3 border-b border-slate-100 dark:border-zinc-800 pb-5">
@@ -3117,11 +3264,11 @@ export function renderStorylineView(
                   </div>
                   <p class="text-[11px] text-slate-600 dark:text-zinc-400">ข่าวที่มีเนื้อหาเกี่ยวโยงแต่ไม่ใช่ใจความหลัก</p>
                   ${contextList.length > 0 ? `
-                    <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pt-1">
+                    <div class="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto custom-scrollbar pt-1 pr-1">
                       ${contextList.map(pc => `
-                        <div class="p-1.5 rounded bg-white dark:bg-zinc-900 border border-blue-100 dark:border-blue-500/20 flex items-start justify-between gap-1.5">
-                          <div class="min-w-0 flex-1 truncate text-[11px] text-slate-800 dark:text-zinc-200">
-                            <span class="text-blue-700 dark:text-blue-400 font-bold">[${esc(pc.source || "ข่าว")}]</span>
+                        <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-blue-100 dark:border-blue-500/20 flex items-start justify-between gap-2 shadow-2xs">
+                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words">
+                            <span class="text-blue-700 dark:text-blue-400 font-bold mr-1">[${esc(pc.source || "ข่าว")}]</span>
                             <span>${esc(pc.title)}</span>
                           </div>
                           <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(pc.article_id)}')">${esc(pc.article_id)}</button>
@@ -3139,11 +3286,11 @@ export function renderStorylineView(
                   </div>
                   <p class="text-[11px] text-slate-600 dark:text-zinc-400">เนื้อหาไม่ตรงกับประเด็นหลักนี้</p>
                   ${irrelevantList.length > 0 ? `
-                    <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pt-1">
+                    <div class="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto custom-scrollbar pt-1 pr-1">
                       ${irrelevantList.map(irr => `
-                        <div class="p-1.5 rounded bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-500/20 flex items-start justify-between gap-1.5">
-                          <div class="min-w-0 flex-1 truncate text-[11px] text-slate-800 dark:text-zinc-200">
-                            <span class="text-amber-700 dark:text-amber-400 font-bold">[${esc(irr.source || "ข่าว")}]</span>
+                        <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-500/20 flex items-start justify-between gap-2 shadow-2xs">
+                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words">
+                            <span class="text-amber-700 dark:text-amber-400 font-bold mr-1">[${esc(irr.source || "ข่าว")}]</span>
                             <span>${esc(irr.title)}</span>
                           </div>
                           <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(irr.article_id)}')">${esc(irr.article_id)}</button>
@@ -3161,7 +3308,7 @@ export function renderStorylineView(
 
         <!-- 3. AI Main Summary Section (จุดสำคัญที่สุด วางเด่นๆ ให้คนอ่านทันที) -->
         <div id="storyline-ai-section" class="space-y-4">
-          <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+          <div class="pl-4 sm:pl-5 py-1 border-l-2 border-amber-600/80 dark:border-amber-400/80 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
             ${esc(storyData.summary || "รวบรวมลำดับเหตุการณ์และมุมมองการรายงานจากหลายสำนักข่าวเพื่อให้เห็นภาพรวมอย่างรอบด้าน")}
           </div>
           <div class="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-3">

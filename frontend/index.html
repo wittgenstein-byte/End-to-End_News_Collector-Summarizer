@@ -119,10 +119,10 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
           </svg>
         </button>
-        <button class="editorial-icon-btn" onclick="window.__showHistory()" title="ประวัติการอ่าน (Reading History)">
+        <button class="editorial-icon-btn hidden md:inline-flex" onclick="window.__showHistory()" title="ประวัติการอ่าน (Reading History)">
           <span class="material-symbols-outlined text-[20px]">history</span>
         </button>
-        <button class="editorial-icon-btn" onclick="window.__showBookmarksModal()" title="บทความที่บันทึกไว้ (Bookmarks)">
+        <button class="editorial-icon-btn hidden md:inline-flex" onclick="window.__showBookmarksModal()" title="บทความที่บันทึกไว้ (Bookmarks)">
           <span class="material-symbols-outlined text-[20px]">bookmarks</span>
         </button>
         <button class="editorial-icon-btn" onclick="window.__openSettings()" title="ตั้งค่าการแสดงผล & ความเป็นส่วนตัว">
@@ -158,9 +158,9 @@
 
       <!-- ── Editorial Filter & Search Toolbar ── -->
       <div class="editorial-toolbar mb-8" id="toolbar">
-        <div class="flex items-center gap-3 flex-wrap flex-1 min-w-0">
+        <div class="flex items-center gap-3 flex-wrap lg:flex-nowrap flex-1 min-w-0">
           <span class="text-[11px] font-mono font-bold text-outline uppercase tracking-widest shrink-0">SOURCES /</span>
-          <div class="flex flex-wrap gap-1.5" id="source-filters">
+          <div class="flex flex-nowrap overflow-x-auto custom-scrollbar lg:flex-wrap gap-1.5 pb-1 max-w-full" id="source-filters">
             <!-- Dynamic Source Filters populated via UI.renderSourceFilters -->
           </div>
         </div>
@@ -182,7 +182,7 @@
       </div>
       
       <!-- ── Pagination ── -->
-      <div class="flex justify-center items-center gap-1.5 mt-14 mb-8" id="pagination"></div>
+      <div class="flex justify-center items-center gap-1.5 flex-wrap mt-14 mb-8" id="pagination"></div>
     </div>
 
     <!-- ── 2. PREVIEW SUB-VIEW (หน้าอ่านสรุปข่าว) ── -->
@@ -242,15 +242,15 @@
   </footer>
 
   <!-- ── Toast ── -->
-  <div id="toast" class="fixed bottom-5 right-5 bg-[#141413] text-white px-4 py-3 rounded-lg text-xs font-medium shadow-xl transform translate-y-full opacity-0 transition-all duration-300 z-[100] flex items-center gap-2.5 border border-white/10">
+  <div id="toast" class="fixed bottom-20 md:bottom-5 right-4 md:right-5 left-4 md:left-auto bg-[#141413] text-white px-4 py-3 rounded-lg text-xs font-medium shadow-xl transform translate-y-full opacity-0 transition-all duration-300 z-[100] flex items-center gap-2.5 border border-white/10">
     <span class="material-symbols-outlined text-[16px] text-amber-400">info</span>
     <span id="toast-msg"></span>
   </div>
 
   <!-- ── Summary Modal Overlay ── -->
-  <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 opacity-0 pointer-events-none transition-opacity duration-300" id="summary-modal">
+  <div class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-8 opacity-0 pointer-events-none transition-opacity duration-300" id="summary-modal">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-xs" id="modal-backdrop"></div>
-    <div class="relative w-full max-w-3xl max-h-[90vh] bg-surface rounded-xl overflow-hidden shadow-2xl border border-outline-variant/40 flex flex-col transform translate-y-4 scale-95 transition-all duration-300" id="modal-content-wrap">
+    <div class="relative w-full max-w-3xl max-h-[85vh] sm:max-h-[90vh] bg-surface rounded-t-2xl sm:rounded-xl overflow-hidden shadow-2xl border border-outline-variant/40 flex flex-col transform translate-y-4 scale-95 transition-all duration-300" id="modal-content-wrap">
       <div class="flex-1 overflow-y-auto w-full relative">
         <!-- Header -->
         <div class="px-6 py-5 flex justify-between items-center bg-surface/95 backdrop-blur sticky top-0 z-20 border-b border-outline-variant/30">
@@ -308,8 +308,8 @@
   </div>
 
   <!-- ── Reading History & Bookmarks Modal ── -->
-  <div id="history-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-    <div class="w-full max-w-2xl max-h-[85vh] bg-surface rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
+  <div id="history-modal" class="fixed inset-0 z-[70] hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs">
+    <div class="w-full max-w-2xl max-h-[85vh] bg-surface rounded-t-2xl sm:rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
       <div class="px-5 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
         <div class="flex items-center gap-2.5">
           <span class="material-symbols-outlined text-primary text-[20px]" id="history-modal-icon">history</span>
@@ -329,7 +329,7 @@
   </div>
 
   <!-- Persistent Bottom Nav (Mobile Only) -->
-  <nav class="md:hidden fixed bottom-0 left-0 w-full h-16 flex justify-around items-center px-4 bg-surface/95 backdrop-blur-md border-t border-outline-variant/30 z-40">
+  <nav class="md:hidden fixed bottom-0 left-0 w-full h-16 pb-[env(safe-area-inset-bottom)] flex justify-around items-center px-4 bg-surface/95 backdrop-blur-md border-t border-outline-variant/30 z-40">
     <div class="flex flex-col items-center justify-center text-on-surface cursor-pointer w-1/4" onclick="window.location.hash = '#/'; window.__categoryClick('all')">
       <span class="material-symbols-outlined text-[20px]">newspaper</span>
       <span class="text-[10px] font-bold mt-1">ฟีดข่าว</span>
@@ -352,8 +352,8 @@
   <div class="fixed inset-0 z-[100] flex-col bg-white transition-opacity duration-300" id="browser-modal" style="display: none; z-index: 100;">
     <div class="flex items-center gap-2 p-3 border-b border-outline-variant/30 bg-surface-container-low shrink-0">
       <button class="p-2 hover:bg-surface-container rounded-lg" onclick="window.__browserBack()" title="ย้อนกลับ"><span class="material-symbols-outlined">arrow_back</span></button>
-      <button class="p-2 hover:bg-surface-container rounded-lg" onclick="window.__browserForward()" title="ไปข้างหน้า"><span class="material-symbols-outlined">arrow_forward</span></button>
-      <button class="p-2 hover:bg-surface-container rounded-lg" onclick="window.__browserRefresh()" title="รีเฟรช"><span class="material-symbols-outlined">refresh</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-lg hidden sm:inline-flex" onclick="window.__browserForward()" title="ไปข้างหน้า"><span class="material-symbols-outlined">arrow_forward</span></button>
+      <button class="p-2 hover:bg-surface-container rounded-lg hidden sm:inline-flex" onclick="window.__browserRefresh()" title="รีเฟรช"><span class="material-symbols-outlined">refresh</span></button>
       <div class="flex-1 flex items-center bg-white border border-outline-variant/40 rounded-lg px-3 py-1.5">
         <input class="w-full bg-transparent outline-none text-xs font-mono" id="browser-url" type="text" placeholder="Enter URL..." onkeydown="if(event.key === 'Enter') window.__browserNavigate()">
       </div>
@@ -377,7 +377,7 @@
   </div>
 
   <!-- ── PDPA Banner ── -->
-  <div id="pdpa-banner" class="fixed bottom-0 left-0 right-0 bg-surface border-t border-outline-variant/40 p-5 z-[100] transform translate-y-full transition-transform duration-300 shadow-2xl">
+  <div id="pdpa-banner" class="fixed bottom-0 left-0 right-0 bg-surface border-t border-outline-variant/40 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-[100] transform translate-y-full transition-transform duration-300 shadow-2xl">
     <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
       <div>
         <h4 class="font-bold text-sm text-on-surface flex items-center gap-1.5">
@@ -395,8 +395,8 @@
   </div>
 
   <!-- ── Settings Modal ── -->
-  <div id="settings-modal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-    <div class="w-full max-w-md bg-surface rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
+  <div id="settings-modal" class="fixed inset-0 z-[80] hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs">
+    <div class="w-full max-w-md max-h-[85vh] bg-surface rounded-t-2xl sm:rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
       <div class="px-5 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
         <h2 class="font-headline font-bold text-lg">ตั้งค่าการแสดงผล (Reader Preferences)</h2>
         <button class="p-1 hover:bg-surface-container rounded-lg" onclick="window.__closeSettings()"><span class="material-symbols-outlined">close</span></button>
@@ -436,8 +436,8 @@
   </div>
 
   <!-- ── Granular Privacy Settings Modal ── -->
-  <div id="privacy-modal" class="fixed inset-0 z-[90] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-    <div class="w-full max-w-lg bg-surface rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
+  <div id="privacy-modal" class="fixed inset-0 z-[90] hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs">
+    <div class="w-full max-w-lg max-h-[85vh] bg-surface rounded-t-2xl sm:rounded-xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant/40">
       <div class="px-5 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
         <div class="flex items-center gap-2.5">
           <span class="material-symbols-outlined text-primary text-xl">shield</span>
