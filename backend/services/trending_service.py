@@ -1532,6 +1532,17 @@ class TrendingService:
                 n_copy["category"] = cat
                 filtered_pairs.append((n_copy, art_time))
 
+        # Resilience fallback: If window filter yielded 0 articles (e.g. time skew, paused scrapers),
+        # gracefully fallback to using the most recent available candidate articles
+        if not filtered_pairs and candidates:
+            sorted_by_time = sorted(candidates, key=lambda pair: pair[1], reverse=True)
+            for n, art_time in sorted_by_time[:100]:
+                cat = _resolve_category(n)
+                if cat_filter is None or cat == cat_filter:
+                    n_copy = dict(n)
+                    n_copy["category"] = cat
+                    filtered_pairs.append((n_copy, art_time))
+
         if not filtered_pairs:
             return TrendingListResponse(
                 total=0,

@@ -248,8 +248,9 @@ export async function fetchTrendingStories(limit = 30, category = "") {
     const res = await fetch(`${API_BASE}/api/stories/trending?${params}`);
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
+      const list = Array.isArray(data) ? data : (data.stories || []);
+      if (list.length > 0) {
+        return list;
       }
     }
   } catch (e) {
@@ -265,6 +266,7 @@ export async function fetchTrendingStories(limit = 30, category = "") {
         const outlets = Array.from(new Set(
           (c.articles || []).map(a => a.source).filter(Boolean)
         ));
+        const primarySource = primaryArt.source || (outlets.length > 0 ? outlets[0] : "สำนักข่าว");
         return {
           story_id: c.cluster_id,
           macro_event_id: c.cluster_id,
@@ -272,9 +274,10 @@ export async function fetchTrendingStories(limit = 30, category = "") {
           headline: c.topic_title || primaryArt.title || "ประเด็นข่าวร้อน",
           summary: c.cluster_summary || primaryArt.summary || "",
           category: primaryArt.category || "all",
+          source: primarySource,
           trending_score: typeof c.trend_score === "number" ? c.trend_score : (primaryArt.trending_score || 9.0),
-          outlets: outlets.length > 0 ? outlets : (primaryArt.source ? [primaryArt.source] : []),
-          cluster_sources: outlets,
+          outlets: outlets.length > 0 ? outlets : [primarySource],
+          cluster_sources: outlets.length > 0 ? outlets : [primarySource],
           articles: c.articles || [],
           article_count: (c.articles && c.articles.length) || c.article_count || 1,
           hashtags: c.hashtags || primaryArt.hashtags || [],
