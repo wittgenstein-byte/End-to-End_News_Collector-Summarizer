@@ -455,9 +455,29 @@ def get_wangchanberta():
             return None, None
 
         try:
-            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+            try:
+                from transformers import AutoModelForSequenceClassification, AutoTokenizer
+            except ImportError:
+                from transformers.models.auto.modeling_auto import (
+                    AutoModelForSequenceClassification,  # type: ignore[no-redef]
+                )
+                from transformers.models.auto.tokenization_auto import AutoTokenizer  # type: ignore[no-redef]
 
-            _WANGCHAN_TOKENIZER = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
+            tokenizer = None
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=False)
+            except Exception:
+                pass
+            if not callable(tokenizer):
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(str(_WANGCHAN_DIR), use_fast=True)
+                except Exception:
+                    pass
+
+            if not callable(tokenizer):
+                return None, None
+
+            _WANGCHAN_TOKENIZER = tokenizer
             _WANGCHAN_MODEL = AutoModelForSequenceClassification.from_pretrained(str(_WANGCHAN_DIR))
             _WANGCHAN_MODEL.eval()
             return _WANGCHAN_TOKENIZER, _WANGCHAN_MODEL

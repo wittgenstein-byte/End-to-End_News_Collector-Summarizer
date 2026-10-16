@@ -165,11 +165,11 @@ class WangchanEmbedder:
             return cls._instance
 
     def _ensure_loaded(self) -> bool:
-        if self._model is not None and self._tokenizer is not None:
+        if self._model is not None and self._tokenizer is not None and callable(self._tokenizer):
             return True
 
         with self._init_lock:
-            if self._model is not None and self._tokenizer is not None:
+            if self._model is not None and self._tokenizer is not None and callable(self._tokenizer):
                 return True
 
             if not self._model_dir.exists():
@@ -180,7 +180,24 @@ class WangchanEmbedder:
                 from transformers import AutoModel, AutoTokenizer
 
                 device = torch.device("cpu")
-                tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                tokenizer = None
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                except Exception:
+                    pass
+
+                if not callable(tokenizer):
+                    try:
+                        tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=True)
+                    except Exception:
+                        pass
+
+                if not callable(tokenizer):
+                    print("Warning: WangchanEmbedder tokenizer could not be loaded as callable")
+                    self._tokenizer = None
+                    self._model = None
+                    return False
+
                 model = AutoModel.from_pretrained(str(self._model_dir))
                 model.to(device)
                 model.eval()
@@ -192,6 +209,8 @@ class WangchanEmbedder:
             except Exception as e:
                 # If torch or transformers fails to load, gracefully return False
                 print(f"Warning: WangchanEmbedder failed to initialize: {e}")
+                self._tokenizer = None
+                self._model = None
                 return False
 
     @property
@@ -232,7 +251,7 @@ class WangchanEmbedder:
             return np.vstack([emb for emb in embeddings if emb is not None])
 
         # Compute embeddings for cache misses
-        if not self._ensure_loaded():
+        if not self._ensure_loaded() or not callable(self._tokenizer) or self._model is None:
             # Fallback random deterministic unit vectors if model cannot load
             dim = self.hidden_size
             for idx in miss_indices:
@@ -243,41 +262,53 @@ class WangchanEmbedder:
                 embeddings[idx] = vec
             return np.vstack([emb for emb in embeddings if emb is not None])
 
-        import torch
+        try:
+            import torch
 
-        batch_size = 32
-        computed_chunks: list[np.ndarray] = []
-        for start_idx in range(0, len(miss_indices), batch_size):
-            chunk_indices = miss_indices[start_idx : start_idx + batch_size]
-            chunk_texts = [canonical_texts[i] for i in chunk_indices]
-            batch_inputs = self._tokenizer(
-                chunk_texts,
-                padding=True,
-                truncation=True,
-                max_length=128,
-                return_tensors="pt",
-            )
+            batch_size = 32
+            computed_chunks: list[np.ndarray] = []
+            for start_idx in range(0, len(miss_indices), batch_size):
+                chunk_indices = miss_indices[start_idx : start_idx + batch_size]
+                chunk_texts = [canonical_texts[i] for i in chunk_indices]
+                batch_inputs = self._tokenizer(
+                    chunk_texts,
+                    padding=True,
+                    truncation=True,
+                    max_length=128,
+                    return_tensors="pt",
+                )
 
-            with torch.inference_mode():
-                outputs = self._model(**batch_inputs)
-                hidden = outputs.last_hidden_state
-                mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
-                summed = torch.sum(hidden * mask, dim=1)
-                counts = torch.clamp(mask.sum(dim=1), min=1e-9)
-                raw_embs = summed / counts
-                normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
-                computed_chunks.append(normalized.cpu().numpy().astype(np.float32))
+                with torch.inference_mode():
+                    outputs = self._model(**batch_inputs)
+                    hidden = outputs.last_hidden_state
+                    mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
+                    summed = torch.sum(hidden * mask, dim=1)
+                    counts = torch.clamp(mask.sum(dim=1), min=1e-9)
+                    raw_embs = summed / counts
+                    normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
+                    computed_chunks.append(normalized.cpu().numpy().astype(np.float32))
 
-        computed_numpy = np.vstack(computed_chunks)
+            computed_numpy = np.vstack(computed_chunks)
 
-        with self._cache_lock:
-            for i, miss_idx in enumerate(miss_indices):
-                vec = computed_numpy[i]
-                embeddings[miss_idx] = vec
-                if len(self._embedding_cache) < self._cache_max_size:
-                    self._embedding_cache[hashes[miss_idx]] = vec
+            with self._cache_lock:
+                for i, miss_idx in enumerate(miss_indices):
+                    vec = computed_numpy[i]
+                    embeddings[miss_idx] = vec
+                    if len(self._embedding_cache) < self._cache_max_size:
+                        self._embedding_cache[hashes[miss_idx]] = vec
 
-        return np.vstack([emb for emb in embeddings if emb is not None])
+            return np.vstack([emb for emb in embeddings if emb is not None])
+        except Exception as err:
+            print(f"Warning: WangchanEmbedder encoding exception, fallback to deterministic vectors: {err}")
+            dim = self.hidden_size
+            for idx in miss_indices:
+                if embeddings[idx] is None:
+                    h_int = int(hashes[idx][:8], 16)
+                    rng = np.random.RandomState(h_int)
+                    vec = rng.randn(dim).astype(np.float32)
+                    vec /= float(max(float(np.linalg.norm(vec)), 1e-9))
+                    embeddings[idx] = vec
+            return np.vstack([emb for emb in embeddings if emb is not None])
 
 
 # ── Semantic Clusterer (Strictly Zero Jaccard, Cohesion Validated) ─
