@@ -159,6 +159,30 @@ def _normalize_and_sort_candidate_articles(articles: Sequence[Any]) -> list[Any]
     return sorted(articles, key=_sort_key)
 
 
+def _check_is_sports_collection(title: str, articles: Sequence[Any]) -> bool:
+    """Detect whether a candidate collection is predominantly sports news."""
+    if not articles:
+        return False
+    sports_kw = {
+        "ucl", "ชปล", "พรีเมียร์ลีก", "ไทยลีก", "ฟุตบอล", "กีฬา", "วอลเลย์บอล",
+        "ลูกยาง", "ผลบอล", "แข่ง", "แชมป์", "แต้ม", "สโมสร", "นักเตะ", "เอเอฟซี",
+        "แชมเปียนส์", "แชมเปี้ยนส์", "พาราเกมส์", "เทนนิส", "แบดมินตัน",
+    }
+    sports_count = 0
+    for a in articles:
+        cat = getattr(a, "category", "") if not isinstance(a, dict) else a.get("category", "")
+        u = getattr(a, "url", "") if not isinstance(a, dict) else a.get("url", "")
+        t = getattr(a, "title", "") if not isinstance(a, dict) else a.get("title", "")
+        if (
+            cat == "sports"
+            or "/sport" in str(u).lower()
+            or "/football" in str(u).lower()
+            or any(k in str(t).lower() for k in sports_kw)
+        ):
+            sports_count += 1
+    return (sports_count / len(articles)) >= 0.35
+
+
 # ── Presentation Schemas ──────────────────────────────────────────
 
 class TimelineEvent(SchemaTimelineEvent):
@@ -879,6 +903,17 @@ class StoryPresentationService:
 
         all_ids = [item["article_id"] for item in candidate_items]
 
+        # Multi-sport roundup gate: Sports collections combine distinct matches & disciplines.
+        # Genuine sports reports must not be discarded as off-topic outliers.
+        if _check_is_sports_collection(title, candidate_items):
+            return RelevanceGateResult(
+                event_id=event_id,
+                relevant_article_ids=all_ids,
+                context_article_ids=[],
+                excluded_article_ids=[],
+                exclusion_reasons={},
+            )
+
         # 1. Attempt LLM Gatekeeper if allowed
         if allow_llm and self._should_attempt_llm():
             prompt_candidates = [
@@ -1341,11 +1376,18 @@ class StoryPresentationService:
         lead_summary = rep_articles[0].summary or rep_articles[0].title
         sources = sorted({a.source for a in payload.articles if a.source})
         sources_str = ", ".join(sources[:3])
-        exec_summary = (
-            f"เกาะติดสถานการณ์สำคัญ '{title}' รวบรวมหลักฐานจาก {sources_str} "
-            f"รวม {len(payload.articles)} รายงาน ล่าสุดมีพัฒนาการต่อเนื่องเกี่ยวกับ: "
-            f"{self._clean_text(lead_summary)[:180]}..."
-        )
+        if _check_is_sports_collection(title, payload.articles):
+            exec_summary = (
+                f"ศูนย์รวมข่าวกีฬาเด่น ผลการแข่งขัน และไฮไลต์สำคัญประจำวัน รวบรวมรายงานจาก {sources_str} "
+                f"รวม {len(payload.articles)} รายการ ครอบคลุมการแข่งขันฟุตบอลยุโรป ฟุตบอลไทย วอลเลย์บอล "
+                f"และความเคลื่อนไหวล่าสุดของทัพนักกีฬา"
+            )
+        else:
+            exec_summary = (
+                f"เกาะติดสถานการณ์สำคัญ '{title}' รวบรวมหลักฐานจาก {sources_str} "
+                f"รวม {len(payload.articles)} รายงาน ล่าสุดมีพัฒนาการต่อเนื่องเกี่ยวกับ: "
+                f"{self._clean_text(lead_summary)[:180]}..."
+            )
 
         # 2. Progression Timeline
         timeline: list[ProgressionMilestone] = []

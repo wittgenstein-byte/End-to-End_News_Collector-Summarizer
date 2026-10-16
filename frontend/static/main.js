@@ -52,6 +52,8 @@ let cachedStorylineSyntheses = {};
 let returnViewHash = "#/";
 let currentStorylineData = null;
 let activeStorylineSourceFilter = "";
+let activeSportDisciplineFilter = "";
+let activeSportContentTypeFilter = "";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -1602,12 +1604,40 @@ window.__backFromStoryline = () => {
 };
 
 window.__filterStorylinePublisher = (source) => {
-  activeStorylineSourceFilter = source || "";
+  activeStorylineSourceFilter = (activeStorylineSourceFilter === source) ? "" : (source || "");
   if (currentStorylineData) {
     UI.renderStorylineView(
       currentStorylineData,
       activeStorylineSourceFilter,
-      personalizationData.bookmarkedArticles || {}
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
+    );
+  }
+};
+
+window.__filterSportDiscipline = (discipline) => {
+  activeSportDisciplineFilter = (activeSportDisciplineFilter === discipline) ? "" : (discipline || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
+    );
+  }
+};
+
+window.__filterSportContentType = (ctype) => {
+  activeSportContentTypeFilter = (activeSportContentTypeFilter === ctype) ? "" : (ctype || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
     );
   }
 };
@@ -1643,7 +1673,9 @@ window.__runStorylineAiSummary = async (storyId) => {
         UI.renderStorylineView(
           currentStorylineData,
           activeStorylineSourceFilter,
-          personalizationData.bookmarkedArticles || {}
+          personalizationData.bookmarkedArticles || {},
+          activeSportDisciplineFilter,
+          activeSportContentTypeFilter
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
@@ -1701,6 +1733,8 @@ async function loadStorylineView(storyId) {
   UI.showStorylineLoading();
   UI.switchView("storyline");
   activeStorylineSourceFilter = "";
+  activeSportDisciplineFilter = "";
+  activeSportContentTypeFilter = "";
 
   try {
     // 1. First attempt: fetch macro-event detail from API
@@ -1843,7 +1877,9 @@ async function loadStorylineView(storyId) {
     UI.renderStorylineView(
       storyData,
       activeStorylineSourceFilter,
-      personalizationData.bookmarkedArticles || {}
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter
     );
   } catch (err) {
     console.error("Failed to load storyline view:", err);

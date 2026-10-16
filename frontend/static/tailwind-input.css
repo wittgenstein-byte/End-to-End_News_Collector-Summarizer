@@ -1394,4 +1394,130 @@ html.dark .preview-ai-card .preview-ai-tone-badge {
   list-style: none !important;
 }
 
+/* ── Sports Intelligence Roundup & Multi-Sport Layout ── */
+.sports-hub-hero {
+  border-radius: 1rem;
+  background: var(--ed-card);
+  border: 1px solid var(--ed-border);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.sports-discipline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  color: var(--ed-ink-muted);
+  border: 1px solid var(--ed-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.sports-discipline-pill:hover {
+  border-color: #2563eb;
+  color: var(--ed-ink);
+  transform: translateY(-1px);
+}
+
+.sports-discipline-pill.active {
+  background: #1e3a8a !important;
+  color: #ffffff !important;
+  border-color: #1e3a8a !important;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.25);
+}
+
+.sports-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ed-card);
+  color: var(--ed-ink-muted);
+  border: 1px solid var(--ed-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.sports-type-pill:hover {
+  border-color: var(--ed-ink);
+  color: var(--ed-ink);
+}
+
+.sports-type-pill.active {
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+.sports-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+}
+
+.sports-result-badge {
+  background: rgba(16, 185, 129, 0.95);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sports-schedule-badge {
+  background: rgba(14, 165, 233, 0.95);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sports-general-badge {
+  background: rgba(71, 85, 105, 0.9);
+  color: #ffffff;
+}
+
+.sports-score-highlight {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+html.dark .sports-score-highlight {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.sports-digest-section-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--ed-border);
+  background: var(--ed-card);
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+html.dark .sports-discipline-pill.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+
+
 

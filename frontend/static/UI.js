@@ -1395,6 +1395,7 @@ export function renderHistoryList(items = [], type = "history", bookmarkedMap = 
 }
 
 // ── Dedicated Storyline View (Executive Dossier Style) ────────────
+let currentStorylineDataCache = null;
 
 export function showStorylineLoading() {
   const container = document.getElementById("storyline-view");
@@ -1577,6 +1578,10 @@ export function renderStorylineAiSynthesis(synthesisData) {
   const section = document.getElementById("storyline-ai-section");
   if (!section || !synthesisData) return;
 
+  if (currentStorylineDataCache && checkIsSportsCluster(currentStorylineDataCache, currentStorylineDataCache.articles || [])) {
+    return renderSportsAiDigest(synthesisData, currentStorylineDataCache.articles || []);
+  }
+
   const s = synthesisData;
   const progressionTimeline = Array.isArray(s.progression_timeline) ? s.progression_timeline : [];
   const confirmedFacts = Array.isArray(s.confirmed_facts) ? s.confirmed_facts : [];
@@ -1738,12 +1743,625 @@ export function renderStorylineAiSummary(summaryData) {
   return renderStorylineAiSynthesis(converted);
 }
 
-export function renderStorylineView(storyData, activeSourceFilter = "", bookmarkedMap = {}) {
+// ── Dedicated Sports Intelligence & Multi-Sport Aggregation ─────────
+
+export function classifySportsArticle(art) {
+  const title = (art.title || "").toLowerCase();
+  const summary = (art.summary || "").toLowerCase();
+  const url = (art.url || "").toLowerCase();
+  const text = `${title} ${summary} ${url}`;
+
+  let discipline = "other_sports";
+  let disciplineLabel = "กีฬาอื่นๆ & พาราเกมส์";
+  let leagueBadge = "🏃 กีฬาอื่นๆ";
+  let leagueBadgeClass = "bg-slate-700 text-slate-100";
+
+  // Check Football Europe & International
+  if (/ucl|แชมเปี้ยนส์ ลีก|แชมเปียนส์ ลีก|ชปล|พรีเมียร์ลีก|premier league|ยูโรปา|europa|ลาลีกา|บุนเดสลีกา|กัลโช่|แมนฯ ซิตี้|แมนซิตี้|เปแอสเช|psg|แมนยู|แมนฯ ยูไนเต็ด|ลิเวอร์พูล|อาร์เซน่อล|อาร์เซนอล|เชลซี|สเปอร์ส|มาดริด|แอต\.มาดริด|บาร์เซโลน่า|บาเยิร์น|ดอร์ทมุนด์|ลินซ์|ลีลล์|คริสตัล พาเลซ|ลียง|โคโม|เฟเยนูร์ด|ลูกหนังยุโรป/.test(text)) {
+    discipline = "football_europe";
+    disciplineLabel = "ฟุตบอลยุโรป & สากล";
+    if (/ucl|แชมเปี้ยนส์ ลีก|แชมเปียนส์ ลีก|ชปล/.test(text)) {
+      leagueBadge = "⚽ UCL";
+      leagueBadgeClass = "bg-indigo-900 text-indigo-100 border border-indigo-700/50";
+    } else if (/พรีเมียร์ลีก|premier league/.test(text)) {
+      leagueBadge = "⚽ พรีเมียร์ลีก";
+      leagueBadgeClass = "bg-purple-900 text-purple-100 border border-purple-700/50";
+    } else if (/ยูโรปา|europa/.test(text)) {
+      leagueBadge = "⚽ ยูโรปาลีก";
+      leagueBadgeClass = "bg-amber-900 text-amber-100 border border-amber-700/50";
+    } else {
+      leagueBadge = "⚽ ฟุตบอลยุโรป";
+      leagueBadgeClass = "bg-blue-900 text-blue-100 border border-blue-700/50";
+    }
+  }
+  // Check Thai Football & Asian Club
+  else if (/ไทยลีก|ไทยพรีเมียร์ลีก|ช้างศึก|ทีมชาติไทย|เอเชียน คัพ|เอเชี่ยนคัพ|asian cup|คิงส์คัพ|ท่าเรือ|การท่าเรือ|บีจี ปทุม|จามจุรี|คาชิว่า|คาชิวะ|acl|เอเอฟซี|แอดิเลด|บอลนักเรียน|ฟุตบอลนักเรียน|กรมพลศึกษา|ไทย วีเมนส์ ลีก|ฟุตซอล|ฟุตบอลไทย|บอลไทย/.test(text)) {
+    discipline = "football_thai";
+    disciplineLabel = "ฟุตบอลไทย & บอลเอเชีย";
+    if (/ไทยลีก 3/.test(text)) {
+      leagueBadge = "🇹🇭 ไทยลีก 3";
+    } else if (/ไทยลีก/.test(text)) {
+      leagueBadge = "🇹🇭 ไทยลีก";
+    } else if (/เอเชียน คัพ|เอเชี่ยนคัพ|ช้างศึก|ทีมชาติไทย|คิงส์คัพ/.test(text)) {
+      leagueBadge = "🇹🇭 ช้างศึก / เอเชียนคัพ";
+    } else if (/acl|เอเอฟซี|คาชิว่า|คาชิวะ|แอดิเลด/.test(text)) {
+      leagueBadge = "🌏 ACL เอเชีย";
+    } else if (/บอลนักเรียน|นักเรียนไทย/.test(text)) {
+      leagueBadge = "🇹🇭 บอลนักเรียนโลก";
+    } else {
+      leagueBadge = "🇹🇭 ฟุตบอลไทย";
+    }
+    leagueBadgeClass = "bg-rose-900 text-rose-100 border border-rose-700/50";
+  }
+  // Check Volleyball
+  else if (/วอลเลย์|ลูกยาง|pmyc|วอลเลย์บอล/.test(text)) {
+    discipline = "volleyball";
+    disciplineLabel = "วอลเลย์บอล & กีฬาในร่ม";
+    if (/ชายหาด/.test(text)) {
+      leagueBadge = "🏐 วอลเลย์ชายหาด";
+    } else {
+      leagueBadge = "🏐 ลูกยาง / PMYC";
+    }
+    leagueBadgeClass = "bg-amber-800 text-amber-100 border border-amber-600/50";
+  }
+  // Other Sports & Para Games
+  else {
+    discipline = "other_sports";
+    disciplineLabel = "กีฬาอื่นๆ & พาราเกมส์";
+    if (/พาราเกมส์|คนพิการ/.test(text)) {
+      leagueBadge = "♿ เอเชี่ยนพาราเกมส์";
+      leagueBadgeClass = "bg-emerald-900 text-emerald-100 border border-emerald-700/50";
+    } else if (/เทนนิส|tennis/.test(text)) {
+      leagueBadge = "🎾 เทนนิส";
+      leagueBadgeClass = "bg-lime-900 text-lime-100 border border-lime-700/50";
+    } else if (/แบดมินตัน|badminton/.test(text)) {
+      leagueBadge = "🏸 แบดมินตัน";
+      leagueBadgeClass = "bg-teal-900 text-teal-100 border border-teal-700/50";
+    } else if (/มวย|boxing/.test(text)) {
+      leagueBadge = "🥊 มวย";
+      leagueBadgeClass = "bg-red-950 text-red-200 border border-red-800/50";
+    } else if (/กอล์ฟ|golf/.test(text)) {
+      leagueBadge = "⛳ กอล์ฟ";
+      leagueBadgeClass = "bg-green-900 text-green-100 border border-green-700/50";
+    } else {
+      leagueBadge = "🏃 กีฬาอื่นๆ";
+      leagueBadgeClass = "bg-slate-800 text-slate-200 border border-slate-700/50";
+    }
+  }
+
+  // Content type
+  let contentType = "general";
+  let contentTypeLabel = "ข่าวทั่วไป";
+  let isResult = false;
+  let scoreHighlight = "";
+
+  if (/ผลบอล|ผลการแข่งขัน|คว้าชัย|บุกชนะ|เปิดบ้านชนะ|ชนะ|พ่าย|พ่ายยับ|แพ้|ถล่ม|เสมอกัน|เสมอ|คว้าแชมป์|คว้า 3 แต้ม|แฮตทริก|ตารางคะแนน|ล้มมือวาง/.test(title)) {
+    contentType = "result";
+    contentTypeLabel = "ผลการแข่งขัน";
+    isResult = true;
+    const scoreMatch = title.match(/(\d+[\s-–]\d+|\d+\s*คน|แฮตทริก|คว้า\s*3\s*แต้ม|คว้าแชมป์)/);
+    if (scoreMatch) {
+      scoreHighlight = scoreMatch[1];
+    }
+  } else if (/โปรแกรมบอล|เปิดโปรแกรม|โปรแกรมเตะ|ดูบอลสด|วิเคราะห์บอล|ตารางแข่ง|เปิดรับสมัคร|นัดแรกฟาดแข้ง|ฟาดแข้ง\s*\d+/.test(title)) {
+    contentType = "schedule";
+    contentTypeLabel = "โปรแกรมแข่ง";
+  }
+
+  return {
+    discipline,
+    disciplineLabel,
+    leagueBadge,
+    leagueBadgeClass,
+    contentType,
+    contentTypeLabel,
+    isResult,
+    scoreHighlight,
+  };
+}
+
+export function checkIsSportsCluster(storyData, articles = []) {
+  if (storyData && storyData.category === "sports") return true;
+  if (!articles || !articles.length) return false;
+  const sportsKw = /ucl|ชปล|พรีเมียร์ลีก|ไทยลีก|ฟุตบอล|กีฬา|วอลเลย์บอล|ลูกยาง|ผลบอล|แข่ง|แชมป์|แต้ม|สโมสร|นักเตะ|เอเอฟซี|แชมเปียนส์|แชมเปี้ยนส์|พาราเกมส์|เทนนิส|แบดมินตัน/;
+  let sportsCount = 0;
+  for (const a of articles) {
+    if (a.category === "sports") {
+      sportsCount++;
+    } else if (a.url && (a.url.includes("/sport") || a.url.includes("/football") || a.url.includes("/ผลบอล"))) {
+      sportsCount++;
+    } else if (sportsKw.test((a.title || "").toLowerCase())) {
+      sportsCount++;
+    }
+  }
+  return (sportsCount / articles.length) >= 0.35;
+}
+
+export function renderSportsAiDigest(synthesisData, articles = []) {
+  const section = document.getElementById("storyline-ai-section");
+  if (!section || !synthesisData) return;
+
+  const summaryText = synthesisData.executive_summary || synthesisData.summary || "สรุปภาพรวมผลการแข่งขันและไฮไลต์กีฬาประจำวัน";
+
+  // Ensure articles have sports classification
+  const enrichedArticles = articles.map(a => {
+    if (!a._sportsMeta) a._sportsMeta = classifySportsArticle(a);
+    return a;
+  });
+
+  const euArticles = enrichedArticles.filter(a => a._sportsMeta?.discipline === "football_europe");
+  const thArticles = enrichedArticles.filter(a => a._sportsMeta?.discipline === "football_thai");
+  const volleyArticles = enrichedArticles.filter(a => a._sportsMeta?.discipline === "volleyball");
+  const otherArticles = enrichedArticles.filter(a => a._sportsMeta?.discipline === "other_sports");
+
+  section.innerHTML = `
+    <!-- Sports Overview Card -->
+    <div class="p-4 sm:p-5 rounded-xl bg-slate-50/90 dark:bg-zinc-800/50 border-l-4 border-amber-500 text-slate-800 dark:text-zinc-100 text-sm sm:text-base leading-relaxed shadow-sm space-y-2">
+      <div class="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-400 text-xs uppercase font-mono tracking-wider">
+        <span class="material-symbols-outlined text-[18px]">sports_and_outdoors</span>
+        <span>กระดานสรุปผลและไฮไลต์กีฬา (AI Sports Intelligence Digest)</span>
+      </div>
+      <p class="leading-relaxed font-normal">${esc(summaryText)}</p>
+    </div>
+
+    <!-- Sports Discipline Highlights Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+      <!-- 1. European Football -->
+      ${euArticles.length > 0 ? `
+        <div class="sports-digest-section-card bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 shadow-2xs">
+          <div class="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+            <span class="font-bold text-xs text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+              <span>⚽</span> ฟุตบอลยุโรป & UCL
+            </span>
+            <span class="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">${euArticles.length} ข่าว</span>
+          </div>
+          <div class="space-y-2 text-xs">
+            ${euArticles.slice(0, 4).map(a => `
+              <div class="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" onclick="window.__openPreview('${esc(a.url)}')">
+                <div class="font-semibold text-slate-800 dark:text-zinc-200 line-clamp-2">${esc(a.title)}</div>
+                <div class="flex items-center gap-2 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-zinc-400">
+                  <span class="font-bold">${esc(a.source || "ข่าว")}</span>
+                  ${a._sportsMeta?.scoreHighlight ? `<span class="sports-score-highlight text-[9px]">${esc(a._sportsMeta.scoreHighlight)}</span>` : ""}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      <!-- 2. Thai Football & Asian Clubs -->
+      ${thArticles.length > 0 ? `
+        <div class="sports-digest-section-card bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 shadow-2xs">
+          <div class="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+            <span class="font-bold text-xs text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+              <span>🇹🇭</span> ฟุตบอลไทย & สโมสรเอเชีย
+            </span>
+            <span class="text-[10px] font-mono font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full">${thArticles.length} ข่าว</span>
+          </div>
+          <div class="space-y-2 text-xs">
+            ${thArticles.slice(0, 4).map(a => `
+              <div class="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" onclick="window.__openPreview('${esc(a.url)}')">
+                <div class="font-semibold text-slate-800 dark:text-zinc-200 line-clamp-2">${esc(a.title)}</div>
+                <div class="flex items-center gap-2 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-zinc-400">
+                  <span class="font-bold">${esc(a.source || "ข่าว")}</span>
+                  ${a._sportsMeta?.scoreHighlight ? `<span class="sports-score-highlight text-[9px]">${esc(a._sportsMeta.scoreHighlight)}</span>` : ""}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      <!-- 3. Volleyball & Other Sports -->
+      ${(volleyArticles.length > 0 || otherArticles.length > 0) ? `
+        <div class="sports-digest-section-card bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 space-y-3 shadow-2xs">
+          <div class="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+            <span class="font-bold text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+              <span>🏐</span> วอลเลย์บอล & กีฬาอื่นๆ
+            </span>
+            <span class="text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">${volleyArticles.length + otherArticles.length} ข่าว</span>
+          </div>
+          <div class="space-y-2 text-xs">
+            ${[...volleyArticles, ...otherArticles].slice(0, 4).map(a => `
+              <div class="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" onclick="window.__openPreview('${esc(a.url)}')">
+                <div class="font-semibold text-slate-800 dark:text-zinc-200 line-clamp-2">${esc(a.title)}</div>
+                <div class="flex items-center gap-2 mt-1.5 text-[10px] font-mono text-slate-500 dark:text-zinc-400">
+                  <span class="font-bold">${esc(a.source || "ข่าว")}</span>
+                  <span class="text-[9px] text-slate-400 font-mono">${esc(a._sportsMeta?.leagueBadge || "กีฬา")}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+export function renderSportsStorylineView(
+  storyData,
+  activeSourceFilter = "",
+  activeSportDisciplineFilter = "",
+  activeSportContentTypeFilter = "",
+  bookmarkedMap = {}
+) {
   const container = document.getElementById("storyline-view");
   if (!container || !storyData) return;
 
+  currentStorylineDataCache = storyData;
+
   const storyId = storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
-  const heroTitle = storyData.topic_title || storyData.title || storyData.headline || "แฟ้มเจาะลึกประเด็นข่าว";
+  const rawArticles = Array.isArray(storyData.articles) ? storyData.articles : [];
+
+  // Sort articles by published/fetched time descending (latest sports news first!)
+  const sortedArticles = [...rawArticles].sort((a, b) => {
+    const timeA = new Date(a.fetched_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
+    return timeB - timeA;
+  });
+
+  // Enrich all articles with sports classification
+  sortedArticles.forEach(art => {
+    art._sportsMeta = classifySportsArticle(art);
+  });
+
+  // Calculate discipline counts
+  const disciplineCounts = {
+    football_europe: 0,
+    football_thai: 0,
+    volleyball: 0,
+    other_sports: 0,
+  };
+  const contentTypeCounts = {
+    result: 0,
+    schedule: 0,
+    general: 0,
+  };
+  const outletCounts = {};
+
+  sortedArticles.forEach(art => {
+    const meta = art._sportsMeta;
+    if (disciplineCounts[meta.discipline] !== undefined) {
+      disciplineCounts[meta.discipline]++;
+    } else {
+      disciplineCounts.other_sports++;
+    }
+    if (contentTypeCounts[meta.contentType] !== undefined) {
+      contentTypeCounts[meta.contentType]++;
+    } else {
+      contentTypeCounts.general++;
+    }
+    const src = art.source || "ข่าว";
+    outletCounts[src] = (outletCounts[src] || 0) + 1;
+  });
+
+  const outlets = Object.keys(outletCounts).sort((a, b) => outletCounts[b] - outletCounts[a]);
+
+  // Filter articles
+  let filteredArticles = sortedArticles;
+  if (activeSportDisciplineFilter) {
+    filteredArticles = filteredArticles.filter(a => a._sportsMeta?.discipline === activeSportDisciplineFilter);
+  }
+  if (activeSportContentTypeFilter) {
+    filteredArticles = filteredArticles.filter(a => a._sportsMeta?.contentType === activeSportContentTypeFilter);
+  }
+  if (activeSourceFilter) {
+    filteredArticles = filteredArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase());
+  }
+
+  // Dynamic Hero Title: If it's a multi-sport collection, provide a clear sports hub title
+  const activeDisciplinesCount = Object.values(disciplineCounts).filter(c => c > 0).length;
+  const isMultiDiscipline = activeDisciplinesCount >= 2;
+  const sportsHeroTitle = isMultiDiscipline
+    ? "ศูนย์รวมข่าวกีฬาเด่น ผลบอล และความเคลื่อนไหวล่าสุด"
+    : (storyData.topic_title || storyData.headline || storyData.title || "รวมรายงานข่าวกีฬาประจำวัน");
+
+  // Sport Discipline Tabs
+  const discTabs = [
+    { id: "", label: "ทุกประเภทกีฬา", icon: "🌟", count: sortedArticles.length },
+    { id: "football_europe", label: "ฟุตบอลยุโรป & UCL", icon: "⚽", count: disciplineCounts.football_europe },
+    { id: "football_thai", label: "ฟุตบอลไทย & เอเชีย", icon: "🇹🇭", count: disciplineCounts.football_thai },
+    { id: "volleyball", label: "วอลเลย์บอล & ในร่ม", icon: "🏐", count: disciplineCounts.volleyball },
+    { id: "other_sports", label: "กีฬาอื่นๆ & พาราเกมส์", icon: "🏃", count: disciplineCounts.other_sports },
+  ].filter(t => t.id === "" || t.count > 0);
+
+  const disciplinePillsHtml = discTabs.map(tab => {
+    const isActive = activeSportDisciplineFilter === tab.id;
+    return `
+      <button type="button"
+              class="sports-discipline-pill ${isActive ? 'active' : ''}"
+              onclick="window.__filterSportDiscipline('${tab.id}')">
+        <span>${tab.icon}</span>
+        <span>${tab.label}</span>
+        <span class="text-[11px] font-mono font-bold opacity-75">(${tab.count})</span>
+      </button>
+    `;
+  }).join("");
+
+  // Content Type Filter Pills
+  const ctypeTabs = [
+    { id: "", label: "ทั้งหมด" },
+    { id: "result", label: "🏆 ผลการแข่งขัน", count: contentTypeCounts.result },
+    { id: "schedule", label: "📅 โปรแกรมแข่ง", count: contentTypeCounts.schedule },
+    { id: "general", label: "📢 ข่าวทั่วไป", count: contentTypeCounts.general },
+  ].filter(t => t.id === "" || t.count > 0);
+
+  const contentTypePillsHtml = ctypeTabs.map(tab => {
+    const isActive = activeSportContentTypeFilter === tab.id;
+    return `
+      <button type="button"
+              class="sports-type-pill ${isActive ? 'active' : ''}"
+              onclick="window.__filterSportContentType('${tab.id}')">
+        <span>${tab.label}</span>
+        ${tab.count !== undefined ? `<span class="opacity-75">(${tab.count})</span>` : ""}
+      </button>
+    `;
+  }).join("");
+
+  // Publisher Filter Pills
+  const allPublishersActive = !activeSourceFilter;
+  let publisherPillsHtml = `
+    <button type="button" 
+            class="storyline-publisher-pill ${allPublishersActive ? 'active' : ''}"
+            onclick="window.__filterStorylinePublisher('')">
+      <span>ทุกสำนักข่าว</span>
+      <span class="pill-count">${sortedArticles.length}</span>
+    </button>
+  `;
+
+  publisherPillsHtml += outlets.map(outlet => {
+    const isActive = outlet.toLowerCase() === activeSourceFilter.toLowerCase();
+    const count = outletCounts[outlet] || 0;
+    const color = SOURCE_COLORS[outlet] ?? "#1d3557";
+    return `
+      <button type="button" 
+              class="storyline-publisher-pill ${isActive ? 'active' : ''}"
+              onclick="window.__filterStorylinePublisher('${esc(outlet)}')">
+        <span style="display:inline-block; width:7px; height:7px; border-radius:9999px; background:${isActive ? '#ffffff' : color};"></span>
+        <span>${esc(outlet)}</span>
+        <span class="pill-count">${count}</span>
+      </button>
+    `;
+  }).join("");
+
+  // Sports News Articles Grid HTML (No CHRONOLOGY #01, #02...!)
+  const articlesGridHtml = filteredArticles.length > 0 ? `
+    <div class="storyline-grid-container">
+      ${filteredArticles.map((art) => {
+        const color = SOURCE_COLORS[art.source] ?? "#1d3557";
+        const placeholder = getCategoryPlaceholder("sports");
+        const imgSrc = art.image_url || placeholder;
+        const isBookmarked = Boolean(bookmarkedMap && bookmarkedMap[art.url]);
+        const artJsonEncoded = encodeURIComponent(JSON.stringify(art));
+        const perspective = getPerspectiveLabel(art.title, art.source, art.summary);
+        const meta = art._sportsMeta || classifySportsArticle(art);
+
+        return `
+          <article class="editorial-card transition-all duration-300"
+                   data-url="${esc(art.url)}">
+            <div class="aspect-[16/10] relative overflow-hidden bg-surface-container-low cursor-pointer border-b border-outline-variant/25"
+                 onclick="window.__openPreview('${esc(art.url)}')">
+              <img src="${esc(imgSrc)}" alt="${esc(art.title)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='${placeholder}';" loading="lazy">
+              
+              <!-- Top-Left: Sport Discipline / League Badge -->
+              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                <span class="sports-tag-badge ${meta.leagueBadgeClass}">
+                  ${meta.leagueBadge}
+                </span>
+              </div>
+
+              <!-- Top-Right: Content Type Badge / Score Callout -->
+              <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 flex-wrap">
+                ${meta.isResult ? `
+                  <span class="sports-tag-badge sports-result-badge">
+                    🏆 ผลแข่ง ${meta.scoreHighlight ? `• ${esc(meta.scoreHighlight)}` : ''}
+                  </span>
+                ` : (meta.contentType === "schedule" ? `
+                  <span class="sports-tag-badge sports-schedule-badge">
+                    📅 โปรแกรมแข่ง
+                  </span>
+                ` : `
+                  <span class="sports-tag-badge sports-general-badge">
+                    📢 ความเคลื่อนไหว
+                  </span>
+                `)}
+              </div>
+            </div>
+
+            <div class="p-4 sm:p-5 flex flex-col flex-1">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
+                  <span class="font-mono text-[11px] font-bold uppercase text-on-surface">${esc(art.source || "ข่าวกีฬา")}</span>
+                </div>
+                <span class="font-mono text-[10px] text-secondary font-semibold">${esc(perspective)}</span>
+              </div>
+
+              <h3 class="font-headline font-bold text-base sm:text-lg text-on-surface leading-snug mb-2 cursor-pointer hover:text-primary line-clamp-2"
+                  onclick="window.__openPreview('${esc(art.url)}')">
+                ${esc(art.title)}
+              </h3>
+
+              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mb-4">
+                ${esc(art.summary || "")}
+              </p>
+
+              <div class="mt-auto pt-3 border-t border-outline-variant/25 flex items-center justify-between gap-2">
+                <span class="font-mono text-[10px] text-outline uppercase">${formatEditorialDateTime(art.fetched_at || art.created_at)}</span>
+                <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                  <button type="button" 
+                          class="editorial-card-icon-btn bookmark-btn ${isBookmarked ? 'active' : ''}"
+                          data-url="${esc(art.url)}"
+                          onclick="window.__toggleArticleBookmark(event, '${artJsonEncoded}')"
+                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                    <span class="material-symbols-outlined text-[15px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1;" : ""}">
+                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                    </span>
+                  </button>
+                  <button type="button" 
+                          class="editorial-card-icon-btn"
+                          onclick="window.__showLessLikeThis(event, '${artJsonEncoded}')"
+                          title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
+                    <span class="material-symbols-outlined text-[15px]">visibility_off</span>
+                  </button>
+                  <button type="button" class="editorial-card-action-btn" onclick="window.__openPreview('${esc(art.url)}')">อ่านย่อ</button>
+                  <button type="button" class="editorial-card-ai-btn" onclick="window.__openPreviewAndSummarize('${esc(art.url)}')">AI</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  ` : `
+    <div class="text-center py-16 text-slate-500 dark:text-zinc-400 space-y-2">
+      <span class="material-symbols-outlined text-3xl">sports_soccer</span>
+      <p class="text-sm font-medium">ไม่พบข่าวกีฬาในเงื่อนไขการกรองนี้</p>
+      <button type="button" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-xs font-bold cursor-pointer" onclick="window.__filterSportDiscipline(''); window.__filterSportContentType(''); window.__filterStorylinePublisher('');">ล้างตัวกรองทั้งหมด</button>
+    </div>
+  `;
+
+  // Hashtags
+  const sportsHashtags = Array.from(new Set([
+    "กีฬา", "ผลบอล", "UCL", "ไทยลีก", "วอลเลย์บอล",
+    ...(Array.isArray(storyData.hashtags) ? storyData.hashtags : []),
+    ...(sortedArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
+  ])).filter(Boolean).slice(0, 10);
+
+  const sportsHashtagsHtml = sportsHashtags.length > 0 ? `
+    <div class="pt-4 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2 flex-wrap">
+      <span class="font-mono text-[11px] text-slate-400 uppercase">TAGS:</span>
+      ${sportsHashtags.map(tag => {
+        const clean = tag.startsWith("#") ? tag.slice(1) : tag;
+        return `
+          <button type="button"
+                  class="px-2.5 py-1 text-xs rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
+                  onclick="window.__filterByHashtag('${esc(clean)}')">
+            #${esc(clean)}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  ` : "";
+
+  container.innerHTML = `
+    <div class="storyline-container">
+      <div class="storyline-top-bar" id="storyline-top-bar">
+        <button type="button" class="storyline-back-btn" onclick="window.__backFromStoryline()">
+          <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+          <span>กลับสู่ฟีดรวมข่าว</span>
+        </button>
+        <span class="font-mono text-[11px] font-bold uppercase tracking-widest text-secondary flex items-center gap-1.5">
+          <span>⚽</span>
+          <span>SPORTS ROUNDUP • ${outlets.length} PUBLISHERS</span>
+        </span>
+      </div>
+
+      <div class="sports-hub-hero bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 text-slate-800 dark:text-zinc-100">
+        
+        <!-- Header -->
+        <div class="space-y-3 border-b border-slate-100 dark:border-zinc-800 pb-5">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30">
+                <span class="material-symbols-outlined text-[14px]">sports_and_outdoors</span>
+                Sports Roundup & Digest
+              </span>
+              <span class="text-xs text-slate-400 dark:text-zinc-500 font-medium">${formatEditorialDateOnly(storyData.updated_at)}</span>
+            </div>
+
+            <div class="px-3 py-1 rounded-full bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700">
+              รวม ${sortedArticles.length} ข่าวกีฬา • ${outlets.length} สำนักข่าว
+            </div>
+          </div>
+
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug tracking-tight">
+            ${esc(sportsHeroTitle)}
+          </h1>
+
+          <!-- Quick Sports Summary Badges -->
+          <div class="flex items-center gap-2 flex-wrap pt-2">
+            ${discTabs.map(tab => `
+              <button type="button"
+                      class="px-3 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${activeSportDisciplineFilter === tab.id ? 'bg-primary text-white font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'}"
+                      onclick="window.__filterSportDiscipline('${tab.id}')">
+                <span>${tab.icon} ${tab.label}</span>
+                <span class="ml-1 opacity-75 font-mono font-bold">${tab.count}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- AI Digest Board Section -->
+        <div id="storyline-ai-section" class="space-y-4">
+          <div class="p-4 sm:p-5 rounded-xl bg-slate-50/80 dark:bg-zinc-800/40 border-l-4 border-amber-500 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+            ${esc(storyData.summary || "รวบรวมรายงานผลการแข่งขัน ฟุตบอลยุโรป ฟุตบอลไทย วอลเลย์บอล และความเคลื่อนไหวในวงการกีฬาจากทุกสำนักข่าว")}
+          </div>
+          <div class="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-3">
+            <span class="text-xs text-slate-500 dark:text-zinc-400">ต้องการสรุปผลการแข่งขันและไฮไลต์สำคัญด้วย AI หรือไม่?</span>
+            <button type="button" id="storyline-ai-btn" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                    onclick="window.__runStorylineAiSummary('${esc(storyId)}')">
+              <span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+              <span>สรุปไฮไลต์และผลการแข่งขันด้วย AI</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hashtags -->
+        ${sportsHashtagsHtml}
+      </div>
+
+      <!-- Sports Discipline Filter Bar -->
+      <div class="storyline-filter-bar space-y-3">
+        <!-- Row 1: Sport Disciplines (Primary) -->
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <span class="font-mono text-xs uppercase tracking-wider text-slate-500 dark:text-zinc-400">หมวดหมู่กีฬา / DISCIPLINE:</span>
+          <span class="font-mono text-[11px] text-outline">แสดง ${filteredArticles.length} จาก ${sortedArticles.length} รายการ</span>
+        </div>
+        <div class="storyline-pills-row custom-scrollbar">
+          ${disciplinePillsHtml}
+        </div>
+
+        <!-- Row 2: Content Type & Publisher Sub-filters -->
+        <div class="pt-2 border-t border-slate-100 dark:border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <!-- Content Type Filters -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-[10px] text-outline uppercase mr-1">ประเภท:</span>
+            ${contentTypePillsHtml}
+          </div>
+          <!-- Publisher Perspective Filters -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-[10px] text-outline uppercase mr-1">สำนักข่าว:</span>
+            ${publisherPillsHtml}
+          </div>
+        </div>
+      </div>
+
+      <!-- Articles Grid -->
+      <div class="mt-6">
+        ${articlesGridHtml}
+      </div>
+    </div>
+  `;
+
+  // If synthesis is already present, render it into #storyline-ai-section immediately
+  if (storyData.synthesis) {
+    renderSportsAiDigest(storyData.synthesis, sortedArticles);
+  }
+}
+
+export function renderStorylineView(
+  storyData,
+  activeSourceFilter = "",
+  bookmarkedMap = {},
+  activeSportDisciplineFilter = "",
+  activeSportContentTypeFilter = ""
+) {
+  const container = document.getElementById("storyline-view");
+  if (!container || !storyData) return;
+
+  currentStorylineDataCache = storyData;
+
   const rawArticles = Array.isArray(storyData.articles) ? storyData.articles : [];
 
   const sortedArticles = [...rawArticles].sort((a, b) => {
@@ -1751,6 +2369,20 @@ export function renderStorylineView(storyData, activeSourceFilter = "", bookmark
     const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
     return timeA - timeB;
   });
+
+  // Check if this cluster is predominantly sports news -> dispatch to dedicated sports roundup view
+  if (checkIsSportsCluster(storyData, sortedArticles)) {
+    return renderSportsStorylineView(
+      storyData,
+      activeSourceFilter,
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter,
+      bookmarkedMap
+    );
+  }
+
+  const storyId = storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
+  const heroTitle = storyData.topic_title || storyData.title || storyData.headline || "แฟ้มเจาะลึกประเด็นข่าว";
 
   const synthesis = storyData.synthesis;
   const metrics = synthesis?.metrics;
