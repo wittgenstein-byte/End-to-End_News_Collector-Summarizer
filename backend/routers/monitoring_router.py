@@ -37,6 +37,18 @@ _PROCESS_START_TIME: float = time.time()
 
 # Active admin session tokens: {token: expires_at_timestamp}
 _VALID_SESSIONS: dict[str, float] = {}
+_MAX_ACTIVE_SESSIONS: int = 100
+
+
+def _prune_sessions(now: float) -> None:
+    """Remove expired session tokens and enforce maximum active session cap."""
+    expired = [tok for tok, exp in _VALID_SESSIONS.items() if exp <= now]
+    for tok in expired:
+        _VALID_SESSIONS.pop(tok, None)
+
+    while len(_VALID_SESSIONS) >= _MAX_ACTIVE_SESSIONS:
+        oldest_tok = min(_VALID_SESSIONS, key=_VALID_SESSIONS.get)  # type: ignore[arg-type]
+        _VALID_SESSIONS.pop(oldest_tok, None)
 
 
 # ── Pydantic Request Models ───────────────────────────────────────
@@ -74,8 +86,11 @@ def verify_monitoring_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Check direct master key match
-    if token == settings.monitoring_admin_key:
+    # Constant-time master key comparison (prevents timing attacks)
+    if settings.monitoring_admin_key and secrets.compare_digest(
+        token.encode("utf-8"),
+        settings.monitoring_admin_key.encode("utf-8"),
+    ):
         return True
 
     # Check session token
@@ -101,15 +116,24 @@ def verify_monitoring_auth(
 async def login(req: AuthRequest) -> JSONResponse:
     """Validate admin key and return session token."""
     cleaned_key = req.key.strip()
-    if not cleaned_key or cleaned_key != settings.monitoring_admin_key:
+    if (
+        not cleaned_key
+        or not settings.monitoring_admin_key
+        or not secrets.compare_digest(
+            cleaned_key.encode("utf-8"),
+            settings.monitoring_admin_key.encode("utf-8"),
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="รหัสผ่าน Admin / Dev Key ไม่ถูกต้อง",
         )
 
-    # Issue session token
+    # Issue session token with bounded session storage
+    now = time.time()
+    _prune_sessions(now)
     token = secrets.token_hex(24)
-    expires_at = time.time() + float(settings.monitoring_session_ttl_seconds)
+    expires_at = now + float(settings.monitoring_session_ttl_seconds)
     _VALID_SESSIONS[token] = expires_at
 
     return JSONResponse(
