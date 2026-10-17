@@ -215,7 +215,18 @@ class Settings:
     port: int               = int(_get("PORT", "5000"))
     playwright_service_url: str = _get("PLAYWRIGHT_SERVICE_URL", "http://playwright:8001/scrape")
     obscura_service_url: str    = _get("OBSCURA_SERVICE_URL", "")
-    cors_origins: ClassVar[list[str]] = [x.strip() for x in _get("CORS_ORIGINS", "*").split(",") if x.strip()]
+    # Dynamic Cross-Origin Resource Sharing (CORS)
+    cors_origins: ClassVar[list[str]] = _parse_csv(
+        _get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5500,http://localhost:3000"),
+        ["http://localhost:5173", "http://127.0.0.1:5500", "http://localhost:3000"],
+    )
+    cors_origin_regex: str | None = (
+        _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").strip() or None
+    )
+
+    # Headless / Decoupled Mode
+    headless: bool          = _get("HEADLESS", "false").lower() in {"1", "true", "yes"}
+    serve_frontend: bool    = _get("SERVE_FRONTEND", "true").lower() in {"1", "true", "yes"}
 
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"
@@ -231,6 +242,13 @@ class Settings:
     issue_cluster_distance: float    = float(_get("ISSUE_CLUSTER_DISTANCE", "0.85"))
     issue_cache_ttl_seconds: int     = int(_get("ISSUE_CACHE_TTL_SECONDS", "120"))
     issue_rate_limit_per_min: int    = int(_get("ISSUE_RATE_LIMIT_PER_MIN", "30"))
+
+    def __init__(self) -> None:
+        self.headless: bool = _get("HEADLESS", "false").lower() in {"1", "true", "yes"}
+        self.serve_frontend: bool = _get("SERVE_FRONTEND", "true").lower() in {"1", "true", "yes"}
+        raw_regex = _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").strip()
+        self.cors_origin_regex: str | None = raw_regex or None
+
 
 
 # Singleton ใช้ได้ทั่วทั้ง app
