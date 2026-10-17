@@ -1,6 +1,6 @@
 # 📰 NEWSROOM — Thai News Aggregator & Intelligent Summarizer
 
-ระบบรวบรวมข่าวสารภาษาไทยอัตโนมัติแบบเรียลไทม์จาก 14 สำนักข่าวชั้นนำ พร้อมระบบจัดหมวดหมู่อัจฉริยะ (3-Tier Classification Engine), ระบบติดตามประเด็นข่าวมหากาพย์และจัดอันดับเทรนด์ (Two-Layer Story Identification & Deterministic Trending), ระบบสรุปใจความสำคัญด้วย AI (LLM Executive Briefing) และเว็บแอปพลิเคชันแบบก้าวหน้า (Progressive Web App - PWA) ที่ปลอดภัยต่อลิขสิทธิ์และเคารพความเป็นส่วนตัว
+ระบบรวบรวมข่าวสารภาษาไทยอัตโนมัติแบบเรียลไทม์จาก 14 สำนักข่าวชั้นนำ พร้อมระบบจัดหมวดหมู่อัจฉริยะ (3-Tier Classification Engine), ระบบติดตามประเด็นข่าวมหากาพย์และจัดอันดับเทรนด์ (Two-Layer Story Identification & Deterministic Trending), ระบบสรุปใจความสำคัญด้วย AI (LLM Executive Briefing), สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture) และเว็บแอปพลิเคชันแบบก้าวหน้า (Progressive Web App - PWA) ที่ปลอดภัยต่อลิขสิทธิ์และเคารพความเป็นส่วนตัว
 
 ---
 
@@ -11,6 +11,9 @@
 - 🧭 **ติดตามมหากาพย์ประเด็นข่าว (Two-Layer Story Identification):** จัดกลุ่มข่าวเรื่องเดียวกันข้ามวันและข้ามหมวดหมู่ด้วย Dense Vector Embeddings (WangchanBERTa 768-d) และ Named Entity Recognition (`thainer-v2`)
 - 📊 **จัดอันดับเทรนด์ข่าวเชิงสถิติ (Deterministic Trending Engine):** คำนวณความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ (Volume, Burst Velocity, Outlet Diversity, Recency Decay, Novelty, Reader Telemetry) ปราศจาก LLM ในขั้นตอนคำนวณคะแนน โปร่งใสและตรวจสอบได้ (Explainable Scoring)
 - ⚡ **สรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing):** สังเคราะห์สาระสำคัญ (Key Takeaways), วิเคราะห์โทนข่าว (Sentiment) และจัดทำไทม์ไลน์เหตุการณ์ด้วย Gemini LLM พร้อมระบบ Fallback เมื่อ API ขัดข้อง
+- 🏗️ **สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture):** Backend รองรับโหมด Headless API พร้อม Dynamic CORS Matrix และ Socket.IO ซิงโครไนซ์สมบูรณ์แบบ สามารถแยกรัน Frontend อิสระบนพอร์ตหรือ CDN ใดก็ได้
+- 🧩 **คอมโพเนนต์ย่อยแบบ Clean Architecture (Modular Vanilla JS):** แยกส่วนตรรกะ UI ออกเป็น 11 โมดูลเดี่ยวตามหลัก Single Responsibility โดยทุกไฟล์มีขนาดต่ำกว่า 800 บรรทัด พร้อม Thin Barrel Facade ที่คง Backward-compatibility 100%
+- 🚀 **ประสิทธิภาพและการประหยัดพลังงาน (Lifecycle & Performance):** จัดการ Autoplay Timer และ Event Listener ตาม Page Visibility API หยุดการทำงานในพื้นหลังเพื่อประหยัดแบตเตอรี่และป้องกัน Memory Leaks พร้อมระบบ Outside-Click / Escape ปิด Modal ทุกตัว
 - 📱 **สถาปัตยกรรม PWA ปลอดภัยลิขสิทธิ์ (Copyright-Safe PWA):** ติดตั้งเป็นแอปบนมือถือและคอมพิวเตอร์ รองรับการอ่านออฟไลน์ และหลีกเลี่ยงการละเมิดลิขสิทธิ์รูปภาพด้วยภาพเวกเตอร์ Editorial Placeholder
 - 🛡️ **สถาปัตยกรรมแคช 4 ระดับ (4-Layer Caching):** ประมวลผลรวดเร็วและประหยัดทรัพยากรด้วย Client Cache, Async TTLCache, Browser Snapshot Cache และ HTTP Conditional Request (ETag/304)
 - 📋 **ระบบแบบประเมินโครงงาน (Project Evaluation System):** หน้า Landing Page สำหรับประเมินโครงงาน (`#/evaluation`), ปุ่มนำทางโดดเด่นสะดุดตาบน Header และระบบแจ้งเตือนชวนทำแบบประเมินผ่าน Google Forms หลังใช้งาน AI
@@ -21,14 +24,14 @@
 
 ```
 backend/
-├── main.py                     — FastAPI application factory, middleware & Socket.IO mounting
-├── config.py                   — ศูนย์กลางตั้งค่าคอนฟิก (Settings singleton via pydantic-settings)
+├── main.py                     — FastAPI application factory, headless toggle & Socket.IO mounting
+├── config.py                   — ศูนย์กลางตั้งค่าคอนฟิก (Settings singleton, Headless toggle & CORS Matrix)
 ├── .env / .env.example         — Environment variables (API keys, model checkpoints, parameters)
 ├── core/
 │   ├── browser.py              — Playwright browser automation (Service + Local Fallback)
 │   ├── constants.py            — ค่าคงที่ของระบบ และ HTTP Browser Headers
 │   ├── fetcher_service.py      — HTML extraction & Markdown converter
-│   └── socket_manager.py       — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวแบบเรียลไทม์
+│   └── socket_manager.py       — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวและ Dynamic CORS
 ├── schemas/
 │   ├── news_schema.py          — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
 │   ├── story_schema.py         — Pydantic models (StoryRecord, TimelineEvent, StorySynthesis)
@@ -65,18 +68,33 @@ backend/
 │   ├── tfidf_vectorizer.pkl    — TF-IDF Vectorizer สำหรับข้อความภาษาไทย
 │   ├── svm_classifier.pkl      — Support Vector Machine Classifier
 │   └── wangchanberta_classifier — Local Offline Embedding Checkpoint (WangchanBERTa)
-└── tests/                      — ชุดทดสอบระบบครอบคลุมทั้ง Unit Tests และ Integration Tests
+└── tests/                      — ชุดทดสอบระบบครอบคลุมทั้ง Unit Tests, Integration Tests และ Decoupling Tests
 
 frontend/
-├── index.html                  — หน้าเว็บหลักแบบ Single Page Application (SPA)
+├── index.html                  — หน้าเว็บหลักแบบ Responsive Single Page Application (SPA)
 ├── manifest.webmanifest        — Progressive Web App Manifest
 ├── sw.js                       — Service Worker สำหรับแคชและประมวลผลออฟไลน์
 └── static/
     ├── app.css                 — สไตล์ชีต Editorial Theme และ Tailwind Utilities
-    ├── config.js               — การตั้งค่าฝั่งผู้ใช้ (API Base, หมวดหมู่, สีสำนักข่าว, ลิงก์แบบประเมิน)
-    ├── api.js                  — REST API Client และ Socket.IO Handlers
-    ├── UI.js                   — จัดการ DOM, เรนเดอร์การ์ดข่าว, สรุป AI, ไทม์ไลน์ และแบบประเมิน
-    └── main.js                 — State Manager, Hash Router (`#/`, `#/preview/`, `#/storyline/`, `#/evaluation`)
+    ├── tailwind-input.css      — ต้นฉบับ Tailwind CSS Input ไฟล์
+    ├── config.js               — การตั้งค่าฝั่งผู้ใช้ (4-Tier API Resolution, หมวดหมู่, สีสำนักข่าว)
+    ├── api.js                  — REST API Client อิสระ พร้อม Typed Errors และ Normalization
+    ├── socket.js               — Dedicated WebSocket Manager พร้อม Pub/Sub Event Bus
+    ├── UI.js                   — Thin Barrel Facade re-exporting โมดูลคอมโพเนนต์ย่อย
+    ├── utils/
+    │   └── common.js           — ฟังก์ชันช่วยจัดรูปแบบ, XSS Escaping, วันที่ปฏิทินไทย
+    ├── components/
+    │   ├── status.js           — สถานะการเชื่อมต่อ WS, สถิติ Telemetry, Ticker บาร์
+    │   ├── filters.js          — แถบเลือกหมวดหมู่, ตัวกรองสำนักข่าว, แถบค้นหา
+    │   ├── cards.js            — ข่าวการ์ดแบบ Responsive Grid, Pagination, Dateline
+    │   ├── reader.js           — หน้าต่างอ่านบทความ, Switch View, Modal ควบคุม
+    │   ├── hero.js             — Hero Carousel ข่าวเด่น พร้อม Autoplay Lifecycle
+    │   ├── sports-intelligence.js — ตัวจำแนกประเภทกีฬา 10 สาขา และการตรวจจับคลัสเตอร์
+    │   ├── sports.js           — Sports Hub View, Bento Grid กีฬา, AI Digest
+    │   ├── storyline.js        — Macro Storyline View, ลำดับเหตุการณ์มหากาพย์
+    │   ├── digest.js           — AI Synthesis Dossier Modal, การตรวจสอบหลักฐาน
+    │   └── evaluation.js       — หน้าประเมินโครงงานและการตอบแบบสอบถาม
+    └── main.js                 — State Manager, Dynamic View Loader, Hash Routing (`#/`, `#/preview/`, `#/storyline/`, `#/evaluation`)
 
 data/                           — ไดเรกทอรีจัดเก็บข้อมูลในเครื่อง (สร้างขึ้นอัตโนมัติ)
 ├── news_data.json              — ฐานข้อมูลบทความข่าว
@@ -84,6 +102,59 @@ data/                           — ไดเรกทอรีจัดเก�
 ├── engagement_data.json        — ข้อมูล Telemetry การใช้งาน
 └── collected_md/               — ไฟล์สรุปข่าวในรูปแบบ Markdown
 ```
+
+---
+
+## 🏛️ สถาปัตยกรรมแยกส่วน (Decoupled Headless Architecture)
+
+ระบบได้รับการออกแบบเพื่อรองรับการแยกส่วนอย่างสมบูรณ์ระหว่าง Backend API Microservice และ Detached Client:
+
+```
+┌────────────────────────────────┐         ┌────────────────────────────────┐
+│   Detached Frontend Client     │         │    Headless Backend API        │
+│   (Vite / CDN / Any Port)      │         │    (FastAPI + Socket.IO :5000) │
+│                                │  REST   │                                │
+│   • api.js (HTTP Client)       ├────────►│  • /api/news, /api/stories     │
+│   • socket.js (Pub/Sub)        │◄────────┤  • /api/status, /api/collect   │
+│   • 4-Tier Endpoint Resolver   │  WS/IO  │  • Dynamic CORS Matrix         │
+│   • Modular ES Components      │         │  • Root Catalog (GET /)        │
+└────────────────────────────────┘         └────────────────────────────────┘
+```
+
+1. **Headless API Mode (`HEADLESS=true`):** ปิดการ Mount Static Files อัตโนมัติ โดยที่ Root Endpoint (`GET /`) จะส่งกลับ Service Catalog ในรูปแบบ JSON แสดงรายการ Service Health, Version และ API Endpoints ทั้งหมด
+2. **Dynamic CORS Matrix:** รองรับการเชื่อมต่อข้าม Origin อย่างยืดหยุ่น ทั้ง Localhost หลากพอร์ต, Private Network IPs, Production Domains และ Regex Matching พร้อมการรองรับ Credentials สมบูรณ์แบบ
+3. **Socket.IO Origin Synchronization:** ตัวจัดการ Socket.IO เชื่อมโยงและใช้กฎ CORS เดียวกันกับ FastAPI ทำให้การ Handshake แบบ Real-time ข้ามโดเมนทำงานได้อย่างราบรื่น
+4. **4-Tier Client Runtime Resolution:** ใน `config.js` ไคลเอนต์จะค้นหา API Base URL และ WebSocket URL ตามลำดับความสำคัญ:
+   - `window.__API_BASE__` / `window.__SOCKET_URL__` (Injected Config)
+   - Meta Tags (`<meta name="api-base">`)
+   - Query Parameters (`?api_base=...`)
+   - Origin Fallback (Same-origin หรือ default `http://localhost:5000`)
+
+---
+
+## 🧩 การจัดโครงสร้างโมดูลฝั่ง Frontend (Modular UI Architecture)
+
+ไฟล์ `UI.js` เดิมที่มีขนาดใหญ่ได้รับการ Re-architect ใหม่เป็น 11 โมดูลเดี่ยวตามหลัก **Clean Code & Single Responsibility**:
+
+| โมดูล | ขอบเขตความรับผิดชอบ | ขนาด (LOC) |
+|---|---|---|
+| [utils/common.js](file:///frontend/static/utils/common.js) | XSS Sanitization (`esc`), ปฏิทินพุทธศักราช, Format เวลาไทย | ~300 |
+| [components/status.js](file:///frontend/static/components/status.js) | WebSocket Badge, Scraper Telemetry, Ticker Marquee | ~160 |
+| [components/filters.js](file:///frontend/static/components/filters.js) | Category Navigation, Search Input, Source Chips | ~195 |
+| [components/cards.js](file:///frontend/static/components/cards.js) | News Grid Rendering, Responsive Dateline, Pagination | ~235 |
+| [components/reader.js](file:///frontend/static/components/reader.js) | View Switching (`switchView`), Reader Drawer, Modal Helpers | ~500 |
+| [components/hero.js](file:///frontend/static/components/hero.js) | Hero Trending Carousel, Touch Swipe, Autoplay Lifecycle | ~710 |
+| [components/sports-intelligence.js](file:///frontend/static/components/sports-intelligence.js) | จำแนกกีฬา 10 ประเภท (ฟุตบอลไทย/ยุโรป, แบดมินตัน, วอลเลย์บอล ฯลฯ) | ~215 |
+| [components/sports.js](file:///frontend/static/components/sports.js) | Sports Hub View, Discipline Tabs, AI Digest Cards | ~740 |
+| [components/storyline.js](file:///frontend/static/components/storyline.js) | Multi-source Storyline View, Perspective Breakdown, Graph | ~780 |
+| [components/digest.js](file:///frontend/static/components/digest.js) | Event Progression Synthesis, Cross-Outlet Citations, Quality Audit | ~340 |
+| [components/evaluation.js](file:///frontend/static/components/evaluation.js) | Research Project Evaluation View, Scoring Form | ~160 |
+| [UI.js](file:///frontend/static/UI.js) | Thin Backward-Compatible Barrel Facade (Re-exporting All) | ~33 |
+
+- **ทุกไฟล์มีขนาดไม่เกิน 800 บรรทัด** อย่างเคร่งครัด
+- **ลด DOM Thrashing & Memory Leaks:** ปิดการทำงานของ Autoplay Timer ชั่วคราวเมื่อผู้ใช้สลับหน้าจอ (เช่น เข้าโหมดอ่านบทความเจาะลึก) หรือพับแท็บเบราว์เซอร์ (`visibilitychange`)
+- **Outside-Click / Backdrop Dismiss:** แตะหรือคลิกบริเวณพื้นที่ว่างด้านนอกการ์ด หรือกดปุ่ม `Escape` เพื่อปิด Modal ทุกตัวได้อย่างสะดวกรวดเร็ว
+- **Mobile Responsive Perfection:** จัดวางองค์ประกอบ Header บน Mobile ให้เรียบง่ายสะอาดตา (มีเฉพาะปุ่มแบบประเมิน) และนำปุ่มการตั้งค่าไปไว้ที่มุมบนขวาในโหมด Desktop
 
 ---
 
@@ -149,36 +220,16 @@ data/                           — ไดเรกทอรีจัดเก�
 - 💊 **health** (สุขภาพ / สาธารณสุข)
 - 🌿 **environment** (สิ่งแวดล้อม / สภาพภูมิอากาศ)
 - 👥 **society** (สังคม / คุณภาพชีวิต / การศึกษา)
-- ⚽ **sports** (กีฬา / ฟุตบอล)
+- ⚽ **sports** (กีฬา — แยกย่อย 10 สาขา: บอลไทย, บอลยุโรป, แบดมินตัน, มวย, วอลเลย์บอล, เทนนิส, กอล์ฟ, มอเตอร์สปอร์ต, พาราเกมส์, กีฬาอื่นๆ)
 - 🎬 **entertainment** (บันเทิง / ดารา / ภาพยนตร์)
 - 🌍 **world** (ต่างประเทศ / รอบโลก)
-
----
-
-## 📱 สถาปัตยกรรม PWA, ความปลอดภัยลิขสิทธิ์ & แบบประเมินโครงงาน
-
-### 1. Progressive Web App (PWA) Standalone
-- **Web App Manifest (`manifest.webmanifest`)**: รองรับการติดตั้งเป็นแอปพลิเคชันแบบ Standalone ทั้งบน iOS และ Android
-- **Service Worker (`sw.js`)**: ประมวลผลแบบออฟไลน์ด้วยกลยุทธ์ Cache-First สำหรับ App Shell และ Network-First พร้อม Cache Fallback สำหรับฟีดข่าว
-
-### 2. นโยบายรูปภาพปลอดภัยลิขสิทธิ์ (Copyright-Safe Image Policy)
-- หลีกเลี่ยงการทำสำเนา บันทึก หรือแคชไฟล์ภาพข่าวของสำนักข่าวภายนอกลงบนเซิร์ฟเวอร์
-- แสดงผลด้วยภาพ Editorial SVG Placeholders ประจำหมวดหมู่เมื่อขาดการเชื่อมต่ออินเทอร์เน็ต
-
-### 3. Excerpt Snippet Preview & Clean URL Launching
-- อ่านบทคัดย่อข่าว 2-3 บรรทัดผ่าน SPA Hash Routing (`#/preview/{id}`) โดยไม่ต้องโหลดหน้าเว็บใหม่
-- ปุ่มเปิดอ่านข่าวต้นฉบับจะทำการตัดพารามิเตอร์การตลาดและเครื่องมือติดตามทั้งหมด (`utm_*`, `fbclid`, `gclid`) เพื่อปกป้องความเป็นส่วนตัวของผู้ใช้
-
-### 4. หน้า Landing Page & ระบบแบบประเมินโครงงาน (Project Evaluation)
-- **Landing Page (`#/evaluation`):** หน้าเพจเฉพาะสำหรับสรุปภาพรวมความสามารถของโครงงาน และเชื่อมต่อไปยังแบบสอบถามออนไลน์
-- **Header Action Button:** ปุ่มกดสีอำพันโดดเด่นพร้อมสัญญาณไฟกระพริบ (Live Beacon Ping) บริเวณซ้ายสุดของแถบเครื่องมือ
-- **Smart Post-Summarization Prompt:** เมื่อผู้ใช้ทดลองกดฟังก์ชันสรุปข่าวด้วย AI ระบบจะเปิดกล่องข้อความเชิญชวนทำแบบประเมิน Google Forms โดยหากผู้ใช้กดเปิดลิงก์แล้ว ระบบจะจดจำค่าไว้ใน `localStorage` และไม่แสดงกล่องแจ้งเตือนซ้ำอีกอย่างถาวร
 
 ---
 
 ## ✅ ความต้องการของระบบ (Prerequisites)
 
 - **Python**: 3.10 ขึ้นไป
+- **Node.js**: 18+ (สำหรับคอมไพล์ Tailwind CSS และรัน Frontend Test Suites)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/) (แนะนำเป็นอย่างยิ่ง)
 - **Browser**: Chromium (ติดตั้งผ่าน Playwright)
 
@@ -187,11 +238,14 @@ data/                           — ไดเรกทอรีจัดเก�
 ## 📦 การติดตั้ง (Installation)
 
 ```bash
-# 1. ติดตั้ง dependencies ทั้งหมดผ่าน uv
+# 1. ติดตั้ง Python dependencies ทั้งหมดผ่าน uv
 uv sync
 
 # 2. ติดตั้ง Chromium สำหรับระบบสแครปข่าวของ Playwright
 uv run playwright install chromium
+
+# 3. ติดตั้ง Node dependencies สำหรับ Tailwind CSS
+cd frontend && npm install && cd ..
 ```
 
 ---
@@ -206,6 +260,10 @@ LLM_API=your_api_key_here
 LLM_BASE_URL=https://gen.ai.kku.ac.th/api/v1
 LLM_MODEL=gemini-3.1-flash-lite-preview
 LLM_TEMPERATURE=0.3
+
+# Headless & Decoupling Settings
+HEADLESS=false
+CORS_ORIGINS=["http://localhost:5000","http://localhost:3000","http://127.0.0.1:5000"]
 
 # Scraper Settings
 INTERVAL_MINUTES=15
@@ -223,8 +281,14 @@ PORT=5000
 ## 🚀 วิธีรันระบบ (Run Server)
 
 ```bash
-# รันเซิร์ฟเวอร์หลัก (FastAPI + Socket.IO)
+# คอมไพล์ CSS ด้วย Tailwind
+npm --prefix frontend run build:css
+
+# รันเซิร์ฟเวอร์หลักแบบ Full-Stack
 uv run python backend/main.py
+
+# หรือ รันในโหมด Headless API บริสุทธิ์ (แยก Frontend อิสระ)
+HEADLESS=true uv run python backend/main.py
 ```
 
 เปิดเว็บเบราว์เซอร์ที่: **`http://localhost:5000`**
@@ -234,25 +298,28 @@ uv run python backend/main.py
 ## 🧪 การทดสอบระบบ (Testing & Verification)
 
 ```bash
-# รันชุดทดสอบทั้งหมด
+# 1. รันชุดทดสอบ Backend ทั้งหมด (Pytest)
 uv run pytest -v
 
-# ทดสอบระบบจัดหมวดหมู่อัจฉริยะ (URL Priority & ML Classifier)
-uv run pytest backend/tests/test_classifier_service.py -v
+# 2. ทดสอบระบบ Decoupling, CORS Matrix และ Headless API
+uv run pytest backend/tests/test_decoupling.py backend/tests/test_cors_and_socket.py backend/tests/test_adversarial_headless.py -v
 
-# ทดสอบสำนักข่าวและการดึงข้อมูล (14 Outlets)
-uv run pytest backend/tests/test_sources.py -v
+# 3. ทดสอบการสื่อสาร Client (Socket Pub/Sub & REST API Client)
+node backend/tests/test_client_communication.mjs
+node backend/tests/test_adversarial_api_m2.mjs
 
-# ทดสอบสถาปัตยกรรมแคช 4 ระดับ (4-Layer Caching Suite)
-uv run pytest backend/tests/test_caching.py -v
+# 4. ทดสอบความถูกต้องของคอมโพเนนต์ย่อย (UI Component Decomposition)
+node backend/tests/test_ui_decomposition.mjs
 
-# ทดสอบระบบจัดกลุ่มเรื่องราวและเทรนด์ (Story Identification & Trending Engine)
-uv run pytest backend/tests/test_story_service.py backend/tests/test_trending_deterministic.py -v
+# 5. ทดสอบ Boundary Cases และ Cross-Module Lifecycle
+node backend/tests/test_adversarial_m3_boundaries.mjs
+node backend/tests/test_cross_module_lifecycle_m3.mjs
+node backend/tests/test_modal_backdrop.mjs
 
-# รัน Benchmark วัดความแม่นยำ Pairwise & B-cubed F1 ของ Story Identification
+# 6. รัน Benchmark วัดความแม่นยำ Pairwise & B-cubed F1 ของ Story Identification
 uv run python scripts/evaluate_stories.py
 
-# รันรายงานตรวจสอบคุณภาพเทรนด์ข่าว (Trending Sanity Report)
+# 7. รันรายงานตรวจสอบคุณภาพเทรนด์ข่าว (Trending Sanity Report)
 uv run python scripts/trending_sanity_report.py
 ```
 
