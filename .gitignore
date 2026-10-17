@@ -61,3 +61,4 @@ graphify-out
 build/
 
 SECURITY_AUDIT_REPORT.md
+scratch/

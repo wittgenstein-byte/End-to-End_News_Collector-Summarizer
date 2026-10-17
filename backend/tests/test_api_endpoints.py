@@ -132,6 +132,10 @@ class InMemoryNewsRepository(NewsRepositoryPort):
                 return dict(a)
         return None
 
+    def get_by_urls(self, urls: list[str]) -> list[dict[str, Any]]:
+        url_set = {u.strip() for u in urls if u}
+        return [dict(a) for a in self._news if a.get("url") in url_set]
+
     def count_news(self) -> int:
         return len(self._news)
 

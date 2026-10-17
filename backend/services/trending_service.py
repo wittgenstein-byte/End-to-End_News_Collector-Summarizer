@@ -26,6 +26,7 @@ from urllib.parse import quote, urlparse
 import numpy as np
 
 from backend.config import settings
+from backend.core.url_utils import canonicalize_url
 from backend.repo.engagement_repo import (
     EngagementRepositoryPort,
     get_engagement_repository,
@@ -1038,9 +1039,11 @@ class TrendingService:
         repo = self.story_repo
         all_stories = repo.list_stories(status="active", limit=1000)
 
-        # Story Lifecycle Gating: Only active stories eligible
+        # Story Lifecycle Gating: Only active verified stories eligible
         eligible_stories: list[StoryRecord] = []
         for s in all_stories:
+            if getattr(s, "verification_status", "verified") == "pending_review":
+                continue
             if (
                 s.status == "active"
                 and s.article_count > 0
@@ -1203,6 +1206,13 @@ class TrendingService:
             child_stories = self.story_repo.get_stories_by_macro_id(macro.macro_event_id)
             if not child_stories and macro.child_event_ids:
                 child_stories = self.story_repo.get_stories_by_ids(macro.child_event_ids)
+
+            if child_stories:
+                child_stories = [
+                    cs for cs in child_stories
+                    if getattr(cs, "verification_status", "verified") != "pending_review"
+                    and getattr(cs, "macro_association_status", "linked") != "pending_macro"
+                ]
 
             if not child_stories:
                 continue
@@ -1385,6 +1395,11 @@ class TrendingService:
                 "summary": macro_summary,
                 "category": macro.category,
                 "status": macro.status,
+                "cluster_fingerprint": macro.cluster_fingerprint,
+                "synthesis_cache_key": macro.synthesis_cache_key,
+                "storyline_anchor": macro.storyline_anchor or macro.named_crisis_anchor,
+                "typed_anchors": macro.typed_anchors.model_dump(mode="json") if hasattr(macro, "typed_anchors") and macro.typed_anchors else {},
+                "relations": [r.model_dump(mode="json") for r in macro.relations],
                 "child_event_count": len(child_stories),
                 "child_events_count": len(child_stories),
                 "article_count": len(macro_articles),
@@ -1409,6 +1424,8 @@ class TrendingService:
         if not scored_macros:
             fallback_stories = self.get_trending_stories(limit=limit, category=category, now=now)
             for s in fallback_stories:
+                if not s.macro_event_id:
+                    continue
                 story_arts = []
                 for u in s.article_urls:
                     if u in news_map:
@@ -1418,10 +1435,12 @@ class TrendingService:
                 tags = [f"#{s.category}"] if s.category else []
                 for o in s.outlets:
                     tags.append(f"#{o.replace(' ', '')}")
+                img_u = s.articles[0].get("image_url", "") if s.articles and isinstance(s.articles[0], dict) else ""
+                first_u = s.article_urls[0] if s.article_urls else ""
                 scored_macros.append({
-                    "macro_event_id": s.macro_event_id or f"pseudo_macro_{s.story_id}",
+                    "macro_event_id": s.macro_event_id,
                     "story_id": s.story_id,
-                    "is_macro": bool(s.macro_event_id),
+                    "is_macro": True,
                     "title": s.title,
                     "headline": s.headline or s.title,
                     "summary": s.summary,
@@ -1440,8 +1459,8 @@ class TrendingService:
                     "created_at": s.created_at,
                     "updated_at": s.updated_at,
                     "timeline": [t.model_dump(mode="json") for t in s.timeline],
-                    "image_url": s.image_url,
-                    "url": s.url,
+                    "image_url": getattr(s, "image_url", img_u),
+                    "url": getattr(s, "url", first_u),
                     "hashtags": tags,
                     "entities": [],
                     "child_events": [
@@ -1461,7 +1480,7 @@ class TrendingService:
                     "articles": story_arts,
                 })
 
-        # Hybrid Multi-Signal Deduplication at Macro-Event Level
+        # Deduplicate strictly by authoritative macro_event_id or exact normalized title
         deduped_macros: list[dict[str, Any]] = []
         seen_macro_keys: dict[str, dict[str, Any]] = {}
 
@@ -1470,7 +1489,6 @@ class TrendingService:
             raw_title = m.get("headline") or m.get("title") or ""
             norm_title = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', raw_title).lower()
 
-            # Find matching existing macro
             match_key = None
             if m_id and m_id in seen_macro_keys:
                 match_key = m_id
@@ -1478,7 +1496,7 @@ class TrendingService:
                 for k, prev_m in seen_macro_keys.items():
                     prev_raw = prev_m.get("headline") or prev_m.get("title") or ""
                     prev_norm = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', prev_raw).lower()
-                    if norm_title and prev_norm and (norm_title in prev_norm or prev_norm in norm_title or (len(norm_title) >= 12 and norm_title[:12] == prev_norm[:12])):
+                    if norm_title and prev_norm and norm_title == prev_norm:
                         match_key = k
                         break
 
@@ -1622,9 +1640,41 @@ class TrendingService:
         # 1. Parse article timestamps and find candidate window
         candidates: list[tuple[dict[str, Any], datetime]] = []
         parsed_times: list[datetime] = []
+        unassigned_article_count: int = 0
+        pending_review_count: int = 0
+
         for n in raw_news:
             if not isinstance(n, dict):
                 continue
+
+            # Check persistent story assignment and verification status (Contract B / P0.2)
+            sid = n.get("story_id")
+            resolved_story: StoryRecord | None = None
+            if sid and str(sid).strip():
+                try:
+                    resolved_story = self.story_repo.get_story(str(sid).strip())
+                except Exception:
+                    resolved_story = None
+            else:
+                raw_u = str(n.get("url") or "").strip()
+                if raw_u and hasattr(self.story_repo, "get_story_by_article_url"):
+                    try:
+                        resolved_story = self.story_repo.get_story_by_article_url(raw_u)
+                        if not resolved_story:
+                            canon_u = canonicalize_url(raw_u)
+                            if canon_u and canon_u != raw_u:
+                                resolved_story = self.story_repo.get_story_by_article_url(canon_u)
+                    except Exception:
+                        resolved_story = None
+
+            if resolved_story is not None:
+                if getattr(resolved_story, "verification_status", "verified") == "pending_review":
+                    pending_review_count += 1
+                    continue
+            elif "story_id" in n and (sid is None or not str(sid).strip()):
+                unassigned_article_count += 1
+                continue
+
             t = parse_article_time(n.get("fetched_at", ""), current_time)
             candidates.append((n, t))
             parsed_times.append(t)
@@ -1638,6 +1688,8 @@ class TrendingService:
                 clusters=[],
                 trending_hashtags=[],
                 hero=None,
+                unassigned_article_count=unassigned_article_count,
+                pending_review_count=pending_review_count,
             )
 
         if now is not None:
@@ -1682,6 +1734,8 @@ class TrendingService:
                 clusters=[],
                 trending_hashtags=[],
                 hero=None,
+                unassigned_article_count=unassigned_article_count,
+                pending_review_count=pending_review_count,
             )
 
         # Cap candidate pool to most recent 60 articles to prevent CPU starvation on 2-vCPU servers
@@ -1850,6 +1904,8 @@ class TrendingService:
             clusters=trending_clusters[:effective_limit],
             trending_hashtags=trending_hashtags,
             hero=hero,
+            unassigned_article_count=unassigned_article_count,
+            pending_review_count=pending_review_count,
         )
 
         # Save to Tier 2 Result Cache

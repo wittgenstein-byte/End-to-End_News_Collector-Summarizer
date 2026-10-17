@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.config import settings
 from backend.core.cascading_client import CascadingLLMClient, get_cascading_client
+from backend.core.url_utils import compute_cluster_fingerprint, compute_synthesis_cache_key
 from backend.repo.news_repo import NewsRepositoryPort, get_news_repository
 from backend.schemas.event_evidence_schema import (
     ConfirmedFact,
@@ -612,20 +613,39 @@ class StoryPresentationService:
         articles: Sequence[dict[str, Any] | ArticleRecord] | None = None,
         title: str | None = None,
         require_metrics: bool = True,
+        synthesis_cache_key: str | None = None,
     ) -> EventProgressionSynthesis | None:
         """
         Multi-tier cache lookup resilient to cluster_id re-grouping and shifting:
+        0. Deterministic 24-hex synthesis_cache_key match
         1. Direct event_id match (f"synthesis_{event_id}")
         2. Content signature match (f"synthesis_sig_{articles_sig}")
         3. Jaccard / Overlap matching (>= 50% shared article URLs with any cached event)
         """
         with self._cache_lock:
+            # 0. Deterministic 24-hex synthesis_cache_key match
+            if synthesis_cache_key:
+                entry = self._disk_cache.get(f"synth_key_{synthesis_cache_key}")
+                if isinstance(entry, dict) and entry.get("data"):
+                    try:
+                        data = dict(entry["data"])
+                        data["cached"] = True
+                        return EventProgressionSynthesis.model_validate(data)
+                    except Exception as err:
+                        logger.debug("find_cached_synthesis: synthesis_cache_key validate failed: %s", err)
+
             # 1. Direct event_id match
             if event_id:
                 cache_key = f"synthesis_{event_id}"
                 entry = self._disk_cache.get(cache_key)
                 if isinstance(entry, dict) and entry.get("data"):
                     is_consistent = True
+                    if (
+                        synthesis_cache_key
+                        and entry.get("synthesis_cache_key")
+                        and entry.get("synthesis_cache_key") != synthesis_cache_key
+                    ):
+                        is_consistent = False
                     if articles:
                         current_sig = self.compute_articles_signature(articles)
                         cached_sig = entry.get("articles_signature")
@@ -1264,9 +1284,26 @@ class StoryPresentationService:
         fingerprint = self.compute_sha256_fingerprint(event_id, articles)
         cache_key = f"synthesis_{event_id}"
 
+        # Compute deterministic cluster fingerprint and synthesis cache key
+        raw_article_urls = [
+            str(a.get("url") if isinstance(a, dict) else getattr(a, "url", ""))
+            for a in articles
+        ]
+        cluster_fp = compute_cluster_fingerprint(raw_article_urls)
+        dict_articles = [
+            a if isinstance(a, dict) else a.model_dump()
+            for a in articles
+        ]
+        synth_cache_key = compute_synthesis_cache_key(event_id, cluster_fp, dict_articles)
+
         # 1. Check multi-tier disk / in-memory cache (event_id, content signature, overlap matching)
         if not force_refresh:
-            cached = self.find_cached_synthesis(event_id=event_id, articles=articles, title=title)
+            cached = self.find_cached_synthesis(
+                event_id=event_id,
+                articles=articles,
+                title=title,
+                synthesis_cache_key=synth_cache_key,
+            )
             if cached is not None:
                 return cached
 
@@ -1535,6 +1572,7 @@ class StoryPresentationService:
         cache_entry = {
             "fingerprint": fingerprint,
             "articles_signature": articles_sig,
+            "synthesis_cache_key": synth_cache_key,
             "article_urls": article_urls,
             "title": title,
             "event_id": event_id,
@@ -1545,6 +1583,8 @@ class StoryPresentationService:
         with self._cache_lock:
             self._disk_cache[cache_key] = cache_entry
             self._disk_cache[f"synthesis_sig_{articles_sig}"] = cache_entry
+            if synth_cache_key:
+                self._disk_cache[f"synth_key_{synth_cache_key}"] = cache_entry
             self._save_disk_cache()
 
         return synthesis

@@ -222,6 +222,25 @@ class ScraperService:
                     counts = await asyncio.to_thread(self._repo.get_category_counts)
                     total_count = counts.get("all", len(seen))
 
+                # Reconcile unassigned articles into persistent stories (Single-Authority)
+                try:
+                    from backend.services.story_service import get_story_service
+                    story_service = get_story_service()
+                    assigned_tuples = await asyncio.to_thread(
+                        story_service.assign_articles_batch, new_batch
+                    )
+                    url_to_story_id = {
+                        str(a.get("url") or ""): story.story_id
+                        for (story, is_new), a in zip(assigned_tuples, new_batch)
+                        if a.get("url")
+                    }
+                    if hasattr(self._repo, "update_story_ids_batch"):
+                        await asyncio.to_thread(
+                            self._repo.update_story_ids_batch, url_to_story_id
+                        )
+                except Exception as rec_exc:
+                    self.log_event("WARN", f"Story reconciliation error: {rec_exc}", "scraper")
+
                 # Invalidate L1 feed and trending caches so clients see new articles immediately
                 from backend.core.l1_cache import invalidate_feed_caches
                 await invalidate_feed_caches()

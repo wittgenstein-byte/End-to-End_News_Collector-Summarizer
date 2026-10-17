@@ -114,6 +114,8 @@ class TrendingStoryListResponse(BaseModel):
     total: int
     updated: str
     stories: list[TrendingStoryCluster] = Field(default_factory=list)
+    unassigned_article_count: int = 0
+    pending_review_count: int = 0
 
 
 class TrendingArticle(BaseModel):
@@ -160,6 +162,8 @@ class TrendingListResponse(BaseModel):
     clusters: list[TrendingCluster] = Field(default_factory=list)
     trending_hashtags: list[str] = Field(default_factory=list)
     hero: TrendingArticle | None = None
+    unassigned_article_count: int = 0
+    pending_review_count: int = 0
 
     @model_validator(mode="before")
     @classmethod

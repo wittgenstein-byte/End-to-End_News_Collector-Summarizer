@@ -1,59 +1,88 @@
-# 📰 NEWSROOM — Thai News Aggregator & Summarizer
+# 📰 NEWSROOM — Thai News Aggregator & Intelligent Summarizer
 
-ระบบดึงข่าวอัตโนมัติ จัดหมวดหมู่อัจฉริยะ (Multi-tier Classification + Fast-Path URL Priority) และสรุปเนื้อหาข่าวจาก 12 สำนักข่าวชั้นนำในประเทศไทย แสดงผลแบบ Real-time บนเว็บด้วย FastAPI และ Socket.IO
+ระบบรวบรวมข่าวสารภาษาไทยอัตโนมัติแบบเรียลไทม์จาก 14 สำนักข่าวชั้นนำ พร้อมระบบจัดหมวดหมู่อัจฉริยะ (3-Tier Classification Engine), ระบบติดตามประเด็นข่าวมหากาพย์และจัดอันดับเทรนด์ (Two-Layer Story Identification & Deterministic Trending), ระบบสรุปใจความสำคัญด้วย AI (LLM Executive Briefing) และเว็บแอปพลิเคชันแบบก้าวหน้า (Progressive Web App - PWA) ที่ปลอดภัยต่อลิขสิทธิ์และเคารพความเป็นส่วนตัว
 
 ---
 
-## 🗂️ โครงสร้างโปรเจกต์
+## 🌟 จุดเด่นของระบบ (Key Highlights)
+
+- 📡 **รวบรวมข่าวสารจาก 14 สำนักข่าวชั้นนำ:** ดึงข่าวต่อเนื่องทั้งผ่าน RSS Feed, HTTP Scraping และ Headless Browser (Playwright)
+- 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification):** ตรวจจับรวดเร็วระดับเสี้ยววินาทีด้วย URL Priority (<0.1ms), กฎคำสำคัญทางภาษาศาสตร์ (NLP) และโมเดล Machine Learning (TF-IDF + SVM)
+- 🧭 **ติดตามมหากาพย์ประเด็นข่าว (Two-Layer Story Identification):** จัดกลุ่มข่าวเรื่องเดียวกันข้ามวันและข้ามหมวดหมู่ด้วย Dense Vector Embeddings (WangchanBERTa 768-d) และ Named Entity Recognition (`thainer-v2`)
+- 📊 **จัดอันดับเทรนด์ข่าวเชิงสถิติ (Deterministic Trending Engine):** คำนวณความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ (Volume, Burst Velocity, Outlet Diversity, Recency Decay, Novelty, Reader Telemetry) ปราศจาก LLM ในขั้นตอนคำนวณคะแนน โปร่งใสและตรวจสอบได้ (Explainable Scoring)
+- ⚡ **สรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing):** สังเคราะห์สาระสำคัญ (Key Takeaways), วิเคราะห์โทนข่าว (Sentiment) และจัดทำไทม์ไลน์เหตุการณ์ด้วย Gemini LLM พร้อมระบบ Fallback เมื่อ API ขัดข้อง
+- 📱 **สถาปัตยกรรม PWA ปลอดภัยลิขสิทธิ์ (Copyright-Safe PWA):** ติดตั้งเป็นแอปบนมือถือและคอมพิวเตอร์ รองรับการอ่านออฟไลน์ และหลีกเลี่ยงการละเมิดลิขสิทธิ์รูปภาพด้วยภาพเวกเตอร์ Editorial Placeholder
+- 🛡️ **สถาปัตยกรรมแคช 4 ระดับ (4-Layer Caching):** ประมวลผลรวดเร็วและประหยัดทรัพยากรด้วย Client Cache, Async TTLCache, Browser Snapshot Cache และ HTTP Conditional Request (ETag/304)
+- 📋 **ระบบแบบประเมินโครงงาน (Project Evaluation System):** หน้า Landing Page สำหรับประเมินโครงงาน (`#/evaluation`), ปุ่มนำทางโดดเด่นสะดุดตาบน Header และระบบแจ้งเตือนชวนทำแบบประเมินผ่าน Google Forms หลังใช้งาน AI
+
+---
+
+## 🗂️ โครงสร้างโปรเจกต์ (Project Structure)
 
 ```
 backend/
-├── main.py              — FastAPI app factory & Socket.IO mounting
-├── config.py            — Settings (env vars, paths, defaults)
-├── .env / .env.example  — API keys, adjustable params
+├── main.py                     — FastAPI application factory, middleware & Socket.IO mounting
+├── config.py                   — ศูนย์กลางตั้งค่าคอนฟิก (Settings singleton via pydantic-settings)
+├── .env / .env.example         — Environment variables (API keys, model checkpoints, parameters)
 ├── core/
-│   ├── browser.py       — Playwright fetcher (Service + Local Fallback)
-│   ├── constants.py     — BROWSER_HEADERS, constants
-│   ├── fetcher_service.py — HTML to Markdown extraction
-│   └── socket_manager.py — Socket.IO singleton manager
+│   ├── browser.py              — Playwright browser automation (Service + Local Fallback)
+│   ├── constants.py            — ค่าคงที่ของระบบ และ HTTP Browser Headers
+│   ├── fetcher_service.py      — HTML extraction & Markdown converter
+│   └── socket_manager.py       — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวแบบเรียลไทม์
 ├── schemas/
-│   └── news_schema.py   — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
+│   ├── news_schema.py          — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
+│   ├── story_schema.py         — Pydantic models (StoryRecord, TimelineEvent, StorySynthesis)
+│   ├── trending_schema.py      — Pydantic models (TrendingStoryItem, TrendingScoreBreakdown)
+│   ├── macro_event_schema.py   — Pydantic models (MacroEventRecord, TopicCluster)
+│   └── event_evidence_schema.py — Pydantic models สำหรับตรวจสอบความสัมพันธ์ของหลักฐานข่าว
 ├── repo/
-│   └── news_repo.py     — JSON persistence (NewsRepositoryPort)
+│   ├── news_repo.py            — ข้อมูลข่าวพื้นฐาน (FileNewsRepository / NewsRepositoryPort)
+│   ├── story_repo.py           — ข้อมูลกลุ่มข่าวแบบต่อเนื่อง (FileStoryRepository / MongoDB)
+│   ├── engagement_repo.py      — ข้อมูล Telemetry การมีส่วนร่วมของผู้ใช้ (คลิก, สรุป, บุ๊กมาร์ก)
+│   ├── macro_event_repo.py     — การจัดเก็บกลุ่มเหตุการณ์ระดับมหภาค
+│   └── sqlite_news_repo.py     — การจัดเก็บสำรองด้วย SQLite
 ├── routers/
-│   ├── news_router.py   — Endpoints: /api/news, /api/sources, /api/categories, /api/status
-│   └── collect_router.py — Endpoint: /api/collect-md (LLM Summarization)
+│   ├── news_router.py          — API ข่าว: /api/news, /api/sources, /api/categories, /api/status
+│   ├── story_router.py         — API ประเด็นข่าว: /api/stories, /api/stories/{id}, /api/storylines
+│   ├── trending_router.py      — API เทรนด์: /api/trending/stories, /api/trending/score-breakdown
+│   ├── collect_router.py       — API สรุปข่าว: /api/collect-md (LLM Summarization)
+│   ├── monitoring_router.py    — API ตรวจสอบสถานะระบบ: /api/monitoring/health, /api/monitoring/metrics
+│   └── macro_event_router.py   — API จัดการเหตุการณ์ระดับมหภาค
 ├── services/
-│   ├── scraper_service.py    — Background loop for periodic scraping
-│   ├── summarizer_service.py — LLM summarizer service
-│   └── classifier_service.py — 3-Tier Multi-strategy Category Classifier
+│   ├── scraper_service.py      — Background loop ทำงานดึงข่าวรอบละ 15 นาที
+│   ├── classifier_service.py   — เครื่องมือจัดหมวดหมู่อัจฉริยะ 3-Tier Multi-strategy Classifier
+│   ├── story_service.py        — การจับคู่และรวมกลุ่มบทความข่าวแบบ Online Incremental
+│   ├── trending_service.py     — การคำนวณคะแนนความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ
+│   ├── story_presentation_service.py — สังเคราะห์หัวข้อข่าวและไทม์ไลน์ภาพรวมด้วย LLM
+│   ├── summarizer_service.py   — บริการถอดใจความและสรุปบทความข่าวรายชิ้น
+│   ├── entity_extractor.py     — สกัด Named Entities (PyThaiNLP thainer-v2)
+│   └── browser_service.py      — จัดการ Playwright CDP sessions
 ├── scrapers/
-│   ├── registry.py      — @register_source decorator & SOURCES collection
-│   ├── helpers.py       — HTML/RSS parsing, image, URL, article builder
-│   └── sources.py       — 12 news source scrapers
+│   ├── registry.py             — Decorator @register_source และแคตตาล็อกสำนักข่าว
+│   ├── helpers.py              — HTML/RSS parser, ตัวดึงรูปภาพ และ Article Builder
+│   └── sources.py              — สคริปต์สแครปข่าวสำหรับ 14 สำนักข่าว
 ├── model/
-│   ├── tfidf_vectorizer.pkl — TF-IDF text vectorizer
-│   └── svm_classifier.pkl   — Pre-trained SVM model for category classification
-├── tests/
-│   ├── conftest.py                — Test configuration & path setup
-│   ├── test_classifier_service.py — URL Priority & classification test suite
-│   └── test_sources.py            — News sources registration test suite
-└── sockets/
-    └── events.py        — WebSocket event handlers
+│   ├── tfidf_vectorizer.pkl    — TF-IDF Vectorizer สำหรับข้อความภาษาไทย
+│   ├── svm_classifier.pkl      — Support Vector Machine Classifier
+│   └── wangchanberta_classifier — Local Offline Embedding Checkpoint (WangchanBERTa)
+└── tests/                      — ชุดทดสอบระบบครอบคลุมทั้ง Unit Tests และ Integration Tests
 
 frontend/
-├── index.html
-├── package.json
+├── index.html                  — หน้าเว็บหลักแบบ Single Page Application (SPA)
+├── manifest.webmanifest        — Progressive Web App Manifest
+├── sw.js                       — Service Worker สำหรับแคชและประมวลผลออฟไลน์
 └── static/
-    ├── app.css          — Styles & CSS variables
-    ├── config.js        — API_BASE, CATEGORIES, SOURCE_COLORS
-    ├── api.js           — REST & Socket.IO client helpers
-    ├── UI.js            — Pure DOM manipulation & UI rendering
-    └── main.js          — Application controller & state management
+    ├── app.css                 — สไตล์ชีต Editorial Theme และ Tailwind Utilities
+    ├── config.js               — การตั้งค่าฝั่งผู้ใช้ (API Base, หมวดหมู่, สีสำนักข่าว, ลิงก์แบบประเมิน)
+    ├── api.js                  — REST API Client และ Socket.IO Handlers
+    ├── UI.js                   — จัดการ DOM, เรนเดอร์การ์ดข่าว, สรุป AI, ไทม์ไลน์ และแบบประเมิน
+    └── main.js                 — State Manager, Hash Router (`#/`, `#/preview/`, `#/storyline/`, `#/evaluation`)
 
-data/                    — Runtime generated directory
-├── news_data.json       — Persisted news articles
-└── collected_md/        — Downloaded Markdown files
+data/                           — ไดเรกทอรีจัดเก็บข้อมูลในเครื่อง (สร้างขึ้นอัตโนมัติ)
+├── news_data.json              — ฐานข้อมูลบทความข่าว
+├── stories_data.json           — ฐานข้อมูลกลุ่มเรื่องราวเหตุการณ์ (StoryRecords)
+├── engagement_data.json        — ข้อมูล Telemetry การใช้งาน
+└── collected_md/               — ไฟล์สรุปข่าวในรูปแบบ Markdown
 ```
 
 ---
@@ -61,12 +90,33 @@ data/                    — Runtime generated directory
 ## 🧠 ระบบจำแนกหมวดหมู่ข่าว (3-Tier Classification Engine)
 
 1. **Tier 1: Fast-Path URL Priority (< 0.1ms)**
-   - ตรวจจับหมวดหมู่จาก URL path / slug อัตโนมัติ (เช่น `/politics`, `/business`, `/sport`, `/tech`, `/foreign`, `/local` รวมถึง URL ภาษาไทยแบบ Percent-encoded)
-   - หากตรงกับเงื่อนไข จะจัดหมวดหมู่ทันทีโดยไม่ต้องผ่านกระบวนการ NLP หรือ Machine Learning ประหยัดทรัพยากรและเร็วที่สุด
+   - สกัดหมวดหมู่จาก URL path หรือ slug อัตโนมัติ (เช่น `/politics`, `/business`, `/sport`, `/tech`, `/foreign`, `/local` รวมถึง URL ภาษาไทยแบบ Percent-encoded)
+   - หากเงื่อนไขตรงกับพจนานุกรมความมั่นใจสูง จะจัดหมวดหมู่ทันทีโดยไม่ต้องผ่าน NLP หรือ Machine Learning ประหยัดพลังงานประมวลผลสูงสุด
 2. **Tier 2: Rule-based Domain Expert Scoring**
-   - ตัดคำด้วย PyThaiNLP และคำนวณคะแนน Keyword + Compound Rules แบบถ่วงน้ำหนัก สำหรับกรณีที่ URL ไม่ระบุหมวด
+   - ตัดคำภาษาไทยด้วย PyThaiNLP และคำนวณคะแนนตามคีย์เวิร์ดบริบทเฉพาะด้านพร้อม Compound Rules แบบถ่วงน้ำหนัก ในกรณีที่ URL ไม่ระบุหมวด
 3. **Tier 3: Machine Learning Model (TF-IDF + SVM)**
-   - ใช้โมเดล Machine Learning ในการวิเคราะห์บริบทเชิงลึกสำหรับหมวดที่มีความคาบเกี่ยวสูง (การเมือง, เศรษฐกิจ, สังคม)
+   - ใช้โมเดล Machine Learning ในการวิเคราะห์บริบทเนื้อหาอย่างละเอียดสำหรับหมวดหมู่ที่มีความคาบเกี่ยวกันสูง (เช่น การเมือง, เศรษฐกิจ, สังคม)
+
+---
+
+## 🧭 ระบบติดตามเรื่องราวและจัดอันดับเทรนด์ (Two-Layer Architecture)
+
+### Layer 1: Persistent Online Story Identification
+- **Online Incremental Clustering:** ข่าวแต่ละบทความที่ดึงเข้ามาใหม่จะถูกนำมาประเมินทันที (`StoryService.assign_article`) โดยไม่จำเป็นต้อง re-cluster ข่าวทั้งหมดใหม่
+- **Semantic Vector Similarity:** สกัดเวกเตอร์ขนาด 768 มิติด้วย WangchanBERTa ทำ Cosine Similarity เทียบกับ Centroid ของประเด็นข่าว
+- **Secondary Entity Confirmation Gate:** สกัด Named Entities (บุคคล, องค์กร, สถานที่) ด้วย PyThaiNLP `thainer-v2` เพื่อยืนยันความถูกต้องในกรณีค่าความคล้ายคลึงก้ำกึ่ง ($0.74 \le \text{sim} < 0.85$)
+- **Non-Capping 72-Hour Candidate Window:** ค้นหาประเด็นข่าวที่มีความเคลื่อนไหวภายใน 72 ชั่วโมง ทำให้ประเด็นข่าวที่เกิดขึ้นต่อเนื่องเป็นสัปดาห์ (เช่น อุทกภัย, คดีความ) ถูกร้อยเรียงอยู่ภายใต้ `story_id` เดียวกันได้อย่างแม่นยำ
+- **Centroid Exponential Moving Average (EMA, $\alpha=0.85$):** ปรับค่าเวกเตอร์แกนกลางของประเด็นข่าวอย่างราบรื่นตามความคืบหน้าของสถานการณ์
+
+### Layer 2: Deterministic Trending Engine
+จัดอันดับความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติที่โปร่งใส ตรวจสอบได้ และปราศจาก LLM ในการคำนวณคะแนน:
+- **Volume Score (25%):** จำนวนบทความข่าวที่รายงานในรอบ 24 ชั่วโมง ($\ln(1 + N_{\text{recent}})$)
+- **Burst Velocity Score (30%):** อัตราการเพิ่มขึ้นอย่างรวดเร็วของข่าวเปรียบเทียบกับช่วงก่อนหน้า
+- **Diversity Score (25%):** ความหลากหลายของสำนักข่าวที่รายงาน ($\sqrt{N_{\text{outlets}}}$) พร้อมระบบลดทอนคะแนนสำหรับข่าวคัดลอก (Syndication Discount)
+- **Recency Decay (10%):** ลดทอนคะแนนตามกาลเวลาด้วย Exponential Half-Life Decay ($\tau = 12$ ชั่วโมง)
+- **Novelty Score (5%):** ความแปลกใหม่ของประเด็นเมื่อเทียบกับประเด็นข่าวอื่น
+- **Engagement Telemetry (5%):** สถิติการมีส่วนร่วมของผู้อ่านแบบไม่ระบุตัวตน (คลิก, สรุปเนื้อหา, บุ๊กมาร์ก)
+- **Routine News Penalty ($0.25\times$):** ลดทอนคะแนนข่าวที่เป็นกิจวัตรประจำวัน (ผลสลากกินแบ่ง, รายงานสภาพอากาศ, ราคาน้ำมัน/ทองคำประจำวัน) ไม่ให้แย่งพื้นที่เทรนด์ข่าวสำคัญ
 
 ---
 
@@ -105,10 +155,31 @@ data/                    — Runtime generated directory
 
 ---
 
-## ✅ ความต้องการของระบบ
+## 📱 สถาปัตยกรรม PWA, ความปลอดภัยลิขสิทธิ์ & แบบประเมินโครงงาน
+
+### 1. Progressive Web App (PWA) Standalone
+- **Web App Manifest (`manifest.webmanifest`)**: รองรับการติดตั้งเป็นแอปพลิเคชันแบบ Standalone ทั้งบน iOS และ Android
+- **Service Worker (`sw.js`)**: ประมวลผลแบบออฟไลน์ด้วยกลยุทธ์ Cache-First สำหรับ App Shell และ Network-First พร้อม Cache Fallback สำหรับฟีดข่าว
+
+### 2. นโยบายรูปภาพปลอดภัยลิขสิทธิ์ (Copyright-Safe Image Policy)
+- หลีกเลี่ยงการทำสำเนา บันทึก หรือแคชไฟล์ภาพข่าวของสำนักข่าวภายนอกลงบนเซิร์ฟเวอร์
+- แสดงผลด้วยภาพ Editorial SVG Placeholders ประจำหมวดหมู่เมื่อขาดการเชื่อมต่ออินเทอร์เน็ต
+
+### 3. Excerpt Snippet Preview & Clean URL Launching
+- อ่านบทคัดย่อข่าว 2-3 บรรทัดผ่าน SPA Hash Routing (`#/preview/{id}`) โดยไม่ต้องโหลดหน้าเว็บใหม่
+- ปุ่มเปิดอ่านข่าวต้นฉบับจะทำการตัดพารามิเตอร์การตลาดและเครื่องมือติดตามทั้งหมด (`utm_*`, `fbclid`, `gclid`) เพื่อปกป้องความเป็นส่วนตัวของผู้ใช้
+
+### 4. หน้า Landing Page & ระบบแบบประเมินโครงงาน (Project Evaluation)
+- **Landing Page (`#/evaluation`):** หน้าเพจเฉพาะสำหรับสรุปภาพรวมความสามารถของโครงงาน และเชื่อมต่อไปยังแบบสอบถามออนไลน์
+- **Header Action Button:** ปุ่มกดสีอำพันโดดเด่นพร้อมสัญญาณไฟกระพริบ (Live Beacon Ping) บริเวณซ้ายสุดของแถบเครื่องมือ
+- **Smart Post-Summarization Prompt:** เมื่อผู้ใช้ทดลองกดฟังก์ชันสรุปข่าวด้วย AI ระบบจะเปิดกล่องข้อความเชิญชวนทำแบบประเมิน Google Forms โดยหากผู้ใช้กดเปิดลิงก์แล้ว ระบบจะจดจำค่าไว้ใน `localStorage` และไม่แสดงกล่องแจ้งเตือนซ้ำอีกอย่างถาวร
+
+---
+
+## ✅ ความต้องการของระบบ (Prerequisites)
 
 - **Python**: 3.10 ขึ้นไป
-- **Package Manager**: [uv](https://docs.astral.sh/uv/) (แนะนำ)
+- **Package Manager**: [uv](https://docs.astral.sh/uv/) (แนะนำเป็นอย่างยิ่ง)
 - **Browser**: Chromium (ติดตั้งผ่าน Playwright)
 
 ---
@@ -116,21 +187,21 @@ data/                    — Runtime generated directory
 ## 📦 การติดตั้ง (Installation)
 
 ```bash
-# ติดตั้ง dependencies ผ่าน uv
+# 1. ติดตั้ง dependencies ทั้งหมดผ่าน uv
 uv sync
 
-# ติดตั้ง Chromium สำหรับ Playwright
+# 2. ติดตั้ง Chromium สำหรับระบบสแครปข่าวของ Playwright
 uv run playwright install chromium
 ```
 
 ---
 
-## ⚙️ Environment Setup
+## ⚙️ การตั้งค่าสภาพแวดล้อม (Environment Setup)
 
-คัดลอก `backend/.env.example` เป็น `backend/.env` แล้วกำหนดค่าตามต้องการ:
+คัดลอกไฟล์ `backend/.env.example` เป็น `backend/.env` แล้วกำหนดค่าตามต้องการ:
 
 ```env
-# LLM (สำหรับสรุปข่าวใน /api/collect-md)
+# LLM API (สำหรับสรุปใจความสำคัญและประมวลผลไทม์ไลน์)
 LLM_API=your_api_key_here
 LLM_BASE_URL=https://gen.ai.kku.ac.th/api/v1
 LLM_MODEL=gemini-3.1-flash-lite-preview
@@ -152,25 +223,37 @@ PORT=5000
 ## 🚀 วิธีรันระบบ (Run Server)
 
 ```bash
-# รัน backend server (FastAPI + Socket.IO)
+# รันเซิร์ฟเวอร์หลัก (FastAPI + Socket.IO)
 uv run python backend/main.py
 ```
 
-เปิดเบราว์เซอร์ที่: **`http://localhost:5000`**
+เปิดเว็บเบราว์เซอร์ที่: **`http://localhost:5000`**
 
 ---
 
-## 🧪 การทดสอบ (Testing)
+## 🧪 การทดสอบระบบ (Testing & Verification)
 
 ```bash
 # รันชุดทดสอบทั้งหมด
 uv run pytest -v
 
-# รันเฉพาะทดสอบ URL Priority และ Classifier
+# ทดสอบระบบจัดหมวดหมู่อัจฉริยะ (URL Priority & ML Classifier)
 uv run pytest backend/tests/test_classifier_service.py -v
 
-# รันเฉพาะทดสอบการลงทะเบียนของสำนักข่าว
+# ทดสอบสำนักข่าวและการดึงข้อมูล (14 Outlets)
 uv run pytest backend/tests/test_sources.py -v
+
+# ทดสอบสถาปัตยกรรมแคช 4 ระดับ (4-Layer Caching Suite)
+uv run pytest backend/tests/test_caching.py -v
+
+# ทดสอบระบบจัดกลุ่มเรื่องราวและเทรนด์ (Story Identification & Trending Engine)
+uv run pytest backend/tests/test_story_service.py backend/tests/test_trending_deterministic.py -v
+
+# รัน Benchmark วัดความแม่นยำ Pairwise & B-cubed F1 ของ Story Identification
+uv run python scripts/evaluate_stories.py
+
+# รันรายงานตรวจสอบคุณภาพเทรนด์ข่าว (Trending Sanity Report)
+uv run python scripts/trending_sanity_report.py
 ```
 
 ---
@@ -178,55 +261,15 @@ uv run pytest backend/tests/test_sources.py -v
 ## 🔍 ตรวจสอบ Code Style & Type Safety
 
 ```bash
-# Linting ด้วย Ruff
+# ตรวจสอบ Code Style ด้วย Ruff
 uv run ruff check backend/
 
-# Type Checking ด้วย MyPy
+# ตรวจสอบ Type Safety ด้วย MyPy
 uv run mypy backend/ --ignore-missing-imports --explicit-package-bases
 ```
 
 ---
 
-## 📝 หมายเหตุ
+## 📄 ใบอนุญาตและการอ้างอิง
 
-- โฟลเดอร์ `data/` จะถูกสร้างขึ้นอัตโนมัติเมื่อรันระบบ เพื่อเก็บข้อมูลข่าว (`news_data.json`) และไฟล์ Markdown ที่ดาวน์โหลดมา
-- ระบบมีการบันทึก Seen URLs เพื่อป้องกันการดึงข่าวซ้ำซ้อนในแต่ละรอบ
-- ศึกษารายละเอียดแนวทางการเขียนโค้ดและ SOLID / GRASP architecture ได้ใน `AGENTS.md`
-
-### 🛡️ 4-Layer Caching Architecture
-
-- **Layer 1 – Frontend Client Cache**: Uses `localStorage` for bookmarks, preferences, and theme settings, providing offline‑first persistence.
-- **Layer 2 – AI Summary Cache**: Async‑in‑memory TTLCache (24 h, 1,000 items) with async lock to coalesce concurrent summary requests and avoid duplicate LLM calls.
-- **Layer 3 – Browser Snapshot Cache**: In‑memory snapshot cache (15 min TTL, 100 entries) with error isolation, preventing redundant Playwright/CDP navigation.
-- **Layer 4 – HTTP Conditional Request Cache**: Implements `ETag` / `If‑Modified‑Since` handling and HTTP 304 support to skip re‑downloading unchanged news articles.
-
-All cache layers live in `backend/core/` and are exercised by the comprehensive test suite `backend/tests/test_caching.py`, which now passes **100 %**.
-
----
-
-## 📱 สถาปัตยกรรม PWA & ความปลอดภัยลิขสิทธิ์ (PWA & Copyright-Safe Architecture)
-
-เพื่อมอบประสบการณ์การใช้งานบนเว็บและมือถือเทียบเท่าแอปแบบ Native รวมทั้งมีความปลอดภัยทางกฎหมายลิขสิทธิ์สูงสุด ระบบได้รับการอัปเดตสถาปัตยกรรมใหม่ดังนี้:
-
-### 1. Progressive Web App (PWA) Standalone
-- **Web App Manifest (`manifest.webmanifest`)**: รองรับการติดตั้งเป็นแอปแบบ Standalone ทั้งบนระบบปฏิบัติการ iOS (Safari Add to Home Screen) และ Android
-- **Service Worker (`sw.js`)**: ติดตั้ง Service Worker ประมวลผลแบบออฟไลน์ด้วยกลยุทธ์:
-  - *Cache-First*: สำหรับไฟล์แกนหลัก (App Shell), CSS, JS และภาพ Placeholders
-  - *Network-First (with Cache Fallback)*: สำหรับคำขอข่าวสารผ่าน API `/api/news` เพื่อให้เปิดอ่านข่าวล่าสุดแบบออฟไลน์ได้ทันทีเมื่อขาดการเชื่อมต่ออินเทอร์เน็ต
-- **Offline Banner & Install Prompt**: แสดงแถบสถานะเครือข่ายออฟไลน์แบบเรียลไทม์ และปุ่มเชิญชวนติดตั้ง PWA อัตโนมัติ
-
-### 2. นโยบายรูปภาพปลอดภัยลิขสิทธิ์ (Copyright-Safe Image Policy)
-- **หลีกเลี่ยงการทำสำเนารูปข่าวภายนอก**: ระบบจะไม่บันทึก แคช หรือทำสำเนาไฟล์ภาพประกอบข่าวสารของสำนักข่าวภายนอกลงบนระบบโครงสร้างเครื่องเซิร์ฟเวอร์หรือบน Cache API ของบราวเซอร์ (หลีกเลี่ยงการละเมิดลิขสิทธิ์)
-- **High-End Editorial Placeholders**: ออกแบบภาพประกอบเวกเตอร์ SVG สไตล์ Editorial ประจำหมวดหมู่ข่าวทั้ง 7 หมวดหมู่เก็บไว้ในเครื่องเบราว์เซอร์ เพื่อใช้แสดงผลทันทีแบบออฟไลน์หรือเมื่อรูปข่าวต้นทางดาวน์โหลดไม่ได้
-
-### 3. SPA Hash Routing & Excerpt Snippet Preview (`#/preview/{id}`)
-- สลับการทำงานจากระบบ In-App Browser Iframe มาเป็นการใช้ **Excerpt Snippet Preview Sub-View**
-- ใช้การทำ SPA Routing ผ่าน URL Hash (`#/`, `#/preview/{url}`, `#/history`) สามารถกดอ่านบทคัดย่อข่าวสารแบบย่อ 2-3 บรรทัดบนแอปได้ทันทีโดยไม่หลุดออกจากหน้า PWA พร้อมปุ่มย้อนกลับที่จำตำแหน่งเลื่อนหน้าเดิมได้อย่างราบรื่น
-
-### 4. สรุปเนื้อหาด้วย AI แบบ On-Demand (Auto & On-Demand AI Summary)
-- การ์ดข่าวบนฟีดได้รับการปรับปรุงให้กะทัดรัด (Compact Grid) และมีปุ่ม **"สรุป AI"** ให้กดเรียกใช้งานได้ทันทีบนตัวการ์ด
-- เมื่อกดใช้งาน ระบบจะเปิดหน้า Preview พร้อมเรียกประมวลผล Gemini AI เพื่อถอดใจความสำคัญ, Sentiment และข้อสรุปข่าวสารแบบเรียลไทม์ทันที และบันทึกผลลัพธ์ลงในเบราว์เซอร์สำหรับกลับมาอ่านออฟไลน์ครั้งถัดไป
-
-### 5. เปิดลิงก์ปลอดภัยต้นทาง & ล้างพารามิเตอร์ติดตาม (Clean URL Launching)
-- ปุ่ม **"อ่านข่าวฉบับเต็มบนเว็บต้นฉบับ"** จะทำการทำความสะอาด URL ต้นทาง โดยการตัดพารามิเตอร์การตลาดและเครื่องมือติดตามทั้งหมด (`utm_*`, `fbclid`, `gclid`, `ref`, ฯลฯ) เพื่อปกป้องความเป็นส่วนตัวของผู้ใช้ และเปิดอ่านในเบราว์เซอร์ระบบภายนอกด้วยความปลอดภัยสูงสุดผ่านคุณสมบัติ `target="_blank" rel="noopener noreferrer"`
-
+โปรเจกต์นี้พัฒนาขึ้นเพื่อการวิจัยและศึกษาทางวิชาการ (Educational & Academic Research) รวบรวมข่าวสารจากสำนักข่าวเพื่อการวิเคราะห์และสรุปผลเชิงสังเคราะห์ ไม่มีการละเมิดหรือทำซ้ำภาพถ่ายที่มีลิขสิทธิ์ และเคารพมาตรฐานการคุ้มครองข้อมูลส่วนบุคคล (PDPA)

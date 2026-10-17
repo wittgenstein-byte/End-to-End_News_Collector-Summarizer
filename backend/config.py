@@ -224,6 +224,14 @@ class Settings:
     monitoring_admin_key: str           = _get("MONITORING_ADMIN_KEY", "admin-dev-secret-2026")
     monitoring_session_ttl_seconds: int = int(_get("MONITORING_SESSION_TTL_SECONDS", "86400"))
 
+    # Issue Explorer (เจาะประเด็น) — isolated feature, kill-switch via flag
+    issue_explorer_enabled: bool     = _get("ISSUE_EXPLORER_ENABLED", "true").lower() in {"1", "true", "yes"}
+    issue_max_matches: int           = int(_get("ISSUE_MAX_MATCHES", "2000"))
+    issue_analysis_cap: int          = int(_get("ISSUE_ANALYSIS_CAP", "300"))
+    issue_cluster_distance: float    = float(_get("ISSUE_CLUSTER_DISTANCE", "0.85"))
+    issue_cache_ttl_seconds: int     = int(_get("ISSUE_CACHE_TTL_SECONDS", "120"))
+    issue_rate_limit_per_min: int    = int(_get("ISSUE_RATE_LIMIT_PER_MIN", "30"))
+
 
 # Singleton ใช้ได้ทั่วทั้ง app
 settings = Settings()

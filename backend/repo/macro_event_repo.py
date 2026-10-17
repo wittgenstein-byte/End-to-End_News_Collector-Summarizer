@@ -61,6 +61,117 @@ class MacroEventRepositoryPort(Protocol):
     def clear_all(self) -> None: ...
 
 
+# ── Concrete Implementation: InMemoryMacroEventRepository ──────────
+
+class InMemoryMacroEventRepository:
+    """
+    In-memory mock/test implementation of MacroEventRepositoryPort.
+    Ensures unit tests run isolated without writing to production JSON files.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._macro_events: dict[str, MacroEventRecord] = {}
+        self._child_to_macro_id: dict[str, str] = {}
+
+    def get_macro_event(self, macro_id: str) -> MacroEventRecord | None:
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return None
+        with self._lock:
+            record = self._macro_events.get(clean_id)
+            return record.model_copy(deep=True) if record else None
+
+    def save_macro_event(self, macro: MacroEventRecord) -> None:
+        with self._lock:
+            rec = macro.model_copy(deep=True)
+            self._macro_events[rec.macro_event_id] = rec
+            for cid in rec.child_event_ids:
+                self._child_to_macro_id[cid] = rec.macro_event_id
+
+    def save_macro_events_batch(self, macros: list[MacroEventRecord]) -> None:
+        with self._lock:
+            for m in macros:
+                self.save_macro_event(m)
+
+    def list_macro_events(
+        self,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[MacroEventRecord]:
+        with self._lock:
+            records = list(self._macro_events.values())
+            if status and status.lower() != "all":
+                records = [r for r in records if r.status == status.lower()]
+            records.sort(key=lambda r: r.updated_at, reverse=True)
+            return [r.model_copy(deep=True) for r in records[offset : offset + limit]]
+
+    def find_candidate_macro_events(
+        self,
+        since_time: datetime,
+        anchor: str | None = None,
+    ) -> list[MacroEventRecord]:
+        since_utc = (
+            since_time.replace(tzinfo=timezone.utc)
+            if since_time.tzinfo is None
+            else since_time.astimezone(timezone.utc)
+        )
+        clean_anchor = anchor.strip().lower() if anchor else None
+        with self._lock:
+            candidates: list[MacroEventRecord] = []
+            for m in self._macro_events.values():
+                m_act = m.last_activity_at or m.updated_at
+                m_act_utc = (
+                    m_act.replace(tzinfo=timezone.utc)
+                    if m_act.tzinfo is None
+                    else m_act.astimezone(timezone.utc)
+                )
+                time_match = m_act_utc >= since_utc
+                anchor_match = False
+                if clean_anchor and (m.storyline_anchor or m.named_crisis_anchor):
+                    target_anchor = (m.storyline_anchor or m.named_crisis_anchor or "").lower()
+                    anchor_match = clean_anchor in target_anchor
+                if time_match or anchor_match:
+                    candidates.append(m.model_copy(deep=True))
+            candidates.sort(key=lambda r: r.updated_at, reverse=True)
+            return candidates
+
+    def get_macro_event_by_child_id(self, child_id: str) -> MacroEventRecord | None:
+        clean_cid = child_id.strip() if child_id else ""
+        if not clean_cid:
+            return None
+        with self._lock:
+            mid = self._child_to_macro_id.get(clean_cid)
+            if mid and mid in self._macro_events:
+                return self._macro_events[mid].model_copy(deep=True)
+            return None
+
+    def count_macro_events(self, status: str | None = None) -> int:
+        with self._lock:
+            if not status or status.lower() == "all":
+                return len(self._macro_events)
+            return sum(1 for m in self._macro_events.values() if m.status == status.lower())
+
+    def delete_macro_event(self, macro_id: str) -> bool:
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return False
+        with self._lock:
+            if clean_id in self._macro_events:
+                m = self._macro_events.pop(clean_id)
+                for cid in m.child_event_ids:
+                    if self._child_to_macro_id.get(cid) == clean_id:
+                        del self._child_to_macro_id[cid]
+                return True
+            return False
+
+    def clear_all(self) -> None:
+        with self._lock:
+            self._macro_events.clear()
+            self._child_to_macro_id.clear()
+
+
 # ── Concrete Implementation: FileMacroEventRepository ─────────────
 
 class FileMacroEventRepository:

@@ -627,20 +627,20 @@ function updateHeroTrendingSlide() {
     `;
   }).join("");
 
-  // 3. Storyline Hashtags
+  // 3. Storyline Hashtags (Limit to top 3 to keep layout clean and prevent multi-line clutter)
   const storylineHashtags = Array.from(new Set([
     ...(Array.isArray(n.hashtags) ? n.hashtags : []),
     ...((n.child_events || []).flatMap(ce => Array.isArray(ce.hashtags) ? ce.hashtags : [])),
     ...((n.articles || []).flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
-  ])).filter(Boolean).slice(0, 6);
+  ])).filter(Boolean).slice(0, 3);
 
   const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
-    <div class="flex items-center gap-1.5 flex-wrap">
+    <div class="hidden sm:flex items-center gap-1.5 flex-wrap">
       ${storylineHashtags.map(tag => {
         const clean = tag.startsWith("#") ? tag.slice(1) : tag;
         return `
           <button type="button"
-                  class="text-[11px] font-mono text-white/80 hover:text-white bg-black/40 hover:bg-black/70 border border-white/15 px-2.5 py-0.5 rounded transition-colors cursor-pointer"
+                  class="text-[10px] sm:text-[11px] font-mono text-white/75 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 px-2 py-0.5 rounded transition-colors cursor-pointer"
                   onclick="event.stopPropagation(); window.__filterByHashtag('${esc(clean)}')">
             #${esc(clean)}
           </button>
@@ -869,41 +869,37 @@ function updateHeroTrendingSlide() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-white/15 w-full">
-              <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">
-                ${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}
-              </span>
-              <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
-                <div class="flex items-center gap-2 flex-1 sm:flex-initial">
-                  <button type="button" 
-                          class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
-                          data-url="${esc(n.url)}"
-                          onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
-                          title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                    <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
-                      ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                    </span>
-                  </button>
-                  <button type="button" 
-                          class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                          onclick="window.__openPreview('${esc(n.url)}')">
-                    <span class="material-symbols-outlined text-[15px]">article</span>
-                    <span>อ่านบทคัดย่อ</span>
-                  </button>
-                  <button type="button" 
-                          class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
-                          onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                    <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                    <span>สรุป AI</span>
-                  </button>
-                </div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 pt-1.5 sm:pt-2 border-t border-white/15 w-full">
+              <div class="flex items-center justify-between sm:justify-start gap-2 text-white/70 font-mono text-[10px] sm:text-[11px] uppercase tracking-wider">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
+                </span>
+                ${n.fetched_at ? `<span class="opacity-60 text-[9px] sm:text-[11px]">${esc(n.fetched_at)}</span>` : ""}
+              </div>
+              <div class="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto flex-nowrap" onclick="event.stopPropagation()">
                 <button type="button" 
-                        class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shrink-0" 
+                        class="hero-bookmark-btn bookmark-btn p-1.5 sm:p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
+                        data-url="${esc(n.url)}"
+                        onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                  <span class="material-symbols-outlined text-[15px] sm:text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                  </span>
+                </button>
+                <button type="button" 
+                        class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm whitespace-nowrap min-w-0" 
+                        onclick="window.__openPreview('${esc(n.url)}')">
+                  <span class="material-symbols-outlined text-[14px] sm:text-[15px] shrink-0">article</span>
+                  <span class="truncate">อ่านบทคัดย่อ</span>
+                </button>
+                <button type="button" 
+                        class="hero-storyline-action-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg font-extrabold text-[11px] sm:text-xs transition-all cursor-pointer shadow-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 whitespace-nowrap min-w-0" 
                         onclick="window.__openCurrentHeroStoryline()"
                         title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
-                  <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">sports_and_outdoors</span>
-                  <span>ดูข่าวกีฬาทั้งหมดในประเด็นนี้</span>
-                  <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
+                  <span class="material-symbols-outlined text-[14px] sm:text-[16px] text-slate-950 font-bold shrink-0">sports_and_outdoors</span>
+                  <span class="truncate"><span class="hidden sm:inline">ดูข่าวกีฬาทั้งหมดใน</span><span class="sm:hidden">ดูกีฬา</span>ประเด็นนี้</span>
+                  <span class="bg-black/25 text-slate-950 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-extrabold tracking-wider shrink-0">${outletMap.size} สื่อ</span>
                 </button>
               </div>
             </div>
@@ -960,9 +956,9 @@ function updateHeroTrendingSlide() {
         </div>
 
         <!-- Bottom Editorial Feature Content -->
-        <div class="space-y-2 sm:space-y-3 pointer-events-auto pb-2 sm:pb-3 max-w-4xl">
-          <div class="space-y-1.5 sm:space-y-2">
-            <h1 class="text-base sm:text-3xl md:text-4xl font-headline font-bold hero-headline leading-snug cursor-pointer hover:underline decoration-white/40 underline-offset-4 line-clamp-2"
+        <div class="space-y-1.5 sm:space-y-3 pointer-events-auto pb-1.5 sm:pb-3 max-w-4xl">
+          <div class="space-y-1 sm:space-y-2">
+            <h1 class="text-base sm:text-2xl md:text-3xl font-headline font-bold hero-headline leading-snug cursor-pointer hover:underline decoration-white/40 underline-offset-4 line-clamp-2"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
@@ -982,39 +978,37 @@ function updateHeroTrendingSlide() {
             </div>
           </div>
 
-          <div class="flex items-center justify-between gap-2 flex-wrap pt-1.5 sm:pt-2 border-t border-white/15 w-full">
-            <span class="text-[10px] sm:text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
-            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
-              <div class="flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial">
-                <button type="button" 
-                        class="hero-bookmark-btn bookmark-btn p-1.5 sm:p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
-                        data-url="${esc(n.url)}"
-                        onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
-                        title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                  <span class="material-symbols-outlined text-[15px] sm:text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
-                    ${isBookmarked ? 'bookmark' : 'bookmark_border'}
-                  </span>
-                </button>
-                <button type="button" 
-                        class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm" 
-                        onclick="window.__openPreview('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[14px] sm:text-[15px]">article</span>
-                  <span>อ่านบทคัดย่อ</span>
-                </button>
-                <button type="button" 
-                        class="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#c84b31] hover:opacity-95 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm" 
-                        onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[14px] sm:text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-                  <span>สรุป AI</span>
-                </button>
-              </div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 pt-1.5 sm:pt-2 border-t border-white/15 w-full">
+            <div class="flex items-center justify-between sm:justify-start gap-2 text-white/70 font-mono text-[10px] sm:text-[11px] uppercase tracking-wider">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
+              </span>
+              ${n.fetched_at ? `<span class="opacity-60 text-[9px] sm:text-[11px]">${esc(n.fetched_at)}</span>` : ""}
+            </div>
+            <div class="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto flex-nowrap" onclick="event.stopPropagation()">
               <button type="button" 
-                      class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-extrabold text-[11px] sm:text-xs transition-all cursor-pointer shadow-lg shrink-0" 
+                      class="hero-bookmark-btn bookmark-btn p-1.5 sm:p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
+                      data-url="${esc(n.url)}"
+                      onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
+                      title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
+                <span class="material-symbols-outlined text-[15px] sm:text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                  ${isBookmarked ? 'bookmark' : 'bookmark_border'}
+                </span>
+              </button>
+              <button type="button" 
+                      class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm whitespace-nowrap min-w-0" 
+                      onclick="window.__openPreview('${esc(n.url)}')">
+                <span class="material-symbols-outlined text-[14px] sm:text-[15px] shrink-0">article</span>
+                <span class="truncate">อ่านบทคัดย่อ</span>
+              </button>
+              <button type="button" 
+                      class="hero-storyline-action-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg font-extrabold text-[11px] sm:text-xs transition-all cursor-pointer shadow-lg whitespace-nowrap min-w-0" 
                       onclick="window.__openCurrentHeroStoryline()"
                       title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
-                <span class="material-symbols-outlined text-[15px] sm:text-[16px] text-slate-950 font-bold">account_tree</span>
-                <span>ดูข่าวทั้งหมดในประเด็นนี้</span>
-                <span class="bg-black/25 text-slate-950 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
+                <span class="material-symbols-outlined text-[14px] sm:text-[16px] text-slate-950 font-bold shrink-0">account_tree</span>
+                <span class="truncate"><span class="hidden sm:inline">ดูข่าวทั้งหมดใน</span><span class="sm:hidden">ดู</span>ประเด็นนี้</span>
+                <span class="bg-black/25 text-slate-950 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-extrabold tracking-wider shrink-0">${outletMap.size} สื่อ</span>
               </button>
             </div>
           </div>
@@ -1053,12 +1047,22 @@ window.__heroTouchEnd = (event) => {
   window.__resumeTrendingAutoPlay();
 };
 
-// Safe stubs for legacy timeline/subevent toggles
+// Safe helpers for timeline/subevent navigation
 window.__toggleTimelinePanel = () => {};
 window.__togglePerspectiveQuote = () => {};
-window.__scrollToStoryTimeline = () => {};
-window.__scrollToSubEvents = () => {};
-window.__scrollToSubEvent = () => {};
+window.__scrollToStoryTimeline = () => {
+  const el = document.getElementById("storyline-ai-section");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+window.__scrollToSubEvents = () => {
+  const el = document.getElementById("storyline-subevents-section");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+window.__scrollToSubEvent = (subId) => {
+  if (typeof window.__filterStorylineSubEvent === "function") {
+    window.__filterStorylineSubEvent(subId);
+  }
+};
 window.__toggleSubEventArticles = () => {};
 
 window.__prevTrendingSlide = (event) => {
@@ -1156,6 +1160,14 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
                 <span class="text-[10px] font-mono opacity-60 shrink-0">• ${esc(n.fetched_at ?? "")}</span>
               </div>
               <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                ${(n.story_id || n.macro_event_id) ? `
+                <button type="button"
+                        class="px-1.5 py-0.5 rounded bg-surface-container hover:bg-primary hover:text-white text-[10px] font-semibold text-on-surface-variant flex items-center gap-0.5 transition-colors cursor-pointer"
+                        onclick="window.__openStoryline('${esc(n.story_id || n.macro_event_id)}', '${esc(n.title)}')"
+                        title="เปิดแฟ้มเกาะติดเหตุการณ์นี้">
+                  <span class="material-symbols-outlined text-[11px]">account_tree</span>
+                  <span>แฟ้มข่าว</span>
+                </button>` : ""}
                 ${n.url ? `
                 <button type="button"
                         class="p-1 rounded text-outline hover:text-on-surface bookmark-btn ${isBookmarked ? 'active text-amber-500' : ''}"
@@ -1201,6 +1213,15 @@ export function renderGrid(articles, newUrlSet = new Set(), bookmarkedMap = {}) 
                     onclick="window.__showLessLikeThis(event, '${articleJsonEncoded}')"
                     title="แสดงเนื้อหาแบบนี้ให้น้อยลง">
               <span class="material-symbols-outlined text-[15px]">visibility_off</span>
+            </button>` : ""}
+
+            ${(n.story_id || n.macro_event_id) ? `
+            <button type="button"
+                    class="editorial-card-action-btn flex items-center gap-1"
+                    onclick="window.__openStoryline('${esc(n.story_id || n.macro_event_id)}', '${esc(n.title)}')"
+                    title="เปิดแฟ้มเหตุการณ์และลำดับความคืบหน้า">
+              <span class="material-symbols-outlined text-[13px]">account_tree</span>
+              <span>แฟ้มประเด็น</span>
             </button>` : ""}
 
             <button type="button" 
@@ -1569,6 +1590,14 @@ export function renderPreviewView(article, isBookmarked = false, cachedSummary =
       </button>
 
       <div class="flex items-center gap-2">
+        ${(article.story_id || article.macro_event_id) ? `
+        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/40 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 text-xs font-bold transition-colors cursor-pointer"
+                onclick="window.__openStoryline('${esc(article.story_id || article.macro_event_id)}', '${esc(article.title)}')"
+                title="ดูแฟ้มลำดับเหตุการณ์และข่าวจากสำนักอื่นในประเด็นเดียวกัน">
+          <span class="material-symbols-outlined text-[16px]">account_tree</span>
+          <span>ดูแฟ้มประเด็นข่าว</span>
+        </button>` : ""}
+
         <button class="bookmark-btn modal-bookmark-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant/40 ${isBookmarked ? 'bg-[#141413] text-white active' : 'bg-white text-on-surface hover:bg-surface-container'} text-xs font-bold transition-colors cursor-pointer"
                 data-url="${esc(article.url)}"
                 onclick="window.__toggleArticleBookmark(event, '${articleJsonEncoded}')">
@@ -2011,16 +2040,8 @@ export function renderStorylineAiSynthesis(synthesisData) {
     return;
   }
 
-  section.innerHTML = `
-    <!-- Executive Summary: เส้นขอบดิ่งบางหรูหราแบบฉบับ Editorial -->
-    <div class="pl-4 sm:pl-5 py-1 border-l-2 ${isSingleSource ? 'border-sky-500/80 dark:border-sky-400/80' : 'border-amber-600/80 dark:border-amber-400/80'} text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
-      ${esc(summaryText || "รวบรวมและสังเคราะห์ประเด็นสำคัญจากสำนักข่าวทั้งหมด")}
-    </div>
-
-    <!-- Two-Column Content: ซ้าย = ไทม์ไลน์ (7 cols) | ขวา = จุดยืนที่ต่างกัน & สิ่งที่รอการยืนยัน (5 cols) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
-      <!-- คอลัมน์ซ้าย (7 ส่วน): ลำดับเหตุการณ์และข้อเท็จจริงที่ยืนยันแล้ว -->
-      <div class="lg:col-span-7 space-y-4">
+  const timelineHtml = `
+      <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[16px] ${isSingleSource ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'}">${isSingleSource ? 'feed' : 'timeline'}</span>
@@ -2057,72 +2078,69 @@ export function renderStorylineAiSynthesis(synthesisData) {
           `}
         </div>
       </div>
+    `;
 
-      <!-- คอลัมน์ขวา (5 ส่วน): มุมมองที่ต่างกัน & ประเด็นที่ยังไม่ชัดเจน -->
-      <div class="lg:col-span-5 space-y-5">
-        ${conflicts.length > 0 ? `
-          <div class="p-4 sm:p-5 rounded-xl bg-amber-50/50 dark:bg-amber-950/15 border border-amber-200/70 dark:border-amber-500/20 space-y-3.5">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[16px]">balance</span>
-              จุดยืนและมุมมองที่ต่างกัน (${conflicts.length} ประเด็น)
-            </h3>
+    const rightColHtml = conflicts.length > 0 ? `
+      <div class="p-4 sm:p-5 rounded-xl bg-amber-50/50 dark:bg-amber-950/15 border border-amber-200/70 dark:border-amber-500/20 space-y-3.5">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">balance</span>
+          จุดยืนและมุมมองที่ต่างกัน (${conflicts.length} ประเด็น)
+        </h3>
 
-            <div class="space-y-3">
-              ${conflicts.map(c => `
-                <div class="p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200/60 dark:border-zinc-700 space-y-2.5 shadow-2xs">
-                  <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wide">${esc(c.topic || "ประเด็นข้อคิดเห็น")}</div>
-                  <div class="space-y-2.5 text-xs">
-                    ${(c.sides || []).map((sd, sIdx) => `
-                      <div class="${sIdx > 0 ? 'border-t border-slate-100 dark:border-zinc-800/80 pt-2.5' : ''} space-y-1">
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                          <span class="font-mono font-bold text-[11px] text-slate-800 dark:text-zinc-200">${esc(sd.source || "สื่อ")}</span>
-                        </div>
-                        <p class="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed pl-3 border-l-2 border-amber-300 dark:border-amber-500/40 break-words">
-                          "${esc(sd.quote || sd.stance || "")}"
-                        </p>
-                      </div>
-                    `).join("")}
+        <div class="space-y-3">
+          ${conflicts.map(c => `
+            <div class="p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200/60 dark:border-zinc-700 space-y-2.5 shadow-2xs">
+              <div class="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wide">${esc(c.topic || "ประเด็นข้อคิดเห็น")}</div>
+              <div class="space-y-2.5 text-xs">
+                ${(c.sides || []).map((sd, sIdx) => `
+                  <div class="${sIdx > 0 ? 'border-t border-slate-100 dark:border-zinc-800/80 pt-2.5' : ''} space-y-1">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                      <span class="font-mono font-bold text-[11px] text-slate-800 dark:text-zinc-200">${esc(sd.source || "สื่อ")}</span>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed pl-3 border-l-2 border-amber-300 dark:border-amber-500/40 break-words">
+                      "${esc(sd.quote || sd.stance || "")}"
+                    </p>
                   </div>
-                </div>
-              `).join("")}
+                `).join("")}
+              </div>
             </div>
-          </div>
-        ` : (isSingleSource ? `
-          <div class="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-500/30 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5">
-            <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[18px] shrink-0 mt-0.5">info</span>
-            <div>
-              <div class="font-bold text-sky-950 dark:text-sky-100">ข้อมูลจากแหล่งข่าวเดียว (Single-Source Report)</div>
-              <p class="text-sky-800 dark:text-sky-300/90 mt-0.5 leading-relaxed">
-                รายงานนี้อ้างอิงจาก ${esc(metrics?.synthesized_publishers?.[0] || "สำนักข่าวฉบับเดียว")} เพียงแหล่งเดียว ยังไม่สามารถเปรียบเทียบหรือยืนยันความสอดคล้องข้ามสำนักข่าวได้
-              </p>
-            </div>
-          </div>
-        ` : `
-          <div class="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
-            <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px] shrink-0 mt-0.5">verified</span>
-            <div>
-              <div class="font-bold">ความสอดคล้องของข้อมูลข่าว</div>
-              <p class="text-emerald-700 dark:text-emerald-400/90 mt-0.5 leading-relaxed">ทุกสำนักข่าวรายงานข้อมูลสอดคล้องกัน ไม่พบจุดยืนหรือข้อเท็จจริงที่ขัดแย้งกันอย่างมีนัยสำคัญ</p>
-            </div>
-          </div>
-        `)}
+          `).join("")}
+        </div>
+      </div>
+    ` : (isSingleSource ? `
+      <div class="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-500/30 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5">
+        <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[18px] shrink-0 mt-0.5">info</span>
+        <div>
+          <div class="font-bold text-sky-950 dark:text-sky-100">ข้อมูลจากแหล่งข่าวเดียว (Single-Source Report)</div>
+          <p class="text-sky-800 dark:text-sky-300/90 mt-0.5 leading-relaxed">
+            รายงานนี้อ้างอิงจาก ${esc(metrics?.synthesized_publishers?.[0] || "สำนักข่าวฉบับเดียว")} เพียงแหล่งเดียว ยังไม่สามารถเปรียบเทียบหรือยืนยันความสอดคล้องข้ามสำนักข่าวได้
+          </p>
+        </div>
+      </div>
+    ` : "");
 
-        ${unknowns.length > 0 ? `
-          <div class="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/15 border border-rose-200/70 dark:border-rose-500/20 flex items-start gap-3">
-            <span class="material-symbols-outlined text-rose-500 text-[18px] mt-0.5 shrink-0">help</span>
-            <div class="space-y-1 text-xs">
-              <div class="font-bold text-rose-900 dark:text-rose-300">ประเด็นที่รอการยืนยัน</div>
-              ${unknowns.map(u => `
-                <p class="text-rose-700 dark:text-rose-200/80 leading-relaxed">• ${esc(u.question || u.why_unclear || "")}</p>
-              `).join("")}
-            </div>
+    const hasRightContent = Boolean(rightColHtml && rightColHtml.trim());
+
+    section.innerHTML = `
+      <!-- Executive Summary: เส้นขอบดิ่งบางหรูหราแบบฉบับ Editorial -->
+      <div class="pl-4 sm:pl-5 py-1 border-l-2 ${isSingleSource ? 'border-sky-500/80 dark:border-sky-400/80' : 'border-amber-600/80 dark:border-amber-400/80'} text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+        ${esc(summaryText || "รวบรวมและสังเคราะห์ประเด็นสำคัญจากสำนักข่าวทั้งหมด")}
+      </div>
+
+      <!-- Content: ถ้ามีมุมมองต่างกันแสดง 2 คอลัมน์ ถ้าไม่มีให้ไทม์ไลน์แสดงเต็มความกว้างอย่างสวยงาม -->
+      <div class="${hasRightContent ? 'grid grid-cols-1 lg:grid-cols-12 gap-6' : 'max-w-4xl'} pt-2">
+        <div class="${hasRightContent ? 'lg:col-span-7' : 'w-full'}">
+          ${timelineHtml}
+        </div>
+        ${hasRightContent ? `
+          <div class="lg:col-span-5 space-y-5">
+            ${rightColHtml}
           </div>
         ` : ""}
       </div>
-    </div>
-  `;
-}
+    `;
+  }
 
 export function renderStorylineAiSummary(summaryData) {
   if (!summaryData) return;
@@ -2956,7 +2974,8 @@ export function renderStorylineView(
   activeSourceFilter = "",
   bookmarkedMap = {},
   activeSportDisciplineFilter = "",
-  activeSportContentTypeFilter = ""
+  activeSportContentTypeFilter = "",
+  activeSubEventFilter = ""
 ) {
   const container = document.getElementById("storyline-view");
   if (!container || !storyData) return;
@@ -2982,7 +3001,11 @@ export function renderStorylineView(
     );
   }
 
-  const storyId = storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
+  const isMacroView = Boolean(
+    storyData._is_macro_view ??
+    (Array.isArray(storyData.child_events) || (storyData.macro_event_id && !storyData.story_id))
+  );
+  const storyId = storyData._target_id || (isMacroView ? storyData.macro_event_id : storyData.story_id) || storyData.macro_event_id || storyData.story_id || storyData.cluster_id || "";
   const heroTitle = storyData.topic_title || storyData.title || storyData.headline || "แฟ้มเจาะลึกประเด็นข่าว";
 
   const synthesis = storyData.synthesis;
@@ -3040,10 +3063,40 @@ export function renderStorylineView(
     return (outletCounts[b] || 0) - (outletCounts[a] || 0);
   });
 
-  // Filter articles based on activeSourceFilter
+  // Build sub-event URL lookup if filtering by a specific Stage A child story
+  let subEventAllowedUrls = null;
+  if (activeSubEventFilter && Array.isArray(storyData.child_events)) {
+    const matchedSub = storyData.child_events.find(
+      ce => String(ce.story_id || "").toLowerCase() === String(activeSubEventFilter).toLowerCase()
+    );
+    if (matchedSub) {
+      subEventAllowedUrls = new Set(
+        [
+          ...(Array.isArray(matchedSub.article_urls) ? matchedSub.article_urls : []),
+          ...(Array.isArray(matchedSub.articles) ? matchedSub.articles.map(a => a.url) : []),
+        ]
+          .filter(Boolean)
+          .map(u => String(u).trim())
+      );
+    }
+  }
+
+  // Filter articles based on activeSubEventFilter and activeSourceFilter
   let filteredArticles = sortedArticles;
+  if (activeSubEventFilter) {
+    filteredArticles = filteredArticles.filter(art => {
+      if (art.story_id && String(art.story_id).toLowerCase() === String(activeSubEventFilter).toLowerCase()) {
+        return true;
+      }
+      if (subEventAllowedUrls && art.url && subEventAllowedUrls.has(String(art.url).trim())) {
+        return true;
+      }
+      return false;
+    });
+  }
+
   if (activeSourceFilter === "__context_excluded__") {
-    filteredArticles = sortedArticles.filter(art => {
+    filteredArticles = filteredArticles.filter(art => {
       const evId = (art.article_id || "").toLowerCase();
       const isOut = irrelevantList.some(irr =>
         (irr.article_id && irr.article_id.toLowerCase() === evId) ||
@@ -3056,7 +3109,7 @@ export function renderStorylineView(
       return isOut || isCtx;
     });
   } else if (activeSourceFilter) {
-    filteredArticles = sortedArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase());
+    filteredArticles = filteredArticles.filter(a => (a.source || "").toLowerCase() === activeSourceFilter.toLowerCase());
   }
 
   const allIsActive = !activeSourceFilter;
@@ -3098,6 +3151,168 @@ export function renderStorylineView(
       </button>
     `;
   }
+
+  // Build Two-Stage Architecture Metadata & Verification Badges
+  const verificationStatus = storyData.verification_status || "verified";
+  const isVerifiedStatus = verificationStatus !== "pending_review";
+  const verificationBadgeHtml = isMacroView
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-500/30" title="โครงเรื่องใหญ่ (Stage B Macro-Event) ที่เชื่อมโยงเหตุการณ์ย่อยที่เกี่ยวข้องเข้าด้วยกัน">
+         <span class="material-symbols-outlined text-[13px]">hub</span>
+         <span>โครงเรื่องใหญ่ (Macro-Event)</span>
+       </span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-500/30" title="เหตุการณ์จำเพาะ (Stage A Event Cluster)">
+         <span class="material-symbols-outlined text-[13px]">event_note</span>
+         <span>เหตุการณ์จำเพาะ (Stage A Event)</span>
+       </span>`;
+
+  const corroborationBadgeHtml = isVerifiedStatus
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30" title="ผ่านการตรวจสอบความสอดคล้องของหลักฐานข้ามสำนักข่าว">
+         <span class="material-symbols-outlined text-[13px]">verified</span>
+         <span>ยืนยันข้ามสำนักข่าว</span>
+       </span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30" title="รอหลักฐานอิสระเพิ่มเติมจากสำนักข่าวอื่น">
+         <span class="material-symbols-outlined text-[13px]">schedule</span>
+         <span>รอการยืนยันเพิ่มเติม</span>
+       </span>`;
+
+  const parentMacroLinkHtml = (!isMacroView && storyData.macro_event_id)
+    ? `<button type="button"
+               onclick="window.__openStoryline('${esc(storyData.macro_event_id)}')"
+               class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer shadow-2xs"
+               title="ดูโครงเรื่องใหญ่ที่ครอบคลุมเหตุการณ์นี้">
+         <span class="material-symbols-outlined text-[13px]">account_tree</span>
+         <span>ดูโครงเรื่องใหญ่ (${esc(storyData.macro_event_id.slice(0, 12))})</span>
+       </button>`
+    : "";
+
+  const antecedentId = storyData.metadata?.antecedent_story_id || "";
+  const antecedentLinkHtml = antecedentId
+    ? `<button type="button"
+               onclick="window.__openStoryline('${esc(antecedentId)}')"
+               class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 transition-colors cursor-pointer"
+               title="คลิกเพื่อดูเหตุการณ์ต้นเรื่องก่อนหน้า (Follow-up Lineage)">
+         <span class="material-symbols-outlined text-[13px]">history</span>
+         <span>ความคืบหน้าต่อเนื่องจาก ${esc(antecedentId.slice(0, 12))}</span>
+       </button>`
+    : "";
+
+  // Extract Typed Event Anchors & Event Time Interval
+  const typedAnchors = storyData.typed_anchors || {};
+  const storylineAnchor = storyData.storyline_anchor || typedAnchors.storyline_anchor || "";
+  const anchorLocations = Array.isArray(typedAnchors.locations) ? typedAnchors.locations.slice(0, 3) : [];
+  const anchorActors = Array.isArray(typedAnchors.actors) ? typedAnchors.actors.slice(0, 3) : [];
+  const anchorActions = Array.isArray(typedAnchors.actions) ? typedAnchors.actions.slice(0, 2) : [];
+  const eventTimeObj = storyData.event_time || {};
+  const eventTimeLabel = (eventTimeObj.precision && eventTimeObj.precision !== "unknown" && eventTimeObj.start_utc)
+    ? formatEditorialDateOnly(eventTimeObj.start_utc)
+    : "";
+
+  const hasAnchorRow = Boolean(storylineAnchor || anchorLocations.length || anchorActors.length || anchorActions.length || eventTimeLabel);
+  const typedAnchorsHtml = hasAnchorRow ? `
+    <div class="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+      ${eventTimeLabel ? `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-medium" title="ช่วงเวลาเกิดเหตุที่สกัดได้จากเนื้อข่าว (Incident Time)">
+          <span class="material-symbols-outlined text-[12px] text-amber-600 dark:text-amber-400">event</span>
+          <span>เวลาเกิดเหตุ: ${esc(eventTimeLabel)}</span>
+        </span>
+      ` : ""}
+      ${storylineAnchor ? `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-500/30 font-semibold">
+          <span class="material-symbols-outlined text-[12px]">bookmark_flag</span>
+          <span>แกนเรื่อง: ${esc(storylineAnchor)}</span>
+        </span>
+      ` : ""}
+      ${anchorLocations.map(loc => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+          <span class="material-symbols-outlined text-[12px] text-rose-500">location_on</span>
+          <span>${esc(loc)}</span>
+        </span>
+      `).join("")}
+      ${anchorActors.map(act => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+          <span class="material-symbols-outlined text-[12px] text-sky-500">person</span>
+          <span>${esc(act)}</span>
+        </span>
+      `).join("")}
+      ${anchorActions.map(ac => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+          <span class="material-symbols-outlined text-[12px] text-emerald-500">bolt</span>
+          <span>${esc(ac)}</span>
+        </span>
+      `).join("")}
+    </div>
+  ` : "";
+
+  // Build Stage A Child Sub-Events Progression (when viewing a Macro-Event with child events)
+  const childEvents = Array.isArray(storyData.child_events) ? storyData.child_events : [];
+  const relations = Array.isArray(storyData.relations) ? storyData.relations : [];
+  const relationTypeLabels = {
+    updates: "อัปเดตความคืบหน้า",
+    precedes: "ลำดับต่อเนื่อง",
+    responds_to: "มาตรการตอบสนอง",
+    caused_by: "สืบเนื่องจากสาเหตุ",
+  };
+
+  const childEventsSectionHtml = childEvents.length > 1 ? `
+    <div id="storyline-subevents-section" class="pt-4 border-t border-slate-100 dark:border-zinc-800 space-y-2.5">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-zinc-200">
+          <span class="material-symbols-outlined text-[16px] text-indigo-600 dark:text-indigo-400">timeline</span>
+          <span>ลำดับเหตุการณ์ย่อยในโครงเรื่อง (${childEvents.length} เหตุการณ์)</span>
+        </div>
+        ${activeSubEventFilter ? `
+          <button type="button"
+                  onclick="window.__filterStorylineSubEvent('')"
+                  class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+            แสดงทุกเหตุการณ์ย่อยทั้งหมด
+          </button>
+        ` : `<span class="text-[11px] text-slate-400 dark:text-zinc-500">คลิกเพื่อกรองข่าวเฉพาะเหตุการณ์ย่อย หรือเปิดแฟ้มแยก</span>`}
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        ${childEvents.map((ce, idx) => {
+          const ceId = ce.story_id || "";
+          const isSelected = activeSubEventFilter && String(activeSubEventFilter).toLowerCase() === String(ceId).toLowerCase();
+          const rel = relations.find(r => r.source_event_id === ceId || r.target_event_id === ceId);
+          const relLabel = rel ? (relationTypeLabels[rel.relation_type] || rel.relation_type) : (idx > 0 ? "พัฒนาการต่อเนื่อง" : "จุดเริ่มต้นประเด็น");
+          const ceArtCount = ce.article_count || (Array.isArray(ce.article_urls) ? ce.article_urls.length : 1);
+          const ceOutletCount = ce.outlet_count || (Array.isArray(ce.outlets) ? ce.outlets.length : 1);
+          return `
+            <div class="p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
+              isSelected
+                ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/30 shadow-xs'
+                : 'border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/40 hover:border-slate-300 dark:hover:border-zinc-700'
+            }">
+              <div class="space-y-1 cursor-pointer" onclick="window.__filterStorylineSubEvent('${esc(ceId)}')">
+                <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
+                  <span class="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold">
+                    EVENT #${idx + 1} • ${esc(relLabel)}
+                  </span>
+                  <span class="text-slate-400 dark:text-zinc-500">${ceArtCount} ข่าว • ${ceOutletCount} สำนัก</span>
+                </div>
+                <div class="text-xs font-bold text-slate-800 dark:text-zinc-100 line-clamp-2 leading-snug">
+                  ${esc(ce.headline || ce.title || "เหตุการณ์ย่อย")}
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-zinc-700/50 text-[11px]">
+                <button type="button"
+                        onclick="window.__filterStorylineSubEvent('${esc(ceId)}')"
+                        class="font-semibold ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800'} cursor-pointer">
+                  ${isSelected ? '✓ กำลังกรองเฉพาะเหตุการณ์นี้' : 'กรองข่าวในหน้านี้'}
+                </button>
+                <button type="button"
+                        onclick="window.__openStoryline('${esc(ceId)}', '${esc(ce.headline || ce.title || "")}')"
+                        class="inline-flex items-center gap-0.5 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        title="เปิดแฟ้มเหตุการณ์จำเพาะนี้แยกต่างหาก">
+                  <span>เปิดแฟ้มย่อย</span>
+                  <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  ` : "";
 
   const storylineHashtags = Array.from(new Set([
     ...(Array.isArray(storyData.hashtags) ? storyData.hashtags : []),
@@ -3317,14 +3532,18 @@ export function renderStorylineView(
 
       <div class="storyline-hero-banner bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 sm:p-8 shadow-sm space-y-6 text-slate-800 dark:text-zinc-100">
         
-        <!-- 1. Header & Tags: สะอาดตา ตรงประเด็น -->
+        <!-- 1. Header & Tags: สะอาดตา ตรงประเด็น พร้อมป้ายกำกับลำดับชั้นเหตุการณ์ (Two-Stage Event Architecture) -->
         <div class="space-y-3 border-b border-slate-100 dark:border-zinc-800 pb-5">
           <div class="flex items-center justify-between flex-wrap gap-2">
-            <div class="flex items-center gap-2.5">
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30">
                 <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
                 AI Storyline Summary
               </span>
+              ${verificationBadgeHtml}
+              ${corroborationBadgeHtml}
+              ${parentMacroLinkHtml}
+              ${antecedentLinkHtml}
               <span class="text-xs text-slate-400 dark:text-zinc-500 font-medium">${formatEditorialDateOnly(storyData.updated_at)}</span>
             </div>
 
@@ -3342,6 +3561,8 @@ export function renderStorylineView(
           <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug tracking-tight">
             ${esc(heroTitle)}
           </h1>
+
+          ${typedAnchorsHtml}
         </div>
 
         <!-- 2. Toggle List: รายงานการคัดกรองข่าวของ AI (Default ปิดไว้ ให้คลิกเปิดดูได้ทันที) -->
@@ -3427,7 +3648,10 @@ export function renderStorylineView(
           </div>
         </div>
 
-        <!-- 4. Tags ประเด็นข่าว -->
+        <!-- 4. Stage A Sub-Events Progression (เมื่ออยู่ในโครงเรื่องใหญ่ที่มีหลายเหตุการณ์ย่อย) -->
+        ${childEventsSectionHtml}
+
+        <!-- 5. Tags ประเด็นข่าว -->
         ${storylineHashtagsHtml}
 
       </div>

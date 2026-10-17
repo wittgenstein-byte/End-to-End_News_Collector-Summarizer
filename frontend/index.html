@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 
   <!-- Styles — Tailwind -->
-  <link rel="stylesheet" href="/frontend/static/app.css?v=3.3.0">
+  <link rel="stylesheet" href="/frontend/static/app.css?v=4.0.0">
   
   <!-- PWA Manifest & Meta -->
   <link rel="manifest" href="/manifest.webmanifest">
@@ -177,9 +177,19 @@
             <!-- Dynamic Source Filters populated via UI.renderSourceFilters -->
           </div>
         </div>
-        <div class="relative w-full lg:w-80 shrink-0">
-          <input class="editorial-search-input" id="search-input" type="text" placeholder="ค้นหาบทความ, ประเด็น, คีย์เวิร์ด...">
-          <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline text-[18px] pointer-events-none">search</span>
+        <div class="editorial-search-group">
+          <div class="search-input-wrapper">
+            <input class="editorial-search-input" id="search-input" type="text" placeholder="ค้นหาบทความ, ประเด็น, คีย์เวิร์ด...">
+            <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline text-[18px] pointer-events-none">search</span>
+          </div>
+          <a href="/issues" 
+             id="issue-explorer-toolbar-btn"
+             onclick="const q = document.getElementById('search-input')?.value?.trim(); if (q) { this.href = '/issues?q=' + encodeURIComponent(q); }"
+             class="editorial-issue-btn"
+             title="เจาะลึกประเด็นและสถิติข่าว (Issue Explorer)">
+            <span class="material-symbols-outlined issue-icon">troubleshoot</span>
+            <span>เจาะประเด็น</span>
+          </a>
         </div>
       </div>
 
@@ -562,6 +572,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <!-- App -->
-  <script type="module" src="/frontend/static/main.js?v=3.3.3"></script>
+  <script type="module" src="/frontend/static/main.js?v=4.0.0"></script>
 </body>
 </html>

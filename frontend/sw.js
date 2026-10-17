@@ -8,11 +8,12 @@
  * 4. Offline Fallback: Serves cached app shell and cached API data seamlessly
  */
 
-const CACHE_NAME = "newsroom-pwa-v3.3.3";
-const API_CACHE_NAME = "newsroom-api-v3.3.3";
+const CACHE_NAME = "newsroom-pwa-v4.0.0";
+const API_CACHE_NAME = "newsroom-api-v4.0.0";
 
 const PRECACHE_ASSETS = [
   "/",
+  "/issues",
   "/frontend/static/app.css",
   "/frontend/static/main.js",
   "/frontend/static/UI.js",
@@ -77,8 +78,8 @@ self.addEventListener("fetch", (event) => {
 
   // 3. API Requests (/api/news, /api/categories, /api/sources) -> Network First, Cache Fallback
   if (url.pathname.startsWith("/api/")) {
-    // Do not cache heavy write or streaming requests like summarize
-    if (url.pathname.includes("/collect-md")) {
+    // Do not cache heavy write or streaming requests, or dynamic issue searches
+    if (url.pathname.includes("/collect-md") || url.pathname.startsWith("/api/issues/")) {
       return;
     }
 

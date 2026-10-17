@@ -119,11 +119,18 @@ app.include_router(collect_router)
 app.include_router(trending_router)
 app.include_router(monitoring_router)
 
+# Issue Explorer — optional vertical slice (lazy import keeps core boot independent)
+if settings.issue_explorer_enabled:
+    from backend.issue_explorer import router as issue_explorer_router
+
+    app.include_router(issue_explorer_router)
+
 
 # ── Frontend static files ─────────────────────────────────────────
 
 _INDEX = settings.frontend_dir / "index.html"
 _MONITORING_PAGE = settings.frontend_dir / "monitoring.html"
+_ISSUES_PAGE = settings.frontend_dir / "issues.html"
 
 
 @app.get("/", response_model=None)
@@ -139,6 +146,16 @@ async def monitoring() -> FileResponse | JSONResponse:
     if _MONITORING_PAGE.exists():
         return FileResponse(str(_MONITORING_PAGE))
     return JSONResponse({"error": f"monitoring.html not found at {_MONITORING_PAGE}"}, status_code=404)
+
+
+@app.get("/issues", response_model=None)
+@app.get("/issues.html", response_model=None)
+async def issues() -> FileResponse | JSONResponse:
+    if not settings.issue_explorer_enabled:
+        return JSONResponse({"error": "Issue Explorer feature is disabled"}, status_code=404)
+    if _ISSUES_PAGE.exists():
+        return FileResponse(str(_ISSUES_PAGE))
+    return JSONResponse({"error": f"issues.html not found at {_ISSUES_PAGE}"}, status_code=404)
 
 
 @app.get("/manifest.webmanifest", response_model=None)

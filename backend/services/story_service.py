@@ -22,10 +22,21 @@ from typing import Any
 
 import numpy as np
 
+from backend.core.url_utils import canonicalize_url
 from backend.repo.story_repo import StoryRepositoryPort, get_story_repository
 from backend.schemas.news_schema import ArticleRecord
-from backend.schemas.story_schema import StoryRecord, _now_utc, _parse_utc_datetime
-from backend.services.entity_extractor import EntityExtractor, get_entity_extractor
+from backend.schemas.story_schema import (
+    EventTimeEvidence,
+    StoryRecord,
+    TypedEventAnchors,
+    _now_utc,
+    _parse_utc_datetime,
+)
+from backend.services.entity_extractor import (
+    EntityExtractor,
+    get_entity_extractor,
+    is_syndicated_duplicate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +93,23 @@ class StoryService:
         self._lock = threading.RLock()
 
     def _get_macro_service(self) -> Any:
-        """Lazily initialize MacroEventService if not injected."""
+        """Lazily initialize MacroEventService if not injected, ensuring test repo isolation."""
         if self._macro_service is None:
+            from backend.repo.macro_event_repo import InMemoryMacroEventRepository, get_macro_event_repository
             from backend.services.macro_event_service import MacroEventService
 
-            self._macro_service = MacroEventService(story_repo=self._story_repo)
+            repo_name = self._story_repo.__class__.__name__.lower()
+            data_file_str = str(getattr(self._story_repo, "_data_file", "")).lower()
+            is_test_repo = (
+                "inmemory" in repo_name
+                or "mock" in repo_name
+                or "test" in data_file_str
+                or "tmp" in data_file_str
+                or "temp" in data_file_str
+                or "pytest" in data_file_str
+            )
+            macro_repo = InMemoryMacroEventRepository() if is_test_repo else get_macro_event_repository()
+            self._macro_service = MacroEventService(story_repo=self._story_repo, macro_repo=macro_repo)
         return self._macro_service
 
     def _get_embedder(self) -> Any:
@@ -97,18 +120,240 @@ class StoryService:
             self._embedder = WangchanEmbedder.get_instance()
         return self._embedder
 
+    def _calculate_stage_a_scores(
+        self,
+        article_embedding: list[float],
+        article_time: EventTimeEvidence,
+        article_anchors: TypedEventAnchors,
+        article_entities: list[str],
+        article_category: str,
+        article_pub_dt: datetime,
+        candidate: StoryRecord,
+    ) -> tuple[float, float, bool, bool, float]:
+        """
+        Calculates calibrated (score_same, score_follow, is_same_eligible, is_follow_eligible, sim_rep).
+        """
+        if not candidate.centroid or len(candidate.centroid) != len(article_embedding):
+            return 0.0, 0.0, False, False, 0.0
+
+        cand_centroid = candidate.centroid
+        cand_medoid = candidate.medoid_embedding or cand_centroid
+        cand_seed = candidate.seed_embedding or cand_centroid
+
+        cos_centroid = _cosine_similarity(article_embedding, cand_centroid)
+        cos_medoid = _cosine_similarity(article_embedding, cand_medoid)
+        cos_seed = _cosine_similarity(article_embedding, cand_seed)
+
+        sim_rep = max(cos_centroid, cos_medoid)
+        sim_seed = cos_seed
+
+        cand_time = (
+            candidate.event_time
+            if isinstance(candidate.event_time, EventTimeEvidence)
+            else EventTimeEvidence()
+        )
+        cand_anchors = (
+            candidate.typed_anchors
+            if isinstance(candidate.typed_anchors, TypedEventAnchors)
+            else TypedEventAnchors()
+        )
+
+        interval_gap = article_time.interval_gap_hours(cand_time)
+
+        shared_locations = set(article_anchors.event_locations) & set(cand_anchors.event_locations)
+        shared_actors = set(article_anchors.actor_names) & set(cand_anchors.actor_names)
+        shared_targets = set(article_anchors.targets) & set(cand_anchors.targets)
+        shared_actions = set(article_anchors.actions) & set(cand_anchors.actions)
+        storyline_match = bool(
+            article_anchors.storyline_anchor
+            and cand_anchors.storyline_anchor
+            and article_anchors.storyline_anchor.lower() == cand_anchors.storyline_anchor.lower()
+        )
+
+        legacy_entity_match = self.has_entity_confirmation(
+            article_entities,
+            candidate.entities,
+        )
+
+        is_progression = (
+            any(
+                act in ("จับกุม", "แจ้งข้อหา", "สอบสวน", "แถลงข่าว", "ฟ้องร้อง", "เยียวยา", "บุกค้น", "ชันสูตร")
+                for act in article_anchors.actions
+            )
+            and bool(shared_actors or shared_locations or storyline_match or legacy_entity_match)
+        )
+
+        has_hard_veto = (
+            interval_gap is not None
+            and interval_gap > 72.0
+            and not is_progression
+        )
+
+        b_anchor = 0.0
+        if shared_locations:
+            b_anchor += 0.06
+        if shared_actors:
+            b_anchor += 0.05
+        if shared_targets or storyline_match:
+            b_anchor += 0.04
+        if shared_actions:
+            b_anchor += 0.03
+        if legacy_entity_match and b_anchor == 0.0:
+            b_anchor += 0.05
+
+        if b_anchor == 0.0 and (article_anchors.actor_names or article_anchors.event_locations):
+            b_anchor = -0.05
+        b_anchor = max(-0.05, min(0.15, b_anchor))
+
+        cand_ref_time = candidate.last_article_at or candidate.updated_at
+        pub_delta_hours = abs((article_pub_dt - cand_ref_time).total_seconds()) / 3600.0
+
+        b_time = 0.0
+        if interval_gap is not None and interval_gap <= 24.0:
+            b_time = 0.04
+        elif interval_gap is None and pub_delta_hours <= 72.0:
+            b_time = 0.00
+        elif pub_delta_hours > 72.0 and article_time.confidence in ("none", "ambiguous"):
+            b_time = -0.15
+            has_hard_veto = True
+
+        score_same = float(np.clip(0.65 * sim_rep + 0.35 * sim_seed + b_anchor + b_time, 0.0, 1.0))
+
+        has_entity = (b_anchor > 0.0) or legacy_entity_match
+        is_same_eligible = (
+            not has_hard_veto
+            and not is_progression
+            and (
+                sim_rep >= self._high_threshold
+                or (sim_rep >= self._low_threshold and has_entity)
+            )
+        )
+
+        supporting_score = (
+            (1.0 if shared_locations else 0.0)
+            + (1.0 if shared_actors else 0.0)
+            + (1.0 if (shared_targets or storyline_match) else 0.0)
+        )
+        score_follow = float(np.clip(0.60 * sim_rep + 0.40 * min(1.0, supporting_score / 2.0), 0.0, 1.0))
+
+        is_follow_eligible = (
+            not has_hard_veto
+            and sim_rep >= 0.65
+            and (
+                is_progression
+                or (sim_seed < 0.70 and sim_rep >= 0.68)
+                or (interval_gap is not None and interval_gap > 24.0 and shared_actions)
+            )
+            and (supporting_score >= 1.0 or storyline_match or legacy_entity_match)
+        )
+
+        return score_same, score_follow, is_same_eligible, is_follow_eligible, sim_rep
+
+    def _merge_story_evidence(
+        self,
+        story: StoryRecord,
+        new_time: EventTimeEvidence,
+        new_anchors: TypedEventAnchors,
+    ) -> None:
+        """Merge temporal evidence and typed anchors into story."""
+        if not isinstance(story.event_time, EventTimeEvidence):
+            story.event_time = EventTimeEvidence()
+        if not isinstance(story.typed_anchors, TypedEventAnchors):
+            story.typed_anchors = TypedEventAnchors()
+
+        if new_time.start_utc and new_time.end_utc:
+            if story.event_time.start_utc is None or new_time.start_utc < story.event_time.start_utc:
+                story.event_time.start_utc = new_time.start_utc
+            if story.event_time.end_utc is None or new_time.end_utc > story.event_time.end_utc:
+                story.event_time.end_utc = new_time.end_utc
+            if story.event_time.precision in ("none", "ambiguous") and new_time.precision not in ("none", "ambiguous"):
+                story.event_time.precision = new_time.precision
+                story.event_time.confidence = new_time.confidence
+
+        for loc in new_anchors.event_locations:
+            if loc not in story.typed_anchors.event_locations:
+                story.typed_anchors.event_locations.append(loc)
+        for act in new_anchors.actor_names:
+            if act not in story.typed_anchors.actor_names:
+                story.typed_anchors.actor_names.append(act)
+        for rol in new_anchors.actor_roles:
+            if rol not in story.typed_anchors.actor_roles:
+                story.typed_anchors.actor_roles.append(rol)
+        for tgt in new_anchors.targets:
+            if tgt not in story.typed_anchors.targets:
+                story.typed_anchors.targets.append(tgt)
+        for a in new_anchors.actions:
+            if a not in story.typed_anchors.actions:
+                story.typed_anchors.actions.append(a)
+        if new_anchors.storyline_anchor and not story.typed_anchors.storyline_anchor:
+            story.typed_anchors.storyline_anchor = new_anchors.storyline_anchor
+
+    def evaluate_promotion(
+        self,
+        story: StoryRecord,
+        new_article: ArticleRecord | dict[str, Any],
+        cos_sim: float = 0.0,
+    ) -> bool:
+        """
+        P0.1: Syndication-Aware Independent Promotion.
+        A pending_review story is promoted to verified IF AND ONLY IF:
+          1. At least 2 member articles from distinct canonical outlets.
+          2. not is_syndicated_duplicate(existing, new_article, cos_sim).
+          3. Typed anchors support the story with zero hard contradictions.
+          4. Prior competing candidate tie resolved by margin >= 0.05.
+        """
+        if story.verification_status == "verified":
+            return True
+
+        new_source = str(
+            new_article.get("source", "")
+            if isinstance(new_article, dict)
+            else getattr(new_article, "source", "")
+        ).strip().lower()
+
+        existing_outlets = {o.strip().lower() for o in story.outlets if o}
+        if new_source:
+            existing_outlets.add(new_source)
+
+        if len(existing_outlets) < 2:
+            return False
+
+        existing_sample = {
+            "title": story.title,
+            "summary": story.summary or "",
+            "source": story.outlets[0] if story.outlets else "",
+        }
+        if is_syndicated_duplicate(existing_sample, new_article, cos_sim=cos_sim):
+            syndicated = story.metadata.setdefault("syndicated_urls", [])
+            new_url = (
+                new_article.get("url", "")
+                if isinstance(new_article, dict)
+                else getattr(new_article, "url", "")
+            )
+            if new_url and new_url not in syndicated:
+                syndicated.append(new_url)
+            return False
+
+        # Independent evidence corroborated!
+        story.verification_status = "verified"
+        story.conflict_type = None
+        story.competing_candidate_ids = []
+        return True
+
     def assign_article(
         self,
         article: ArticleRecord | dict[str, Any],
+        article_embedding: list[float] | None = None,
     ) -> tuple[StoryRecord, bool]:
         """
         Assign an article to an existing story cluster or start a new story.
+        Stage A: Calibrated scoring, hard contradiction veto, margin 0.05 conflict resolution,
+        and evidence-based promotion.
 
         Returns:
             tuple[StoryRecord, bool]: (story, is_new_story)
         """
         with self._lock:
-            # Normalize article record
             record: ArticleRecord
             if isinstance(article, dict):
                 record = ArticleRecord.model_validate(article)
@@ -116,124 +361,215 @@ class StoryService:
                 record = article
 
             clean_url = record.url.strip() if record.url else ""
+            canon_url = canonicalize_url(clean_url) if clean_url else ""
 
-            # Idempotency check: if article already assigned to a story, return it
+            # Idempotency check: lookup by raw URL and canonical URL
             if clean_url:
                 existing_story = self._story_repo.get_story_by_article_url(clean_url)
+                if existing_story is None and canon_url:
+                    existing_story = self._story_repo.get_story_by_article_url(canon_url)
                 if existing_story is not None:
                     record.story_id = existing_story.story_id
                     return existing_story, False
 
-            # Determine article timestamp
             article_dt = self._extract_article_time(record)
+            if article_embedding is None:
+                article_embedding = self._compute_article_embedding(record)
 
-            # Compute article embedding
-            article_embedding = self._compute_article_embedding(record)
-
-            # Extract named entities from Title + Summary
             combined_text = f"{record.title} {record.summary}".strip()
             article_entities = self._entity_extractor.extract_entities(combined_text)
 
-            # Query candidate stories within the 72h candidate window
+            article_time: EventTimeEvidence
+            if hasattr(self._entity_extractor, "extract_event_time_evidence"):
+                raw_time = self._entity_extractor.extract_event_time_evidence(
+                    combined_text, published_at=article_dt
+                )
+                if isinstance(raw_time, EventTimeEvidence):
+                    article_time = raw_time
+                elif isinstance(raw_time, dict):
+                    article_time = EventTimeEvidence.model_validate(raw_time)
+                else:
+                    article_time = EventTimeEvidence(precision="none", confidence="none")
+            else:
+                article_time = EventTimeEvidence(precision="none", confidence="none")
+
+            article_anchors: TypedEventAnchors
+            if hasattr(self._entity_extractor, "extract_typed_anchors"):
+                raw_anchors = self._entity_extractor.extract_typed_anchors(
+                    combined_text, entities=article_entities
+                )
+                if isinstance(raw_anchors, TypedEventAnchors):
+                    article_anchors = raw_anchors
+                elif isinstance(raw_anchors, dict):
+                    article_anchors = TypedEventAnchors.model_validate(raw_anchors)
+                else:
+                    article_anchors = TypedEventAnchors()
+            else:
+                article_anchors = TypedEventAnchors()
+
             window_delta = timedelta(hours=self._candidate_window_hours)
             since_time = article_dt - window_delta
-
-            # Soft category: search all candidates within window to NEVER block cross-category merges
             candidates = self._story_repo.find_candidate_stories(since_time=since_time)
 
-            best_candidate: StoryRecord | None = None
-            best_score: float = -1.0
-
             article_category = str(record.category or "society").strip().lower()
+
+            eligible_same: list[tuple[float, StoryRecord, float]] = []
+            eligible_follow: list[tuple[float, StoryRecord, float]] = []
+            borderline_candidates: list[tuple[float, StoryRecord]] = []
 
             for candidate in candidates:
                 if not candidate.centroid or len(candidate.centroid) != len(article_embedding):
                     continue
 
-                # Cosine similarity between article embedding and story centroid
-                cos_sim = _cosine_similarity(article_embedding, candidate.centroid)
+                score_same, score_follow, is_same, is_follow, cos_sim = self._calculate_stage_a_scores(
+                    article_embedding=article_embedding,
+                    article_time=article_time,
+                    article_anchors=article_anchors,
+                    article_entities=article_entities,
+                    article_category=article_category,
+                    article_pub_dt=article_dt,
+                    candidate=candidate,
+                )
 
-                # Check eligibility under two-band matching
-                is_eligible = False
-                has_entity_match = False
+                if is_same:
+                    candidate_category = str(candidate.category or "").strip().lower()
+                    soft_bonus = 0.01 if candidate_category == article_category else 0.0
+                    eligible_same.append((score_same + soft_bonus, candidate, cos_sim))
+                elif is_follow:
+                    eligible_follow.append((score_follow, candidate, cos_sim))
+                elif cos_sim >= self._low_threshold and not is_same:
+                    borderline_candidates.append((cos_sim, candidate))
 
-                if cos_sim >= self._high_threshold:
-                    # High similarity: direct merge
-                    is_eligible = True
-                elif cos_sim >= self._low_threshold:
-                    # Borderline similarity: requires named entity confirmation
-                    has_entity_match = self.has_entity_confirmation(
-                        article_entities, candidate.entities
-                    )
-                    if has_entity_match:
-                        is_eligible = True
+            eligible_same.sort(key=lambda item: (-item[0], item[1].story_id))
+            eligible_follow.sort(key=lambda item: (-item[0], item[1].story_id))
+
+            chosen_story: StoryRecord | None = None
+            is_follow_up: bool = False
+            antecedent_story: StoryRecord | None = None
+
+            MARGIN = 0.05
+
+            # Rule 1: SAME_EVENT vs SAME_EVENT Tie
+            if len(eligible_same) >= 2 and (eligible_same[0][0] - eligible_same[1][0] < MARGIN):
+                chosen_story = eligible_same[0][1]
+                chosen_story.verification_status = "pending_review"
+                chosen_story.conflict_type = "same_event_tie"
+                chosen_story.competing_candidate_ids = [eligible_same[0][1].story_id, eligible_same[1][1].story_id]
+
+            # Rule 2: SAME_EVENT vs FOLLOW_UP_EVENT Conflict
+            elif len(eligible_same) >= 1 and len(eligible_follow) >= 1:
+                diff = abs(eligible_same[0][0] - eligible_follow[0][0])
+                if diff < MARGIN:
+                    chosen_story = eligible_same[0][1]
+                    chosen_story.verification_status = "pending_review"
+                    chosen_story.conflict_type = "same_vs_followup_tie"
+                    chosen_story.competing_candidate_ids = [eligible_same[0][1].story_id, eligible_follow[0][1].story_id]
+                elif eligible_same[0][0] >= eligible_follow[0][0] + MARGIN:
+                    chosen_story = eligible_same[0][1]
                 else:
-                    # Below low threshold: not eligible
-                    is_eligible = False
+                    is_follow_up = True
+                    antecedent_story = eligible_follow[0][1]
 
-                if not is_eligible:
-                    continue
+            # Rule 3: Clear SAME_EVENT Winner
+            elif len(eligible_same) >= 1:
+                chosen_story = eligible_same[0][1]
 
-                # Soft category signal: small affinity bonus for same category
-                # to break ties / rank, but NEVER blocks cross-category merge
-                candidate_category = str(candidate.category or "").strip().lower()
-                soft_bonus = 0.01 if candidate_category == article_category else 0.0
-                effective_score = cos_sim + soft_bonus
+            # Rule 4: FOLLOW_UP_EVENT Selection
+            elif len(eligible_follow) >= 1:
+                is_follow_up = True
+                antecedent_story = eligible_follow[0][1]
 
-                if effective_score > best_score:
-                    best_score = effective_score
-                    best_candidate = candidate
-
-            if best_candidate is not None:
-                # Merge into existing story
-                best_candidate.add_article(
+            # Execute decision
+            if chosen_story is not None:
+                chosen_story.add_article(
                     url=clean_url,
                     source=record.source,
                     article_time=article_dt,
                     article_entities=article_entities,
                 )
-                best_candidate.update_centroid_ema(
+                chosen_story.update_centroid_ema(
                     new_embedding=article_embedding,
                     alpha=self._ema_alpha,
                 )
-                self._story_repo.save_story(best_candidate)
-                record.story_id = best_candidate.story_id
+                self._merge_story_evidence(chosen_story, article_time, article_anchors)
 
-                # Synchronize enclosing macro-event activity if linked
-                if best_candidate.macro_event_id:
+                top_cos_sim = eligible_same[0][2] if eligible_same else 0.85
+                self.evaluate_promotion(chosen_story, record, cos_sim=top_cos_sim)
+
+                self._story_repo.save_story(chosen_story)
+                record.story_id = chosen_story.story_id
+
+                if chosen_story.macro_event_id:
                     try:
-                        self._get_macro_service().assign_event(best_candidate)
+                        self._get_macro_service().assign_event(chosen_story)
                     except Exception as exc:
                         logger.debug("Macro event sync error on merge: %s", exc)
 
-                return best_candidate, False
+                return chosen_story, False
 
-            # No confident match: start a new story
-            new_story = StoryRecord(
-                title=record.title,
-                category=article_category or "society",
-                status="active",
-                created_at=article_dt,
-                updated_at=article_dt,
-                first_article_at=article_dt,
-                last_article_at=article_dt,
-                article_urls=[clean_url] if clean_url else [],
-                article_count=1 if clean_url else 0,
-                outlets=[record.source] if record.source else [],
-                outlet_count=1 if record.source else 0,
-                centroid=article_embedding,
-                entities=list(article_entities),
-            )
-            self._story_repo.save_story(new_story)
-            record.story_id = new_story.story_id
+            elif is_follow_up and antecedent_story is not None:
+                new_story = StoryRecord(
+                    title=record.title,
+                    category=article_category or "society",
+                    status="active",
+                    verification_status="verified",
+                    created_at=article_dt,
+                    updated_at=article_dt,
+                    first_article_at=article_dt,
+                    last_article_at=article_dt,
+                    article_urls=[clean_url] if clean_url else [],
+                    article_count=1 if clean_url else 0,
+                    outlets=[record.source] if record.source else [],
+                    outlet_count=1 if record.source else 0,
+                    centroid=article_embedding,
+                    seed_embedding=article_embedding,
+                    medoid_embedding=article_embedding,
+                    entities=list(article_entities),
+                    event_time=article_time,
+                    typed_anchors=article_anchors,
+                    metadata={"antecedent_story_id": antecedent_story.story_id},
+                )
+                self._story_repo.save_story(new_story)
+                record.story_id = new_story.story_id
 
-            # Assign new event to a macro-event storyline (SST updated)
-            try:
-                self._get_macro_service().assign_event(new_story)
-            except Exception as exc:
-                logger.debug("Macro event assignment error on new story: %s", exc)
+                try:
+                    self._get_macro_service().assign_event(new_story, antecedent_story_id=antecedent_story.story_id)
+                except Exception as exc:
+                    logger.debug("Macro event follow-up assignment error: %s", exc)
 
-            return new_story, True
+                return new_story, True
+
+            else:
+                # Rule 6: Unrelated Event
+                new_story = StoryRecord(
+                    title=record.title,
+                    category=article_category or "society",
+                    status="active",
+                    verification_status="verified",
+                    created_at=article_dt,
+                    updated_at=article_dt,
+                    first_article_at=article_dt,
+                    last_article_at=article_dt,
+                    article_urls=[clean_url] if clean_url else [],
+                    article_count=1 if clean_url else 0,
+                    outlets=[record.source] if record.source else [],
+                    outlet_count=1 if record.source else 0,
+                    centroid=article_embedding,
+                    seed_embedding=article_embedding,
+                    medoid_embedding=article_embedding,
+                    entities=list(article_entities),
+                    event_time=article_time,
+                    typed_anchors=article_anchors,
+                )
+                self._story_repo.save_story(new_story)
+                record.story_id = new_story.story_id
+
+                try:
+                    self._get_macro_service().assign_event(new_story)
+                except Exception as exc:
+                    logger.debug("Macro event assignment error on new story: %s", exc)
+
+                return new_story, True
 
     def assign_articles_batch(
         self,

@@ -52,6 +52,7 @@ let cachedStorylineSyntheses = {};
 let returnViewHash = "#/";
 let currentStorylineData = null;
 let activeStorylineSourceFilter = "";
+let activeStorylineSubEventFilter = "";
 let activeSportDisciplineFilter = "";
 let activeSportContentTypeFilter = "";
 
@@ -122,57 +123,41 @@ function computeArticlesContentSig(articles) {
     .join("|");
 }
 
-function getStorylineCache(storyId, articles, headline = "") {
+function getStorylineCache(storyId, articles, headline = "", synthesisCacheKey = "", clusterFingerprint = "") {
   if (!cachedStorylineSyntheses) return null;
   const sig = computeArticlesContentSig(articles);
 
-  // 1. By exact content signature first (most reliable)
-  if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
-    return cachedStorylineSyntheses[`sig_${sig}`];
+  // 1. Primary deterministic check: backend synthesis_cache_key (SHA-256 of entity_id + cluster_fingerprint + prompt_version)
+  if (synthesisCacheKey && cachedStorylineSyntheses[`key_${synthesisCacheKey}`]) {
+    return cachedStorylineSyntheses[`key_${synthesisCacheKey}`];
   }
 
-  // 2. By storyId if present, but verify content signature or headline consistency
+  // 2. Exact content signature match
+  if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
+    const sigCached = cachedStorylineSyntheses[`sig_${sig}`];
+    if (!synthesisCacheKey || !sigCached._synthesis_cache_key || sigCached._synthesis_cache_key === synthesisCacheKey) {
+      return sigCached;
+    }
+  }
+
+  // 3. By storyId if present, strictly enforcing synthesis_cache_key / cluster_fingerprint invalidation
   if (storyId && cachedStorylineSyntheses[storyId]) {
     const cached = cachedStorylineSyntheses[storyId];
-    if (cached._content_sig && sig && cached._content_sig === sig) {
-      return cached;
+    if (synthesisCacheKey && cached._synthesis_cache_key && cached._synthesis_cache_key !== synthesisCacheKey) {
+      return null;
     }
-    if (cached._headline && headline) {
-      const hTokensA = extractSpecificEventTokens(cached._headline);
-      const hTokensB = extractSpecificEventTokens(headline);
-      let common = 0;
-      for (const t of hTokensA) { if (hTokensB.has(t)) common++; }
-      if (common >= 2 || (hTokensA.size <= 2 && common >= 1)) {
-        return cached;
-      }
+    if (clusterFingerprint && cached._cluster_fingerprint && cached._cluster_fingerprint !== clusterFingerprint) {
+      return null;
+    }
+    if (cached._content_sig && sig) {
+      return cached._content_sig === sig ? cached : null;
     }
   }
 
-  // 3. By high URL overlap (>= 75% overlap required to prevent cross-story cache collision)
-  if (Array.isArray(articles) && articles.length > 0) {
-    const currentUrls = new Set(
-      articles.map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean)
-    );
-    if (currentUrls.size > 0) {
-      for (const [key, cached] of Object.entries(cachedStorylineSyntheses)) {
-        if (!cached || !Array.isArray(cached._member_urls) || cached._member_urls.length === 0) continue;
-        const cachedUrls = new Set(cached._member_urls);
-        let common = 0;
-        for (const u of currentUrls) {
-          if (cachedUrls.has(u)) common++;
-        }
-        const maxSize = Math.max(currentUrls.size, cachedUrls.size);
-        if (maxSize > 0 && (common / maxSize) >= 0.75) {
-          if (storyId) cachedStorylineSyntheses[storyId] = cached;
-          return cached;
-        }
-      }
-    }
-  }
   return null;
 }
 
-function saveStorylineCache(storyId, articles, synthesis, headline = "") {
+function saveStorylineCache(storyId, articles, synthesis, headline = "", synthesisCacheKey = "", clusterFingerprint = "") {
   if (!synthesis) return;
   const urls = (articles || []).map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean);
   const sig = computeArticlesContentSig(articles);
@@ -180,11 +165,16 @@ function saveStorylineCache(storyId, articles, synthesis, headline = "") {
     ...synthesis,
     _member_urls: urls,
     _content_sig: sig,
+    _synthesis_cache_key: synthesisCacheKey || "",
+    _cluster_fingerprint: clusterFingerprint || "",
     _headline: headline || synthesis.executive_summary || "",
     _saved_at: Date.now(),
   };
   if (storyId) {
     cachedStorylineSyntheses[storyId] = toSave;
+  }
+  if (synthesisCacheKey) {
+    cachedStorylineSyntheses[`key_${synthesisCacheKey}`] = toSave;
   }
   if (sig) {
     cachedStorylineSyntheses[`sig_${sig}`] = toSave;
@@ -1731,7 +1721,22 @@ window.__filterStorylinePublisher = (source) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter
+    );
+  }
+};
+
+window.__filterStorylineSubEvent = (subStoryId) => {
+  activeStorylineSubEventFilter = (activeStorylineSubEventFilter === subStoryId) ? "" : (subStoryId || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter
     );
   }
 };
@@ -1744,7 +1749,8 @@ window.__filterSportDiscipline = (discipline) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter
     );
   }
 };
@@ -1757,7 +1763,8 @@ window.__filterSportContentType = (ctype) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter
     );
   }
 };
@@ -1770,7 +1777,10 @@ window.__openHeroSportDiscipline = (discipline) => {
 window.__runStorylineAiSummary = async (storyId) => {
   UI.showStorylineAiLoading();
   try {
-    const isMacro = Boolean(currentStorylineData?.macro_event_id);
+    const isMacro = Boolean(
+      currentStorylineData?._is_macro_view ??
+      (Array.isArray(currentStorylineData?.child_events) || String(storyId).startsWith("macro_"))
+    );
     const articles = currentStorylineData?.articles || [];
     const articleUrls = articles.map(a => a.url).filter(Boolean);
     const payload = {
@@ -1791,7 +1801,14 @@ window.__runStorylineAiSummary = async (storyId) => {
       if (currentStorylineData) {
         currentStorylineData.synthesis = synthesis;
       }
-      saveStorylineCache(storyId, articles, synthesis, currentStorylineData?.headline || currentStorylineData?.title || "");
+      saveStorylineCache(
+        storyId,
+        articles,
+        synthesis,
+        currentStorylineData?.headline || currentStorylineData?.title || "",
+        currentStorylineData?.synthesis_cache_key || "",
+        currentStorylineData?.cluster_fingerprint || ""
+      );
       UI.renderStorylineAiSynthesis(synthesis);
       // Re-render storyline view so article cards receive outlier warnings and active styles
       if (currentStorylineData) {
@@ -1800,7 +1817,8 @@ window.__runStorylineAiSummary = async (storyId) => {
           activeStorylineSourceFilter,
           personalizationData.bookmarkedArticles || {},
           activeSportDisciplineFilter,
-          activeSportContentTypeFilter
+          activeSportContentTypeFilter,
+          activeStorylineSubEventFilter
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
@@ -1859,19 +1877,28 @@ async function loadStorylineView(storyId) {
   UI.showStorylineLoading();
   UI.switchView("storyline");
   activeStorylineSourceFilter = "";
+  activeStorylineSubEventFilter = "";
   activeSportDisciplineFilter = "";
   activeSportContentTypeFilter = "";
 
   try {
-    // 1. First attempt: fetch macro-event detail from API
-    let storyData = await fetchMacroEventDetail(targetId);
+    let storyData = null;
+    const isStoryPrefix = String(targetId).startsWith("story_");
 
-    // 2. Second attempt: if not macro, fetch story detail from API
-    if (!storyData) {
+    // 1. Smart endpoint dispatch based on persistent ID prefix
+    if (isStoryPrefix) {
       storyData = await fetchStoryDetail(targetId);
+      if (!storyData) {
+        storyData = await fetchMacroEventDetail(targetId);
+      }
+    } else {
+      storyData = await fetchMacroEventDetail(targetId);
+      if (!storyData) {
+        storyData = await fetchStoryDetail(targetId);
+      }
     }
 
-    // 3. Third attempt: In-memory lookup from hero carousel
+    // 2. Third attempt: In-memory lookup from hero carousel
     if (!storyData) {
       const heroStory = UI.getHeroTrendingStoryById(targetId);
       if (heroStory) {
@@ -1879,22 +1906,31 @@ async function loadStorylineView(storyId) {
       }
     }
 
-    // 4. Fourth attempt: Match by keywords or cluster in currentArticleMap
+    // 3. Fourth attempt: Match by persistent story_id, macro_event_id, cluster_id, or keywords in currentArticleMap
     if (!storyData) {
       const matchingArticles = [];
-      const lowerTarget = targetId.toLowerCase();
+      const lowerTarget = String(targetId).toLowerCase();
       for (const [url, art] of currentArticleMap.entries()) {
         const titleLower = (art.title || "").toLowerCase();
         const summaryLower = (art.summary || "").toLowerCase();
         const clusterStr = String(art.cluster_id || "").toLowerCase();
-        if (titleLower.includes(lowerTarget) || summaryLower.includes(lowerTarget) || clusterStr === lowerTarget) {
+        const storyStr = String(art.story_id || "").toLowerCase();
+        const macroStr = String(art.macro_event_id || "").toLowerCase();
+        if (
+          storyStr === lowerTarget ||
+          macroStr === lowerTarget ||
+          clusterStr === lowerTarget ||
+          titleLower.includes(lowerTarget) ||
+          summaryLower.includes(lowerTarget)
+        ) {
           matchingArticles.push(art);
         }
       }
 
       if (matchingArticles.length > 0) {
         storyData = {
-          macro_event_id: targetId,
+          story_id: isStoryPrefix ? targetId : undefined,
+          macro_event_id: !isStoryPrefix ? targetId : undefined,
           cluster_id: targetId,
           title: matchingArticles[0].title,
           headline: matchingArticles[0].title,
@@ -1902,12 +1938,13 @@ async function loadStorylineView(storyId) {
           category: matchingArticles[0].category || "general",
           articles: matchingArticles,
           outlets: Array.from(new Set(matchingArticles.map(a => a.source).filter(Boolean))),
+          _is_fallback_pseudo: true,
         };
       }
     }
 
     if (!storyData) {
-      // 5. Final fallback: Use current hero story if available
+      // 4. Final fallback: Use current hero story if available
       const heroStory = UI.getCurrentHeroTrendingStory();
       if (heroStory) {
         storyData = { ...heroStory };
@@ -1919,37 +1956,73 @@ async function loadStorylineView(storyId) {
       return;
     }
 
+    // Record exact target identity and view level (Macro-Event vs Stage A Story)
+    storyData._target_id = targetId;
+    storyData._is_macro_view = Boolean(
+      Array.isArray(storyData.child_events) ||
+      (storyData.macro_event_id && !storyData.story_id) ||
+      String(targetId).startsWith("macro_")
+    );
+
     // Assemble member articles list
     let memberArticles = Array.isArray(storyData.articles) ? [...storyData.articles] : [];
 
-    // If child_events exist, extract nested articles or URLs
+    // If child_events exist, extract nested articles or URLs and preserve child story_id
+    const childStoryIds = new Set();
     if (Array.isArray(storyData.child_events)) {
       storyData.child_events.forEach(ce => {
+        if (ce.story_id) childStoryIds.add(String(ce.story_id).toLowerCase());
         if (Array.isArray(ce.articles)) {
-          memberArticles.push(...ce.articles);
+          ce.articles.forEach(ca => {
+            if (ca && ca.url) {
+              memberArticles.push({ ...ca, story_id: ca.story_id || ce.story_id });
+            }
+          });
         }
         if (Array.isArray(ce.article_urls)) {
           ce.article_urls.forEach(u => {
             const mapped = currentArticleMap.get(u);
-            if (mapped) memberArticles.push(mapped);
+            if (mapped) {
+              memberArticles.push({ ...mapped, story_id: mapped.story_id || ce.story_id });
+            }
           });
         }
       });
     }
 
-    // Cross-match member articles by cluster_id from currentArticleMap
-    const effectiveClusterId = storyData.cluster_id || storyData.macro_event_id || storyData.story_id;
-    if (effectiveClusterId) {
-      const clusterTarget = String(effectiveClusterId).toLowerCase();
+    // Cross-match member articles strictly by authoritative persistent IDs from currentArticleMap
+    const authoritativeIds = new Set(
+      [
+        targetId,
+        storyData.story_id,
+        storyData._is_macro_view ? storyData.macro_event_id : null,
+        storyData.cluster_id,
+        ...childStoryIds,
+      ]
+        .filter(Boolean)
+        .map(id => String(id).toLowerCase())
+    );
+
+    if (authoritativeIds.size > 0) {
       for (const [u, art] of currentArticleMap.entries()) {
-        if (art.cluster_id && String(art.cluster_id).toLowerCase() === clusterTarget) {
+        const artSid = String(art.story_id || "").toLowerCase();
+        const artMid = String(art.macro_event_id || "").toLowerCase();
+        const artCid = String(art.cluster_id || "").toLowerCase();
+        if (
+          (artSid && authoritativeIds.has(artSid)) ||
+          (artMid && storyData._is_macro_view && authoritativeIds.has(artMid)) ||
+          (artCid && authoritativeIds.has(artCid))
+        ) {
           memberArticles.push(art);
         }
       }
     }
 
-    // If few articles found, cross-match relevant articles from currentArticleMap using strict event anchor overlap
-    if (memberArticles.length <= 1) {
+    // Only use heuristic token overlap if this is a non-authoritative fallback pseudo-cluster
+    const isAuthoritativeEntity = Boolean(
+      !storyData._is_fallback_pseudo && (storyData.story_id || storyData.macro_event_id)
+    );
+    if (!isAuthoritativeEntity && memberArticles.length <= 1) {
       for (const [u, art] of currentArticleMap.entries()) {
         if (hasStrictEventOverlap(storyData, art)) {
           memberArticles.push(art);
@@ -1974,25 +2047,26 @@ async function loadStorylineView(storyId) {
     }
 
     const storyHeadline = storyData.headline || storyData.title || "";
+    const synthCacheKey = storyData.synthesis_cache_key || "";
+    const clusterFp = storyData.cluster_fingerprint || "";
 
     // If synthesis is not attached yet, try to load cached/heuristic synthesis from backend or local cache
     if (!storyData.synthesis && targetId) {
-      // 1. Check local client cache first (0ms, resilient to cluster ID changes via URL signature & overlap)
-      const localCached = getStorylineCache(targetId, storyData.articles, storyHeadline);
+      const localCached = getStorylineCache(targetId, storyData.articles, storyHeadline, synthCacheKey, clusterFp);
       if (localCached && (localCached.executive_summary || localCached.progression_timeline)) {
         storyData.synthesis = localCached;
       } else {
         try {
-          const isMacro = Boolean(storyData.macro_event_id);
+          const isMacro = Boolean(storyData._is_macro_view);
           const cachedSynth = await fetchStorylineSynthesis(targetId, isMacro);
           if (cachedSynth && (cachedSynth.executive_summary || cachedSynth.progression_timeline)) {
             storyData.synthesis = cachedSynth;
-            saveStorylineCache(targetId, storyData.articles, cachedSynth, storyHeadline);
+            saveStorylineCache(targetId, storyData.articles, cachedSynth, storyHeadline, synthCacheKey, clusterFp);
           }
         } catch (_) {}
       }
     } else if (storyData.synthesis && (storyData.synthesis.executive_summary || storyData.synthesis.progression_timeline)) {
-      saveStorylineCache(targetId, storyData.articles, storyData.synthesis, storyHeadline);
+      saveStorylineCache(targetId, storyData.articles, storyData.synthesis, storyHeadline, synthCacheKey, clusterFp);
     }
 
     currentStorylineData = storyData;
@@ -2002,7 +2076,8 @@ async function loadStorylineView(storyId) {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter
     );
   } catch (err) {
     console.error("Failed to load storyline view:", err);
