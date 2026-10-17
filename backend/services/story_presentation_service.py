@@ -28,7 +28,7 @@ import threading
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -53,6 +53,7 @@ from backend.schemas.news_schema import ArticleRecord
 from backend.schemas.story_schema import StoryRecord
 from backend.schemas.story_schema import TimelineEvent as SchemaTimelineEvent
 from backend.schemas.trending_schema import TrendingStoryCluster
+from backend.scrapers.helpers import clean_headline_date_suffix
 from backend.services.evidence_extractor import EvidenceExtractor
 
 logger = logging.getLogger(__name__)
@@ -87,20 +88,33 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "การ", "ความ", "และ", "ใน", "ของ", "ที่", "มี", "เป็น", "ไป", "มา", "กับ", "ให้",
     "ได้", "โดย", "จาก", "เรื่อง", "กรณี", "ปม", "เปิด", "ชี้", "เผย", "สั่ง", "จ่อ",
     "ยัน", "ลั่น", "แจง", "เร่ง", "พบ", "เตือน", "แนะ", "รับ", "ส่ง", "ยื่น", "ขอ",
-    "ข่าว", "รายงาน", "ล่าสุด",
+    "ข่าว", "รายงาน", "ล่าสุด", "วันนี้", "เมื่อวาน", "พรุ่งนี้", "เวลา", "นาที", "ชั่วโมง",
+    "วัน", "เดือน", "ปี", "ด่วน", "คืบหน้า", "แล้ว", "อีก", "จะ", "ยัง", "แต่", "นี้", "นั้น",
+    "ลง", "ขึ้น", "ใต้", "ออก", "เข้า", "ผ่าน", "ร่วม", "ตั้ง", "ทุก", "ทั้ง", "พวก", "หลัง", "ก่อน", "คน", "แห่ง", "ราย",
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+    "2565", "2566", "2567", "2568", "2569", "2570", "2023", "2024", "2025", "2026",
 }
 
 
 def _tokenize_thai_words(text: str) -> list[str]:
-    """Tokenize Thai/English text using pythainlp with regex fallback."""
+    """Tokenize Thai/English text using pythainlp with regex fallback. Strips trailing dates and numeric-only tokens."""
     if not text:
         return []
+    cleaned = clean_headline_date_suffix(text)
     try:
         from pythainlp.tokenize import word_tokenize
-        tokens = word_tokenize(text, engine="newmm")
-        return [t.strip().lower() for t in tokens if len(t.strip()) > 1]
+        tokens = word_tokenize(cleaned, engine="newmm")
+        return [
+            t.strip().lower() for t in tokens
+            if len(t.strip()) > 1 and not re.match(r"^\d+$", t.strip()) and t.strip().lower() not in _RELEVANCE_STOPWORDS
+        ]
     except Exception:
-        return [w.lower() for w in re.findall(r"[\wก-๙]{2,}", text)]
+        return [
+            w.lower() for w in re.findall(r"[\wก-๙]{2,}", cleaned)
+            if not re.match(r"^\d+$", w) and w.lower() not in _RELEVANCE_STOPWORDS
+        ]
 
 
 def normalize_timestamp(ts: Any) -> str:
@@ -611,15 +625,28 @@ class StoryPresentationService:
                 cache_key = f"synthesis_{event_id}"
                 entry = self._disk_cache.get(cache_key)
                 if isinstance(entry, dict) and entry.get("data"):
-                    try:
-                        data = dict(entry["data"])
-                        if require_metrics and data.get("metrics") is None:
-                            logger.debug("find_cached_synthesis: skipping legacy cache entry without metrics for %s", event_id)
-                        else:
-                            data["cached"] = True
-                            return EventProgressionSynthesis.model_validate(data)
-                    except Exception as err:
-                        logger.debug("find_cached_synthesis: direct id validate failed: %s", err)
+                    is_consistent = True
+                    if articles:
+                        current_sig = self.compute_articles_signature(articles)
+                        cached_sig = entry.get("articles_signature")
+                        if cached_sig and cached_sig != current_sig:
+                            is_consistent = False
+                    if title and entry.get("title"):
+                        cached_t = str(entry.get("title")).strip()
+                        toks_c = set(_tokenize_thai_words(cached_t))
+                        toks_cur = set(_tokenize_thai_words(title))
+                        if toks_c and toks_cur and not (toks_c & toks_cur):
+                            is_consistent = False
+                    if is_consistent:
+                        try:
+                            data = dict(entry["data"])
+                            if require_metrics and data.get("metrics") is None:
+                                logger.debug("find_cached_synthesis: skipping legacy cache entry without metrics for %s", event_id)
+                            else:
+                                data["cached"] = True
+                                return EventProgressionSynthesis.model_validate(data)
+                        except Exception as err:
+                            logger.debug("find_cached_synthesis: direct id validate failed: %s", err)
 
             # 2. Content signature match (independent of event_id!)
             if articles:
@@ -639,7 +666,7 @@ class StoryPresentationService:
                     except Exception as err:
                         logger.debug("find_cached_synthesis: sig validate failed: %s", err)
 
-                # 3. Jaccard / Overlap matching (handles cluster id shifts, article additions/subtractions)
+                # 3. High Overlap matching (>= 75% overlap required to prevent cross-story collision)
                 target_urls = set()
                 for a in articles:
                     u = a.get("url") if isinstance(a, dict) else getattr(a, "url", "")
@@ -665,10 +692,16 @@ class StoryPresentationService:
                         if not intersection:
                             continue
 
-                        min_len = min(len(target_urls), len(cached_urls))
-                        overlap_ratio = len(intersection) / max(1, min_len)
+                        max_len = max(len(target_urls), len(cached_urls))
+                        overlap_ratio = len(intersection) / max(1, max_len)
 
-                        if (overlap_ratio >= 0.5 or len(intersection) >= 2 or (min_len == 1 and len(intersection) == 1)) and overlap_ratio > best_overlap_ratio:
+                        if overlap_ratio >= 0.75 and overlap_ratio > best_overlap_ratio:
+                            if title and item.get("title"):
+                                cached_t = str(item.get("title")).strip()
+                                toks_c = set(_tokenize_thai_words(cached_t))
+                                toks_cur = set(_tokenize_thai_words(title))
+                                if toks_c and toks_cur and not (toks_c & toks_cur):
+                                    continue
                             best_overlap_ratio = overlap_ratio
                             best_match_entry = item
 
@@ -936,6 +969,8 @@ class StoryPresentationService:
                 parsed = self._parse_llm_json(raw_text)
                 if not isinstance(parsed, dict):
                     raise TypeError("Malformed relevance gate JSON response.")
+                if "relevant_article_ids" not in parsed:
+                    raise ValueError("Malformed relevance gate response: missing 'relevant_article_ids'")
                 rel_ids = [str(x) for x in parsed.get("relevant_article_ids", []) if str(x) in all_ids]
                 ctx_ids = [str(x) for x in parsed.get("context_article_ids", []) if str(x) in all_ids]
                 excl_ids = [str(x) for x in parsed.get("excluded_article_ids", []) if str(x) in all_ids]
@@ -945,19 +980,18 @@ class StoryPresentationService:
                     if str(k) in all_ids
                 }
 
-                if rel_ids:
-                    accounted = set(rel_ids) | set(ctx_ids) | set(excl_ids)
-                    for cid in all_ids:
-                        if cid not in accounted:
-                            rel_ids.append(cid)
-                    return RelevanceGateResult(
-                        event_id=event_id,
-                        relevant_article_ids=rel_ids,
-                        context_article_ids=ctx_ids,
-                        excluded_article_ids=excl_ids,
-                        exclusion_reasons=reasons,
-                    )
-                raise ValueError("No relevant article IDs found in LLM response.")
+                accounted = set(rel_ids) | set(ctx_ids) | set(excl_ids)
+                for cid in all_ids:
+                    if cid not in accounted:
+                        excl_ids.append(cid)
+                        reasons[cid] = "ไม่ได้ระบุเป็นหลักฐานตรงของเหตุการณ์โดยระบบจำแนก"
+                return RelevanceGateResult(
+                    event_id=event_id,
+                    relevant_article_ids=rel_ids,
+                    context_article_ids=ctx_ids,
+                    excluded_article_ids=excl_ids,
+                    exclusion_reasons=reasons,
+                )
 
             try:
                 assert self._cascading_client is not None
@@ -1020,10 +1054,17 @@ class StoryPresentationService:
                 continue
 
             content = f"{item['title']} {item['summary']}".lower()
+            art_tokens = set(_tokenize_thai_words(content))
 
             has_context = any(ck in content for ck in _RELEVANCE_CONTEXT_KEYWORDS)
-            matched_incident = [w for w in core_incident_tokens if w in content]
-            matched_title = [w for w in title_tokens if w in content]
+            matched_incident = [
+                w for w in core_incident_tokens
+                if w in art_tokens or (len(w) >= 5 and w in content)
+            ]
+            matched_title = [
+                w for w in title_tokens
+                if w in art_tokens or (len(w) >= 5 and w in content)
+            ]
 
             # 1. Check if article is political context (mentions censure/parliament debate but not the specific incident)
             if has_context and not matched_incident:
@@ -1037,12 +1078,13 @@ class StoryPresentationService:
             else:
                 relevant_ids.append(art_id)
 
-        # Safety guardrail: Ensure we don't have 0 relevant articles
+        # Honest accounting: If 0 articles match, record all candidates as excluded with reasons
         if not relevant_ids and candidate_items:
-            relevant_ids = [item["article_id"] for item in candidate_items]
-            context_ids.clear()
-            excluded_ids.clear()
-            reasons.clear()
+            for item in candidate_items:
+                aid = item["article_id"]
+                if aid not in context_ids and aid not in excluded_ids:
+                    excluded_ids.append(aid)
+                    reasons[aid] = "ข่าวนอกประเด็น: เนื้อหาข่าวไม่สอดคล้องกับเหตุการณ์ในพาดหัว"
 
         return RelevanceGateResult(
             event_id=event_id,
@@ -1097,6 +1139,110 @@ class StoryPresentationService:
 
         return (len(errors) == 0, errors)
 
+    def verify_headline_evidence_alignment(
+        self,
+        title: str,
+        relevant_articles: Sequence[Any],
+    ) -> tuple[bool, list[str], str]:
+        """
+        Layer 3 Pre-Synthesis Guardrail:
+        Verifies that surviving candidate articles actually align with the incident in the headline.
+        Prevents synthesizing unrelated events (e.g. Temasek startup funding under a Sri Sakhon shooting headline).
+        Returns:
+        - is_aligned: bool
+        - aligned_article_ids: list[str]
+        - reason: str
+        """
+        if not relevant_articles:
+            return False, [], "ไม่มีข่าวที่เกี่ยวข้องกับเหตุการณ์"
+
+        clean_title = clean_headline_date_suffix(title)
+        title_tokens = _tokenize_thai_words(clean_title)
+        core_incident_tokens = [
+            w for w in title_tokens
+            if not any(ck in w for ck in _RELEVANCE_CONTEXT_KEYWORDS)
+        ]
+        if not core_incident_tokens:
+            core_incident_tokens = list(title_tokens)
+
+        # Multi-sport roundup allows broad pairing across sports disciplines
+        if _check_is_sports_collection(title, relevant_articles):
+            all_ids = [
+                str(a.get("article_id") if isinstance(a, dict) else getattr(a, "article_id", f"art_{i:02d}"))
+                for i, a in enumerate(relevant_articles, 1)
+            ]
+            return True, all_ids, "Sports collection: multi-discipline alignment accepted"
+
+        aligned_ids: list[str] = []
+        for idx, art in enumerate(relevant_articles, start=1):
+            art_id = str(art.get("article_id") if isinstance(art, dict) else getattr(art, "article_id", f"art_{idx:02d}"))
+            t = str(art.get("title") if isinstance(art, dict) else getattr(art, "title", ""))
+            s = str(art.get("summary") if isinstance(art, dict) else getattr(art, "summary", ""))
+            content = f"{t} {s}".lower()
+            art_tokens = set(_tokenize_thai_words(content))
+            matched = [
+                w for w in core_incident_tokens
+                if w in art_tokens or (len(w) >= 5 and w in content)
+            ]
+            if matched:
+                aligned_ids.append(art_id)
+
+        if not aligned_ids:
+            return False, [], "ไม่มีข่าวใดในชุดหลักฐานที่สอดคล้องกับพาดหัวเหตุการณ์"
+
+        return True, aligned_ids, f"พบข่าวที่สอดคล้องกับพาดหัว {len(aligned_ids)} รายการ"
+
+    def _log_pipeline_diagnostic_trace(
+        self,
+        event_id: str,
+        title: str,
+        candidate_articles: Sequence[Any],
+        gate_result: RelevanceGateResult,
+        aligned_ids: Sequence[str],
+        synthesis: EventProgressionSynthesis,
+    ) -> None:
+        """
+        5-Step Pipeline Diagnostic Logger (Observability)
+        Logs structured trace across all 3 layers of event verification.
+        """
+        candidates_summary = [
+            {
+                "id": str(a.get("article_id") if isinstance(a, dict) else getattr(a, "article_id", f"art_{i:02d}")),
+                "source": str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "สำนักข่าว")),
+                "title": str(a.get("title") if isinstance(a, dict) else getattr(a, "title", ""))[:60],
+            }
+            for i, a in enumerate(candidate_articles, 1)
+        ]
+        trace_data = {
+            "step_1_identity": {
+                "event_id": event_id,
+                "title": title,
+                "candidates_count": len(candidate_articles),
+            },
+            "step_2_candidates": candidates_summary[:10],
+            "step_3_exclusions": {
+                "context_count": len(gate_result.context_article_ids),
+                "excluded_count": len(gate_result.excluded_article_ids),
+                "reasons": gate_result.exclusion_reasons,
+            },
+            "step_4_alignment": {
+                "relevant_count": len(gate_result.relevant_article_ids),
+                "aligned_count": len(aligned_ids),
+                "is_single_source": synthesis.is_single_source,
+            },
+            "step_5_synthesis": {
+                "status": synthesis.synthesis_status,
+                "message": synthesis.status_message,
+                "milestones": len(synthesis.progression_timeline),
+                "facts": len(synthesis.confirmed_facts),
+            },
+        }
+        logger.info(
+            "[PIPELINE_TRACE] Event '%s' (%s): status=%s, aligned=%d/%d candidates",
+            title[:40], event_id, synthesis.synthesis_status, len(aligned_ids), len(candidate_articles)
+        )
+        logger.debug("[PIPELINE_TRACE_DETAIL] %s", trace_data)
+
     def synthesize_event_progression(
         self,
         event_id: str,
@@ -1108,10 +1254,11 @@ class StoryPresentationService:
         """
         Synthesize an evidence-grounded Event Progression Intelligence Model
         from member articles (Layer 1: Evidence -> Layer 2: Synthesis -> Layer 3: Executive Dossier).
-        Two-stage pipeline:
+        Three-stage pipeline with Headline-Evidence Alignment Guardrail:
         Stage 1: Event Relevance Gate triages articles into relevant evidence, political context, and excluded outliers.
-        Stage 2: LLM Progression Synthesis receives ONLY relevant evidence articles.
-        Stage 3: Output Validator enforces citation integrity via Hard Reject + Bounded Retry + Fallback.
+        Stage 2: Headline-Evidence Alignment verifies candidate congruence. If 0 align -> halt; if 1 -> single_source.
+        Stage 3: LLM Progression Synthesis receives ONLY aligned relevant evidence articles.
+        Stage 4: Output Validator enforces citation integrity via Hard Reject + Bounded Retry + Fallback.
         Cached by (event_id, fingerprint) with 100% resilient heuristic fallback.
         """
         fingerprint = self.compute_sha256_fingerprint(event_id, articles)
@@ -1146,15 +1293,11 @@ class StoryPresentationService:
             else:
                 candidate_articles_by_id[art_id] = a
 
-        relevant_ids_set = set(gate_result.relevant_article_ids)
-        relevant_articles = [
-            candidate_articles_by_id[aid]
-            for aid in gate_result.relevant_article_ids
-            if aid in candidate_articles_by_id
-        ]
-        if not relevant_articles:
-            relevant_articles = list(candidate_articles_by_id.values())
-            relevant_ids_set = set(candidate_articles_by_id.keys())
+        candidate_publishers: set[str] = {
+            str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+            for a in articles
+            if str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
+        }
 
         # Construct PoliticalContextItem and IrrelevantArticle lists from gate results
         political_contexts: list[PoliticalContextItem] = []
@@ -1191,12 +1334,81 @@ class StoryPresentationService:
                     )
                 )
 
-        # Compute DossierMetrics
-        candidate_publishers: set[str] = {
-            str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
-            for a in articles
-            if str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
-        }
+        initial_relevant = [
+            candidate_articles_by_id[aid]
+            for aid in gate_result.relevant_article_ids
+            if aid in candidate_articles_by_id
+        ]
+
+        # 3. Layer 3 Alignment Guardrail: Verify Candidate-Headline Congruence
+        is_aligned, aligned_ids, alignment_reason = self.verify_headline_evidence_alignment(title, initial_relevant)
+
+        # ── Case 1: 0 articles aligned with headline -> Halt Synthesis ──
+        if not is_aligned or len(aligned_ids) == 0:
+            logger.warning(
+                "synthesize_event_progression: Candidate mismatch halted for event_id=%s, title='%s'. %s",
+                event_id, title, alignment_reason,
+            )
+            halted_status_message = (
+                "ระบบระงับการสังเคราะห์อัตโนมัติ: ชุดข่าวที่รวบรวมได้ (Candidate Set) "
+                "ไม่สอดคล้องกับเหตุการณ์ในพาดหัว เพื่อป้องกันการสังเคราะห์ข้อมูลผิดเรื่อง"
+            )
+            dossier_metrics = DossierMetrics(
+                candidate_count=len(articles),
+                excluded_count=len(articles),
+                synthesized_evidence_count=0,
+                candidate_publishers_count=len(candidate_publishers),
+                synthesized_publishers_count=0,
+                synthesized_publishers=[],
+                synthesis_status="halted_mismatch",
+                status_message=halted_status_message,
+            )
+            # Create a clean halted synthesis without hallucinations
+            halted_synth = EventProgressionSynthesis(
+                event_id=event_id,
+                executive_summary="",
+                progression_timeline=[],
+                confirmed_facts=[],
+                conflicts=[],
+                unknowns=[],
+                irrelevant_articles=irrelevant_articles,
+                political_contexts=political_contexts,
+                metrics=dossier_metrics,
+                synthesis_status="halted_mismatch",
+                status_message=halted_status_message,
+                is_single_source=False,
+                is_fallback=True,
+                cached=False,
+                generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            self._log_pipeline_diagnostic_trace(
+                event_id=event_id,
+                title=title,
+                candidate_articles=ordered_articles,
+                gate_result=gate_result,
+                aligned_ids=[],
+                synthesis=halted_synth,
+            )
+            return halted_synth
+
+        # Restrict relevant_articles strictly to aligned ones
+        relevant_articles = [
+            candidate_articles_by_id[aid]
+            for aid in aligned_ids
+            if aid in candidate_articles_by_id
+        ]
+        relevant_ids_set = set(aligned_ids)
+
+        is_single_source = len(relevant_articles) == 1
+        synthesis_status_val: Literal["synthesized", "single_source"] = (
+            "single_source" if is_single_source else "synthesized"
+        )
+        single_source_msg = (
+            "สรุปจากแหล่งข่าวเดียว: ข้อมูลอ้างอิงจากรายงานของสำนักข่าวเพียงแหล่งเดียว "
+            "ยังไม่สามารถเปรียบเทียบหรือยืนยันข้อมูลตรงกันทุกสื่อได้"
+            if is_single_source else ""
+        )
+
         synthesized_publishers_set: set[str] = {
             str(a.get("source") if isinstance(a, dict) else getattr(a, "source", "") or "").strip()
             for a in relevant_articles
@@ -1206,27 +1418,34 @@ class StoryPresentationService:
 
         dossier_metrics = DossierMetrics(
             candidate_count=len(articles),
-            excluded_count=len(gate_result.context_article_ids) + len(gate_result.excluded_article_ids),
+            excluded_count=len(articles) - len(relevant_articles),
             synthesized_evidence_count=len(relevant_articles),
             candidate_publishers_count=len(candidate_publishers),
             synthesized_publishers_count=len(synthesized_publishers),
             synthesized_publishers=synthesized_publishers,
+            synthesis_status=synthesis_status_val,
+            status_message=single_source_msg,
         )
 
-        # 3. Stage 2: Extract structured evidence payload ONLY for relevant evidence articles
+        # 4. Extract structured evidence payload ONLY for aligned evidence articles
         evidence_payload = EvidenceExtractor.build_payload(
             event_id=event_id,
             title=title,
             articles=relevant_articles,
         )
 
-        # 4. Attempt LLM Synthesis (Layer 2) with Stage 3 Output Validator
+        # 5. Attempt LLM Synthesis (Layer 2) with Stage 3 Output Validator
         synthesis: EventProgressionSynthesis | None = None
         if allow_llm and self._should_attempt_llm() and evidence_payload.articles:
             payload_json = evidence_payload.model_dump_json(indent=2)
+            single_source_directive = (
+                "\n\n[ข้อกำหนดสำคัญ]: มีแหล่งข่าวเพียงแหล่งเดียว ห้ามใช้คำว่า 'ทุกสื่อยืนยันตรงกัน' "
+                "หรือสรุปว่าสำนักข่าวหลายแห่งเห็นพ้อง ให้ระบุชัดเจนว่าเป็นรายงานจากแหล่งข่าวนั้น"
+                if is_single_source else ""
+            )
             user_content = (
                 f"โปรดวิเคราะห์หลักฐานข่าวและสร้างแบบจำลองความคืบหน้าของเหตุการณ์ (Event Progression Synthesis) "
-                f"สำหรับเหตุการณ์: '{title}' (ID: {event_id})\n\n"
+                f"สำหรับเหตุการณ์: '{title}' (ID: {event_id}){single_source_directive}\n\n"
                 f"ชุดข้อมูลหลักฐานเฉพาะที่ผ่านเกณฑ์ (Evidence Input JSON):\n{payload_json}"
             )
 
@@ -1260,6 +1479,9 @@ class StoryPresentationService:
                 parsed["is_fallback"] = False
                 parsed["cached"] = False
                 parsed["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                parsed["synthesis_status"] = synthesis_status_val
+                parsed["is_single_source"] = is_single_source
+                parsed["status_message"] = single_source_msg
                 parsed["metrics"] = dossier_metrics.model_dump(mode="json")
                 parsed["political_contexts"] = [p.model_dump(mode="json") for p in political_contexts]
                 if not parsed.get("irrelevant_articles"):
@@ -1276,7 +1498,7 @@ class StoryPresentationService:
 
                 synthesis = EventProgressionSynthesis.model_validate(parsed)
 
-        # 5. Deterministic Heuristic Fallback if LLM disabled, failed, or hard-rejected
+        # 6. Deterministic Heuristic Fallback if LLM disabled, failed, or hard-rejected
         if synthesis is None:
             synthesis = self._build_fallback_event_synthesis(
                 event_id=event_id,
@@ -1288,8 +1510,21 @@ class StoryPresentationService:
                 political_contexts=political_contexts,
                 irrelevant_articles=irrelevant_articles,
             )
+            synthesis.synthesis_status = synthesis_status_val
+            synthesis.is_single_source = is_single_source
+            synthesis.status_message = single_source_msg
 
-        # 5. Persist to cache (both by event_id AND by content signature and URL list)
+        # 7. Diagnostic Observability Trace
+        self._log_pipeline_diagnostic_trace(
+            event_id=event_id,
+            title=title,
+            candidate_articles=ordered_articles,
+            gate_result=gate_result,
+            aligned_ids=aligned_ids,
+            synthesis=synthesis,
+        )
+
+        # 8. Persist to cache (both by event_id AND by content signature and URL list)
         articles_sig = self.compute_articles_signature(articles)
         article_urls = [
             str(a.get("url") if isinstance(a, dict) else getattr(a, "url", "")).strip()
@@ -1371,6 +1606,16 @@ class StoryPresentationService:
                 generated_at=now_str,
             )
 
+        is_single_source = len(payload.articles) == 1
+        synthesis_status: Literal["synthesized", "single_source"] = (
+            "single_source" if is_single_source else "synthesized"
+        )
+        status_message = (
+            "สรุปจากแหล่งข่าวเดียว: ข้อมูลอ้างอิงจากรายงานของสำนักข่าวเพียงแหล่งเดียว "
+            "ยังไม่สามารถเปรียบเทียบหรือยืนยันข้อมูลตรงกันทุกสื่อได้"
+            if is_single_source else ""
+        )
+
         # 1. Executive Summary
         rep_articles = payload.articles[:6]
         lead_summary = rep_articles[0].summary or rep_articles[0].title
@@ -1381,6 +1626,11 @@ class StoryPresentationService:
                 f"ศูนย์รวมข่าวกีฬาเด่น ผลการแข่งขัน และไฮไลต์สำคัญประจำวัน รวบรวมรายงานจาก {sources_str} "
                 f"รวม {len(payload.articles)} รายการ ครอบคลุมการแข่งขันฟุตบอลยุโรป ฟุตบอลไทย วอลเลย์บอล "
                 f"และความเคลื่อนไหวล่าสุดของทัพนักกีฬา"
+            )
+        elif is_single_source:
+            exec_summary = (
+                f"รายงานข่าวเบื้องต้นเกี่ยวกับ '{title}' อ้างอิงจาก {sources_str} (รายงานฉบับเดียว): "
+                f"{self._clean_text(lead_summary)[:220]}"
             )
         else:
             exec_summary = (
@@ -1512,7 +1762,12 @@ class StoryPresentationService:
                 candidate_publishers_count=len(publishers),
                 synthesized_publishers_count=len(publishers),
                 synthesized_publishers=publishers,
+                synthesis_status=synthesis_status,
+                status_message=status_message,
             )
+        else:
+            final_metrics.synthesis_status = synthesis_status
+            final_metrics.status_message = status_message
 
         return EventProgressionSynthesis(
             event_id=event_id,
@@ -1524,6 +1779,9 @@ class StoryPresentationService:
             irrelevant_articles=final_irrelevant,
             political_contexts=list(political_contexts or []),
             metrics=final_metrics,
+            synthesis_status=synthesis_status,
+            status_message=status_message,
+            is_single_source=is_single_source,
             is_fallback=True,
             cached=False,
             generated_at=now_str,

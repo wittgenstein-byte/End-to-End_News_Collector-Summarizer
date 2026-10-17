@@ -63,6 +63,56 @@ try {
   console.warn("Storage parse error for history/cache:", e);
 }
 
+const THAI_STOPWORDS_AND_DATES = new Set([
+  "และ", "ที่", "ใน", "โดย", "จาก", "กับ", "ให้", "มี", "เป็น", "ได้", "ไม่", "ว่า",
+  "ผู้", "ของ", "นาย", "นาง", "น.ส.", "ด่วน", "ย้ำ", "เตรียม", "คืบหน้า", "คดี", "เหตุ",
+  "เกิดเหตุ", "เจ้าหน้าที่", "ตำรวจ", "เวลา", "เมื่อ", "ชั่วโมง", "นาที", "วัน", "เดือน", "ปี",
+  "คน", "แห่ง", "ราย", "ข่าว", "วันนี้", "ล่าสุด", "เผย", "ชี้", "แจง", "เปิด", "พบ",
+  "รายงาน", "เรื่อง", "การ", "ความ", "ไป", "มา", "เข้า", "ออก", "ขึ้น", "ลง", "จะ",
+  "ยัง", "แต่", "นี้", "นั้น", "พวก", "ทุก", "ทั้ง", "หลัง", "ก่อน", "แล้ว", "อีก",
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "2565", "2566", "2567", "2568", "2569", "2570", "2023", "2024", "2025", "2026",
+]);
+
+function extractSpecificEventTokens(text) {
+  if (!text) return new Set();
+  const cleaned = String(text)
+    .replace(/(?:ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)/gi, " ")
+    .replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4}\b/g, " ")
+    .replace(/\b25\d{2}\b/g, " ")
+    .replace(/\b20\d{2}\b/g, " ");
+
+  const tokens = cleaned
+    .split(/[\s,.:;'"“”‘’/\\()[\]{}|—–-]+/)
+    .map(w => w.trim().toLowerCase())
+    .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !THAI_STOPWORDS_AND_DATES.has(w));
+
+  return new Set(tokens);
+}
+
+function hasStrictEventOverlap(storyData, candidateArticle) {
+  if (!candidateArticle) return false;
+  const storyClusterId = (storyData.cluster_id || storyData.macro_event_id || storyData.story_id || "").toLowerCase();
+  const artClusterId = (candidateArticle.cluster_id || candidateArticle.macro_event_id || candidateArticle.story_id || "").toLowerCase();
+  if (storyClusterId && artClusterId && storyClusterId === artClusterId) {
+    return true;
+  }
+  const storyTokens = extractSpecificEventTokens(storyData.headline || storyData.title || "");
+  if (storyTokens.size === 0) return false;
+
+  const candidateText = `${candidateArticle.title || ""} ${candidateArticle.summary || ""}`.toLowerCase();
+  let matches = 0;
+  for (const token of storyTokens) {
+    if (candidateText.includes(token)) {
+      matches++;
+    }
+  }
+  // Require at least 2 distinct specific entity/location tokens
+  return matches >= 2;
+}
+
 function computeArticlesContentSig(articles) {
   if (!Array.isArray(articles) || articles.length === 0) return "";
   return articles
@@ -72,18 +122,33 @@ function computeArticlesContentSig(articles) {
     .join("|");
 }
 
-function getStorylineCache(storyId, articles) {
+function getStorylineCache(storyId, articles, headline = "") {
   if (!cachedStorylineSyntheses) return null;
-  // 1. By storyId directly
-  if (storyId && cachedStorylineSyntheses[storyId]) {
-    return cachedStorylineSyntheses[storyId];
-  }
-  // 2. By content signature (independent of cluster ID!)
   const sig = computeArticlesContentSig(articles);
+
+  // 1. By exact content signature first (most reliable)
   if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
     return cachedStorylineSyntheses[`sig_${sig}`];
   }
-  // 3. By Jaccard / Overlap (resilient when cluster ID shifts or groups evolve!)
+
+  // 2. By storyId if present, but verify content signature or headline consistency
+  if (storyId && cachedStorylineSyntheses[storyId]) {
+    const cached = cachedStorylineSyntheses[storyId];
+    if (cached._content_sig && sig && cached._content_sig === sig) {
+      return cached;
+    }
+    if (cached._headline && headline) {
+      const hTokensA = extractSpecificEventTokens(cached._headline);
+      const hTokensB = extractSpecificEventTokens(headline);
+      let common = 0;
+      for (const t of hTokensA) { if (hTokensB.has(t)) common++; }
+      if (common >= 2 || (hTokensA.size <= 2 && common >= 1)) {
+        return cached;
+      }
+    }
+  }
+
+  // 3. By high URL overlap (>= 75% overlap required to prevent cross-story cache collision)
   if (Array.isArray(articles) && articles.length > 0) {
     const currentUrls = new Set(
       articles.map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean)
@@ -96,8 +161,8 @@ function getStorylineCache(storyId, articles) {
         for (const u of currentUrls) {
           if (cachedUrls.has(u)) common++;
         }
-        const minSize = Math.min(currentUrls.size, cachedUrls.size);
-        if (common >= 2 || (minSize === 1 && common === 1) || (common / minSize >= 0.5)) {
+        const maxSize = Math.max(currentUrls.size, cachedUrls.size);
+        if (maxSize > 0 && (common / maxSize) >= 0.75) {
           if (storyId) cachedStorylineSyntheses[storyId] = cached;
           return cached;
         }
@@ -107,14 +172,20 @@ function getStorylineCache(storyId, articles) {
   return null;
 }
 
-function saveStorylineCache(storyId, articles, synthesis) {
+function saveStorylineCache(storyId, articles, synthesis, headline = "") {
   if (!synthesis) return;
   const urls = (articles || []).map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean);
-  const toSave = { ...synthesis, _member_urls: urls, _saved_at: Date.now() };
+  const sig = computeArticlesContentSig(articles);
+  const toSave = {
+    ...synthesis,
+    _member_urls: urls,
+    _content_sig: sig,
+    _headline: headline || synthesis.executive_summary || "",
+    _saved_at: Date.now(),
+  };
   if (storyId) {
     cachedStorylineSyntheses[storyId] = toSave;
   }
-  const sig = computeArticlesContentSig(articles);
   if (sig) {
     cachedStorylineSyntheses[`sig_${sig}`] = toSave;
   }
@@ -1716,11 +1787,11 @@ window.__runStorylineAiSummary = async (storyId) => {
       console.warn("triggerStorylineSynthesis failed, trying fallback:", apiErr);
     }
 
-    if (synthesis && (synthesis.executive_summary || synthesis.progression_timeline)) {
+    if (synthesis && (synthesis.executive_summary || synthesis.progression_timeline || synthesis.synthesis_status === "halted_mismatch")) {
       if (currentStorylineData) {
         currentStorylineData.synthesis = synthesis;
       }
-      saveStorylineCache(storyId, articles, synthesis);
+      saveStorylineCache(storyId, articles, synthesis, currentStorylineData?.headline || currentStorylineData?.title || "");
       UI.renderStorylineAiSynthesis(synthesis);
       // Re-render storyline view so article cards receive outlier warnings and active styles
       if (currentStorylineData) {
@@ -1877,15 +1948,10 @@ async function loadStorylineView(storyId) {
       }
     }
 
-    // If few articles found, cross-match relevant articles from currentArticleMap
+    // If few articles found, cross-match relevant articles from currentArticleMap using strict event anchor overlap
     if (memberArticles.length <= 1) {
-      const targetKeywords = (storyData.headline || storyData.title || "")
-        .split(/\s+/)
-        .filter(w => w.length > 2);
-
       for (const [u, art] of currentArticleMap.entries()) {
-        const text = `${art.title || ""} ${art.summary || ""}`;
-        if (targetKeywords.some(kw => text.includes(kw))) {
+        if (hasStrictEventOverlap(storyData, art)) {
           memberArticles.push(art);
         }
       }
@@ -1907,10 +1973,12 @@ async function loadStorylineView(storyId) {
       storyData.outlets = Array.from(new Set(dedupedArticles.map(a => a.source).filter(Boolean)));
     }
 
+    const storyHeadline = storyData.headline || storyData.title || "";
+
     // If synthesis is not attached yet, try to load cached/heuristic synthesis from backend or local cache
     if (!storyData.synthesis && targetId) {
       // 1. Check local client cache first (0ms, resilient to cluster ID changes via URL signature & overlap)
-      const localCached = getStorylineCache(targetId, storyData.articles);
+      const localCached = getStorylineCache(targetId, storyData.articles, storyHeadline);
       if (localCached && (localCached.executive_summary || localCached.progression_timeline)) {
         storyData.synthesis = localCached;
       } else {
@@ -1919,12 +1987,12 @@ async function loadStorylineView(storyId) {
           const cachedSynth = await fetchStorylineSynthesis(targetId, isMacro);
           if (cachedSynth && (cachedSynth.executive_summary || cachedSynth.progression_timeline)) {
             storyData.synthesis = cachedSynth;
-            saveStorylineCache(targetId, storyData.articles, cachedSynth);
+            saveStorylineCache(targetId, storyData.articles, cachedSynth, storyHeadline);
           }
         } catch (_) {}
       }
     } else if (storyData.synthesis && (storyData.synthesis.executive_summary || storyData.synthesis.progression_timeline)) {
-      saveStorylineCache(targetId, storyData.articles, storyData.synthesis);
+      saveStorylineCache(targetId, storyData.articles, storyData.synthesis, storyHeadline);
     }
 
     currentStorylineData = storyData;

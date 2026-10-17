@@ -206,6 +206,14 @@ class DossierMetrics(BaseModel):
         default_factory=list,
         description="List of publisher names in synthesized evidence",
     )
+    synthesis_status: Literal["synthesized", "single_source", "halted_mismatch", "insufficient_evidence"] = Field(
+        default="synthesized",
+        description="Reliability and alignment status of the synthesis dossier",
+    )
+    status_message: str = Field(
+        default="",
+        description="Explanatory message when synthesis is halted, single-source, or has candidate mismatch",
+    )
 
 
 class EventProgressionSynthesis(BaseModel):
@@ -245,6 +253,18 @@ class EventProgressionSynthesis(BaseModel):
     metrics: DossierMetrics | None = Field(
         default=None,
         description="Quantitative audit metrics for the dossier",
+    )
+    synthesis_status: Literal["synthesized", "single_source", "halted_mismatch", "insufficient_evidence"] = Field(
+        default="synthesized",
+        description="Event alignment status: 'synthesized', 'single_source', or 'halted_mismatch'",
+    )
+    status_message: str = Field(
+        default="",
+        description="Human-readable warning or explanation when single-source or halted",
+    )
+    is_single_source: bool = Field(
+        default=False,
+        description="True if synthesized exclusively from a single verified source report",
     )
     is_fallback: bool = Field(default=False, description="True if generated via deterministic heuristic")
     cached: bool = Field(default=False, description="True if served from cache")

@@ -302,6 +302,51 @@ def extract_category_cues(soup: BeautifulSoup, base_url: str = "") -> list[str]:
     return cues
 
 
+THAI_MONTHS_PATTERN = (
+    r"(?:ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|"
+    r"มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)"
+)
+
+
+def clean_headline_date_suffix(title: str) -> str:
+    """
+    Strips trailing date/time metadata or malformed scraped timestamps
+    appended to headlines (e.g., '... 17 ต.ค. 2569', '... 217 ต.ค. 2569').
+    Preserves actual incident numbers (e.g. 'เจ็บ 2') when accidentally merged with dates.
+    """
+    if not title:
+        return ""
+    cleaned = title.strip()
+
+    # Trailing suffix matcher: optional time (e.g. 14:30 น.) and optional source suffix (| สำนักข่าว...)
+    trailing_meta = r"(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*น\.)?)?(?:\s*[-|/•·]\s*.*)?$"
+
+    # 1. Merged number + 2-digit day + Thai month: 'เจ็บ 217 ต.ค. 2569' -> 'เจ็บ 2'
+    merged_pattern = (
+        rf"(\d+?)(0[1-9]|[12][0-9]|3[01])\s*{THAI_MONTHS_PATTERN}"
+        rf"(?:\s+\d{{2,4}})?" + trailing_meta
+    )
+    cleaned = re.sub(merged_pattern, r"\1", cleaned, flags=re.IGNORECASE)
+
+    # 2. Standard trailing Thai date: ' 17 ต.ค. 2569' or ' 17 ตุลาคม 2568'
+    date_pattern = (
+        rf"\s+\d{{1,2}}\s+{THAI_MONTHS_PATTERN}(?:\s+\d{{2,4}})?" + trailing_meta
+    )
+    cleaned = re.sub(date_pattern, "", cleaned, flags=re.IGNORECASE)
+
+    # 3. Trailing month + year without day: ' ต.ค. 2569'
+    month_year_pattern = (
+        rf"\s+{THAI_MONTHS_PATTERN}\s+\d{{2,4}}" + trailing_meta
+    )
+    cleaned = re.sub(month_year_pattern, "", cleaned, flags=re.IGNORECASE)
+
+    # 4. Trailing ISO/numeric dates: ' 2026-10-17' or ' 17/10/2569'
+    numeric_date_pattern = r"\s+\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4}" + trailing_meta
+    cleaned = re.sub(numeric_date_pattern, "", cleaned)
+
+    return cleaned.strip() or title.strip()
+
+
 # ── Article builder ───────────────────────────────────────────────
 
 def make_article(
@@ -317,12 +362,13 @@ def make_article(
     สร้าง article dict พร้อม category ที่จำแนกอัตโนมัติ
     classifier_service ทำงานใน <1ms ไม่ต้องรอ
     """
-    # ใช้ title + summary + url + category_cues สำหรับการจำแนกหมวดหมู่ที่แม่นยำ
+    clean_title = clean_headline_date_suffix(title)
+    # ใช้ clean_title + summary + url + category_cues สำหรับการจำแนกหมวดหมู่ที่แม่นยำ
     category, method = classify_article(
-        title, summary, url=url, category_cues=category_cues
+        clean_title, summary, url=url, category_cues=category_cues
     )
     return {
-        "title": title.strip(),
+        "title": clean_title,
         "summary": summary.strip() if summary else "(ไม่มีเนื้อหา)",
         "source": source,
         "url": url,

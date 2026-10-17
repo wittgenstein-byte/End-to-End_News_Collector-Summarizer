@@ -41,6 +41,7 @@ from backend.schemas.trending_schema import (
     TrendingScoreBreakdown,
     TrendingStoryCluster,
 )
+from backend.scrapers.helpers import clean_headline_date_suffix
 from backend.services.classifier_service import _VALID_CATEGORIES, classify_article
 from backend.services.llm_grouper import LLMBatchEnricher
 
@@ -331,17 +332,71 @@ class WangchanEmbedder:
             return np.vstack([emb for emb in embeddings if emb is not None])
 
 
-# ── Semantic Clusterer (Strictly Zero Jaccard, Cohesion Validated) ─
+# ── Semantic Clusterer & Event Compatibility Gate ─────────────────
+
+_ANCHOR_STOPWORDS = frozenset({
+    "และ", "ที่", "ใน", "โดย", "จาก", "กับ", "ให้", "มี", "เป็น", "ได้", "ไม่", "ว่า",
+    "ผู้", "ของ", "นาย", "นาง", "น.ส.", "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พ.ต.อ.",
+    "พ.ต.ท.", "ร.ต.อ.", "ด่วน", "ย้ำ", "เตรียม", "คืบหน้า", "คดี", "เหตุ", "เกิดเหตุ",
+    "เจ้าหน้าที่", "ตำรวจ", "เวลา", "เมื่อ", "ชั่วโมง", "นาที", "วัน", "เดือน", "ปี",
+    "คน", "แห่ง", "ราย", "ข่าว", "วันนี้", "ล่าสุด", "เผย", "ชี้", "แจง", "เปิด", "พบ",
+    "รายงาน", "เรื่อง", "การ", "ความ", "ไป", "มา", "เข้า", "ออก", "ขึ้น", "ลง", "จะ",
+    "ยัง", "แต่", "นี้", "นั้น", "พวก", "ทุก", "ทั้ง", "หลัง", "ก่อน", "แล้ว", "อีก",
+    "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า", "สิบ",
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+})
+
+_SPORTS_KEYWORDS = frozenset({
+    "ucl", "ชปล", "พรีเมียร์ลีก", "ไทยลีก", "ฟุตบอล", "กีฬา", "วอลเลย์บอล",
+    "ลูกยาง", "ผลบอล", "แข่ง", "แชมป์", "แต้ม", "สโมสร", "นักเตะ", "เอเอฟซี",
+    "แชมเปียนส์", "แชมเปี้ยนส์", "พาราเกมส์", "เทนนิส", "แบดมินตัน",
+})
+
+
+def _is_sports_article(article: dict[str, Any]) -> bool:
+    cat = str(article.get("category") or "").strip().lower()
+    if cat == "sports":
+        return True
+    url = str(article.get("url") or "").lower()
+    if any(k in url for k in ("/sport", "/football", "/soccer", "/premier-league", "/กีฬา", "/ผลบอล")):
+        return True
+    title = str(article.get("title") or "").lower()
+    return any(k in title for k in _SPORTS_KEYWORDS)
+
+
+def _extract_event_anchors(article: dict[str, Any]) -> set[str]:
+    raw_title = str(article.get("title") or "")
+    clean_title = clean_headline_date_suffix(raw_title)
+    try:
+        from pythainlp.tokenize import word_tokenize
+        tokens = word_tokenize(clean_title, engine="newmm")
+    except Exception:
+        tokens = [w for w in re.split(r"[\s,.-]+", clean_title) if w]
+
+    anchors = set()
+    for tok in tokens:
+        t = tok.strip().lower()
+        if (
+            len(t) > 1
+            and not t.isdigit()
+            and t not in _ANCHOR_STOPWORDS
+            and not re.match(r"^\d+$", t)
+        ):
+            anchors.add(t)
+    return anchors
+
 
 class SemanticClusterer:
     """
-    Clusters articles using WangchanBERTa embeddings and Cosine Distance.
-    Features:
+    Graph clustering using WangchanBERTa embeddings with:
     - Matrix dot product: S = E @ E.T
     - Pairwise temporal constraint (|t_i - t_j| <= window_hours)
+    - Event Anchor Agreement (entity/location/action guardrail against category collapse)
     - Configurable similarity threshold
     - Anti-Chain Clustering: Intra-Cluster Cohesion Validation
-    - Strictly ZERO Jaccard or lexical overlap
+    - Deterministic Content-Anchored Cluster ID
     """
 
     def __init__(
@@ -376,16 +431,25 @@ class SemanticClusterer:
         # 1. Cosine similarity matrix via matrix multiplication (since E is L2-normalized)
         sim_matrix = np.clip(embeddings @ embeddings.T, -1.0, 1.0)
 
-        # 2. Pairwise adjacency candidate edges with temporal constraint
+        # 2. Pairwise adjacency candidate edges with temporal constraint and Event Anchor Agreement
+        anchors = [_extract_event_anchors(art) for art in articles]
+        is_sports = [_is_sports_article(art) for art in articles]
+
         adj: list[set[int]] = [set() for _ in range(n)]
         for i in range(n):
             for j in range(i + 1, n):
                 dt_hours = abs((article_times[i] - article_times[j]).total_seconds()) / 3600.0
                 if dt_hours > self.time_window_hours:
                     continue
-                if sim_matrix[i, j] >= self.cosine_threshold:
-                    adj[i].add(j)
-                    adj[j].add(i)
+                sim = float(sim_matrix[i, j])
+                if sim >= self.cosine_threshold:
+                    # Multi-sport roundup allows broad pairing across sports disciplines
+                    is_sports_pair = is_sports[i] and is_sports[j]
+                    has_anchor_overlap = bool(anchors[i] & anchors[j])
+                    # Require shared specific event anchor (entity/location/action) unless sports or near-identical embedding
+                    if is_sports_pair or has_anchor_overlap or sim >= 0.95:
+                        adj[i].add(j)
+                        adj[j].add(i)
 
         # 3. Find connected components (initial candidate clusters)
         visited = [False] * n
@@ -450,11 +514,22 @@ class SemanticClusterer:
 
         # 5. Format clustered results and calculate cluster metadata
         clustered_results: list[dict[str, Any]] = []
-        cluster_counter = 1
 
         for comp in validated_clusters:
-            cid = f"cluster_{cluster_counter}"
-            cluster_counter += 1
+            # Deterministic Content-Anchored Cluster ID
+            comp_urls = sorted([
+                str(articles[idx].get("url") or articles[idx].get("canonical_url") or "").strip()
+                for idx in comp
+                if str(articles[idx].get("url") or articles[idx].get("canonical_url") or "").strip()
+            ])
+            if comp_urls:
+                hash_input = "|".join(comp_urls)
+            else:
+                hash_input = "|".join(sorted([
+                    str(articles[idx].get("title") or "").strip() for idx in comp
+                ]))
+            cluster_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:8]
+            cid = f"cluster_{cluster_hash}"
 
             # Compute average intra-cluster similarity
             k = len(comp)
@@ -985,10 +1060,14 @@ class TrendingService:
         needed_urls = list(
             {u.strip() for s in eligible_stories for u in s.article_urls if u and isinstance(u, str) and u.strip()}
         )
+        raw_news = None
         if hasattr(self._news_repo, "get_by_urls"):
-            raw_news = self._news_repo.get_by_urls(needed_urls)
-        else:
-            raw_news = self._news_repo.load_news()
+            try:
+                raw_news = self._news_repo.get_by_urls(needed_urls)
+            except Exception:
+                raw_news = None
+        if not raw_news:
+            raw_news = self._news_repo.load_news() or []
 
         news_map: dict[str, dict[str, Any]] = {}
         for a in raw_news:

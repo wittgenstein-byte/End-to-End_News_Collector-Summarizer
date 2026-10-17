@@ -944,25 +944,25 @@ function updateHeroTrendingSlide() {
 
       <div class="hero-gradient-overlay">
         <!-- Top Telemetry Row -->
-        <div class="flex items-center justify-between gap-2 pointer-events-auto">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2.5 py-1 rounded bg-[#c84b31] text-white font-mono font-bold text-[10px] tracking-widest uppercase">
+        <div class="flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-auto">
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span class="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-[#c84b31] text-white font-mono font-bold text-[9px] sm:text-[10px] tracking-widest uppercase">
               FEATURED #${String(rankNum).padStart(2, "0")}
             </span>
-            <span class="px-2.5 py-1 rounded bg-black/60 text-white/90 backdrop-blur-md font-mono text-[10px] border border-white/20">
+            <span class="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-black/60 text-white/90 backdrop-blur-md font-mono text-[9px] sm:text-[10px] border border-white/20">
               IMPACT SCORE ${scoreVal}
             </span>
           </div>
-          <div class="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded border border-white/20">
-            <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-            <span class="text-[11px] font-mono font-bold text-white uppercase tracking-wider">${esc(n.source || (n.outlets && n.outlets[0]) || "MULTI-SOURCE")}</span>
+          <div class="flex items-center gap-1.5 sm:gap-2 bg-black/60 backdrop-blur-md px-2.5 sm:px-3 py-0.5 sm:py-1 rounded border border-white/20">
+            <span class="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full" style="background:${color}"></span>
+            <span class="text-[10px] sm:text-[11px] font-mono font-bold text-white uppercase tracking-wider">${esc(n.source || (n.outlets && n.outlets[0]) || "MULTI-SOURCE")}</span>
           </div>
         </div>
 
         <!-- Bottom Editorial Feature Content -->
-        <div class="space-y-3 pointer-events-auto pb-3 max-w-4xl">
-          <div class="space-y-2">
-            <h1 class="text-xl sm:text-3xl md:text-4xl font-headline font-bold hero-headline leading-tight cursor-pointer hover:underline decoration-white/40 underline-offset-4 line-clamp-2"
+        <div class="space-y-2 sm:space-y-3 pointer-events-auto pb-2 sm:pb-3 max-w-4xl">
+          <div class="space-y-1.5 sm:space-y-2">
+            <h1 class="text-base sm:text-3xl md:text-4xl font-headline font-bold hero-headline leading-snug cursor-pointer hover:underline decoration-white/40 underline-offset-4 line-clamp-2"
                 onclick="window.__openPreview('${esc(n.url)}')">
               ${esc(n.title)}
             </h1>
@@ -976,45 +976,45 @@ function updateHeroTrendingSlide() {
               </div>
             ` : ""}
 
-            <div class="flex items-center gap-2 overflow-x-auto flex-nowrap sm:flex-wrap custom-scrollbar max-w-full pb-0.5 pt-1">
+            <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto flex-nowrap sm:flex-wrap custom-scrollbar max-w-full pb-0.5 pt-0.5 sm:pt-1">
               ${publisherPillsHtml}
               ${storylineHashtagsHtml}
             </div>
           </div>
 
-          <div class="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-white/15 w-full">
-            <span class="text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
-            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
-              <div class="flex items-center gap-2 flex-1 sm:flex-initial">
+          <div class="flex items-center justify-between gap-2 flex-wrap pt-1.5 sm:pt-2 border-t border-white/15 w-full">
+            <span class="text-[10px] sm:text-[11px] font-mono text-white/70 uppercase tracking-wider">${esc(n.fetched_at || "")} • STORY ${String(rankNum).padStart(2, "0")}/${String(total).padStart(2, "0")}</span>
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto" onclick="event.stopPropagation()">
+              <div class="flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial">
                 <button type="button" 
-                        class="hero-bookmark-btn bookmark-btn p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
+                        class="hero-bookmark-btn bookmark-btn p-1.5 sm:p-2 rounded-lg border border-white/30 bg-black/50 text-white hover:bg-white hover:text-black transition-colors cursor-pointer shrink-0 ${isBookmarked ? 'active' : ''}"
                         data-url="${esc(n.url)}"
                         onclick="window.__toggleArticleBookmark(event, '${jsonEncoded}')" 
                         title="${isBookmarked ? 'ลบบุ๊กมาร์ก' : 'บันทึกบทความ'}">
-                  <span class="material-symbols-outlined text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
+                  <span class="material-symbols-outlined text-[15px] sm:text-[17px]" style="${isBookmarked ? "font-variation-settings: 'FILL' 1; color: #f59e0b;" : ""}">
                     ${isBookmarked ? 'bookmark' : 'bookmark_border'}
                   </span>
                 </button>
                 <button type="button" 
-                        class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        class="hero-read-abstract-btn flex-1 sm:flex-initial flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm" 
                         onclick="window.__openPreview('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[15px]">article</span>
+                  <span class="material-symbols-outlined text-[14px] sm:text-[15px]">article</span>
                   <span>อ่านบทคัดย่อ</span>
                 </button>
                 <button type="button" 
-                        class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-[#c84b31] hover:opacity-95 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm" 
+                        class="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#c84b31] hover:opacity-95 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-bold text-[11px] sm:text-xs transition-all cursor-pointer shadow-sm" 
                         onclick="window.__openPreviewAndSummarize('${esc(n.url)}')">
-                  <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                  <span class="material-symbols-outlined text-[14px] sm:text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
                   <span>สรุป AI</span>
                 </button>
               </div>
               <button type="button" 
-                      class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-extrabold text-xs transition-all cursor-pointer shadow-lg shrink-0" 
+                      class="hero-storyline-action-btn w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-extrabold text-[11px] sm:text-xs transition-all cursor-pointer shadow-lg shrink-0" 
                       onclick="window.__openCurrentHeroStoryline()"
                       title="เจาะลึกและดูรายงานทุกสำนักข่าวในประเด็นนี้">
-                <span class="material-symbols-outlined text-[16px] text-slate-950 font-bold">account_tree</span>
+                <span class="material-symbols-outlined text-[15px] sm:text-[16px] text-slate-950 font-bold">account_tree</span>
                 <span>ดูข่าวทั้งหมดในประเด็นนี้</span>
-                <span class="bg-black/25 text-slate-950 px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
+                <span class="bg-black/25 text-slate-950 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-extrabold tracking-wider">${outletMap.size} สื่อ</span>
               </button>
             </div>
           </div>
@@ -1970,15 +1970,50 @@ export function renderStorylineAiSynthesis(synthesisData) {
     evidenceCount = usedIds.size || Math.max(1, (metrics?.candidate_count || 0) - excludedCount);
   }
 
+  const isHalted = s.synthesis_status === "halted_mismatch";
+  const isSingleSource = s.synthesis_status === "single_source" || s.is_single_source || evidenceCount === 1;
+
   const toggleTextEl = document.getElementById("storyline-audit-toggle-text");
   if (toggleTextEl) {
     const totalCount = metrics?.candidate_count ?? (evidenceCount + excludedCount);
-    toggleTextEl.innerHTML = `สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCount} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+    if (isHalted) {
+      toggleTextEl.innerHTML = `<span class="text-amber-600 dark:text-amber-400 font-semibold">ระงับการสังเคราะห์ (Candidate Mismatch)</span> • คัดออก ${excludedCount} รายการ`;
+    } else if (isSingleSource) {
+      toggleTextEl.innerHTML = `สรุปจากแหล่งข่าวเดียว (<strong class="text-sky-600 dark:text-sky-400 font-semibold">1</strong>/${totalCount} ข่าว) ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+    } else {
+      toggleTextEl.innerHTML = `สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCount} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+    }
+  }
+
+  // ── Mode 1: Halted Mismatch Alert (Candidate Set incongruent with Headline) ──
+  if (isHalted) {
+    section.innerHTML = `
+      <div class="p-5 sm:p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-4">
+        <div class="flex items-start gap-3.5">
+          <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-[26px] shrink-0 mt-0.5">warning</span>
+          <div class="space-y-1.5">
+            <h4 class="font-bold text-sm sm:text-base text-amber-950 dark:text-amber-100">
+              ระงับการสังเคราะห์อัตโนมัติชั่วคราว (Candidate Set Mismatch)
+            </h4>
+            <p class="text-xs sm:text-sm text-amber-800 dark:text-amber-300/90 leading-relaxed">
+              ${esc(s.status_message || "ระบบตรวจพบว่าชุดข่าวที่รวบรวมได้ ไม่สอดคล้องกับเหตุการณ์ในพาดหัว เพื่อป้องกันการสังเคราะห์ข้อมูลผิดเรื่อง ระบบจึงระงับการสร้างบทสรุปภาพรวมและไทม์ไลน์")}
+            </p>
+          </div>
+        </div>
+        <div class="pt-3 border-t border-amber-500/20 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <span class="text-amber-700 dark:text-amber-400 font-medium">คัดแยกข่าวที่ไม่ตรงเหตุการณ์ออกทั้งหมด ${excludedCount} รายการ</span>
+          <button type="button" onclick="window.__toggleQualityAuditPanel && window.__toggleQualityAuditPanel()" class="px-3.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 font-semibold transition cursor-pointer">
+            ตรวจสอบรายการข่าวที่ถูกคัดออก
+          </button>
+        </div>
+      </div>
+    `;
+    return;
   }
 
   section.innerHTML = `
     <!-- Executive Summary: เส้นขอบดิ่งบางหรูหราแบบฉบับ Editorial -->
-    <div class="pl-4 sm:pl-5 py-1 border-l-2 border-amber-600/80 dark:border-amber-400/80 text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
+    <div class="pl-4 sm:pl-5 py-1 border-l-2 ${isSingleSource ? 'border-sky-500/80 dark:border-sky-400/80' : 'border-amber-600/80 dark:border-amber-400/80'} text-slate-700 dark:text-zinc-200 text-sm sm:text-base leading-relaxed">
       ${esc(summaryText || "รวบรวมและสังเคราะห์ประเด็นสำคัญจากสำนักข่าวทั้งหมด")}
     </div>
 
@@ -1988,8 +2023,8 @@ export function renderStorylineAiSynthesis(synthesisData) {
       <div class="lg:col-span-7 space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400">timeline</span>
-            ลำดับเหตุการณ์สำคัญ (ยืนยันตรงกันทุกสื่อ)
+            <span class="material-symbols-outlined text-[16px] ${isSingleSource ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'}">${isSingleSource ? 'feed' : 'timeline'}</span>
+            ${isSingleSource ? 'ลำดับเหตุการณ์เบื้องต้น (จากรายงานแหล่งข่าวเดียว)' : 'ลำดับเหตุการณ์สำคัญ (ยืนยันตรงกันทุกสื่อ)'}
           </h3>
         </div>
 
@@ -1999,7 +2034,7 @@ export function renderStorylineAiSynthesis(synthesisData) {
             const isLatest = idx === progressionTimeline.length - 1;
             const isFirst = idx === 0;
             const dotBg = isLatest 
-              ? "bg-emerald-500" 
+              ? (isSingleSource ? "bg-sky-500" : "bg-emerald-500")
               : (isFirst ? "bg-amber-500" : "bg-slate-300 dark:bg-zinc-600");
             const timeFormatted = formatEditorialDateTime(item.event_time);
 
@@ -2007,7 +2042,7 @@ export function renderStorylineAiSynthesis(synthesisData) {
               <div class="relative space-y-1.5">
                 <div class="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full ${dotBg} ring-4 ring-white dark:ring-zinc-900"></div>
                 ${timeFormatted ? `
-                  <div class="flex items-center gap-2 text-xs ${isLatest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 dark:text-zinc-500'} font-mono">
+                  <div class="flex items-center gap-2 text-xs ${isLatest ? (isSingleSource ? 'text-sky-600 dark:text-sky-400 font-semibold' : 'text-emerald-600 dark:text-emerald-400 font-semibold') : 'text-slate-400 dark:text-zinc-500'} font-mono">
                     <span>${isLatest ? 'ล่าสุด • ' : ''}${esc(timeFormatted)}</span>
                   </div>
                 ` : ""}
@@ -2053,6 +2088,16 @@ export function renderStorylineAiSynthesis(synthesisData) {
               `).join("")}
             </div>
           </div>
+        ` : (isSingleSource ? `
+          <div class="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-500/30 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5">
+            <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[18px] shrink-0 mt-0.5">info</span>
+            <div>
+              <div class="font-bold text-sky-950 dark:text-sky-100">ข้อมูลจากแหล่งข่าวเดียว (Single-Source Report)</div>
+              <p class="text-sky-800 dark:text-sky-300/90 mt-0.5 leading-relaxed">
+                รายงานนี้อ้างอิงจาก ${esc(metrics?.synthesized_publishers?.[0] || "สำนักข่าวฉบับเดียว")} เพียงแหล่งเดียว ยังไม่สามารถเปรียบเทียบหรือยืนยันความสอดคล้องข้ามสำนักข่าวได้
+              </p>
+            </div>
+          </div>
         ` : `
           <div class="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
             <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px] shrink-0 mt-0.5">verified</span>
@@ -2061,7 +2106,7 @@ export function renderStorylineAiSynthesis(synthesisData) {
               <p class="text-emerald-700 dark:text-emerald-400/90 mt-0.5 leading-relaxed">ทุกสำนักข่าวรายงานข้อมูลสอดคล้องกัน ไม่พบจุดยืนหรือข้อเท็จจริงที่ขัดแย้งกันอย่างมีนัยสำคัญ</p>
             </div>
           </div>
-        `}
+        `)}
 
         ${unknowns.length > 0 ? `
           <div class="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/15 border border-rose-200/70 dark:border-rose-500/20 flex items-start gap-3">
@@ -3241,6 +3286,23 @@ export function renderStorylineView(
     evidenceCount = Math.max(1, totalCandidates - excludedCount);
   }
 
+  const isHalted = synthesis?.synthesis_status === "halted_mismatch";
+  const isSingleSource = synthesis?.synthesis_status === "single_source" || synthesis?.is_single_source || evidenceCount === 1;
+
+  let auditBadgeIcon = "verified_user";
+  let auditBadgeColor = "text-emerald-600 dark:text-emerald-400";
+  let auditBadgeText = `สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCandidates} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+
+  if (isHalted) {
+    auditBadgeIcon = "warning";
+    auditBadgeColor = "text-amber-600 dark:text-amber-400";
+    auditBadgeText = `<span class="text-amber-600 dark:text-amber-400 font-semibold">ระงับการสังเคราะห์ (Candidate Mismatch)</span> • คัดออก ${excludedCount} รายการ`;
+  } else if (isSingleSource) {
+    auditBadgeIcon = "feed";
+    auditBadgeColor = "text-sky-600 dark:text-sky-400";
+    auditBadgeText = `สรุปจากแหล่งข่าวเดียว (<strong class="text-sky-600 dark:text-sky-400 font-semibold">1</strong>/${totalCandidates} ข่าว) ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}`;
+  }
+
   container.innerHTML = `
     <div class="storyline-container">
       <div class="storyline-top-bar" id="storyline-top-bar">
@@ -3272,8 +3334,8 @@ export function renderStorylineView(
                     onclick="window.__toggleQualityAuditPanel()" 
                     class="px-3 py-1.5 rounded-full bg-slate-50 hover:bg-slate-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-medium flex items-center gap-2 transition-colors border border-slate-200 dark:border-zinc-700 cursor-pointer"
                     title="คลิกเพื่อคลี่ดูรายงานการตรวจสอบคุณภาพหลักฐาน">
-              <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[16px]">verified_user</span>
-              <span id="storyline-audit-toggle-text">สังเคราะห์จาก <strong class="text-emerald-700 dark:text-emerald-400 font-semibold">${evidenceCount}</strong>/${totalCandidates} ข่าว ${excludedCount > 0 ? `(คัดออก ${excludedCount})` : ""}</span>
+              <span class="material-symbols-outlined ${auditBadgeColor} text-[16px]">${auditBadgeIcon}</span>
+              <span id="storyline-audit-toggle-text">${auditBadgeText}</span>
             </button>
           </div>
 
