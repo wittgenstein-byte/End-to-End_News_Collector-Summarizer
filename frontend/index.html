@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 
   <!-- Styles — Tailwind -->
-  <link rel="stylesheet" href="/frontend/static/app.css?v=4.0.0">
+  <link rel="stylesheet" href="/frontend/static/app.css?v=4.0.2">
   
   <!-- PWA Manifest & Meta -->
   <link rel="manifest" href="/manifest.webmanifest">
@@ -107,21 +107,31 @@
 
       <!-- Utilities & Navigation -->
       <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Prominent Project Evaluation Button (ซ้ายสุด & เด่นชัด) -->
+        <!-- Prominent Project Evaluation Button -->
         <button id="feedback-nav-btn" 
-                class="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md hover:shadow-lg active:scale-95 transition-all whitespace-nowrap shrink-0 border border-amber-300/80 cursor-pointer mr-1" 
+                class="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md hover:shadow-lg active:scale-95 transition-all whitespace-nowrap shrink-0 border border-amber-300/80 cursor-pointer" 
                 onclick="window.location.hash = '#/evaluation'" 
                 title="คลิกเพื่อทำแบบประเมินโครงงาน (Evaluation Form)">
           <span class="flex h-2 w-2 relative">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-900"></span>
           </span>
-          <span class="material-symbols-outlined text-[17px] text-slate-950 leading-none" style="font-variation-settings: 'FILL' 1;">assignment</span>
+          <span class="material-symbols-outlined text-[16px] sm:text-[17px] text-slate-950 leading-none" style="font-variation-settings: 'FILL' 1;">assignment</span>
           <span class="whitespace-nowrap font-bold text-xs text-slate-950 tracking-wide">แบบประเมิน</span>
         </button>
 
-        <!-- Direct Theme Toggle (SVG Sun / Moon) -->
-        <button id="theme-toggle-direct-btn" class="editorial-icon-btn text-on-surface" onclick="window.__toggleThemeDirectly()" title="สลับโหมดมืด / สว่าง (Toggle Dark/Light Mode)">
+        <!-- Reading History (Desktop) -->
+        <button class="editorial-icon-btn hidden md:inline-flex text-on-surface" onclick="window.__showHistory()" title="ประวัติการอ่าน (Reading History)">
+          <span class="material-symbols-outlined text-[20px]">history</span>
+        </button>
+
+        <!-- Bookmarks (Desktop) -->
+        <button class="editorial-icon-btn hidden md:inline-flex text-on-surface" onclick="window.__showBookmarksModal()" title="บทความที่บันทึกไว้ (Bookmarks)">
+          <span class="material-symbols-outlined text-[20px]">bookmarks</span>
+        </button>
+
+        <!-- Direct Theme Toggle (SVG Sun / Moon) (Desktop) -->
+        <button id="theme-toggle-direct-btn" class="editorial-icon-btn hidden md:inline-flex text-on-surface" onclick="window.__toggleThemeDirectly()" title="สลับโหมดมืด / สว่าง (Toggle Dark/Light Mode)">
           <!-- Sun SVG (shows in dark mode) -->
           <svg class="w-[18px] h-[18px] hidden dark:block text-amber-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="4"></circle>
@@ -132,14 +142,10 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
           </svg>
         </button>
-        <button class="editorial-icon-btn hidden md:inline-flex" onclick="window.__showHistory()" title="ประวัติการอ่าน (Reading History)">
-          <span class="material-symbols-outlined text-[20px]">history</span>
-        </button>
-        <button class="editorial-icon-btn hidden md:inline-flex" onclick="window.__showBookmarksModal()" title="บทความที่บันทึกไว้ (Bookmarks)">
-          <span class="material-symbols-outlined text-[20px]">bookmarks</span>
-        </button>
-        <button class="editorial-icon-btn" onclick="window.__openSettings()" title="ตั้งค่าการแสดงผล & ความเป็นส่วนตัว">
-          <span class="material-symbols-outlined text-[20px]">tune</span>
+
+        <!-- Settings Button (Top Right Corner on Desktop) -->
+        <button id="settings-nav-btn" class="editorial-icon-btn hidden md:inline-flex text-on-surface" onclick="window.__openSettings()" title="ตั้งค่าการแสดงผล & ความเป็นส่วนตัว (Settings)">
+          <span class="material-symbols-outlined text-[20px]">settings</span>
         </button>
       </div>
     </div>
@@ -171,9 +177,9 @@
 
       <!-- ── Editorial Filter & Search Toolbar ── -->
       <div class="editorial-toolbar mb-8" id="toolbar">
-        <div class="flex items-center gap-3 flex-wrap lg:flex-nowrap flex-1 min-w-0">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 min-w-0">
           <span class="text-[11px] font-mono font-bold text-outline uppercase tracking-widest shrink-0">SOURCES /</span>
-          <div class="flex flex-nowrap overflow-x-auto custom-scrollbar lg:flex-wrap gap-1.5 pb-1 max-w-full" id="source-filters">
+          <div class="flex items-center flex-nowrap overflow-x-auto gap-2 pb-1.5 pt-0.5 max-w-full w-full" id="source-filters">
             <!-- Dynamic Source Filters populated via UI.renderSourceFilters -->
           </div>
         </div>
@@ -509,7 +515,7 @@
         <div class="pt-4 border-t border-outline-variant/30">
           <h3 class="font-mono font-bold text-[11px] text-outline uppercase tracking-widest mb-2">Data & Privacy</h3>
           <p class="text-xs text-outline mb-3">สถานะความยินยอม: <span id="setting-consent-status" class="font-bold text-on-surface">Unknown</span></p>
-          <button class="w-full py-2 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors" onclick="window.__clearPersonalizationData()">ล้างข้อมูลในเครื่องทั้งหมด (Clear Local Data)</button>
+          <button class="w-full py-2 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors" onclick="window.__clearPersonalizationData()">ล้างข้อมูลแคช (Clear Local Cache)</button>
         </div>
       </div>
     </div>
@@ -572,6 +578,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <!-- App -->
-  <script type="module" src="/frontend/static/main.js?v=4.0.0"></script>
+  <script type="module" src="/frontend/static/main.js?v=4.0.3"></script>
 </body>
 </html>

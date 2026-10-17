@@ -6,9 +6,27 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js?v=3.3.3";
-import { CATEGORIES, TRENDING_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js?v=3.3.3";
-import * as UI from "./UI.js?v=3.3.3";
+import { fetchNews, summarizeArticle, fetchCategories, fetchSources, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js";
+import {
+  initSocket,
+  getSocket,
+  isConnected,
+  onConnectionChange,
+  onStatsUpdate,
+  onNewsBatch,
+  onTrendingUpdate,
+  onBrowserLoading,
+  onBrowserSnapshot,
+  onBrowserTabOpened,
+  emitBrowserOpenTab,
+  emitBrowserCloseTab,
+  emitBrowserNavigate,
+  emitBrowserGoBack,
+  emitBrowserGoForward,
+  emitBrowserRefresh,
+} from "./socket.js";
+import { CATEGORIES, TRENDING_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js?v=4.0.3";
+import * as UI from "./UI.js?v=4.0.3";
 
 // ── PDPA & Personalization ────────────────────────────────────────
 const PDPA_KEY = "pdpa_consent";
@@ -600,9 +618,8 @@ window.__closeBrowser = () => {
   disarmBrowserLoadTimeout();
 
   // Close backend tabs when user dismisses the in-app browser
-  const socket = getSocket();
-  if (socket && browserTabs.length > 0) {
-    browserTabs.forEach(id => socket.emit("browser_close_tab", { tab_id: id }));
+  if (browserTabs.length > 0) {
+    browserTabs.forEach(id => emitBrowserCloseTab(id));
   }
   browserTabs = [];
   tabStates = {};
@@ -618,8 +635,7 @@ window.__browserNewTab = () => {
   browserTabs.push(tabId);
   currentTabId = tabId;
   tabStates[tabId] = { html: "", url: "", title: "New Tab" };
-  const socket = getSocket();
-  if (socket) socket.emit("browser_open_tab", { tab_id: tabId });
+  emitBrowserOpenTab(tabId);
   document.getElementById("browser-iframe").srcdoc = "";
   document.getElementById("browser-url").value = "";
   document.getElementById("browser-loading").style.display = "none";
@@ -650,8 +666,7 @@ window.__browserCloseTab = (tabId, event) => {
   event.stopPropagation();
   browserTabs = browserTabs.filter(id => id !== tabId);
   delete tabStates[tabId];
-  const socket = getSocket();
-  if (socket) socket.emit("browser_close_tab", { tab_id: tabId });
+  emitBrowserCloseTab(tabId);
   if (currentTabId === tabId) {
     if (browserTabs.length > 0) {
       window.__browserSwitchTab(browserTabs[browserTabs.length - 1]);
@@ -668,26 +683,22 @@ window.__browserNavigate = (urlOverride) => {
   let url = urlOverride || document.getElementById("browser-url").value;
   if (!url.startsWith("http")) url = "https://" + url;
   document.getElementById("browser-url").value = url;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_navigate", { tab_id: currentTabId, url });
+  emitBrowserNavigate(currentTabId, url);
 };
 
 window.__browserBack = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_go_back", { tab_id: currentTabId });
+  emitBrowserGoBack(currentTabId);
 };
 
 window.__browserForward = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_go_forward", { tab_id: currentTabId });
+  emitBrowserGoForward(currentTabId);
 };
 
 window.__browserRefresh = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_refresh", { tab_id: currentTabId });
+  emitBrowserRefresh(currentTabId);
 };
 
 window.__browserAddBookmark = () => {
@@ -1352,54 +1363,63 @@ window.__dismissNewArticlesBanner = (event) => {
   UI.hideFloatingUpdateBanner();
 };
 
-// ── WebSocket ─────────────────────────────────────────────────────
+// ── WebSocket Subscriptions ───────────────────────────────────────
 
 let initialLoadStarted = false;
 
-const socket = createSocket({
-  onConnect() {
-    UI.setWsBadge(true);
-  },
-  onDisconnect() {
-    UI.setWsBadge(false);
-  },
-  onInit(data) {
-    UI.setWsBadge(true);
-    UI.updateStats({ total: data.total, updated: data.updated });
-    if (!initialLoadStarted) {
-      initialLoadStarted = true;
-      loadPage(1);
-    }
-    refreshCategoryCounts();
-    refreshSourceFilters();
-  },
-  onNewArticles(data) {
-    totalNew += data.count;
-    if (data.articles && Array.isArray(data.articles)) {
-      data.articles.forEach(a => {
-        newArticleSet.add(a.url);
-        unreadArticlesQueue.push(a);
-      });
-    }
-    UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
-    if (data.articles && data.articles.length) {
-      UI.updateTicker(data.articles.map(a => a.title));
-    }
-    // Show non-intrusive floating indicator without resetting scroll or feed
-    UI.showFloatingUpdateBanner(unreadArticlesQueue.length);
-    refreshCategoryCounts();
-    refreshSourceFilters();
+// 1. Connection Status Subscription (Drives UI status badge)
+onConnectionChange(({ isConnected: connected, state }) => {
+  UI.setWsBadge(connected);
+  if (state === "RECONNECTING") {
+    console.log("[MAIN] Socket reconnecting in background...");
   }
 });
 
-// ── Browser Socket Handlers (registered immediately — no race condition) ──
-socket.on("browser_loading", (data) => {
+// 2. Initial Stats & Re-sync Subscription
+onStatsUpdate((data) => {
+  UI.setWsBadge(true);
+  UI.updateStats({ total: data.total, updated: data.updated });
+  if (!initialLoadStarted) {
+    initialLoadStarted = true;
+    loadPage(1);
+  }
+  refreshCategoryCounts();
+  refreshSourceFilters();
+});
+
+// 3. Real-Time News Batch Ingestion Subscription
+onNewsBatch((data) => {
+  totalNew += data.count;
+  if (data.articles && Array.isArray(data.articles)) {
+    data.articles.forEach(a => {
+      newArticleSet.add(a.url);
+      unreadArticlesQueue.push(a);
+    });
+  }
+  UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
+  if (data.articles && data.articles.length) {
+    UI.updateTicker(data.articles.map(a => a.title));
+  }
+  // Show non-intrusive floating indicator without resetting scroll or feed
+  UI.showFloatingUpdateBanner(unreadArticlesQueue.length);
+  refreshCategoryCounts();
+  refreshSourceFilters();
+});
+
+// 4. Real-Time Trending Update Subscription
+onTrendingUpdate((data) => {
+  console.log("[MAIN] Real-time trending update received:", data);
+});
+
+// ── Browser Remote Handlers (registered via socket.js) ────────────
+onBrowserLoading((data) => {
   if (data.tab_id === currentTabId) {
     document.getElementById("browser-loading").style.display = "flex";
     armBrowserLoadTimeout();
   }
 });
-socket.on("browser_snapshot", (data) => {
+
+onBrowserSnapshot((data) => {
   // Cache tab state regardless of which tab is active
   if (tabStates[data.tab_id]) {
     tabStates[data.tab_id] = {
@@ -1441,10 +1461,14 @@ socket.on("browser_snapshot", (data) => {
     }
   }
 });
-socket.on("browser_tab_opened", (data) => {
+
+onBrowserTabOpened((data) => {
   // Tab opened confirmation from server
   console.log("Tab opened on server:", data.tab_id);
 });
+
+// ── Initialize Socket Connection ──────────────────────────────────
+initSocket();
 
 // ── Source Filter handler ──────────────────────────────────────────
 
@@ -1546,12 +1570,59 @@ document.getElementById("toast").addEventListener("click", () => {
   }
 });
 
-// ── Modal close ───────────────────────────────────────────────────
+// ── Modal Dismiss (Outside / Backdrop Click & Escape Key) ──────────
 
-document.getElementById("summary-modal").addEventListener("click", e => {
-  if (e.target === e.currentTarget) UI.closeModal();
+function setupModalBackdropDismiss(modalId, closeFn) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.addEventListener("click", (e) => {
+    // Determine the inner card element
+    const innerCard = modal.querySelector("#modal-content-wrap") || modal.firstElementChild;
+    if (innerCard && !innerCard.contains(e.target)) {
+      closeFn();
+    }
+  });
+}
+
+// Attach outside-click dismiss to all modals
+setupModalBackdropDismiss("summary-modal", () => UI.closeModal());
+setupModalBackdropDismiss("history-modal", () => window.__closeHistoryModal?.());
+setupModalBackdropDismiss("settings-modal", () => window.__closeSettings?.());
+setupModalBackdropDismiss("privacy-modal", () => window.__closePrivacyModal?.());
+setupModalBackdropDismiss("feedback-prompt-modal", () => UI.hideFeedbackPromptModal?.());
+
+document.getElementById("modal-close-btn")?.addEventListener("click", () => UI.closeModal());
+
+// Escape key dismiss handler
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const historyModal = document.getElementById("history-modal");
+    if (historyModal && !historyModal.classList.contains("hidden")) {
+      window.__closeHistoryModal?.();
+      return;
+    }
+    const settingsModal = document.getElementById("settings-modal");
+    if (settingsModal && !settingsModal.classList.contains("hidden")) {
+      window.__closeSettings?.();
+      return;
+    }
+    const privacyModal = document.getElementById("privacy-modal");
+    if (privacyModal && !privacyModal.classList.contains("hidden")) {
+      window.__closePrivacyModal?.();
+      return;
+    }
+    const summaryModal = document.getElementById("summary-modal");
+    if (summaryModal && !summaryModal.classList.contains("pointer-events-none")) {
+      UI.closeModal();
+      return;
+    }
+    const feedbackModal = document.getElementById("feedback-prompt-modal");
+    if (feedbackModal && !feedbackModal.classList.contains("hidden")) {
+      UI.hideFeedbackPromptModal?.();
+      return;
+    }
+  }
 });
-document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
 
 // ── PWA Router & Preview Sub-View Controller ──────────────────────
 
