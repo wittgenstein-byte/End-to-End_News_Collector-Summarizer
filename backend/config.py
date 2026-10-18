@@ -217,11 +217,14 @@ class Settings:
     obscura_service_url: str    = _get("OBSCURA_SERVICE_URL", "")
     # Dynamic Cross-Origin Resource Sharing (CORS)
     cors_origins: ClassVar[list[str]] = _parse_csv(
-        _get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5500,http://localhost:3000"),
-        ["http://localhost:5173", "http://127.0.0.1:5500", "http://localhost:3000"],
+        _get(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5500,http://localhost:3000,https://e2enews.wittensky.com",
+        ),
+        ["http://localhost:5173", "http://127.0.0.1:5500", "http://localhost:3000", "https://e2enews.wittensky.com"],
     )
     cors_origin_regex: str | None = (
-        _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").strip() or None
+        _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1|.*\.wittensky\.com)(:\d+)?$").strip() or None
     )
 
     # Headless / Decoupled Mode
@@ -246,7 +249,9 @@ class Settings:
     def __init__(self) -> None:
         self.headless: bool = _get("HEADLESS", "false").lower() in {"1", "true", "yes"}
         self.serve_frontend: bool = _get("SERVE_FRONTEND", "true").lower() in {"1", "true", "yes"}
-        raw_regex = _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").strip()
+        raw_regex = _get(
+            "CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1|.*\.wittensky\.com)(:\d+)?$"
+        ).strip()
         self.cors_origin_regex: str | None = raw_regex or None
 
 
