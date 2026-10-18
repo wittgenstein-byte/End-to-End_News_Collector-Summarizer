@@ -7,7 +7,7 @@
 ## 🌟 จุดเด่นของระบบ (Key Highlights)
 
 - 📡 **รวบรวมข่าวสารจาก 14 สำนักข่าวชั้นนำ:** ดึงข่าวต่อเนื่องทั้งผ่าน RSS Feed, HTTP Scraping และ Headless Browser (Playwright)
-- 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification):** ตรวจจับรวดเร็วระดับเสี้ยววินาทีด้วย URL Priority (<0.1ms), กฎคำสำคัญทางภาษาศาสตร์ (NLP) และโมเดล Machine Learning (TF-IDF + SVM)
+- 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification Engine):** ผสานการตรวจจับรวดเร็วระดับเสี้ยววินาทีด้วย URL Priority (<0.1ms), โมเดล Calibrated LinearSVC (TF-IDF) และโมเดลการเรียนรู้เชิงลึก **WangchanBERTa (Fine-tuned Transformer)** สำหรับวิเคราะห์บริบทข่าวกำกวมสูงข้าม 9 หมวดหมู่
 - 🧭 **ติดตามมหากาพย์ประเด็นข่าว 2 ชั้น (Two-Stage Story & Macro-Event Identification):**
   - **Stage A (Sub-Events):** จัดกลุ่มข่าวเหตุการณ์ย่อยด้วย Dense Vector (WangchanBERTa 768-d), การยืนยัน Named Entity (`thainer-v2`) และหน้าต่างสืบค้น 72 ชั่วโมงแบบไม่จำกัดอายุขัย
   - **Stage B (Macro Storyline):** เชื่อมโยงพัฒนาการมหากาพย์ข้ามช่วงเวลา พร้อมกลไกความปลอดภัยทางวิศวกรรม: **Strict Province-Only Veto** (ยับยั้งการรวมกลุ่มหากตรงกันเพียงชื่อจังหวัด), **Episode-Scoped Anchors (45 วัน)** ป้องกันการรวมข้ามฤดูกาล, **Thai Normalization & Location Hierarchy** 3 ระดับครอบคลุม 77 จังหวัด, และ **Inter-Process File Lock** ป้องกันการแก้ไขชนกันข้ามโพรเซส
@@ -169,10 +169,13 @@ data/                           — ไดเรกทอรีจัดเก�
 1. **Tier 1: Fast-Path URL Priority (< 0.1ms)**
    - สกัดหมวดหมู่จาก URL path หรือ slug อัตโนมัติ (เช่น `/politics`, `/business`, `/sport`, `/tech`, `/foreign`, `/local` รวมถึง URL ภาษาไทยแบบ Percent-encoded)
    - หากเงื่อนไขตรงกับพจนานุกรมความมั่นใจสูง จะจัดหมวดหมู่ทันทีโดยไม่ต้องผ่าน NLP หรือ Machine Learning ประหยัดพลังงานประมวลผลสูงสุด
-2. **Tier 2: Rule-based Domain Expert Scoring**
-   - ตัดคำภาษาไทยด้วย PyThaiNLP และคำนวณคะแนนตามคีย์เวิร์ดบริบทเฉพาะด้านพร้อม Compound Rules แบบถ่วงน้ำหนัก ในกรณีที่ URL ไม่ระบุหมวด
-3. **Tier 3: Machine Learning Model (TF-IDF + SVM)**
-   - ใช้โมเดล Machine Learning ในการวิเคราะห์บริบทเนื้อหาอย่างละเอียดสำหรับหมวดหมู่ที่มีความคาบเกี่ยวกันสูง (เช่น การเมือง, เศรษฐกิจ, สังคม)
+2. **Tier 2: Fast Machine Learning (Calibrated LinearSVC + TF-IDF, ~2ms)**
+   - ตัดคำภาษาไทยด้วย PyThaiNLP (`newmm`) และแปลงเวกเตอร์ด้วย `TfidfVectorizer` (20,000 features) พร้อมโมเดล LinearSVC ที่ผ่านการปรับแต่งความน่าจะเป็นด้วย `CalibratedClassifierCV`
+   - หากความมั่นใจ $\text{conf} \ge 0.50$ จะตอบผลลัพธ์ทันทีด้วยความเร็วสูง
+3. **Tier 3: Deep Learning Escalation (Fine-tuned WangchanBERTa Transformer)**
+   - กรณีที่โมเดล Tier 2 มีความมั่นใจต่ำกว่าเกณฑ์ ($\text{conf} < 0.50$) หรือเนื้อหาข่าวมีความกำกวมสูง (เช่น ข่าวการเมืองที่คาบเกี่ยวกับเศรษฐกิจและสังคม) ระบบจะส่งต่อให้โมเดล **WangchanBERTa Sequence Classification** เข้ามาอ่านบริบทเชิงลึกทั้งบทความเพื่อจำแนก 9 หมวดหมู่อย่างแม่นยำสูงสุด (F1-score 0.941)
+4. **Fallback Tier: Domain Expert Rules & Society Default**
+   - ในกรณีฉุกเฉินที่โมเดลไม่มั่นใจหรือขัดข้อง จะมีระบบสำรองด้วยกฎคำสำคัญทางภาษาศาสตร์ (Keyword Cues) และกำหนดค่าปริยายเป็น `society`
 
 ---
 
