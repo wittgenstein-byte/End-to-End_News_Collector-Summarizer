@@ -205,22 +205,24 @@ class MacroEventService:
         shared_actions = s_actions & c_actions
         shared_locs = s_locs & c_locs
 
-        # Hard Veto: If shared anchors consist solely of actor_roles or a single province name
-        # without shared targets, actions, or storyline_anchor
-        if not storyline_match and not shared_targets and not shared_actions:
-            substantive_actors = {
-                a for a in shared_actors
-                if a not in _GENERIC_ENTITY_STOPWORDS
-                and not any(r in a for r in ("นายก", "รัฐมนตรี", "ตำรวจ", "เจ้าหน้าที่", "โฆษก", "สภา", "ศาล", "พรรค"))
-            }
-            substantive_locs = {
-                l for l in shared_locs
-                if l not in _GENERIC_ENTITY_STOPWORDS
-            }
-            if not substantive_actors and len(substantive_locs) <= 1:
-                return 0.0
+        # Hard Veto 1: Location Conflict Veto
+        # If both story and macro have distinct locations but share zero locations in common,
+        # they cannot belong to the same macro event unless they explicitly share substantive named actors or crisis anchor.
+        substantive_actors = {
+            a for a in shared_actors
+            if a not in _GENERIC_ENTITY_STOPWORDS
+            and not any(r in a for r in ("นายก", "รัฐมนตรี", "ตำรวจ", "เจ้าหน้าที่", "โฆษก", "สภา", "ศาล", "พรรค"))
+        }
+        if s_locs and c_locs and not shared_locs and not substantive_actors and not storyline_match:
+            return 0.0
 
-        specific_anchor_overlap = len(shared_actors) + len(shared_targets) + len(shared_locs)
+        # Hard Veto 2: Non-crisis / non-anchored events cannot merge solely on generic targets
+        # (e.g. ผู้บาดเจ็บ, ผู้เสียชีวิต, ประชาชน) or generic actions (e.g. ชน, คว่ำ, เสียชีวิต)
+        # without substantive actors, shared specific location, or matching crisis/storyline anchor.
+        if not storyline_match and not substantive_actors and not shared_locs:
+            return 0.0
+
+        specific_anchor_overlap = len(substantive_actors) + len(shared_targets) + len(shared_actions) + len(shared_locs)
         raw_score = (
             0.55 * cos_sim
             + 0.25 * I_storyline
