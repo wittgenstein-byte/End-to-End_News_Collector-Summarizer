@@ -8,7 +8,10 @@
 
 - 📡 **รวบรวมข่าวสารจาก 14 สำนักข่าวชั้นนำ:** ดึงข่าวต่อเนื่องทั้งผ่าน RSS Feed, HTTP Scraping และ Headless Browser (Playwright)
 - 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification):** ตรวจจับรวดเร็วระดับเสี้ยววินาทีด้วย URL Priority (<0.1ms), กฎคำสำคัญทางภาษาศาสตร์ (NLP) และโมเดล Machine Learning (TF-IDF + SVM)
-- 🧭 **ติดตามมหากาพย์ประเด็นข่าว (Two-Layer Story Identification):** จัดกลุ่มข่าวเรื่องเดียวกันข้ามวันและข้ามหมวดหมู่ด้วย Dense Vector Embeddings (WangchanBERTa 768-d) และ Named Entity Recognition (`thainer-v2`)
+- 🧭 **ติดตามมหากาพย์ประเด็นข่าว 2 ชั้น (Two-Stage Story & Macro-Event Identification):**
+  - **Stage A (Sub-Events):** จัดกลุ่มข่าวเหตุการณ์ย่อยด้วย Dense Vector (WangchanBERTa 768-d), การยืนยัน Named Entity (`thainer-v2`) และหน้าต่างสืบค้น 72 ชั่วโมงแบบไม่จำกัดอายุขัย
+  - **Stage B (Macro Storyline):** เชื่อมโยงพัฒนาการมหากาพย์ข้ามช่วงเวลา พร้อมกลไกความปลอดภัยทางวิศวกรรม: **Strict Province-Only Veto** (ยับยั้งการรวมกลุ่มหากตรงกันเพียงชื่อจังหวัด), **Episode-Scoped Anchors (45 วัน)** ป้องกันการรวมข้ามฤดูกาล, **Thai Normalization & Location Hierarchy** 3 ระดับครอบคลุม 77 จังหวัด, และ **Inter-Process File Lock** ป้องกันการแก้ไขชนกันข้ามโพรเซส
+- 🛡️ **เกตคัดกรองความเกี่ยวข้องและแบบจำลองหลักฐาน (Relevance Gate & Evidence Dossier):** คัดแยกข่าว 3 กลุ่ม (*Relevant Evidence*, *Context*, *Excluded*) ก่อนส่งให้ LLM สังเคราะห์ พร้อมระบบ Output Validator ตรวจสอบความถูกต้องและป้องกันข่าวบริบทแวดล้อมปนเปื้อนเข้าไทม์ไลน์หลัก
 - 📊 **จัดอันดับเทรนด์ข่าวเชิงสถิติ (Deterministic Trending Engine):** คำนวณความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ (Volume, Burst Velocity, Outlet Diversity, Recency Decay, Novelty, Reader Telemetry) ปราศจาก LLM ในขั้นตอนคำนวณคะแนน โปร่งใสและตรวจสอบได้ (Explainable Scoring)
 - ⚡ **สรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing):** สังเคราะห์สาระสำคัญ (Key Takeaways), วิเคราะห์โทนข่าว (Sentiment) และจัดทำไทม์ไลน์เหตุการณ์ด้วย Gemini LLM พร้อมระบบ Fallback เมื่อ API ขัดข้อง
 - 🏗️ **สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture):** Backend รองรับโหมด Headless API พร้อม Dynamic CORS Matrix และ Socket.IO ซิงโครไนซ์สมบูรณ์แบบ สามารถแยกรัน Frontend อิสระบนพอร์ตหรือ CDN ใดก็ได้
@@ -31,6 +34,9 @@ backend/
 │   ├── browser.py              — Playwright browser automation (Service + Local Fallback)
 │   ├── constants.py            — ค่าคงที่ของระบบ และ HTTP Browser Headers
 │   ├── fetcher_service.py      — HTML extraction & Markdown converter
+│   ├── file_lock.py            — Cross-platform Inter-Process Kernel File Lock (fcntl/msvcrt)
+│   ├── thai_normalizer.py      — Thai NLP normalization, alias resolution & 77-province hierarchy
+│   ├── url_utils.py            — URL canonicalization & tracking parameter stripper
 │   └── socket_manager.py       — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวและ Dynamic CORS
 ├── schemas/
 │   ├── news_schema.py          — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
@@ -298,28 +304,34 @@ HEADLESS=true uv run python backend/main.py
 ## 🧪 การทดสอบระบบ (Testing & Verification)
 
 ```bash
-# 1. รันชุดทดสอบ Backend ทั้งหมด (Pytest)
+# 1. รันชุดทดสอบ Backend ทั้งหมด (Pytest 423 กรณีทดสอบ ผ่าน 100%)
 uv run pytest -v
 
-# 2. ทดสอบระบบ Decoupling, CORS Matrix และ Headless API
-uv run pytest backend/tests/test_decoupling.py backend/tests/test_cors_and_socket.py backend/tests/test_adversarial_headless.py -v
+# 2. ทดสอบคุณสมบัติคงที่ระดับมหากาพย์ P0-P2 (Stage B Macro Invariants & Province Veto)
+uv run pytest backend/tests/test_macro_p0_p2_invariants.py -v
 
-# 3. ทดสอบการสื่อสาร Client (Socket Pub/Sub & REST API Client)
+# 3. ทดสอบระบบความสอดคล้องของหลักฐานและการคัดกรองความเกี่ยวข้อง (Relevance Gate)
+uv run pytest backend/tests/test_relevance_enforcement.py -v
+
+# 4. ทดสอบระบบ Decoupling, CORS Matrix และ Headless API
+uv run pytest backend/tests/test_decoupling.py backend/tests/test_adversarial_cors_socketio.py -v
+
+# 5. ทดสอบการสื่อสาร Client (Socket Pub/Sub & REST API Client)
 node backend/tests/test_client_communication.mjs
 node backend/tests/test_adversarial_api_m2.mjs
 
-# 4. ทดสอบความถูกต้องของคอมโพเนนต์ย่อย (UI Component Decomposition)
+# 6. ทดสอบความถูกต้องของคอมโพเนนต์ย่อย (UI Component Decomposition)
 node backend/tests/test_ui_decomposition.mjs
 
-# 5. ทดสอบ Boundary Cases และ Cross-Module Lifecycle
+# 7. ทดสอบ Boundary Cases และ Cross-Module Lifecycle
 node backend/tests/test_adversarial_m3_boundaries.mjs
 node backend/tests/test_cross_module_lifecycle_m3.mjs
 node backend/tests/test_modal_backdrop.mjs
 
-# 6. รัน Benchmark วัดความแม่นยำ Pairwise & B-cubed F1 ของ Story Identification
+# 8. รัน Benchmark วัดความแม่นยำ Pairwise & B-cubed F1 ของ Story Identification
 uv run python scripts/evaluate_stories.py
 
-# 7. รันรายงานตรวจสอบคุณภาพเทรนด์ข่าว (Trending Sanity Report)
+# 9. รันรายงานตรวจสอบคุณภาพเทรนด์ข่าว (Trending Sanity Report)
 uv run python scripts/trending_sanity_report.py
 ```
 
