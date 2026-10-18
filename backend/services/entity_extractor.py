@@ -415,23 +415,29 @@ def extract_event_time_evidence(
                 if time_match:
                     h = int(time_match.group(1))
                     m = int(time_match.group(2))
-                    dt_bkk = datetime(year, month, day, h, m, 0, tzinfo=BANGKOK_TZ)
+                    try:
+                        dt_bkk = datetime(year, month, day, h, m, 0, tzinfo=BANGKOK_TZ)
+                        return EventTimeEvidence(
+                            start_utc=dt_bkk.astimezone(timezone.utc),
+                            end_utc=dt_bkk.astimezone(timezone.utc),
+                            precision="datetime",
+                            confidence="explicit",
+                            evidence_span=date_match.group(0),
+                        )
+                    except ValueError:
+                        pass
+                try:
+                    dt_start_bkk = datetime(year, month, day, 0, 0, 0, tzinfo=BANGKOK_TZ)
+                    dt_end_bkk = datetime(year, month, day, 23, 59, 59, tzinfo=BANGKOK_TZ)
                     return EventTimeEvidence(
-                        start_utc=dt_bkk.astimezone(timezone.utc),
-                        end_utc=dt_bkk.astimezone(timezone.utc),
-                        precision="datetime",
+                        start_utc=dt_start_bkk.astimezone(timezone.utc),
+                        end_utc=dt_end_bkk.astimezone(timezone.utc),
+                        precision="date",
                         confidence="explicit",
                         evidence_span=date_match.group(0),
                     )
-                dt_start_bkk = datetime(year, month, day, 0, 0, 0, tzinfo=BANGKOK_TZ)
-                dt_end_bkk = datetime(year, month, day, 23, 59, 59, tzinfo=BANGKOK_TZ)
-                return EventTimeEvidence(
-                    start_utc=dt_start_bkk.astimezone(timezone.utc),
-                    end_utc=dt_end_bkk.astimezone(timezone.utc),
-                    precision="date",
-                    confidence="explicit",
-                    evidence_span=date_match.group(0),
-                )
+                except ValueError:
+                    pass
             else:
                 # Outside 30-day window -> ambiguous
                 return EventTimeEvidence(
