@@ -756,6 +756,8 @@ let currentPage   = 1;
 let activeSource  = "";
 let activeCategory = "all";
 let searchQuery   = "";
+let newsDateFrom = "";
+let newsDateTo = "";
 let searchTimer   = null;
 let totalNew      = 0;
 let newArticleSet = new Set();   // Set<url> ของข่าวใหม่ใน session
@@ -808,6 +810,18 @@ window.__skipForYouOnboarding = () => {
 function articleAgeHours(article) {
   const parsed = Date.parse(article.fetched_at || "");
   return Number.isNaN(parsed) ? 0 : Math.max(0, (Date.now() - parsed) / 3600000);
+}
+
+function filterArticlesByNewsDate(articles) {
+  if (!newsDateFrom && !newsDateTo) return articles;
+  const from = newsDateFrom ? new Date(`${newsDateFrom}T00:00:00`) : null;
+  const to = newsDateTo ? new Date(`${newsDateTo}T23:59:59.999`) : null;
+  return articles.filter(article => {
+    const value = article.fetched_at || article.published_at || "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return (!from || date >= from) && (!to || date <= to);
+  });
 }
 
 function tokenSimilarity(article, keywords) {
@@ -1083,6 +1097,8 @@ function renderBookmarkedArticles() {
     );
   }
 
+  articles = filterArticlesByNewsDate(articles);
+
   UI.renderCategoryNav("bookmarks", {}, personalizationData.bookmarkedArticles || {});
   UI.updateSourceFilters(activeSource);
 
@@ -1166,7 +1182,7 @@ async function loadPage(page = 1) {
 
     const affinity = getAffinity();
     const hiddenSet = new Set((affinity && affinity.hidden_article_urls) || []);
-    const visibleNews = (data.news || []).filter(a => !hiddenSet.has(a.url));
+    const visibleNews = filterArticlesByNewsDate(data.news || []).filter(a => !hiddenSet.has(a.url));
 
     UI.renderGrid(visibleNews, newArticleSet, personalizationData.bookmarkedArticles || {});
     UI.renderPagination(data);
@@ -1502,6 +1518,123 @@ window.__sourceFilterClick = handleSourceFilterClick;
 // ── Search ────────────────────────────────────────────────────────
 
 const searchInput = document.getElementById("search-input");
+const newsDateFromInput = document.getElementById("news-date-from");
+const newsDateToInput = document.getElementById("news-date-to");
+const datePickerFormat = (isoDate) => {
+  if (!isoDate) return "dd/mm/yyyy";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+};
+const datePickerIso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const syncDatePickerDisplay = (input) => {
+  const picker = input?.closest("[data-date-picker]");
+  const display = picker?.querySelector("[data-date-display]");
+  if (display) display.textContent = datePickerFormat(input.value);
+};
+
+document.querySelectorAll("[data-date-picker]").forEach(picker => {
+  const input = document.getElementById(picker.dataset.inputId);
+  const trigger = picker.querySelector(".date-picker-trigger");
+  const popover = picker.querySelector(".date-picker-popover");
+  if (!input || !trigger || !popover) return;
+
+  let visibleMonth = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
+  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+
+  const renderCalendar = () => {
+    const year = visibleMonth.getFullYear();
+    const month = visibleMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const offset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthLabel = new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric" }).format(firstDay);
+    const weekdays = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
+    const selected = input.value;
+    const today = datePickerIso(new Date());
+    const days = Array.from({ length: offset }, () => '<span class="date-picker-empty"></span>');
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const classes = ["date-picker-day", iso === selected ? "is-selected" : "", iso === today ? "is-today" : ""].filter(Boolean).join(" ");
+      days.push(`<button type="button" class="${classes}" data-date="${iso}" aria-label="${day}/${String(month + 1).padStart(2, "0")}/${year}">${day}</button>`);
+    }
+    popover.innerHTML = `
+      <div class="date-picker-heading">
+        <button type="button" data-month-step="-1" aria-label="เดือนก่อนหน้า"><span class="material-symbols-outlined">chevron_left</span></button>
+        <span>${monthLabel}</span>
+        <button type="button" data-month-step="1" aria-label="เดือนถัดไป"><span class="material-symbols-outlined">chevron_right</span></button>
+      </div>
+      <div class="date-picker-weekdays">${weekdays.map(day => `<span>${day}</span>`).join("")}</div>
+      <div class="date-picker-days">${days.join("")}</div>
+      <div class="date-picker-footer"><button type="button" data-date-action="clear">ล้างวันที่</button><button type="button" data-date-action="today">วันนี้</button></div>`;
+  };
+
+  const closePicker = () => {
+    popover.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  };
+
+  trigger.addEventListener("click", () => {
+    document.querySelectorAll(".date-picker-popover:not([hidden])").forEach(openPopover => {
+      if (openPopover !== popover) {
+        openPopover.hidden = true;
+        openPopover.closest("[data-date-picker]")?.querySelector(".date-picker-trigger")?.setAttribute("aria-expanded", "false");
+      }
+    });
+    visibleMonth = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
+    visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    renderCalendar();
+    popover.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+  });
+
+  popover.addEventListener("click", event => {
+    const stepButton = event.target.closest("[data-month-step]");
+    if (stepButton) {
+      visibleMonth.setMonth(visibleMonth.getMonth() + Number(stepButton.dataset.monthStep));
+      renderCalendar();
+      return;
+    }
+    const dateButton = event.target.closest("[data-date]");
+    const actionButton = event.target.closest("[data-date-action]");
+    if (dateButton) input.value = dateButton.dataset.date;
+    else if (actionButton?.dataset.dateAction === "today") input.value = datePickerIso(new Date());
+    else if (actionButton?.dataset.dateAction === "clear") input.value = "";
+    else return;
+    syncDatePickerDisplay(input);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    closePicker();
+  });
+  syncDatePickerDisplay(input);
+});
+
+document.addEventListener("click", event => {
+  if (event.target.closest("[data-date-picker]")) return;
+  document.querySelectorAll(".date-picker-popover:not([hidden])").forEach(popover => {
+    popover.hidden = true;
+    popover.closest("[data-date-picker]")?.querySelector(".date-picker-trigger")?.setAttribute("aria-expanded", "false");
+  });
+});
+
+newsDateFromInput?.addEventListener("change", e => {
+  newsDateFrom = e.target.value;
+  if (newsDateToInput && newsDateFrom && newsDateToInput.value && newsDateToInput.value < newsDateFrom) {
+    newsDateToInput.value = newsDateFrom;
+    newsDateTo = newsDateFrom;
+    syncDatePickerDisplay(newsDateToInput);
+  }
+  if (activeCategory === "bookmarks") renderBookmarkedArticles();
+  else loadPage(1);
+});
+newsDateToInput?.addEventListener("change", e => {
+  newsDateTo = e.target.value;
+  if (newsDateFromInput && newsDateTo && newsDateFromInput.value && newsDateTo < newsDateFromInput.value) {
+    newsDateFromInput.value = newsDateTo;
+    newsDateFrom = newsDateTo;
+    syncDatePickerDisplay(newsDateFromInput);
+  }
+  if (activeCategory === "bookmarks") renderBookmarkedArticles();
+  else loadPage(1);
+});
 searchInput.addEventListener("input", e => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
