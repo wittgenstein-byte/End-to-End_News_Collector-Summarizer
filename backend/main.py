@@ -172,7 +172,7 @@ def create_app(headless: bool | None = None) -> FastAPI:
 
     # Issue Explorer — optional vertical slice (lazy import keeps core boot independent)
     if settings.issue_explorer_enabled:
-        from backend.issue_explorer import router as issue_explorer_router
+        from backend.issue_explorer.router import router as issue_explorer_router
 
         app_instance.include_router(issue_explorer_router)
 
