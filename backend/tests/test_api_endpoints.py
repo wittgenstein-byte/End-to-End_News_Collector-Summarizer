@@ -342,9 +342,13 @@ def client_with_data(sample_test_data: tuple[list[StoryRecord], list[dict[str, A
     app.dependency_overrides[get_trending_service] = lambda: trending_service
     app.dependency_overrides[get_story_presentation_service] = lambda: presentation_service
 
+    from backend.routers.trending_router import trending_cache
+    trending_cache._cache.clear()
+
     with TestClient(app) as test_client:
         yield test_client
 
+    trending_cache._cache.clear()
     app.dependency_overrides.clear()
 
 

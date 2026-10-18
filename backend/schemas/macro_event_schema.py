@@ -179,6 +179,7 @@ class MacroEventRecord(BaseModel):
         event_id: str,
         event_time: datetime | str | None = None,
         entities: list[str] | None = None,
+        typed_anchors: TypedEventAnchors | None = None,
     ) -> None:
         """Add or update child event in the derived index and refresh activity."""
         if event_id not in self.child_event_ids:
@@ -186,6 +187,9 @@ class MacroEventRecord(BaseModel):
 
         if entities:
             self.merge_entities(entities)
+
+        if typed_anchors:
+            self.merge_typed_anchors(typed_anchors)
 
         if event_time is not None:
             parsed_time = _parse_utc_datetime(event_time)
@@ -234,6 +238,43 @@ class MacroEventRecord(BaseModel):
             if clean and clean not in existing_set:
                 self.entities.append(clean)
                 existing_set.add(clean)
+
+    def merge_typed_anchors(self, other: TypedEventAnchors) -> None:
+        """Merge typed event anchors preserving hierarchy and specificity."""
+        if not other:
+            return
+        for loc in other.event_locations:
+            if loc not in self.typed_anchors.event_locations:
+                self.typed_anchors.event_locations.append(loc)
+        for p in other.provinces:
+            if p not in self.typed_anchors.provinces:
+                self.typed_anchors.provinces.append(p)
+        for d in other.districts:
+            if d not in self.typed_anchors.districts:
+                self.typed_anchors.districts.append(d)
+        for s in other.sub_locations:
+            if s not in self.typed_anchors.sub_locations:
+                self.typed_anchors.sub_locations.append(s)
+        for a in other.actor_names:
+            if a not in self.typed_anchors.actor_names:
+                self.typed_anchors.actor_names.append(a)
+        for r in other.actor_roles:
+            if r not in self.typed_anchors.actor_roles:
+                self.typed_anchors.actor_roles.append(r)
+        for t in other.targets:
+            if t not in self.typed_anchors.targets:
+                self.typed_anchors.targets.append(t)
+        for act in other.actions:
+            if act not in self.typed_anchors.actions:
+                self.typed_anchors.actions.append(act)
+        if not self.storyline_anchor and other.storyline_anchor:
+            self.storyline_anchor = other.storyline_anchor
+        if not self.named_crisis_anchor and other.storyline_anchor:
+            self.named_crisis_anchor = other.storyline_anchor
+        if not self.typed_anchors.storyline_anchor and other.storyline_anchor:
+            self.typed_anchors.storyline_anchor = other.storyline_anchor
+        if not self.typed_anchors.storyline_episode_key and other.storyline_episode_key:
+            self.typed_anchors.storyline_episode_key = other.storyline_episode_key
 
     def is_active_dynamic(
         self,

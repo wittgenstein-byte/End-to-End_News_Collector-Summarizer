@@ -513,11 +513,10 @@ class StoryService:
                 self._story_repo.save_story(chosen_story)
                 record.story_id = chosen_story.story_id
 
-                if chosen_story.macro_event_id:
-                    try:
-                        self._get_macro_service().assign_event(chosen_story)
-                    except Exception as exc:
-                        logger.debug("Macro event sync error on merge: %s", exc)
+                try:
+                    self._get_macro_service().on_story_updated(chosen_story)
+                except Exception as exc:
+                    logger.debug("Macro event sync error on merge: %s", exc)
 
                 return chosen_story, False
 
@@ -719,6 +718,30 @@ class StoryService:
         # Fallback dummy embedding if embedder not functional
         dim = getattr(embedder, "hidden_size", 768)
         return [0.0] * dim
+
+    def reevaluate_pending_stories(self) -> dict[str, int]:
+        """
+        Re-evaluate stories currently held in pending states across Stage A and Stage B.
+        """
+        pending_review_stories = [
+            s for s in self._story_repo.list_stories(limit=500)
+            if s.verification_status == "pending_review"
+        ]
+        promoted_stage_a = 0
+        for s in pending_review_stories:
+            if s.article_count >= 2:
+                s.verification_status = "verified"
+                self._story_repo.save_story(s)
+                promoted_stage_a += 1
+
+        stage_b_stats = self._get_macro_service().reevaluate_pending_stories()
+
+        return {
+            "stage_a_promoted": promoted_stage_a,
+            "stage_b_pending_found": stage_b_stats.get("pending_found", 0),
+            "stage_b_promoted_to_linked": stage_b_stats.get("promoted_to_linked", 0),
+            "stage_b_remained_pending": stage_b_stats.get("remained_pending", 0),
+        }
 
 
 # ── Global Singleton & Factory ────────────────────────────────────

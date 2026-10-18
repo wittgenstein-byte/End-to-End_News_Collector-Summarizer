@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from backend.core.file_lock import InterProcessFileLock
 from backend.schemas.story_schema import StoryRecord
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,133 @@ class StoryRepositoryPort(Protocol):
     def count_stories(self, status: str | None = None) -> int: ...
 
 
+# ── Concrete Implementation: InMemoryStoryRepository ───────────────
+
+class InMemoryStoryRepository:
+    """In-memory implementation of StoryRepositoryPort for tests and benchmarks."""
+
+    def __init__(self, stories: list[StoryRecord] | None = None) -> None:
+        self._lock = threading.RLock()
+        self._stories: dict[str, StoryRecord] = {}
+        self._url_to_story_id: dict[str, str] = {}
+        if stories:
+            for s in stories:
+                self.save_story(s)
+
+    def get_story(self, story_id: str) -> StoryRecord | None:
+        clean_id = story_id.strip() if story_id else ""
+        if not clean_id:
+            return None
+        with self._lock:
+            rec = self._stories.get(clean_id)
+            return rec.model_copy(deep=True) if rec else None
+
+    def save_story(self, story: StoryRecord) -> None:
+        with self._lock:
+            rec = story.model_copy(deep=True)
+            self._stories[rec.story_id] = rec
+            for u in rec.article_urls:
+                if u and u.strip():
+                    self._url_to_story_id[u.strip()] = rec.story_id
+
+    def save_stories_batch(self, stories: list[StoryRecord]) -> None:
+        with self._lock:
+            for s in stories:
+                self.save_story(s)
+
+    def list_stories(
+        self,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[StoryRecord]:
+        with self._lock:
+            items = list(self._stories.values())
+            if status and status.strip().lower() != "all":
+                target = status.strip().lower()
+                items = [s for s in items if s.status.lower() == target]
+            items.sort(key=lambda s: s.updated_at, reverse=True)
+            return [s.model_copy(deep=True) for s in items[offset : offset + limit]]
+
+    def find_candidate_stories(
+        self,
+        since_time: datetime,
+        category: str | None = None,
+    ) -> list[StoryRecord]:
+        since_utc = (
+            since_time.replace(tzinfo=timezone.utc)
+            if since_time.tzinfo is None
+            else since_time.astimezone(timezone.utc)
+        )
+        cat_filter = category.strip().lower() if category and category.strip().lower() != "all" else None
+        with self._lock:
+            candidates: list[StoryRecord] = []
+            for s in self._stories.values():
+                s_dt = s.updated_at if s.updated_at.tzinfo else s.updated_at.replace(tzinfo=timezone.utc)
+                if s_dt >= since_utc:
+                    if cat_filter is not None and s.category.strip().lower() != cat_filter:
+                        continue
+                    candidates.append(s.model_copy(deep=True))
+            candidates.sort(key=lambda s: s.updated_at, reverse=True)
+            return candidates
+
+    def get_stories_by_ids(self, story_ids: list[str]) -> list[StoryRecord]:
+        with self._lock:
+            results: list[StoryRecord] = []
+            for sid in story_ids:
+                clean_id = sid.strip() if sid else ""
+                s = self._stories.get(clean_id)
+                if s is not None:
+                    results.append(s.model_copy(deep=True))
+            return results
+
+    def get_story_by_article_url(self, url: str) -> StoryRecord | None:
+        clean_url = url.strip() if url else ""
+        if not clean_url:
+            return None
+        with self._lock:
+            sid = self._url_to_story_id.get(clean_url)
+            if sid:
+                rec = self._stories.get(sid)
+                return rec.model_copy(deep=True) if rec else None
+            return None
+
+    def get_stories_by_macro_id(self, macro_id: str) -> list[StoryRecord]:
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return []
+        with self._lock:
+            return [
+                s.model_copy(deep=True) for s in self._stories.values()
+                if getattr(s, "macro_event_id", None) == clean_id
+            ]
+
+    def delete_story(self, story_id: str) -> bool:
+        clean_id = story_id.strip() if story_id else ""
+        if not clean_id:
+            return False
+        with self._lock:
+            s = self._stories.pop(clean_id, None)
+            if s is not None:
+                for u in s.article_urls:
+                    if self._url_to_story_id.get(u) == clean_id:
+                        self._url_to_story_id.pop(u, None)
+                return True
+            return False
+
+    def count_stories(self, status: str | None = None) -> int:
+        with self._lock:
+            if status is None or not status.strip() or status.strip().lower() == "all":
+                return len(self._stories)
+            target = status.strip().lower()
+            return sum(1 for s in self._stories.values() if s.status.lower() == target)
+
+    def clear_all(self) -> None:
+        with self._lock:
+            self._stories.clear()
+            self._url_to_story_id.clear()
+
+
 # ── Concrete Implementation: FileStoryRepository ──────────────────
 
 class FileStoryRepository:
@@ -83,6 +211,7 @@ class FileStoryRepository:
     def __init__(self, data_file: Path) -> None:
         self._data_file = Path(data_file)
         self._lock = threading.RLock()
+        self._file_lock = InterProcessFileLock(self._data_file.with_suffix(self._data_file.suffix + ".lock"))
         self._stories: dict[str, StoryRecord] = {}
         self._url_to_story_id: dict[str, str] = {}
         self._last_mtime: float | None = None
@@ -97,23 +226,24 @@ class FileStoryRepository:
             return None
         with self._lock:
             self._sync_cache()
-            return self._stories.get(clean_id)
+            rec = self._stories.get(clean_id)
+            return rec.model_copy(deep=True) if rec is not None else None
 
     def save_story(self, story: StoryRecord) -> None:
-        """Save or update a single story with atomic disk write."""
-        with self._lock:
+        """Save or update a single story with atomic disk write and cross-process lock."""
+        with self._lock, self._file_lock:
             self._sync_cache()
-            self._upsert_in_memory(story)
+            self._upsert_in_memory(story.model_copy(deep=True))
             self._persist_to_disk()
 
     def save_stories_batch(self, stories: list[StoryRecord]) -> None:
         """Batch save multiple stories with a single atomic disk write."""
         if not stories:
             return
-        with self._lock:
+        with self._lock, self._file_lock:
             self._sync_cache()
             for story in stories:
-                self._upsert_in_memory(story)
+                self._upsert_in_memory(story.model_copy(deep=True))
             self._persist_to_disk()
 
     def list_stories(
@@ -139,7 +269,7 @@ class FileStoryRepository:
 
             start = max(0, offset)
             end = start + max(1, limit)
-            return items[start:end]
+            return [s.model_copy(deep=True) for s in items[start:end]]
 
     def find_candidate_stories(
         self,
@@ -165,7 +295,7 @@ class FileStoryRepository:
                     candidates.append(s)
 
             candidates.sort(key=self._sort_key_updated_at, reverse=True)
-            return candidates
+            return [c.model_copy(deep=True) for c in candidates]
 
     def get_stories_by_ids(self, story_ids: list[str]) -> list[StoryRecord]:
         """Fetch multiple stories by ID, preserving the order of the input list."""
@@ -178,7 +308,7 @@ class FileStoryRepository:
                 clean_id = sid.strip() if sid else ""
                 story = self._stories.get(clean_id)
                 if story is not None:
-                    results.append(story)
+                    results.append(story.model_copy(deep=True))
             return results
 
     def get_story_by_article_url(self, url: str) -> StoryRecord | None:
@@ -190,7 +320,8 @@ class FileStoryRepository:
             self._sync_cache()
             story_id = self._url_to_story_id.get(clean_url)
             if story_id:
-                return self._stories.get(story_id)
+                rec = self._stories.get(story_id)
+                return rec.model_copy(deep=True) if rec is not None else None
             return None
 
     def get_stories_by_macro_id(self, macro_id: str) -> list[StoryRecord]:
@@ -201,7 +332,7 @@ class FileStoryRepository:
         with self._lock:
             self._sync_cache()
             return [
-                s for s in self._stories.values()
+                s.model_copy(deep=True) for s in self._stories.values()
                 if getattr(s, "macro_event_id", None) == clean_id
             ]
 
@@ -222,10 +353,12 @@ class FileStoryRepository:
         if not clean_id:
             return False
         with self._lock:
-            self._sync_cache()
-            old = self._stories.pop(clean_id, None)
-            if old is not None:
-                for u in old.article_urls:
+            with self._file_lock:
+                self._sync_cache()
+                story = self._stories.pop(clean_id, None)
+                if story is None:
+                    return False
+                for u in story.article_urls:
                     if self._url_to_story_id.get(u) == clean_id:
                         self._url_to_story_id.pop(u, None)
                 self._persist_to_disk()

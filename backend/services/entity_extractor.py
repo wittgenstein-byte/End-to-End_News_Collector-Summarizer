@@ -18,6 +18,12 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from backend.core.thai_normalizer import (
+    ENTITY_ALIASES,
+    normalize_thai_text,
+    parse_thai_locations,
+    resolve_entity_alias,
+)
 from backend.schemas.story_schema import (
     EventTimeEvidence,
     TypedEventAnchors,
@@ -131,8 +137,8 @@ class EntityExtractor:
 
         return entities
 
-    def _extract_raw(self, text: str) -> list[str]:
-        """Execute NER model tagging and assemble BIO spans into entity strings."""
+    def _extract_raw_typed(self, text: str) -> list[tuple[str, str]]:
+        """Execute NER model tagging and assemble BIO spans into (entity_string, entity_type) pairs."""
         if not self._ensure_ner() or self._ner is None:
             return []
 
@@ -146,7 +152,7 @@ class EntityExtractor:
         if not tagged or not isinstance(tagged, (list, tuple)):
             return []
 
-        entities: list[str] = []
+        typed_entities: list[tuple[str, str]] = []
         seen: set[str] = set()
 
         current_tokens: list[str] = []
@@ -159,7 +165,7 @@ class EntityExtractor:
                 # Clean up outer quotes, brackets, and whitespace (preserving Thai acronym periods like ครม.)
                 span = span.strip(" \t\n\r()[]{}\"'“”‘’«»,;:-_")
                 if len(span) >= 2 and span not in seen:
-                    entities.append(span)
+                    typed_entities.append((span, current_type))
                     seen.add(span)
             current_tokens = []
             current_type = None
@@ -202,7 +208,36 @@ class EntityExtractor:
                 flush()
 
         flush()
-        return entities
+        return typed_entities
+
+    def _extract_raw(self, text: str) -> list[str]:
+        """Execute NER model tagging and assemble BIO spans into entity strings."""
+        return [span for span, _ in self._extract_raw_typed(text)]
+
+    def extract_typed_entities(self, text: str) -> list[tuple[str, str]]:
+        """Extract typed entities returning (entity, type) tuples with caching."""
+        clean_text = text.strip() if text else ""
+        if not clean_text:
+            return []
+
+        cache_key = hashlib.sha256(f"typed_{clean_text}".encode()).hexdigest()
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                return list(cached)  # type: ignore[arg-type]
+
+        typed_entities = self._extract_raw_typed(clean_text)
+
+        with self._cache_lock:
+            if len(self._cache) >= self._max_cache_size:
+                try:
+                    oldest_key = next(iter(self._cache))
+                    del self._cache[oldest_key]
+                except (StopIteration, KeyError):
+                    pass
+            self._cache[cache_key] = list(typed_entities)  # type: ignore[assignment]
+
+        return typed_entities
 
     def clear_cache(self) -> None:
         """Clear the in-memory entity cache."""
@@ -224,12 +259,19 @@ class EntityExtractor:
         self,
         text: str,
         entities: list[str] | None = None,
+        published_at: datetime | str | None = None,
     ) -> TypedEventAnchors:
         """
         Extract typed entity anchors (locations, actor names, generic roles, targets, actions, storyline).
         """
         resolved_entities = entities if entities is not None else self.extract_entities(text)
-        return extract_typed_anchors(text, resolved_entities)
+        typed_entities = self.extract_typed_entities(text)
+        return extract_typed_anchors(
+            text,
+            resolved_entities,
+            published_at=published_at,
+            typed_entities=typed_entities,
+        )
 
 
 # ── Global Constants & Thai Date/Time Parsers ─────────────────────
@@ -451,43 +493,111 @@ def extract_event_time_evidence(
     return EventTimeEvidence(start_utc=None, end_utc=None, precision="none", confidence="none")
 
 
+_ACTOR_PREFIXES: tuple[str, ...] = (
+    "นาย", "นาง", "นางสาว", "น.ส.", "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พล.อ.", "พล.ท.", "พล.ต.",
+    "พ.ต.อ.", "พ.ต.ท.", "พ.ต.ต.", "ร.ต.อ.", "ร.ต.ท.", "ร.ต.ต.", "บิ๊ก", "ดร.", "ศ.", "นพ.", "พญ.",
+    "พรรค", "บมจ.", "บจก.", "บริษัท", "คุณ",
+)
+
+
 def extract_typed_anchors(
     text: str,
     entities: list[str] | None = None,
+    published_at: datetime | str | None = None,
+    typed_entities: list[tuple[str, str]] | None = None,
 ) -> TypedEventAnchors:
     """
     Extract structured typed event anchors from Thai text and named entities.
-    Separates proper actor names from generic actor roles, extracts targets,
-    incident actions, and storyline anchors.
+    Separates hierarchical locations (provinces, districts, sub_locations),
+    verified proper actor names, generic actor roles, targets, actions,
+    and episode-scoped storyline anchors.
     """
-    locations: list[str] = []
+    clean_text = normalize_thai_text(text or "")
+
+    # Parse hierarchical locations from text
+    loc_info = parse_thai_locations(clean_text)
+    provinces: list[str] = list(loc_info.get("provinces", []))
+    districts: list[str] = list(loc_info.get("districts", []))
+    sub_locations: list[str] = list(loc_info.get("sub_locations", []))
+
     actor_names: list[str] = []
     actor_roles: list[str] = []
     targets: list[str] = []
     actions: list[str] = []
     storyline_anchor: str | None = None
-
-    clean_text = text or ""
+    storyline_episode_key: str | None = None
 
     # Process named entities
-    raw_entities = entities if entities is not None else extract_entities(clean_text)
+    raw_entities: list[str] = []
+    ner_type_map: dict[str, str] = {}
+    if typed_entities is not None:
+        for span, t_type in typed_entities:
+            raw_entities.append(span)
+            ner_type_map[span.strip()] = t_type
+    else:
+        # Extract typed entities with NER if available
+        try:
+            extractor = get_entity_extractor()
+            t_ents = extractor.extract_typed_entities(clean_text)
+            for span, t_type in t_ents:
+                raw_entities.append(span)
+                ner_type_map[span.strip()] = t_type
+        except Exception:
+            pass
+
+    if entities is not None:
+        for ent in entities:
+            if ent not in raw_entities:
+                raw_entities.append(ent)
+
     for ent in raw_entities:
-        ent_clean = ent.strip()
+        ent_clean = normalize_thai_text(ent).strip()
         if not ent_clean:
             continue
 
-        if ent_clean in _GENERIC_ROLES or ent_clean.startswith(("เจ้าหน้าที่", "ตำรวจ", "พนักงาน")):
+        # Check if entity is a location first (e.g. province, district, landmark)
+        ent_loc_info = parse_thai_locations(ent_clean)
+        is_loc = False
+        if ent_loc_info["provinces"] or ent_loc_info["districts"] or ent_loc_info["sub_locations"]:
+            is_loc = True
+            for p in ent_loc_info["provinces"]:
+                if p not in provinces:
+                    provinces.append(p)
+            for d in ent_loc_info["districts"]:
+                if d not in districts:
+                    districts.append(d)
+            for s in ent_loc_info["sub_locations"]:
+                if s not in sub_locations:
+                    sub_locations.append(s)
+        elif ent_clean.startswith(("จังหวัด", "จ.", "อ.", "อำเภอ", "ต.", "ตำบล", "เมือง", "ถ.", "ถนน", "แยก", "สะพาน", "แม่น้ำ", "เกาะ")):
+            is_loc = True
+            if ent_clean not in sub_locations:
+                sub_locations.append(ent_clean)
+
+        if is_loc:
+            continue
+
+        # Check if entity is a generic role
+        if ent_clean in _GENERIC_ROLES or ent_clean.startswith(("เจ้าหน้าที่", "ตำรวจ", "พนักงาน", "ผู้ว่า")):
             if ent_clean not in actor_roles:
                 actor_roles.append(ent_clean)
-        elif ent_clean.startswith(("จังหวัด", "จ.", "อ.", "อำเภอ", "ต.", "ตำบล", "เมือง")) or any(
-            loc_marker in ent_clean for loc_marker in ("กรุงเทพ", "เชียงใหม่", "ภูเก็ต", "น่าน", "สงขลา", "ขอนแก่น")
-        ):
-            if ent_clean not in locations:
-                locations.append(ent_clean)
-        else:
-            # Specific named individual or organization
-            if ent_clean not in actor_names:
-                actor_names.append(ent_clean)
+            continue
+
+        # Check if entity is a recognized actor or alias
+        resolved = resolve_entity_alias(ent_clean)
+        tag_type = ner_type_map.get(ent.strip(), "")
+        is_ner_person_or_org = tag_type in ("PERSON", "PER", "ORGANIZATION", "ORGANISATION", "ORG")
+
+        is_known_actor = (
+            resolved in ENTITY_ALIASES.values()
+            or any(ent_clean.startswith(prefix) for prefix in _ACTOR_PREFIXES)
+            or (resolved != ent_clean)
+            or is_ner_person_or_org
+        )
+
+        if is_known_actor and resolved not in actor_names:
+            actor_names.append(resolved)
+        # CRITICAL P0.1: Unknown entity tokens are NOT added to actor_names!
 
     # Extract target keywords
     for tgt in _TARGET_KEYWORDS:
@@ -506,13 +616,35 @@ def extract_typed_anchors(
             storyline_anchor = m.group(1)
             break
 
+    # Build combined event_locations preserving order and uniqueness
+    all_locations: list[str] = []
+    for l_list in (provinces, districts, sub_locations):
+        for loc in l_list:
+            if loc not in all_locations:
+                all_locations.append(loc)
+
+    # Episode-scoped storyline anchor (P1.3)
+    if storyline_anchor:
+        if published_at:
+            try:
+                dt = _parse_utc_datetime(published_at)
+                storyline_episode_key = f"{storyline_anchor}:{dt.strftime('%Y-%m')}"
+            except Exception:
+                storyline_episode_key = f"{storyline_anchor}:{datetime.now(timezone.utc).strftime('%Y-%m')}"
+        else:
+            storyline_episode_key = f"{storyline_anchor}:{datetime.now(timezone.utc).strftime('%Y-%m')}"
+
     return TypedEventAnchors(
-        event_locations=locations,
+        event_locations=all_locations,
+        provinces=provinces,
+        districts=districts,
+        sub_locations=sub_locations,
         actor_names=actor_names,
         actor_roles=actor_roles,
         targets=targets,
         actions=actions,
         storyline_anchor=storyline_anchor,
+        storyline_episode_key=storyline_episode_key,
     )
 
 

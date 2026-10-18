@@ -73,12 +73,16 @@ class TypedEventAnchors(BaseModel):
     """
     model_config = ConfigDict(extra="ignore")
 
-    event_locations: list[str] = Field(default_factory=list, description="Specific locations, district/province")
+    event_locations: list[str] = Field(default_factory=list, description="All normalized locations")
+    provinces: list[str] = Field(default_factory=list, description="Canonical province names (77 provinces)")
+    districts: list[str] = Field(default_factory=list, description="Canonical district/amphoe names")
+    sub_locations: list[str] = Field(default_factory=list, description="Specific venues, rivers, temples, subdistricts")
     actor_names: list[str] = Field(default_factory=list, description="Specific proper names of individuals/entities")
     actor_roles: list[str] = Field(default_factory=list, description="Generic functional roles (e.g. นายกรัฐมนตรี, ตำรวจ)")
     targets: list[str] = Field(default_factory=list, description="Victims, objects, or targets of action")
     actions: list[str] = Field(default_factory=list, description="Incident actions or progression actions")
-    storyline_anchor: str | None = Field(default=None, description="Storyline crisis/campaign anchor e.g. น้ำท่วมน่าน")
+    storyline_anchor: str | None = Field(default=None, description="Base storyline crisis/campaign anchor e.g. น้ำท่วมน่าน")
+    storyline_episode_key: str | None = Field(default=None, description="Time/episode-scoped anchor e.g. น้ำท่วมน่าน:2026-08")
 
 
 def _now_utc() -> datetime:
