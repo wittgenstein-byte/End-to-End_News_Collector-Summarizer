@@ -10,12 +10,13 @@ Empirically executes the modular Vanilla JS components in real Chromium engine:
 ─────────────────────────────────────────────────────────────────
 """
 
-import sys
-import time
 import socket
+import sys
 import threading
+import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent

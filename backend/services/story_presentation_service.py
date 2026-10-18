@@ -96,6 +96,10 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
     "2565", "2566", "2567", "2568", "2569", "2570", "2023", "2024", "2025", "2026",
+    # Broad institutional and generic role stopwords (prevent cross-incident chaining)
+    "ตำรวจ", "สำนักงานตำรวจแห่งชาติ", "สตช", "ผบ.ตร.", "ผบ.ตร", "เจ้าหน้าที่ตำรวจ",
+    "เจ้าหน้าที่", "รัฐบาล", "นายก", "นายกรัฐมนตรี", "นายกฯ", "รัฐมนตรี", "รมว.",
+    "กระทรวง", "กรม", "กองทัพ", "ทหาร", "ศาล", "ครม", "ครม.", "สภา", "พรรค",
 }
 
 
@@ -1090,10 +1094,15 @@ class StoryPresentationService:
             if has_context and not matched_incident:
                 context_ids.append(art_id)
                 reasons[art_id] = "บริบทการเมือง: ข่าวการอภิปรายไม่ไว้วางใจหรือเวทีสภาที่เกิดขึ้นแวดล้อมเหตุการณ์"
-            # 2. Check if article is completely off-topic (0 shared tokens with title)
-            elif title_tokens and len(matched_title) == 0 and len(candidate_items) > 2:
+            # 2. Check if article is off-topic:
+            # - shares 0 tokens with title, OR
+            # - only matches generic/broad tokens without matching any core incident tokens
+            elif len(candidate_items) > 2 and (
+                (title_tokens and len(matched_title) == 0)
+                or (core_incident_tokens and len(matched_incident) == 0)
+            ):
                 excluded_ids.append(art_id)
-                reasons[art_id] = "ข่าวนอกประเด็น: เนื้อหาและหัวข้อข่าวไม่มีคำสำคัญร่วมกับเหตุการณ์หลัก"
+                reasons[art_id] = "ข่าวนอกประเด็น: เนื้อหาและหัวข้อข่าวไม่มีคำสำคัญเฉพาะเจาะจงร่วมกับเหตุการณ์หลัก"
             # 3. Direct incident evidence
             else:
                 relevant_ids.append(art_id)
@@ -1118,44 +1127,69 @@ class StoryPresentationService:
         self,
         synthesis: EventProgressionSynthesis | dict[str, Any],
         allowed_article_ids: Sequence[str] | set[str],
+        disallowed_article_ids: Sequence[str] | set[str] | None = None,
     ) -> tuple[bool, list[str]]:
         """
         Stage 3 Output Validator: Verifies that every milestone, confirmed fact,
-        and conflict stance strictly cites ONLY article IDs from allowed_article_ids.
+        and conflict stance strictly cites ONLY article IDs from allowed_article_ids,
+        and NEVER cites any ID from disallowed_article_ids (irrelevant/context articles).
         Returns (is_valid, list_of_errors).
         """
         allowed = {str(aid).strip().lower() for aid in allowed_article_ids}
+        disallowed = {str(did).strip().lower() for did in (disallowed_article_ids or [])}
         errors: list[str] = []
 
         if isinstance(synthesis, EventProgressionSynthesis):
             timeline = synthesis.progression_timeline
             facts = synthesis.confirmed_facts
             conflicts = synthesis.conflicts
+            if not disallowed:
+                disallowed = {
+                    str(irr.article_id).strip().lower()
+                    for irr in synthesis.irrelevant_articles
+                    if getattr(irr, "article_id", None)
+                }
         else:
             timeline = synthesis.get("progression_timeline") or []
             facts = synthesis.get("confirmed_facts") or []
             conflicts = synthesis.get("conflicts") or []
+            if not disallowed:
+                disallowed = {
+                    str(irr.get("article_id") or irr.get("id") or "").strip().lower()
+                    for irr in (synthesis.get("irrelevant_articles") or [])
+                    if isinstance(irr, dict)
+                }
 
         for m in timeline:
             m_id = getattr(m, "milestone_id", "") if not isinstance(m, dict) else m.get("milestone_id", "")
             ev_ids = getattr(m, "evidence_ids", []) if not isinstance(m, dict) else m.get("evidence_ids", [])
             for eid in ev_ids:
-                if str(eid).strip().lower() not in allowed:
+                clean_eid = str(eid).strip().lower()
+                if clean_eid not in allowed:
                     errors.append(f"Milestone '{m_id}' cited disallowed article ID '{eid}'")
+                elif clean_eid in disallowed:
+                    errors.append(f"Milestone '{m_id}' cited excluded/irrelevant article ID '{eid}'")
 
         for f in facts:
             f_id = getattr(f, "fact_id", "") if not isinstance(f, dict) else f.get("fact_id", "")
             ev_ids = getattr(f, "evidence_ids", []) if not isinstance(f, dict) else f.get("evidence_ids", [])
             for eid in ev_ids:
-                if str(eid).strip().lower() not in allowed:
+                clean_eid = str(eid).strip().lower()
+                if clean_eid not in allowed:
                     errors.append(f"Fact '{f_id}' cited disallowed article ID '{eid}'")
+                elif clean_eid in disallowed:
+                    errors.append(f"Fact '{f_id}' cited excluded/irrelevant article ID '{eid}'")
 
         for c in conflicts:
             sides = getattr(c, "sides", []) if not isinstance(c, dict) else c.get("sides", [])
             for s in sides:
                 eid = getattr(s, "evidence_id", "") if not isinstance(s, dict) else s.get("evidence_id", "")
-                if eid and str(eid).strip().lower() not in allowed:
-                    errors.append(f"Conflict stance cited disallowed article ID '{eid}'")
+                if eid:
+                    clean_eid = str(eid).strip().lower()
+                    if clean_eid not in allowed:
+                        errors.append(f"Conflict stance cited disallowed article ID '{eid}'")
+                    elif clean_eid in disallowed:
+                        errors.append(f"Conflict stance cited excluded/irrelevant article ID '{eid}'")
 
         return (len(errors) == 0, errors)
 
@@ -1486,11 +1520,19 @@ class StoryPresentationService:
                 f"ชุดข้อมูลหลักฐานเฉพาะที่ผ่านเกณฑ์ (Evidence Input JSON):\n{payload_json}"
             )
 
+            disallowed_ids_set = {str(irr.article_id).strip().lower() for irr in irrelevant_articles} | {
+                str(ctx.article_id).strip().lower() for ctx in political_contexts
+            }
+
             def _parse_synthesis(raw_text: str) -> dict[str, Any]:
                 parsed_dict = self._parse_llm_json(raw_text)
                 if parsed_dict is None or not isinstance(parsed_dict, dict):
                     raise ValueError("Malformed dossier synthesis JSON.")
-                is_valid, errors = self.validate_dossier_citations(parsed_dict, relevant_ids_set)
+                is_valid, errors = self.validate_dossier_citations(
+                    parsed_dict,
+                    allowed_article_ids=relevant_ids_set,
+                    disallowed_article_ids=disallowed_ids_set,
+                )
                 if not is_valid:
                     raise ValueError(f"Citation validation failed: {errors}")
                 return parsed_dict
@@ -1550,6 +1592,44 @@ class StoryPresentationService:
             synthesis.synthesis_status = synthesis_status_val
             synthesis.is_single_source = is_single_source
             synthesis.status_message = single_source_msg
+
+        # 6.1 Strict Mutual Exclusion Enforcement: Ensure 0 overlap between timeline/facts and irrelevant articles
+        excluded_ids_set = {str(irr.article_id).strip().lower() for irr in synthesis.irrelevant_articles} | {
+            str(ctx.article_id).strip().lower() for ctx in synthesis.political_contexts
+        }
+        if excluded_ids_set:
+            # Strip excluded IDs from timeline milestones
+            cleaned_timeline: list[ProgressionMilestone] = []
+            for m in synthesis.progression_timeline:
+                clean_evs = [eid for eid in m.evidence_ids if str(eid).strip().lower() not in excluded_ids_set]
+                if clean_evs:
+                    m.evidence_ids = clean_evs
+                    cleaned_timeline.append(m)
+            synthesis.progression_timeline = cleaned_timeline
+
+            # Strip excluded IDs from confirmed facts
+            cleaned_facts: list[ConfirmedFact] = []
+            for f in synthesis.confirmed_facts:
+                clean_evs = [eid for eid in f.evidence_ids if str(eid).strip().lower() not in excluded_ids_set]
+                if clean_evs:
+                    f.evidence_ids = clean_evs
+                    cleaned_facts.append(f)
+            synthesis.confirmed_facts = cleaned_facts
+
+            # Strip excluded IDs from conflict stances
+            cleaned_conflicts: list[DisputeIssue] = []
+            for c in synthesis.conflicts:
+                clean_sides = [s for s in c.sides if not s.evidence_id or str(s.evidence_id).strip().lower() not in excluded_ids_set]
+                if clean_sides:
+                    c.sides = clean_sides
+                    cleaned_conflicts.append(c)
+            synthesis.conflicts = cleaned_conflicts
+
+            # Sync DossierMetrics to exact clean counts
+            if synthesis.metrics is not None:
+                synthesis.metrics.candidate_count = len(articles)
+                synthesis.metrics.excluded_count = len(synthesis.irrelevant_articles) + len(synthesis.political_contexts)
+                synthesis.metrics.synthesized_evidence_count = max(0, len(articles) - synthesis.metrics.excluded_count)
 
         # 7. Diagnostic Observability Trace
         self._log_pipeline_diagnostic_trace(
@@ -1768,36 +1848,18 @@ class StoryPresentationService:
             ),
         ]
 
-        # 6. Irrelevant Articles Detection Heuristic
-        # If an article has 0 common significant words with event title, flag as potential outlier
-        irrelevant: list[IrrelevantArticle] = []
-        title_tokens = set(re.findall(r'[\wก-๙]{3,}', title.lower()))
-        for art in payload.articles:
-            art_tokens = set(re.findall(r'[\wก-๙]{3,}', (art.title + " " + art.summary).lower()))
-            overlap = title_tokens.intersection(art_tokens)
-            if title_tokens and len(overlap) == 0 and len(payload.articles) > 2:
-                irrelevant.append(
-                    IrrelevantArticle(
-                        article_id=art.article_id,
-                        source=art.source,
-                        title=art.title,
-                        reason="เนื้อหาและหัวข้อข่าวไม่มีคำสำคัญร่วมกับประเด็นหลักของเหตุการณ์ อาจเป็นข่าวที่ระบบจัดกลุ่มคลาดเคลื่อน",
-                    )
-                )
-
+        # 6. Irrelevant & Context Articles Passthrough
+        # Candidate triage is exclusively performed upstream by Stage 1 Relevance Gate.
+        # Payload articles passed here have already been validated as relevant evidence;
+        # do NOT re-flag them as irrelevant outliers.
         final_irrelevant: list[IrrelevantArticle] = list(irrelevant_articles or [])
-        seen_irr_ids = {irr.article_id for irr in final_irrelevant}
-        for irr in irrelevant:
-            if irr.article_id not in seen_irr_ids:
-                final_irrelevant.append(irr)
-                seen_irr_ids.add(irr.article_id)
 
         final_metrics = metrics
         if final_metrics is None:
             publishers = sorted({a.source for a in payload.articles if a.source})
             final_metrics = DossierMetrics(
-                candidate_count=len(payload.articles),
-                excluded_count=len(final_irrelevant),
+                candidate_count=len(payload.articles) + len(final_irrelevant) + len(political_contexts or []),
+                excluded_count=len(final_irrelevant) + len(political_contexts or []),
                 synthesized_evidence_count=len(payload.articles),
                 candidate_publishers_count=len(publishers),
                 synthesized_publishers_count=len(publishers),

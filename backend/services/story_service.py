@@ -217,12 +217,26 @@ class StoryService:
             b_time = -0.15
             has_hard_veto = True
 
+        cand_locations = set(cand_anchors.event_locations)
+        art_locations = set(article_anchors.event_locations)
+        location_conflict = bool(
+            cand_locations and art_locations and not (cand_locations & art_locations)
+            and not (shared_actors or storyline_match)
+        )
+        if location_conflict:
+            has_hard_veto = True
+
         score_same = float(np.clip(0.65 * sim_rep + 0.35 * sim_seed + b_anchor + b_time, 0.0, 1.0))
 
         has_entity = (b_anchor > 0.0) or legacy_entity_match
+        # Seed Lock: To prevent EMA centroid drift and chain merging (A -> B -> C),
+        # same_eligible requires similarity to the seed article (sim_seed) >= 0.74
+        # unless there is explicit identical actor or storyline anchor match.
+        seed_lock_passed = (sim_seed >= 0.74) or bool(shared_actors or storyline_match)
         is_same_eligible = (
             not has_hard_veto
             and not is_progression
+            and seed_lock_passed
             and (
                 sim_rep >= self._high_threshold
                 or (sim_rep >= self._low_threshold and has_entity)
@@ -247,7 +261,7 @@ class StoryService:
             and (supporting_score >= 1.0 or storyline_match or legacy_entity_match)
         )
 
-        return score_same, score_follow, is_same_eligible, is_follow_eligible, sim_rep
+        return score_same, score_follow, bool(is_same_eligible), bool(is_follow_eligible), sim_rep
 
     def _merge_story_evidence(
         self,
@@ -583,6 +597,13 @@ class StoryService:
             results.append(self.assign_article(a))
         return results
 
+    _BROAD_INSTITUTIONAL_ENTITIES: frozenset[str] = frozenset({
+        "ตำรวจ", "สำนักงานตำรวจแห่งชาติ", "สตช", "ผบ.ตร.", "ผบ.ตร", "เจ้าหน้าที่ตำรวจ",
+        "เจ้าหน้าที่", "รัฐบาล", "นายก", "นายกรัฐมนตรี", "นายกฯ", "รัฐมนตรี", "รมว.",
+        "กระทรวง", "กรม", "กองทัพ", "ทหาร", "ศาล", "ครม", "ครม.", "สภา", "พรรค",
+        "สำนักนายกรัฐมนตรี", "พนักงานสอบสวน", "สืบสวน",
+    })
+
     def has_entity_confirmation(
         self,
         article_entities: list[str],
@@ -590,13 +611,22 @@ class StoryService:
     ) -> bool:
         """
         Evaluate named entity agreement between article entities and story entities.
-        Returns True if at least one entity matches or shares substantive overlap.
+        Returns True if at least one substantive, non-generic entity matches.
         """
         if not article_entities or not story_entities:
             return False
 
-        art_clean = {e.strip().lower() for e in article_entities if e and e.strip()}
-        story_clean = {e.strip().lower() for e in story_entities if e and e.strip()}
+        art_clean = {
+            e.strip().lower() for e in article_entities
+            if e and e.strip() and e.strip().lower() not in self._BROAD_INSTITUTIONAL_ENTITIES
+        }
+        story_clean = {
+            e.strip().lower() for e in story_entities
+            if e and e.strip() and e.strip().lower() not in self._BROAD_INSTITUTIONAL_ENTITIES
+        }
+
+        if not art_clean or not story_clean:
+            return False
 
         # Exact intersection
         if art_clean & story_clean:

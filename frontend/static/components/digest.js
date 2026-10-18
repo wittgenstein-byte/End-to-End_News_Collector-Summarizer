@@ -142,12 +142,19 @@ export function renderStorylineAiSynthesis(synthesisData) {
     return;
   }
 
+  let timelineTitle = 'ลำดับเหตุการณ์สำคัญ (ยืนยันตรงกันทุกสื่อ)';
+  if (isSingleSource) {
+    timelineTitle = 'ลำดับเหตุการณ์เบื้องต้น (จากรายงานแหล่งข่าวเดียว)';
+  } else if (s.is_fallback) {
+    timelineTitle = 'ลำดับรายงานตามเวลา (โหมดรวบรวมอัตโนมัติ)';
+  }
+
   const timelineHtml = `
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[16px] ${isSingleSource ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'}">${isSingleSource ? 'feed' : 'timeline'}</span>
-            ${isSingleSource ? 'ลำดับเหตุการณ์เบื้องต้น (จากรายงานแหล่งข่าวเดียว)' : 'ลำดับเหตุการณ์สำคัญ (ยืนยันตรงกันทุกสื่อ)'}
+            ${timelineTitle}
           </h3>
         </div>
 
