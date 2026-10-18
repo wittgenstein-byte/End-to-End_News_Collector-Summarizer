@@ -20,7 +20,7 @@ import logging
 import sys
 from collections import Counter
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -347,6 +347,7 @@ def run_backfill(
     news_repo: NewsRepositoryPort | None = None,
     story_service: StoryService | None = None,
     limit: int | None = None,
+    hours: float | None = None,
     dry_run: bool | None = None,
     apply: bool = False,
     log_fn: Callable[[str], None] | None = None,
@@ -388,10 +389,20 @@ def run_backfill(
     def get_time_key(a: dict[str, Any]) -> str:
         return str(a.get("fetched_at") or a.get("created_at") or a.get("published_at") or "")
 
-    sorted_articles = sorted(articles, key=get_time_key)
+    # Sort descending to easily pick the most recent articles
+    articles_by_recency = sorted(articles, key=get_time_key, reverse=True)
+
+    if hours is not None and hours > 0:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        articles_by_recency = [a for a in articles_by_recency if get_time_key(a) >= cutoff]
+        printer(f"  Filtering by last {hours} hours (since {cutoff}): {len(articles_by_recency)} articles.")
+
     if limit is not None and limit > 0:
-        sorted_articles = sorted_articles[:limit]
-        printer(f"  Processing limited subset: {len(sorted_articles)} articles.")
+        articles_by_recency = articles_by_recency[:limit]
+        printer(f"  Processing limited subset: {len(articles_by_recency)} articles.")
+
+    # Process in chronological order (oldest to newest) to naturally simulate story evolution
+    sorted_articles = sorted(articles_by_recency, key=get_time_key)
 
     processed = 0
     new_stories_count = 0
@@ -439,6 +450,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Simulate back-fill in read-only sandbox")
     parser.add_argument("--shadow-eval", action="store_true", help="Run shadow evaluation with diff reporting")
     parser.add_argument("--limit", type=int, default=500, help="Limit number of articles to process (default 500)")
+    parser.add_argument("--hours", type=float, default=None, help="Filter articles from the last N hours (e.g. 24, 48)")
     parser.add_argument("--output", type=Path, default=None, help="Path to save shadow report JSON")
     parser.add_argument("--apply", action="store_true", help="Explicitly allow production database writes")
 
@@ -459,7 +471,7 @@ def main() -> int:
         return 0
 
     if args.apply:
-        run_backfill(limit=args.limit, dry_run=False, apply=True)
+        run_backfill(limit=args.limit, hours=args.hours, dry_run=False, apply=True)
         return 0
 
     # Default if no arguments passed
