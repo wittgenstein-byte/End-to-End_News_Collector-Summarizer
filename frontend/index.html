@@ -188,9 +188,22 @@
             <input class="editorial-search-input" id="search-input" type="text" placeholder="ค้นหาบทความ, ประเด็น, คีย์เวิร์ด...">
             <span class="material-symbols-outlined absolute right-3 top-2.5 text-outline text-[18px] pointer-events-none">search</span>
           </div>
+          <div class="news-date-filters" aria-label="กรองวันที่ข่าว">
+            <div class="custom-date-picker" data-date-picker data-input-id="news-date-from" data-label="ตั้งแต่วันที่">
+              <input id="news-date-from" type="hidden">
+              <button type="button" class="date-picker-trigger" aria-label="เลือกวันที่เริ่มต้น" aria-haspopup="dialog" aria-expanded="false"><span data-date-display>dd/mm/yyyy</span><span class="material-symbols-outlined">calendar_month</span></button>
+              <div class="date-picker-popover" role="dialog" aria-label="เลือกวันที่เริ่มต้น" hidden></div>
+            </div>
+            <span class="text-outline">ถึง</span>
+            <div class="custom-date-picker" data-date-picker data-input-id="news-date-to" data-label="ถึงวันที่">
+              <input id="news-date-to" type="hidden">
+              <button type="button" class="date-picker-trigger" aria-label="เลือกวันที่สิ้นสุด" aria-haspopup="dialog" aria-expanded="false"><span data-date-display>dd/mm/yyyy</span><span class="material-symbols-outlined">calendar_month</span></button>
+              <div class="date-picker-popover" role="dialog" aria-label="เลือกวันที่สิ้นสุด" hidden></div>
+            </div>
+          </div>
           <a href="/issues" 
              id="issue-explorer-toolbar-btn"
-             onclick="const q = document.getElementById('search-input')?.value?.trim(); if (q) { this.href = '/issues?q=' + encodeURIComponent(q); }"
+             onclick="const p = new URLSearchParams(); const q = document.getElementById('search-input')?.value?.trim(); const from = document.getElementById('news-date-from')?.value; const to = document.getElementById('news-date-to')?.value; if (q) p.set('q', q); if (from) p.set('date_from', from); if (to) p.set('date_to', to); this.href = '/issues' + (p.size ? '?' + p.toString() : '');"
              class="editorial-issue-btn"
              title="เจาะลึกประเด็นและสถิติข่าว (Issue Explorer)">
             <span class="material-symbols-outlined issue-icon">troubleshoot</span>
