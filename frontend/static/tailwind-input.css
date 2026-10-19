@@ -95,10 +95,33 @@ html.dark .date-picker-footer { border-color: #454640; }
 }
 
 @media (max-width: 640px) {
-  .news-date-filters { width: 100%; }
-  .custom-date-picker { flex: 1; min-width: 0; }
-  .date-picker-trigger { width: 100%; min-width: 0; }
-  .date-picker-popover { right: auto; left: 0; width: min(18rem, calc(100vw - 2rem)); }
+  .news-date-filters {
+    width: 100%;
+    gap: 0.25rem;
+  }
+  .custom-date-picker {
+    flex: 1;
+    min-width: 0;
+  }
+  .date-picker-trigger {
+    width: 100%;
+    min-width: 0;
+    padding: 0.42rem 0.45rem;
+    font-size: 0.72rem;
+    gap: 0.25rem;
+  }
+  .date-picker-trigger .material-symbols-outlined {
+    font-size: 0.95rem;
+  }
+  .date-picker-popover {
+    right: auto;
+    left: 0;
+    width: min(18rem, calc(100vw - 2rem));
+  }
+  [data-input-id="news-date-to"] .date-picker-popover {
+    right: 0;
+    left: auto;
+  }
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -938,25 +961,47 @@ html.dark .editorial-source-chip.active {
 
 .editorial-search-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   width: 100%;
 }
 
 .editorial-search-group .search-input-wrapper {
   position: relative;
+  width: 100%;
+}
+
+.editorial-search-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.editorial-search-controls .news-date-filters {
   flex: 1;
   min-width: 0;
 }
 
 @media (min-width: 1024px) {
   .editorial-search-group {
+    flex-direction: row;
+    align-items: center;
     width: auto;
     flex-shrink: 0;
   }
 
   .editorial-search-group .search-input-wrapper {
     width: 18rem;
+    flex: initial;
+  }
+
+  .editorial-search-controls {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .editorial-search-controls .news-date-filters {
     flex: initial;
   }
 }
@@ -977,6 +1022,17 @@ html.dark .editorial-source-chip.active {
   transition: all 0.15s ease;
   cursor: pointer;
   text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .editorial-issue-btn {
+    padding: 0.42rem 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .editorial-issue-btn .issue-icon {
+    font-size: 0.95rem;
+  }
 }
 
 .editorial-issue-btn:hover {
