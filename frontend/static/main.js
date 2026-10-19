@@ -73,6 +73,7 @@ let activeStorylineSourceFilter = "";
 let activeStorylineSubEventFilter = "";
 let activeSportDisciplineFilter = "";
 let activeSportContentTypeFilter = "";
+let activeStorylineSort = "latest";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -1917,6 +1918,21 @@ window.__backFromStoryline = () => {
   window.location.hash = "#/";
 };
 
+window.__toggleStorylineSort = (sortOrder) => {
+  activeStorylineSort = sortOrder || "latest";
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
+    );
+  }
+};
+
 window.__filterStorylinePublisher = (source) => {
   activeStorylineSourceFilter = (activeStorylineSourceFilter === source) ? "" : (source || "");
   if (currentStorylineData) {
@@ -1926,7 +1942,8 @@ window.__filterStorylinePublisher = (source) => {
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
       activeSportContentTypeFilter,
-      activeStorylineSubEventFilter
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1940,7 +1957,8 @@ window.__filterStorylineSubEvent = (subStoryId) => {
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
       activeSportContentTypeFilter,
-      activeStorylineSubEventFilter
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1954,7 +1972,8 @@ window.__filterSportDiscipline = (discipline) => {
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
       activeSportContentTypeFilter,
-      activeStorylineSubEventFilter
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1968,7 +1987,8 @@ window.__filterSportContentType = (ctype) => {
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
       activeSportContentTypeFilter,
-      activeStorylineSubEventFilter
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -2022,7 +2042,8 @@ window.__runStorylineAiSummary = async (storyId) => {
           personalizationData.bookmarkedArticles || {},
           activeSportDisciplineFilter,
           activeSportContentTypeFilter,
-          activeStorylineSubEventFilter
+          activeStorylineSubEventFilter,
+          activeStorylineSort
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
@@ -2084,6 +2105,7 @@ async function loadStorylineView(storyId) {
   activeStorylineSubEventFilter = "";
   activeSportDisciplineFilter = "";
   activeSportContentTypeFilter = "";
+  activeStorylineSort = "latest";
 
   try {
     let storyData = null;
@@ -2281,7 +2303,8 @@ async function loadStorylineView(storyId) {
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
       activeSportContentTypeFilter,
-      activeStorylineSubEventFilter
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   } catch (err) {
     console.error("Failed to load storyline view:", err);

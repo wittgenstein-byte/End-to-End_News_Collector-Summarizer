@@ -65,7 +65,8 @@ export function renderStorylineView(
   bookmarkedMap = {},
   activeSportDisciplineFilter = "",
   activeSportContentTypeFilter = "",
-  activeSubEventFilter = ""
+  activeSubEventFilter = "",
+  activeSortOrder = "latest"
 ) {
   const container = document.getElementById("storyline-view");
   if (!container || !storyData) return;
@@ -74,14 +75,15 @@ export function renderStorylineView(
 
   const rawArticles = Array.isArray(storyData.articles) ? storyData.articles : [];
 
-  const sortedArticles = [...rawArticles].sort((a, b) => {
+  // Canonical chronological ordering for evidence citation indexing (ART_01, ART_02, etc.)
+  const chronologicalArticles = [...rawArticles].sort((a, b) => {
     const timeA = new Date(a.fetched_at || a.created_at || 0).getTime();
     const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
     return timeA - timeB;
   });
 
   // Check if this cluster is predominantly sports news -> dispatch to dedicated sports roundup view
-  if (checkIsSportsCluster(storyData, sortedArticles)) {
+  if (checkIsSportsCluster(storyData, chronologicalArticles)) {
     return renderSportsStorylineView(
       storyData,
       activeSourceFilter,
@@ -116,7 +118,7 @@ export function renderStorylineView(
   });
 
   // Assign permanent, stable chronological evidence IDs to all articles in the storyline
-  sortedArticles.forEach((art, idx) => {
+  chronologicalArticles.forEach((art, idx) => {
     const artTitle = (art.title || "").trim().toLowerCase();
     const artUrl = (art.url || "").trim().toLowerCase();
     if (!art.article_id) {
@@ -132,7 +134,7 @@ export function renderStorylineView(
   });
 
   const outletCounts = {};
-  sortedArticles.forEach(a => {
+  chronologicalArticles.forEach(a => {
     const src = a.source || "สำนักข่าว";
     outletCounts[src] = (outletCounts[src] || 0) + 1;
   });
@@ -172,7 +174,7 @@ export function renderStorylineView(
   }
 
   // Filter articles based on activeSubEventFilter and activeSourceFilter
-  let filteredArticles = sortedArticles;
+  let filteredArticles = chronologicalArticles;
   if (activeSubEventFilter) {
     filteredArticles = filteredArticles.filter(art => {
       if (art.story_id && String(art.story_id).toLowerCase() === String(activeSubEventFilter).toLowerCase()) {
@@ -208,7 +210,7 @@ export function renderStorylineView(
             class="storyline-publisher-pill ${allIsActive ? 'active' : ''}"
             onclick="window.__filterStorylinePublisher('')">
       <span>ทุกสำนักข่าว</span>
-      <span class="pill-count">${sortedArticles.length}</span>
+      <span class="pill-count">${chronologicalArticles.length}</span>
     </button>
   `;
 
@@ -246,44 +248,20 @@ export function renderStorylineView(
   const verificationStatus = storyData.verification_status || "verified";
   const isVerifiedStatus = verificationStatus !== "pending_review";
   const verificationBadgeHtml = isMacroView
-    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-500/30" title="โครงเรื่องใหญ่ (Stage B Macro-Event) ที่เชื่อมโยงเหตุการณ์ย่อยที่เกี่ยวข้องเข้าด้วยกัน">
-         <span class="material-symbols-outlined text-[13px]">hub</span>
-         <span>โครงเรื่องใหญ่ (Macro-Event)</span>
-       </span>`
-    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-500/30" title="เหตุการณ์จำเพาะ (Stage A Event Cluster)">
-         <span class="material-symbols-outlined text-[13px]">event_note</span>
-         <span>เหตุการณ์จำเพาะ (Stage A Event)</span>
-       </span>`;
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-500/30" title="โครงเรื่องใหญ่ (Stage B Macro-Event)"><span class="material-symbols-outlined text-[13px]">hub</span><span>โครงเรื่องใหญ่ (Macro-Event)</span></span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-500/30" title="เหตุการณ์จำเพาะ (Stage A Event Cluster)"><span class="material-symbols-outlined text-[13px]">event_note</span><span>เหตุการณ์จำเพาะ (Stage A Event)</span></span>`;
 
   const corroborationBadgeHtml = isVerifiedStatus
-    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30" title="ผ่านการตรวจสอบความสอดคล้องของหลักฐานข้ามสำนักข่าว">
-         <span class="material-symbols-outlined text-[13px]">verified</span>
-         <span>ยืนยันข้ามสำนักข่าว</span>
-       </span>`
-    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30" title="รอหลักฐานอิสระเพิ่มเติมจากสำนักข่าวอื่น">
-         <span class="material-symbols-outlined text-[13px]">schedule</span>
-         <span>รอการยืนยันเพิ่มเติม</span>
-       </span>`;
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30" title="ผ่านการตรวจสอบความสอดคล้องของหลักฐานข้ามสำนักข่าว"><span class="material-symbols-outlined text-[13px]">verified</span><span>ยืนยันข้ามสำนักข่าว</span></span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30" title="รอหลักฐานอิสระเพิ่มเติมจากสำนักข่าวอื่น"><span class="material-symbols-outlined text-[13px]">schedule</span><span>รอการยืนยันเพิ่มเติม</span></span>`;
 
   const parentMacroLinkHtml = (!isMacroView && storyData.macro_event_id)
-    ? `<button type="button"
-               onclick="window.__openStoryline('${esc(storyData.macro_event_id)}')"
-               class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer shadow-2xs"
-               title="ดูโครงเรื่องใหญ่ที่ครอบคลุมเหตุการณ์นี้">
-         <span class="material-symbols-outlined text-[13px]">account_tree</span>
-         <span>ดูโครงเรื่องใหญ่ (${esc(storyData.macro_event_id.slice(0, 12))})</span>
-       </button>`
+    ? `<button type="button" onclick="window.__openStoryline('${esc(storyData.macro_event_id)}')" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer shadow-2xs" title="ดูโครงเรื่องใหญ่ที่ครอบคลุมเหตุการณ์นี้"><span class="material-symbols-outlined text-[13px]">account_tree</span><span>ดูโครงเรื่องใหญ่ (${esc(storyData.macro_event_id.slice(0, 12))})</span></button>`
     : "";
 
   const antecedentId = storyData.metadata?.antecedent_story_id || "";
   const antecedentLinkHtml = antecedentId
-    ? `<button type="button"
-               onclick="window.__openStoryline('${esc(antecedentId)}')"
-               class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 transition-colors cursor-pointer"
-               title="คลิกเพื่อดูเหตุการณ์ต้นเรื่องก่อนหน้า (Follow-up Lineage)">
-         <span class="material-symbols-outlined text-[13px]">history</span>
-         <span>ความคืบหน้าต่อเนื่องจาก ${esc(antecedentId.slice(0, 12))}</span>
-       </button>`
+    ? `<button type="button" onclick="window.__openStoryline('${esc(antecedentId)}')" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 transition-colors cursor-pointer" title="คลิกเพื่อดูเหตุการณ์ต้นเรื่องก่อนหน้า (Follow-up Lineage)"><span class="material-symbols-outlined text-[13px]">history</span><span>ความคืบหน้าต่อเนื่องจาก ${esc(antecedentId.slice(0, 12))}</span></button>`
     : "";
 
   // Extract Typed Event Anchors & Event Time Interval
@@ -407,7 +385,7 @@ export function renderStorylineView(
   const storylineHashtags = Array.from(new Set([
     ...(Array.isArray(storyData.hashtags) ? storyData.hashtags : []),
     ...(Array.isArray(storyData.entities) ? storyData.entities : []),
-    ...(sortedArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
+    ...(chronologicalArticles.flatMap(a => Array.isArray(a.hashtags) ? a.hashtags : [])),
   ])).filter(Boolean).slice(0, 10);
 
   const storylineHashtagsHtml = storylineHashtags.length > 0 ? `
@@ -426,9 +404,19 @@ export function renderStorylineView(
     </div>
   ` : "";
 
-  const articlesGridHtml = filteredArticles.length > 0 ? `
+  // Sort displayed articles according to user preference: "latest" (newest first) or "oldest" (chronological)
+  const displayArticles = [...filteredArticles].sort((a, b) => {
+    const timeA = new Date(a.fetched_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.fetched_at || b.created_at || 0).getTime();
+    if (activeSortOrder === "oldest") {
+      return timeA - timeB;
+    }
+    return timeB - timeA;
+  });
+
+  const articlesGridHtml = displayArticles.length > 0 ? `
     <div class="storyline-grid-container">
-      ${filteredArticles.map((art, idx) => {
+      ${displayArticles.map((art, idx) => {
         const color = SOURCE_COLORS[art.source] ?? "#1d3557";
         const placeholder = getCategoryPlaceholder(art.category);
         const imgSrc = art.image_url || placeholder;
@@ -585,7 +573,7 @@ export function renderStorylineView(
     </div>
   ` : "";
 
-  const totalCandidates = metrics?.candidate_count ?? sortedArticles.length;
+  const totalCandidates = metrics?.candidate_count ?? chronologicalArticles.length;
   let evidenceCount = metrics?.synthesized_evidence_count;
   if (typeof evidenceCount !== "number") {
     evidenceCount = Math.max(1, totalCandidates - excludedCount);
@@ -682,13 +670,9 @@ export function renderStorylineView(
                     <div class="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto custom-scrollbar pt-1 pr-1">
                       ${contextList.map(pc => `
                         <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-blue-100 dark:border-blue-500/20 flex items-start justify-between gap-2 shadow-2xs">
-                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words">
-                            <span class="text-blue-700 dark:text-blue-400 font-bold mr-1">[${esc(pc.source || "ข่าว")}]</span>
-                            <span>${esc(pc.title)}</span>
-                          </div>
+                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words"><span class="text-blue-700 dark:text-blue-400 font-bold mr-1">[${esc(pc.source || "ข่าว")}]</span><span>${esc(pc.title)}</span></div>
                           <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(pc.article_id)}')">${esc(pc.article_id)}</button>
-                        </div>
-                      `).join("")}
+                        </div>`).join("")}
                     </div>
                   ` : `<p class="text-[10px] text-slate-400 dark:text-zinc-500 italic">ไม่พบข่าวบริบทแยกต่างหาก</p>`}
                 </div>
@@ -704,13 +688,9 @@ export function renderStorylineView(
                     <div class="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto custom-scrollbar pt-1 pr-1">
                       ${irrelevantList.map(irr => `
                         <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-amber-100 dark:border-amber-500/20 flex items-start justify-between gap-2 shadow-2xs">
-                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words">
-                            <span class="text-amber-700 dark:text-amber-400 font-bold mr-1">[${esc(irr.source || "ข่าว")}]</span>
-                            <span>${esc(irr.title)}</span>
-                          </div>
+                          <div class="min-w-0 flex-1 text-[11px] leading-snug text-slate-800 dark:text-zinc-200 break-words"><span class="text-amber-700 dark:text-amber-400 font-bold mr-1">[${esc(irr.source || "ข่าว")}]</span><span>${esc(irr.title)}</span></div>
                           <button type="button" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 cursor-pointer shrink-0" onclick="window.__inspectCitation('${esc(irr.article_id)}')">${esc(irr.article_id)}</button>
-                        </div>
-                      `).join("")}
+                        </div>`).join("")}
                     </div>
                   ` : `<p class="text-[10px] text-slate-400 dark:text-zinc-500 italic">ไม่พบข่าวหลุดประเด็น</p>`}
                 </div>
@@ -746,8 +726,26 @@ export function renderStorylineView(
 
       <div class="storyline-filter-bar">
         <div class="storyline-filter-title">
-          <span class="font-mono text-xs uppercase tracking-wider">FILTER BY PUBLISHER PERSPECTIVE</span>
-          <span class="font-mono text-[11px] text-outline">SHOWING ${filteredArticles.length} OF ${sortedArticles.length}</span>
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-xs uppercase tracking-wider">FILTER BY PUBLISHER PERSPECTIVE</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-[11px] text-outline">SHOWING ${filteredArticles.length} OF ${chronologicalArticles.length}</span>
+            <div class="inline-flex items-center rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30 text-xs" role="group" aria-label="เรียงลำดับข่าวในประเด็น">
+              <button type="button" 
+                      onclick="window.__toggleStorylineSort('latest')" 
+                      class="px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${activeSortOrder === 'latest' ? 'bg-[#141413] text-white dark:bg-white dark:text-black shadow-2xs' : 'text-outline hover:text-on-surface'}"
+                      title="เรียงตามเวลาล่าสุด (Latest First)">
+                ล่าสุด
+              </button>
+              <button type="button" 
+                      onclick="window.__toggleStorylineSort('oldest')" 
+                      class="px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${activeSortOrder === 'oldest' ? 'bg-[#141413] text-white dark:bg-white dark:text-black shadow-2xs' : 'text-outline hover:text-on-surface'}"
+                      title="เรียงตามลำดับเวลาตั้งแต่แรกสุด (Chronological Order)">
+                แรกสุด
+              </button>
+            </div>
+          </div>
         </div>
         <div class="storyline-pills-row custom-scrollbar">
           ${publisherPillsHtml}
@@ -785,4 +783,5 @@ if (typeof window !== "undefined") {
     }
   };
   window.__toggleSubEventArticles = () => {};
+  window.__toggleStorylineSort = window.__toggleStorylineSort || (() => {});
 }
