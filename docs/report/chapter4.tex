@@ -263,6 +263,23 @@ Schema & \texttt{backend/schemas/} & กำหนดโครงสร้าง�
 
 \subsection{การออกแบบฐานข้อมูลและการจัดเก็บข้อมูล}
 
+โครงสร้างข้อมูลของระบบได้รับการออกแบบตามหลักการความรับผิดชอบเดี่ยว (Single Responsibility Principle) และสถาปัตยกรรมแบบ Single Source of Truth (SST) โดยกำหนดความสัมพันธ์ระหว่างเอนทิตีในระดับต่าง ๆ ผ่านโมเดล Pydantic v2 เพื่อรองรับทั้งการจัดเก็บลงไฟล์ JSON และ MongoDB ได้อย่างยืดหยุ่น ดังแสดงในภาพที่ \ref{fig:arch_schema_erd}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/architecture_schema_erd.pdf}
+\caption{แผนภาพแสดงความสัมพันธ์ของโครงสร้างข้อมูลทั้งระบบ (System Schema Entity-Relationship Diagram)}
+\label{fig:arch_schema_erd}
+\end{figure}
+
+จากภาพที่ \ref{fig:arch_schema_erd} โครงสร้างข้อมูลแบ่งออกเป็นระดับสำคัญดังนี้:
+\begin{enumerate}
+    \item \textbf{ระดับบทความข่าว (\texttt{ArticleRecord})}: จัดเก็บข้อมูลข่าวเดี่ยวที่สกัดได้จากสำนักข่าวต้นทาง โดยมีฟิลด์ \texttt{url} ทำหน้าที่เป็น Primary Key และเชื่อมโยงไปยังกลุ่มจุลเหตุการณ์ผ่าน \texttt{story\_id}
+    \item \textbf{ระดับจุลเหตุการณ์ (\texttt{StoryRecord})}: ทำหน้าที่เป็น Single Source of Truth (SST) ของเหตุการณ์ย่อย รวมบทความข่าวที่รายงานเหตุการณ์เดียวกัน ($1:N$) มีการฝัง \texttt{TypedEventAnchors} และ \texttt{EventTimeEvidence} เพื่อใช้ในการตรวจสอบหลักฐานและความสอดคล้องเชิงพื้นที่/เวลา พร้อมทั้งบันทึก \texttt{macro\_event\_id} เพื่อชี้ไปยังเส้นเรื่องมหาภาค
+    \item \textbf{ระดับเส้นเรื่องมหาภาค (\texttt{MacroEventRecord})}: ทำหน้าที่เป็น Dynamic Search Index สำหรับจัดกลุ่มจุลเหตุการณ์ที่ต่อเนื่องกันข้ามสัปดาห์หรือข้ามเดือน ($1:N$) พร้อมบันทึกความสัมพันธ์เชิงเวลาและสาเหตุ (\texttt{EventRelationRecord}) เช่น \texttt{precedes} และ \texttt{updates}
+    \item \textbf{ระดับการสังเคราะห์และประเมินกระแส}: ประกอบด้วย \texttt{EventProgressionSynthesis} สำหรับแคชผลการสังเคราะห์ไทม์ไลน์และข้อเท็จจริงยืนยัน และ \texttt{TrendingScoreBreakdown} สำหรับแจกแจงคะแนนกระแสข่าว 4 มิติ
+\end{enumerate}
+
 ระบบได้รับการออกแบบโครงสร้างข้อมูลแยกเป็น 3 ส่วนหลัก ได้แก่ โครงสร้างบทความข่าวเดี่ยว (\texttt{NewsArticle} Schema ดังตารางที่ \ref{tab:news_schema}) โครงสร้างประเด็นข่าวสารหลายสำนัก (\texttt{StoryRecord} Schema ดังตารางที่ \ref{tab:story_schema}) และโครงสร้างคะแนนแจกแจงกระแสข่าว (\texttt{TrendingScoreBreakdown} Schema)
 
 \begin{table}[H]
