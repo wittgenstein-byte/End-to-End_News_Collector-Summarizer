@@ -1,0 +1,24 @@
+% =====================================================================
+% ภาคผนวก ข — คู่มือการติดตั้งระบบ (ตัวอย่าง)
+% คู่มือการใช้งานฉบับเต็มให้จัดทำเป็นเล่มแยกด้วย template "Template_Manual_2026"
+% =====================================================================
+\section{ซอฟต์แวร์ที่ต้องติดตั้ง}
+
+\begin{enumerate}
+  \item Node.js รุ่น 20 ขึ้นไป
+  \item PostgreSQL รุ่น 15 ขึ้นไป
+\end{enumerate}
+
+\section{ขั้นตอนการติดตั้ง}
+
+ดาวน์โหลดซอร์สโค้ด ติดตั้งแพ็กเกจ และเริ่มระบบด้วยคำสั่งต่อไปนี้
+
+\begin{lstlisting}[language=bash, deletekeywords={env}, numbers=none]
+git clone https://github.com/<user>/<repository>.git
+cd <repository>
+npm install
+cp .env.example .env    # แก้ค่าการเชื่อมต่อฐานข้อมูลในไฟล์ .env
+npm run dev
+\end{lstlisting}
+
+เมื่อระบบเริ่มทำงานแล้ว เปิดเว็บเบราว์เซอร์ไปที่ \url{http://localhost:3000}

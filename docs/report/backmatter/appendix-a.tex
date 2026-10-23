@@ -1,0 +1,50 @@
+% =====================================================================
+% ภาคผนวก — ชื่อภาคผนวกกำหนดใน main.tex ด้วย \chapter{...} หลัง \appendix
+% ระบบใส่ "ภาคผนวก ก ข ค ..." ให้อัตโนมัติ และใช้ \section{...} ภายในได้ตามปกติ
+% =====================================================================
+
+
+\section{ข้อกำหนดเบื้องต้นของสภาพแวดล้อม (Prerequisites)}
+
+\begin{enumerate}
+    \item ระบบปฏิบัติการ: Windows 10/11, macOS หรือ Linux (Ubuntu 20.04+)
+    \item Python เวอร์ชัน 3.11 หรือใหม่กว่า
+    \item เครื่องมือจัดการสภาพแวดล้อม \texttt{uv} (Fast Python Package Installer)
+    \item การเชื่อมต่ออินเทอร์เน็ตสำหรับดาวน์โหลด Dependencies และเรียกใช้ KKU Gen.AI API
+\end{enumerate}
+
+\section{ขั้นตอนการติดตั้งระบบ (Installation Steps)}
+
+\begin{enumerate}
+    \item โคลน Repository โครงการจาก GitHub:
+    \begin{lstlisting}[language=bash]
+git clone https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer.git
+cd End-to-End_News_Collector-Summarizer
+    \end{lstlisting}
+
+    \item ติดตั้ง Dependencies ทั้งหมดผ่าน \texttt{uv}:
+    \begin{lstlisting}[language=bash]
+uv sync
+    \end{lstlisting}
+
+    \item ติดตั้ง Playwright Chromium Headless Browser:
+    \begin{lstlisting}[language=bash]
+uv run playwright install chromium
+    \end{lstlisting}
+
+    \item กำหนดค่า Environment Variables โดยคัดลอกไฟล์ตัวอย่าง:
+    \begin{lstlisting}[language=bash]
+copy backend\.env.example backend\.env
+    \end{lstlisting}
+    จากนั้นแก้ไขไฟล์ \texttt{backend/.env} โดยกรอก API Key สำหรับ LLM Service:
+    \begin{lstlisting}[language=bash]
+LLM_API=your_kku_genai_api_key_here
+    \end{lstlisting}
+
+    \item เริ่มต้นทำงานเซิร์ฟเวอร์ Backend:
+    \begin{lstlisting}[language=bash]
+uv run python backend/main.py
+    \end{lstlisting}
+
+    \item เปิดเว็บเบราว์เซอร์และเข้าสู่ระบบที่: \url{http://localhost:5000}
+\end{enumerate}

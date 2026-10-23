@@ -1,0 +1,175 @@
+% =====================================================================
+%  cskkufront.sty — ข้อมูลโครงงานและหน้าปก (ใช้ร่วมกันทุกเล่ม)
+%  แบบปกตามคู่มือหน้า 12–13:
+%    โลโก้ มข.
+%    CS/IT พ.ศ./กลุ่ม ........................ 26 หนา
+%    ชื่อเล่ม (เช่น รายงานความก้าวหน้า ครั้งที่ 1) 20 หนา
+%    ชื่อเรื่องภาษาไทย / ภาษาอังกฤษ ............ 20 ปกติ (ยาวเกิน 2 บรรทัด = สามเหลี่ยมกลับหัว)
+%    โดย  รหัส คำนำหน้าชื่อ-สกุล ................ 18 ปกติ
+%    อาจารย์ที่ปรึกษา : ....................... 18 ปกติ
+%    วิชา ภาคเรียน สาขา มหาวิทยาลัย (เดือน พ.ศ.) 16 ปกติ
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{cskkufront}[2026/10/15 v2.0.0 CS KKU front matter data and covers]
+
+% ---------------------------------------------------------------------
+% ช่องข้อมูล: \titleTH{...} เก็บไว้ที่ \@titleTH
+% ---------------------------------------------------------------------
+\newcommand*\cskku@field[2]{%
+  \expandafter\newcommand\csname #1\endcsname[1]{%
+    \expandafter\gdef\csname @#1\endcsname{##1}}%
+  \expandafter\gdef\csname @#1\endcsname{#2}}
+
+\cskku@field{titleTH}{ชื่อโครงงานภาษาไทย}
+\cskku@field{titleEN}{Project Title in English}
+\cskku@field{projectCode}{CS 25xx/xx}
+\cskku@field{doctype}{}
+\cskku@field{coverstatement}{รายงานนี้เป็นส่วนหนึ่งของการศึกษาวิชา}
+\cskku@field{advisorTH}{ผศ.ดร.ชื่อ นามสกุล}
+\cskku@field{advisorEN}{Asst. Prof. Firstname Lastname, Ph.D.}
+\cskku@field{coadvisorTH}{}
+\cskku@field{coadvisorEN}{}
+\cskku@field{degreeTH}{วิทยาศาสตรบัณฑิต}
+\cskku@field{degreeEN}{Bachelor of Science}
+\cskku@field{majorTH}{วิทยาการคอมพิวเตอร์}
+\cskku@field{majorEN}{Computer Science}
+\cskku@field{collegeTH}{วิทยาลัยการคอมพิวเตอร์}
+\cskku@field{collegeEN}{College of Computing}
+\cskku@field{universityTH}{มหาวิทยาลัยขอนแก่น}
+\cskku@field{universityEN}{Khon Kaen University}
+\cskku@field{courseCode}{รหัสวิชา}
+\cskku@field{courseName}{ชื่อวิชา}
+\cskku@field{semester}{1}
+\cskku@field{academicYearTH}{\cskkuThaiYear}
+\cskku@field{academicYearEN}{\the\year}
+\cskku@field{submitMonthTH}{\cskkuThaiMonth{\month}}
+\cskku@field{submitYearTH}{\cskkuThaiYear}
+\cskku@field{keywordsTH}{}
+\cskku@field{keywordsEN}{}
+\cskku@field{cskkulogo}{theme/kku-logo.png}
+% นักศึกษา (สูงสุด 3 คน) — เว้นว่างรหัสนักศึกษาเพื่อไม่แสดงคนนั้น
+\cskku@field{firstStudentID}{6xxxxxxxx-x}
+\cskku@field{firstStudentPrefixTH}{นาย}
+\cskku@field{firstStudentNameTH}{ชื่อ นามสกุล}
+\cskku@field{firstStudentPrefixEN}{Mr.}
+\cskku@field{firstStudentNameEN}{Firstname Lastname}
+\cskku@field{secondStudentID}{}
+\cskku@field{secondStudentPrefixTH}{}
+\cskku@field{secondStudentNameTH}{}
+\cskku@field{secondStudentPrefixEN}{}
+\cskku@field{secondStudentNameEN}{}
+\cskku@field{thirdStudentID}{}
+\cskku@field{thirdStudentPrefixTH}{}
+\cskku@field{thirdStudentNameTH}{}
+\cskku@field{thirdStudentPrefixEN}{}
+\cskku@field{thirdStudentNameEN}{}
+
+\newcommand\cskku@ifempty[3]{% #1 = macro
+  \expandafter\ifx\expandafter\relax\detokenize\expandafter{#1}\relax#2\else#3\fi}
+\newcommand*\cskku@ifsecond{\cskku@ifempty{\@secondStudentID}}
+\newcommand*\cskku@ifthird{\cskku@ifempty{\@thirdStudentID}}
+
+% "ก และ ข" / "ก, ข และ ค"  (ไม่มีคำนำหน้า ตามตัวอย่างบทคัดย่อ)
+\newcommand*\cskku@studentlistTH{%
+  \@firstStudentNameTH
+  \cskku@ifsecond{}{%
+    \cskku@ifthird{\ และ \@secondStudentNameTH}%
+      {, \@secondStudentNameTH\ และ \@thirdStudentNameTH}}}
+\newcommand*\cskku@studentlistEN{%
+  \@firstStudentNameEN
+  \cskku@ifsecond{}{%
+    \cskku@ifthird{\ and \@secondStudentNameEN}%
+      {, \@secondStudentNameEN, and \@thirdStudentNameEN}}}
+% รายชื่อสำหรับลงท้าย (คำนำ / กิตติกรรมประกาศ)
+\newcommand*\cskku@studentnamesTH{%
+  \@firstStudentNameTH
+  \cskku@ifsecond{}{\\\@secondStudentNameTH}%
+  \cskku@ifthird{}{\\\@thirdStudentNameTH}}
+\newcommand*\cskku@studentnamesprefixTH{%
+  \@firstStudentPrefixTH\@firstStudentNameTH
+  \cskku@ifsecond{}{\\\@secondStudentPrefixTH\@secondStudentNameTH}%
+  \cskku@ifthird{}{\\\@thirdStudentPrefixTH\@thirdStudentNameTH}}
+% บรรทัดบนปก: รหัส  คำนำหน้าชื่อ-สกุล (คำนำหน้าติดกับชื่อ ไม่เว้นวรรค — คู่มือข้อ 3)
+\newcommand*\cskku@coverstudents{%
+  \@firstStudentID\hspace{0.6em}\@firstStudentPrefixTH\@firstStudentNameTH\par
+  \cskku@ifsecond{}{%
+    \@secondStudentID\hspace{0.6em}\@secondStudentPrefixTH\@secondStudentNameTH\par}%
+  \cskku@ifthird{}{%
+    \@thirdStudentID\hspace{0.6em}\@thirdStudentPrefixTH\@thirdStudentNameTH\par}}
+
+% ---------------------------------------------------------------------
+% ชื่อเรื่องแบบสามเหลี่ยมกลับหัว (คู่มือข้อ 1.2) — บรรทัดหลังสั้นลงเรื่อย ๆ
+% ตัดบรรทัดเองได้ด้วย \\ ภายในชื่อเรื่อง
+% ---------------------------------------------------------------------
+\newcommand\cskkuPyramid[1]{%
+  \begingroup
+    \setlength\parindent{0pt}%
+    \leftskip=0pt plus 0.3\linewidth
+    \rightskip=0pt plus 0.3\linewidth
+    \parfillskip=0pt
+    \emergencystretch=0pt \hbadness=10000 \pretolerance=-1 \tolerance=9999
+    \let\\\newline
+    \parshape 5
+      0.00\linewidth 1.00\linewidth
+      0.09\linewidth 0.82\linewidth
+      0.17\linewidth 0.66\linewidth
+      0.24\linewidth 0.52\linewidth
+      0.30\linewidth 0.40\linewidth
+    #1\par
+  \endgroup}
+
+% ชื่อภาษาอังกฤษบนปกเป็นตัวพิมพ์ใหญ่ (คู่มือข้อ 1.1)
+% ยกเว้นคำที่ต้องคงรูป: \NoCaseChange{iOS}  หรือใช้ตัวเลือก titleasis
+\@ifundefined{ifcskku@titleasis}
+  {\expandafter\newif\csname ifcskku@titleasis\endcsname}{}
+\newcommand\cskku@coverEN[1]{%
+  \ifcskku@titleasis #1\else\MakeUppercase{#1}\fi}
+
+\newcommand\cskku@fs[2]{\fontsize{#1}{#2}\selectfont}
+
+% ---------------------------------------------------------------------
+% ปกนอก / ปกใน
+% ---------------------------------------------------------------------
+\newcommand\cskku@cover{%
+  \clearpage
+  \thispagestyle{empty}%
+  \begingroup
+  \setlength\parindent{0pt}%
+  \centering
+  \IfFileExists{\@cskkulogo}
+    {\includegraphics[height=1.25in]{\@cskkulogo}\par}
+    {\rule{0pt}{1.25in}\par}%
+  \vspace{14bp}%
+  {\cskku@fs{26bp}{34.6bp}\bfseries \@projectCode\par}%
+  \vspace{2bp}%
+  {\cskku@fs{20bp}{26.62bp}\bfseries \@doctype\par}%
+  \vspace{20bp}%
+  {\cskku@fs{20bp}{26.62bp}%
+   \cskkuPyramid{\@titleTH}%
+   \cskkuPyramid{\cskku@coverEN{\@titleEN}}}%
+  \vfill
+  {\cskku@fs{18bp}{23.96bp}%
+   โดย\par
+   \cskku@coverstudents}%
+  \vfill
+  {\cskku@fs{18bp}{23.96bp}\raggedright
+   อาจารย์ที่ปรึกษา : \@advisorTH\par
+   \cskku@ifempty{\@coadvisorTH}{}{อาจารย์ที่ปรึกษาร่วม : \@coadvisorTH\par}}%
+  \vspace{18bp}%
+  {\cskku@fs{16bp}{21.3bp}\centering
+   \@coverstatement\ \@courseCode\ \@courseName\par
+   ภาคเรียนที่ \@semester\ ปีการศึกษา \@academicYearTH\par
+   สาขาวิชา\@majorTH\ \@collegeTH\par
+   \@universityTH\par
+   (เดือน \@submitMonthTH\ พ.ศ. \@submitYearTH)\par}%
+  \endgroup
+  \clearpage}
+
+\newcommand\makecover{\cskku@cover}
+\newcommand\makeinnercover{\cskku@cover}
+% ชื่อคำสั่งเดิม
+\newcommand\maketitlepage{\cskku@cover}
+\newcommand\makeprogresscover[1]{%
+  \doctype{รายงานความก้าวหน้าโครงงาน ครั้งที่ #1}\cskku@cover}
+
+\endinput

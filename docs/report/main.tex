@@ -1,132 +1,154 @@
-\documentclass{cskkuproject}
+% =====================================================================
+%  เล่มรายงานโครงงานคอมพิวเตอร์ (template v2)
+%  สาขาวิชาวิทยาการคอมพิวเตอร์ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น
+%  ไฟล์นี้สร้างอัตโนมัติจาก main.tex เดิมโดยระบบปรับรูปเล่ม — ตรวจข้อมูลแล้วแก้ได้ตามปกติ
+%
+%  Compile: XeLaTeX + Biber
+%    Overleaf : Menu > Settings > Compiler = XeLaTeX (biber ทำงานอัตโนมัติ)
+%    เครื่องตนเอง: latexmk   (อ่านค่าจาก .latexmkrc)
+%
+%  นักศึกษาแก้ไขเฉพาะ: ไฟล์นี้ (ข้อมูลโครงงาน), frontmatter/, chapters/,
+%  backmatter/, references.bib และ images/
+%  ไม่ต้องแก้ไขไฟล์ .cls / .sty — รูปแบบทั้งหมดเป็นไปตาม
+%  "คู่มือการจัดทำเอกสารโครงงานคอมพิวเตอร์" ของสาขาวิชาแล้ว
+% =====================================================================
+\documentclass[final]{cskkuproject}
+% ชนิดเล่ม (เลือก 1 อย่าง):
+%   progress1  รายงานความก้าวหน้าโครงงาน ครั้งที่ 1
+%   progress2  รายงานความก้าวหน้าโครงงาน ครั้งที่ 2
+%   final      เอกสารโครงงานฉบับสมบูรณ์
+% ตัวเลือกเพิ่มเติม เช่น \documentclass[final,plainnumbering]{cskkuproject}
+%   plainnumbering     เลขหัวข้อแบบ 1. / 1.1 / 1.1.1 / (1)
+%   boldheadings       หัวข้อย่อยตัวหนา
+%   chapterfloats      เลขภาพ/ตาราง/สมการแยกตามบท (2.1, 2.2, ...)
+%   chapterpagenumber  แสดงเลขหน้าในหน้าแรกของบท
+%   titleasis          ไม่แปลงชื่อภาษาอังกฤษบนปกเป็นตัวพิมพ์ใหญ่
+%   englishbook        เล่มภาษาอังกฤษทั้งเล่ม
+%   mermaid            ใช้แผนภาพ Mermaid (ดู README.md)
 
-% ==========================================
-% ข้อมูลโครงงาน — กรอกข้อมูลที่นี่
-% ==========================================
+% ---------------------------------------------------------------------
+% คำสั่งเพิ่มเติมที่ยกมาจาก main.tex เดิม (ตรวจว่ายังจำเป็นหรือไม่)
+% ---------------------------------------------------------------------
+\usetikzlibrary{backgrounds}   % class เดิมโหลดไว้ แผนภาพในเล่มอาจใช้
 
+% ---------------------------------------------------------------------
+% 1) ข้อมูลโครงงาน (ใช้สร้างปก บทคัดย่อ และกิตติกรรมประกาศอัตโนมัติ)
+% ---------------------------------------------------------------------
+\projectCode{CS 25xx/xx}   % TODO: ใส่รหัสโครงงานตามที่สาขากำหนด
 \titleTH{ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติด้วยเทคนิคการประมวลผล ภาษาธรรมชาติแบบเฉพาะประเภท}
 \titleEN{Category-Specific News Classification and NLP Analytics Pipeline}
+% ชื่อยาวเกิน 2 บรรทัด ระบบจัดเป็นสามเหลี่ยมกลับหัวให้เอง
+% ตัดบรรทัดเองได้ด้วย \\ เช่น \titleTH{ระบบ...\\ สำหรับ...}
 
-% ข้อมูลนักศึกษาคนที่ 1 (กรอกข้อมูลจริงก่อนส่ง)
+% นักศึกษา (สูงสุด 3 คน) — คำนำหน้าชื่อเขียนติดกับชื่อ ไม่เว้นวรรค
 \firstStudentID{663380214-4}
 \firstStudentPrefixTH{นาย}
-\firstStudentPrefixEN{Mr.}
 \firstStudentNameTH{นราวิชญ์ ศิริพล}
+\firstStudentPrefixEN{Mr.}
 \firstStudentNameEN{Narawit Siripol}
 
-% ข้อมูลนักศึกษาคนที่ 2
-% *** ถ้าทำโครงงานคนเดียว ให้เว้นว่างไว้ทั้งหมด (เหมือนด้านล่าง) ***
-% *** ถ้ามี 2 คน ให้กรอกข้อมูลเหมือนคนที่ 1 ***
 \secondStudentID{663380028-1}
 \secondStudentPrefixTH{นาย}
-\secondStudentPrefixEN{Mr.}
 \secondStudentNameTH{อัสดาวุฒิ เอื้อวงค์}
+\secondStudentPrefixEN{Mr.}
 \secondStudentNameEN{Ausadawut Aueawong}
 
-% ข้อมูลหลักสูตร
-\degreeTH{วิทยาศาสตรบัณฑิต}
-\degreeEN{Bachelor of Science}
-\majorTH{วิทยาการคอมพิวเตอร์}
-\majorEN{Computer Science}
+% คนที่ 3: เว้นว่างไว้ถ้าไม่มี
+\thirdStudentID{}
+\thirdStudentPrefixTH{}
+\thirdStudentNameTH{}
+\thirdStudentPrefixEN{}
+\thirdStudentNameEN{}
 
-% อาจารย์ที่ปรึกษา (กรอกข้อมูลจริงก่อนส่ง)
+% อาจารย์ที่ปรึกษา — ตำแหน่งทางวิชาการเขียนติดกับชื่อ เช่น ผศ.ดร.ชื่อ นามสกุล
 \advisorTH{อ.ดร.พบพร ด่านวิรุทัย}
 \advisorEN{Dr. Pobporn Danvirutai}
+% \coadvisorTH{อ.ดร.ชื่อ นามสกุล}          % อาจารย์ที่ปรึกษาร่วม (ถ้ามี)
+% \coadvisorEN{Firstname Lastname, Ph.D.}
 
-% ปีการศึกษา
-\academicYearTH{2569}
-\academicYearEN{2026}
-
-% รหัสวิชา (CP354 771 = โครงงาน 1, CP354 772 = โครงงาน 2)
+% รายวิชาและภาคการศึกษา (CP354 771 = โครงงาน 1, CP354 772 = โครงงาน 2)
 \courseCode{CP354 772}
 \courseName{โครงงานคอมพิวเตอร์ 2}
 \semester{2}
+\academicYearTH{2569}
+\academicYearEN{2026}
+% เดือนและปีที่ส่งเล่ม (บรรทัดสุดท้ายของปก) ค่าเริ่มต้นคือเดือนและปีที่คอมไพล์
+% กำหนดเองได้ เช่น
+% \submitMonthTH{มีนาคม}
+% \submitYearTH{2570}
 
-% คำสำคัญ
+% หลักสูตร (ค่าเริ่มต้นคือ วท.บ. วิทยาการคอมพิวเตอร์ — แก้เมื่อไม่ตรง)
+% \degreeTH{วิทยาศาสตรบัณฑิต}   \degreeEN{Bachelor of Science}
+% \majorTH{วิทยาการคอมพิวเตอร์}  \majorEN{Computer Science}
+
+% คำสำคัญ (แสดงท้ายบทคัดย่อ) 3–5 คำ
 \keywordsTH{การจำแนกข่าว, การวิเคราะห์ข้อความ, การประมวลผลภาษาธรรมชาติ, เว็บสแครปปิง, โมเดลภาษาขนาดใหญ่, อัลกอริทึมแนะนำข่าว}
 \keywordsEN{News classification, Text analytics, Natural language processing, Web scraping, Large language model, Recommendation algorithm}
 
+% ไฟล์รายการอ้างอิง
+\addbibresource{references.bib}
+
+% สารบัญแสดงบท หัวข้อใหญ่ (4.1) และหัวข้อย่อยระดับ 1 (4.1.1) ตามคู่มือข้อ 13
+% ถ้าต้องการแสดงเฉพาะหัวข้อใหญ่ ให้เอา % หน้าบรรทัดถัดไปออก
+% \setcounter{tocdepth}{1}
 
 \begin{document}
 
-% ==========================================
-% หน้าปก
-% ==========================================
-% คำสั่งด้านล่างสร้างหน้าปกอัตโนมัติจากข้อมูลที่กรอกด้านบน
-% ไม่ต้องแก้ไขส่วนนี้
-\maketitlepage
+% ---------------------------------------------------------------------
+% 2) ปกนอก ปกใน และส่วนต้น (เลขหน้า ก ข ค ...)
+% ---------------------------------------------------------------------
+\makecover            % ปกนอก
+\makeinnercover       % ปกใน (ข้อความเหมือนปกนอก)
+\frontmatter
 
-% ตั้งค่าเลขหน้าส่วนต้นเป็นอักษรไทย (ก, ข, ค, ...)
-\pagenumbering{arabic}
-\setcounter{page}{0}
-\renewcommand{\thepage}{\ThaiAlph{\value{page}}}
-
-% ==========================================
-% บทคัดย่อ
-% ==========================================
 \begin{abstractTH}
-\input{abstractTH}
+\input{frontmatter/abstractTH}
 \end{abstractTH}
 
 \begin{abstractEN}
-\input{abstractEN}
+\input{frontmatter/abstractEN}
 \end{abstractEN}
 
-% ==========================================
-% กิตติกรรมประกาศ
-% ==========================================
 \begin{acknowledgement}
-\input{acknowledgement}
+\input{frontmatter/acknowledgement}
 \end{acknowledgement}
 
-% ==========================================
-% สารบัญ
-% ==========================================
-\tableofcontents
-\clearpage
-\listoffigures
-\clearpage
-\listoftables
-\clearpage
+\makecontents         % สารบัญ -> สารบัญตาราง -> สารบัญภาพ -> สารบัญสมการ (ข้ามรายการที่ไม่มี)
 
-% ==========================================
-% สัญลักษณ์และคำย่อ (ถ้ามี — uncomment ด้านล่าง)
-% ==========================================
-% \begin{symbolpage}
-% \input{symbols}
-% \end{symbolpage}
+% ---------------------------------------------------------------------
+% 3) เนื้อเรื่อง 5 บท (เลขหน้า 1 2 3 ...) — ชื่อบทกำหนดตามคู่มือแล้ว
+% ---------------------------------------------------------------------
+\mainmatter
 
-% ==========================================
-% เนื้อเรื่อง 5 บท
-% ==========================================
-% เริ่มนับเลขหน้าใหม่เป็นเลขอารบิก (1, 2, 3, ...)
-% ไม่ต้องแก้ไขส่วนนี้
-\pagenumbering{arabic}
-\setcounter{page}{1}
+\chapter{\chapteronetitle}      % บทนำ
+\input{chapters/chapter1}
 
-\chapterone
-\chaptertwo
-\chapterthree
-\chapterfour
-\chapterfive
+\chapter{\chaptertwotitle}      % งานวิจัยและทฤษฎีที่เกี่ยวข้อง
+\input{chapters/chapter2}
 
-% ==========================================
-% เอกสารอ้างอิง
-% ==========================================
-% *** ไม่ต้องแก้ไขส่วนนี้ ***
-% ระบบจะดึงรายการอ้างอิงจากไฟล์ references.bib อัตโนมัติ
-% ให้แก้ไขรายการอ้างอิงในไฟล์ references.bib แทน
-\clearpage
-\addcontentsline{toc}{chapter}{เอกสารอ้างอิง}
-\makeatletter
-\let\ps@plain\ps@empty
-\makeatother
-\bibliographystyle{ieeetr}
-\bibliography{references}
+\chapter{\chapterthreetitle}    % วิธีการดำเนินงาน
+\input{chapters/chapter3}
 
-% ==========================================
-% ภาคผนวก
-% ==========================================
-\input{appendices}
+\chapter{\chapterfourtitle}     % การวิเคราะห์ระบบ และพัฒนาโปรแกรม
+\input{chapters/chapter4}
+
+\chapter{\chapterfivetitle}     % บทสรุป
+\input{chapters/chapter5}
+
+% ---------------------------------------------------------------------
+% 4) ส่วนท้าย
+% ---------------------------------------------------------------------
+\printreferences      % เอกสารอ้างอิง
+
+\appendix             % หน้าคั่น "ภาคผนวก" แล้วเริ่มภาคผนวก ก ข ค ...
+\chapter{คู่มือการติดตั้งและการใช้งานระบบ}
+\input{backmatter/appendix-a}
+
+\chapter{ข้อกำหนด REST API และ WebSocket Events}
+\input{backmatter/appendix-b}
+
+\begin{biography}
+\input{backmatter/biography}
+\end{biography}
 
 \end{document}

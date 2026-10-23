@@ -1,0 +1,373 @@
+% =====================================================================
+%  cskkubib.sty — รูปแบบการอ้างอิงตาม "คู่มือการจัดทำเอกสารโครงงานคอมพิวเตอร์"
+%  (หัวข้อ "การเขียนเอกสารอ้างอิง" หน้า 26–40)  ใช้ biblatex + biber
+%
+%  ในเนื้อหา : [1]  [1-3]  [1, 3, 5, 9]  [1-5, 7, 9]  เรียงตามลำดับที่อ้างถึง
+%  ท้ายเล่ม : 1. ชื่อผู้แต่ง. (ปี). ชื่อเรื่อง. ...
+%             ชื่อหนังสือตัวหนา  บรรทัดที่ 2 ตรงกับอักษรแรกของรายการ
+%             ผู้แต่งไม่เกิน 6 คนใส่ทุกคน มากกว่า 6 คนใส่ 6 คนแรก + "และคณะ"/"et al."
+%             ภาษาไทย: ชื่อ นามสกุล (เต็ม)   ภาษาอังกฤษ: Family, G. I.
+%
+%  รายการที่มีอักษรไทยในชื่อเรื่องหรือชื่อผู้แต่งจะถูกตั้ง langid = thai
+%  ให้อัตโนมัติ (กำหนดเองได้ด้วย langid = {thai} หรือ {english})
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{cskkubib}[2026/10/15 v2.0.0 CS KKU bibliography style]
+
+\RequirePackage[
+  backend=biber,
+  style=numeric-comp,
+  sorting=none,
+  maxbibnames=6, minbibnames=6,
+  maxcitenames=2, mincitenames=1,
+  uniquename=false, uniquelist=false,
+  date=year, urldate=iso, seconds=true,
+  isbn=false, doi=true, eprint=false, url=true,
+  abbreviate=false, dateabbrev=false,
+  autolang=none, language=english,
+  backref=false
+]{biblatex}
+
+% ---------------------------------------------------------------------
+% ภาษาของรายการ: ตรวจอักษรไทยในชื่อเรื่อง/ผู้แต่ง/บรรณาธิการ
+% ---------------------------------------------------------------------
+\DeclareSourcemap{
+  \maps[datatype=bibtex]{
+    \map[overwrite=false]{
+      \step[fieldsource=title, match=\regexp{[ก-๛]}, final]
+      \step[fieldset=langid, fieldvalue={thai}]
+    }
+    \map[overwrite=false]{
+      \step[fieldsource=author, match=\regexp{[ก-๛]}, final]
+      \step[fieldset=langid, fieldvalue={thai}]
+    }
+    \map[overwrite=false]{
+      \step[fieldsource=editor, match=\regexp{[ก-๛]}, final]
+      \step[fieldset=langid, fieldvalue={thai}]
+    }
+  }
+}
+
+% ---------------------------------------------------------------------
+% คำเฉพาะ ไทย / อังกฤษ
+% ---------------------------------------------------------------------
+\newcommand*\cskku@ifthai[2]{%
+  \ifcskku@english #2\else
+    \iffieldequalstr{langid}{thai}{#1}{#2}%
+  \fi}
+\newcommand*\cskku@str[1]{\csuse{cskku@str@#1}}
+\newcommand*\cskku@defstr[3]{\csdef{cskku@str@#1}{\cskku@ifthai{#2}{#3}}}
+\cskku@defstr{andothers}{และคณะ}{et al.}
+\cskku@defstr{in}{ใน}{In}
+\cskku@defstr{pages}{หน้า}{pp.}
+\cskku@defstr{page}{หน้า}{p.}
+\cskku@defstr{retrieved}{ค้นเมื่อ}{Retrieved}
+\cskku@defstr{from}{จาก}{from}
+\cskku@defstr{retrievedfrom}{สืบค้นจาก}{Retrieved from}
+\cskku@defstr{nodate}{ม.ป.ป.}{n.d.}
+\cskku@defstr{noplace}{ม.ป.ท.}{n.p.}
+\cskku@defstr{nopublisher}{ม.ป.พ.}{n.p.}
+\cskku@defstr{editor}{บรรณาธิการ}{Ed.}
+\cskku@defstr{editors}{บรรณาธิการ}{Eds.}
+\cskku@defstr{translator}{ผู้แปล}{Trans.}
+\cskku@defstr{edition}{พิมพ์ครั้งที่}{ed.}
+\cskku@defstr{mathesis}{วิทยานิพนธ์ปริญญามหาบัณฑิต}{Master's thesis}
+\cskku@defstr{phdthesis}{วิทยานิพนธ์ปริญญาดุษฎีบัณฑิต}{Doctoral dissertation}
+\cskku@defstr{reportno}{ฉบับที่}{No.}
+\cskku@defstr{inpress}{ระหว่างตีพิมพ์}{in press}
+\cskku@defstr{inthai}{}{[in Thai]}
+
+% ---------------------------------------------------------------------
+% ชื่อผู้แต่ง
+% ---------------------------------------------------------------------
+\DeclareNameFormat{cskku:name}{%
+  \cskku@ifthai
+    {\usebibmacro{name:given-family}
+       {\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+    {\usebibmacro{name:family-given}
+       {\namepartfamily}{\namepartgiveni}{\namepartprefix}{\namepartsuffixi}}%
+  \usebibmacro{name:andothers}}
+\DeclareNameAlias{sortname}{cskku:name}
+\DeclareNameAlias{default}{cskku:name}
+\DeclareNameAlias{author}{cskku:name}
+\DeclareNameAlias{editor}{cskku:name}
+\DeclareNameAlias{translator}{cskku:name}
+\DeclareNameAlias{byeditor}{cskku:name}
+
+\DeclareNameFormat{cskku:ineditor}{%
+  \cskku@ifthai
+    {\usebibmacro{name:given-family}
+       {\namepartfamily}{\namepartgiven}{\namepartprefix}{\namepartsuffix}}
+    {\usebibmacro{name:given-family}
+       {\namepartfamily}{\namepartgiveni}{\namepartprefix}{\namepartsuffixi}}%
+  \usebibmacro{name:andothers}}
+
+\DeclareDelimFormat{multinamedelim}{\addcomma\space}
+\DeclareDelimFormat{finalnamedelim}{\addcomma\space\&\space}
+\renewcommand*\revsdnamepunct{\addcomma}
+\renewbibmacro*{name:andothers}{%
+  \ifboolexpr{
+    test {\ifnumequal{\value{listcount}}{\value{liststop}}}
+    and test \ifmorenames}
+    {\addcomma\space\cskku@str{andothers}}
+    {}}
+
+% ---------------------------------------------------------------------
+% รูปแบบฟิลด์
+% ---------------------------------------------------------------------
+\DefineBibliographyExtras{english}{%
+  \protected\def\bibrangedash{-}%
+  \protected\def\bibdaterangesep{-}}
+% อ้างสองรายการติดกันให้เป็นช่วง [3-4] ตามตัวอย่างคู่มือ (numeric-comp ปกติให้ [3, 4])
+\renewbibmacro*{cite:dump}{%
+  \usebibmacro{cite:dump:inset}%
+  \ifnumgreater{\value{cbx@tempcnta}}{0}
+    {\setunit{\multiciterangedelim}%
+     \usebibmacro{cite:print:last:labelnumber}%
+     \global\undef\cbx@lastprefix}
+    {}%
+  \setcounter{cbx@tempcnta}{0}}
+\renewcommand*\mkbibnamefamily[1]{#1}
+\DeclareFieldFormat{labelnumberwidth}{#1\adddot}
+\DeclareFieldFormat*{title}{#1}
+\DeclareFieldFormat[book,mvbook,booklet,manual,collection,mvcollection,proceedings,mvproceedings]{title}{\mkbibbold{#1}}
+\DeclareFieldFormat{booktitle}{\mkbibbold{#1}}
+\DeclareFieldFormat{journaltitle}{\mkbibemph{#1}}
+\DeclareFieldFormat{pages}{#1}
+\DeclareFieldFormat{volume}{#1}
+\DeclareFieldFormat{number}{#1}
+\DeclareFieldFormat{url}{\url{#1}}
+\urlstyle{same}
+\DeclareFieldFormat{doi}{\url{https://doi.org/#1}}
+\DeclareFieldFormat{edition}{%
+  \cskku@ifthai
+    {\cskku@str{edition}~#1}
+    {\ifinteger{#1}{\mkbibordedition{#1}~\cskku@str{edition}}{#1}}}
+
+% วันที่สืบค้น: ไทย "18 สิงหาคม 2542" (พ.ศ.) / อังกฤษ "August 18, 1999"
+\newcommand*\cskku@thaimonthname[1]{%
+  \ifcase#1\or มกราคม\or กุมภาพันธ์\or มีนาคม\or เมษายน\or พฤษภาคม\or
+  มิถุนายน\or กรกฎาคม\or สิงหาคม\or กันยายน\or ตุลาคม\or พฤศจิกายน\or ธันวาคม\fi}
+\newcommand*\cskku@engmonthname[1]{%
+  \ifcase#1\or January\or February\or March\or April\or May\or June\or
+  July\or August\or September\or October\or November\or December\fi}
+\newbibmacro{cskku:urldate}{%
+  \iffieldundef{urlyear}{}{%
+    \cskku@ifthai
+      {\iffieldundef{urlday}{}{\number\thefield{urlday}\relax\space}%
+       \iffieldundef{urlmonth}{}{\cskku@thaimonthname{\thefield{urlmonth}}\space}%
+       \the\numexpr\thefield{urlyear}+543\relax}
+      {\iffieldundef{urlmonth}{}{\cskku@engmonthname{\thefield{urlmonth}}\space}%
+       \iffieldundef{urlday}{}{\number\thefield{urlday}\relax,\space}%
+       \thefield{urlyear}}}}
+
+% ---------------------------------------------------------------------
+% บล็อกที่ใช้ร่วมกัน
+% ---------------------------------------------------------------------
+\newtoggle{cskku@titlefirst}
+% ผู้แต่ง -> บรรณาธิการ -> หน่วยงาน -> (ไม่มี: ใช้ชื่อเรื่องแทน คู่มือ 2.1.8)
+\newbibmacro{cskku:begin}{%
+  \togglefalse{cskku@titlefirst}%
+  \ifnameundef{author}
+    {\ifnameundef{editor}
+       {\iflistundef{organization}
+          {\toggletrue{cskku@titlefirst}%
+           \printfield{title}%
+           \setunit{\addperiod\space}}
+          {\printlist{organization}%
+           \setunit{\addperiod\space}}}
+       {\printnames{editor}%
+        \setunit{\addperiod\space}%
+        \printtext[parens]{\ifnumgreater{\value{editor}}{1}
+          {\cskku@str{editors}}{\cskku@str{editor}}}%
+        \setunit{\addperiod\space}}}
+    {\printnames{author}%
+     \setunit{\addperiod\space}}}
+
+\newbibmacro{cskku:date}{%
+  \iffieldundef{year}
+    {\iffieldequalstr{pubstate}{inpress}
+       {\printtext[parens]{\cskku@str{inpress}}}
+       {\printtext{[\cskku@str{nodate}]\@}}}
+    {\printtext[parens]{\printfield{year}}}%
+  \setunit{\addperiod\space}}
+
+\newbibmacro{cskku:title}{%
+  \iftoggle{cskku@titlefirst}{}{%
+    \printfield{title}%
+    \setunit{\addcolon\space}%
+    \printfield{subtitle}}%
+  \setunit{\addperiod\space}}
+
+\newbibmacro{cskku:translator}{%
+  \ifnameundef{translator}{}{%
+    \printtext[parens]{\printnames{translator}\addcomma\space\cskku@str{translator}}%
+    \setunit{\addperiod\space}}}
+
+\newbibmacro{cskku:series}{%
+  \iffieldundef{series}{}{%
+    \printtext[parens]{\printfield{series}%
+      \iffieldundef{number}{}{\space\cskku@str{reportno}~\printfield{number}}}%
+    \setunit{\addperiod\space}}}
+
+\newbibmacro{cskku:edition}{%
+  \iffieldundef{edition}{}{%
+    \printfield{edition}\setunit{\addperiod\space}}}
+
+% สถานที่พิมพ์: สำนักพิมพ์  (หนังสือที่ไม่มีข้อมูลใช้ [ม.ป.ท.] [ม.ป.พ.])
+\newbibmacro{cskku:publisher}[1]{%
+  \ifboolexpr{test {\iflistundef{location}} and test {\iflistundef{publisher}}}
+    {\ifstrequal{#1}{strict}
+       {\printtext{[\cskku@str{noplace}\addcolon\space\cskku@str{nopublisher}]\@}}{}}
+    {\iflistundef{location}
+       {\ifstrequal{#1}{strict}{\printtext{[\cskku@str{noplace}]\@}\setunit{\addcolon\space}}{}}
+       {\printlist{location}\setunit{\addcolon\space}}%
+     \iflistundef{publisher}
+       {\ifstrequal{#1}{strict}{\printtext{[\cskku@str{nopublisher}]\@}}{}}
+       {\printlist{publisher}}}%
+  \setunit{\addperiod\space}}
+
+\newbibmacro{cskku:url}{%
+  \iffieldundef{url}
+    {\iffieldundef{doi}{}{\printfield{doi}}}
+    {\iffieldundef{urlyear}
+       {\printtext{\cskku@str{retrievedfrom}\space\printfield{url}}}
+       {\printtext{\cskku@str{retrieved}\space\usebibmacro{cskku:urldate}\addcomma\space
+          \cskku@str{from}\space\printfield{url}}}}}
+
+\newbibmacro{cskku:finish}{%
+  \setunit{\addperiod\space}%
+  \printfield{note}%
+  \ifcskku@english
+    \iffieldequalstr{langid}{thai}{\setunit{\addspace}\printtext{[in Thai]}}{}%
+  \fi
+  \setunit{\addperiod\space}%
+  \ifboolexpr{test {\iffieldundef{url}} and test {\iffieldundef{doi}}}
+    {\usebibmacro{finentry}}
+    {\usebibmacro{cskku:url}%
+     \renewcommand*\finentrypunct{}% ไม่ใส่จุดต่อท้าย URL (ตามตัวอย่างคู่มือ)
+     \usebibmacro{finentry}}}
+
+% ---------------------------------------------------------------------
+% ไดรเวอร์ตามประเภทเอกสาร
+% ---------------------------------------------------------------------
+% หนังสือ (2.1)
+\DeclareBibliographyDriver{book}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \usebibmacro{cskku:translator}%
+  \usebibmacro{cskku:series}%
+  \usebibmacro{cskku:edition}%
+  \usebibmacro{cskku:publisher}{strict}%
+  \usebibmacro{cskku:finish}}
+\DeclareBibliographyAlias{mvbook}{book}
+\DeclareBibliographyAlias{booklet}{book}
+\DeclareBibliographyAlias{collection}{book}
+\DeclareBibliographyAlias{mvcollection}{book}
+\DeclareBibliographyAlias{proceedings}{book}
+\DeclareBibliographyAlias{mvproceedings}{book}
+
+% บทความวารสาร (2.4): ชื่อวารสาร, ปีที่(ฉบับที่), หน้า
+\DeclareBibliographyDriver{article}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \printfield{journaltitle}%
+  \iffieldundef{volume}
+    {\iffieldundef{number}{}{\setunit{\addcomma\space}\printtext[parens]{\printfield{number}}}}
+    {\setunit{\addcomma\space}\printfield{volume}%
+     \iffieldundef{number}{}{\printtext[parens]{\printfield{number}}}}%
+  \setunit{\addcomma\space}%
+  \printfield{pages}%
+  \usebibmacro{cskku:finish}}
+
+% บทความในหนังสือ / การประชุมวิชาการ (2.2, 2.3)
+\newbibmacro{cskku:inbook}{%
+  \printtext{\cskku@str{in}}\setunit{\addspace}%
+  \ifnameundef{editor}{}{%
+    \printnames[cskku:ineditor]{editor}\setunit{\addspace}%
+    \printtext[parens]{\ifnumgreater{\value{editor}}{1}
+      {\cskku@str{editors}}{\cskku@str{editor}}}%
+    \setunit{\addperiod\space}}%
+  \printfield{booktitle}%
+  \setunit{\addperiod\space}%
+  \printfield{eventtitle}%
+  \setunit{\addperiod\space}%
+  \iffieldundef{pages}{}{%
+    \printtext[parens]{\cskku@str{pages}~\printfield{pages}}%
+    \setunit{\addperiod\space}}%
+  \ifboolexpr{test {\iflistundef{publisher}} and test {\iflistundef{location}}}
+    {\iflistundef{organization}{}{\printlist{organization}}}
+    {\usebibmacro{cskku:publisher}{loose}}}
+\DeclareBibliographyDriver{incollection}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \usebibmacro{cskku:inbook}%
+  \usebibmacro{cskku:finish}}
+\DeclareBibliographyAlias{inbook}{incollection}
+\DeclareBibliographyAlias{inproceedings}{incollection}
+\DeclareBibliographyAlias{inreference}{incollection}
+
+% วิทยานิพนธ์ (2.9): ชื่อ. วิทยานิพนธ์ปริญญา... สาขา... สถาบัน.
+\DeclareBibliographyDriver{thesis}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \iffieldundef{type}{}{%
+    \iffieldequalstr{type}{mathesis}{\printtext{\cskku@str{mathesis}}}{%
+      \iffieldequalstr{type}{phdthesis}{\printtext{\cskku@str{phdthesis}}}{\printfield{type}}}}%
+  \cskku@ifthai{\setunit{\addspace}}{\setunit{\addcomma\space}}%
+  \printlist{institution}%
+  \usebibmacro{cskku:finish}}
+
+% รายงานการวิจัย/รายงานทางเทคนิค (2.1.11)
+\DeclareBibliographyDriver{report}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \iffieldundef{type}
+    {\iffieldundef{number}{}{\printtext[parens]{\cskku@str{reportno}~\printfield{number}}}}
+    {\printtext[parens]{\printfield{type}%
+       \iffieldundef{number}{}{\space\printfield{number}}}}%
+  \setunit{\addperiod\space}%
+  \iflistundef{location}{}{\printlist{location}\setunit{\addcolon\space}}%
+  \printlist{institution}%
+  \usebibmacro{cskku:finish}}
+
+% เว็บไซต์ / เอกสารออนไลน์ / อื่น ๆ (2.13)
+\DeclareBibliographyDriver{online}{%
+  \usebibmacro{bibindex}%
+  \usebibmacro{cskku:begin}%
+  \usebibmacro{cskku:date}%
+  \usebibmacro{cskku:title}%
+  \printfield{howpublished}%
+  \setunit{\addperiod\space}%
+  \iflistundef{publisher}{}{\printlist{publisher}}%
+  \usebibmacro{cskku:finish}}
+\DeclareBibliographyAlias{misc}{online}
+\DeclareBibliographyAlias{software}{online}
+\DeclareBibliographyAlias{manual}{online}
+\DeclareBibliographyAlias{unpublished}{online}
+
+% ---------------------------------------------------------------------
+% รายการท้ายเล่ม
+% ---------------------------------------------------------------------
+\setlength\bibitemsep{0pt}
+\setlength\biblabelsep{0.6em}
+\defbibheading{cskku}[\cskkuReferencesName]{%
+  \chapter*{#1}%
+  \addcontentsline{toc}{chapter}{#1}%
+  \cskkuSetIndent{0pt}}
+% พิมพ์รายการอ้างอิง (ใช้แทน \bibliography{...} แบบเดิม)
+\newcommand\printreferences[1][]{%
+  \clearpage
+  \printbibliography[heading=cskku,title=\cskkuReferencesName,#1]}
+
+\endinput

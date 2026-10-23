@@ -1,71 +1,17 @@
-% =============================
-% ภาคผนวก
-% =============================
+% =====================================================================
+% ภาคผนวก — ชื่อภาคผนวกกำหนดใน main.tex ด้วย \chapter{...} หลัง \appendix
+% ระบบใส่ "ภาคผนวก ก ข ค ..." ให้อัตโนมัติ และใช้ \section{...} ภายในได้ตามปกติ
+% =====================================================================
 
-% =============================
-% ภาคผนวก ก
-% =============================
-\setcounter{chapter}{-1}
-\appendiceschapter{คู่มือการติดตั้งและการใช้งานระบบ}
 
-\section*{ข้อกำหนดเบื้องต้นของสภาพแวดล้อม (Prerequisites)}
-
-\begin{itemize}
-    \item ระบบปฏิบัติการ: Windows 10/11, macOS หรือ Linux (Ubuntu 20.04+)
-    \item Python เวอร์ชัน 3.11 หรือใหม่กว่า
-    \item เครื่องมือจัดการสภาพแวดล้อม \texttt{uv} (Fast Python Package Installer)
-    \item การเชื่อมต่ออินเทอร์เน็ตสำหรับดาวน์โหลด Dependencies และเรียกใช้ KKU Gen.AI API
-\end{itemize}
-
-\section*{ขั้นตอนการติดตั้งระบบ (Installation Steps)}
-
-\begin{enumerate}[label=\arabic*.]
-    \item โคลน Repository โครงการจาก GitHub:
-    \begin{lstlisting}[language=bash]
-git clone https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer.git
-cd End-to-End_News_Collector-Summarizer
-    \end{lstlisting}
-
-    \item ติดตั้ง Dependencies ทั้งหมดผ่าน \texttt{uv}:
-    \begin{lstlisting}[language=bash]
-uv sync
-    \end{lstlisting}
-
-    \item ติดตั้ง Playwright Chromium Headless Browser:
-    \begin{lstlisting}[language=bash]
-uv run playwright install chromium
-    \end{lstlisting}
-
-    \item กำหนดค่า Environment Variables โดยคัดลอกไฟล์ตัวอย่าง:
-    \begin{lstlisting}[language=bash]
-copy backend\.env.example backend\.env
-    \end{lstlisting}
-    จากนั้นแก้ไขไฟล์ \texttt{backend/.env} โดยกรอก API Key สำหรับ LLM Service:
-    \begin{lstlisting}[language=bash]
-LLM_API=your_kku_genai_api_key_here
-    \end{lstlisting}
-
-    \item เริ่มต้นทำงานเซิร์ฟเวอร์ Backend:
-    \begin{lstlisting}[language=bash]
-uv run python backend/main.py
-    \end{lstlisting}
-
-    \item เปิดเว็บเบราว์เซอร์และเข้าสู่ระบบที่: \url{http://localhost:5000}
-\end{enumerate}
-
-% =============================
-% ภาคผนวก ข
-% =============================
-\appendiceschapter{ข้อกำหนด REST API และ WebSocket Events}
-
-\section*{รายการ REST API Endpoints}
+\section{รายการ REST API Endpoints}
 
 \begin{table}[H]
 \centering
 \footnotesize
 \caption{รายละเอียด REST API สำหรับบริการข้อมูลข่าวสารและประเด็นข่าว}
 \label{tab:api_specs_news}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|p{3.5cm}|p{4.4cm}|p{3.5cm}|}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|L{3.5cm}|L{4.4cm}|L{3.5cm}|}
 \hline
 \textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
 \hline
@@ -93,7 +39,7 @@ uv run python backend/main.py
 \footnotesize
 \caption{รายละเอียด REST API สำหรับระบบควบคุมและโพรบโครงสร้างพื้นฐาน}
 \label{tab:api_specs_ops}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|p{3.5cm}|p{4.4cm}|p{3.5cm}|}
+\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|L{3.5cm}|L{4.4cm}|L{3.5cm}|}
 \hline
 \textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
 \hline
@@ -108,14 +54,14 @@ uv run python backend/main.py
 \end{tabular}
 \end{table}
 
-\section*{รายการ WebSocket Events (Socket.IO)}
+\section{รายการ WebSocket Events (Socket.IO)}
 
 \begin{table}[H]
 \centering
 \footnotesize
 \caption{รายละเอียด WebSocket Events สำหรับการสื่อสารแบบ Real-time}
 \label{tab:ws_events}
-\begin{tabular}{|>{\centering\arraybackslash}p{2.8cm}|>{\centering\arraybackslash}p{2.2cm}|p{7.5cm}|}
+\begin{tabular}{|>{\centering\arraybackslash}p{2.8cm}|>{\centering\arraybackslash}p{2.2cm}|L{7.5cm}|}
 \hline
 \textbf{Event Name} & \textbf{ทิศทาง} & \textbf{คำอธิบายและข้อมูลที่ส่ง (Payload)} \\
 \hline

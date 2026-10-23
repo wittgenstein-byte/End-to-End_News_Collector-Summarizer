@@ -1,0 +1,149 @@
+% =====================================================================
+%  เล่มรายงานโครงงานคอมพิวเตอร์ (template v2)
+%  สาขาวิชาวิทยาการคอมพิวเตอร์ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น
+%
+%  Compile: XeLaTeX + Biber
+%    Overleaf : Menu > Settings > Compiler = XeLaTeX (biber ทำงานอัตโนมัติ)
+%    เครื่องตนเอง: latexmk   (อ่านค่าจาก .latexmkrc)
+%
+%  นักศึกษาแก้ไขเฉพาะ: ไฟล์นี้ (ข้อมูลโครงงาน), frontmatter/, chapters/,
+%  backmatter/, references.bib และ images/
+%  ไม่ต้องแก้ไฟล์ .cls / .sty — รูปแบบทั้งหมดเป็นไปตาม
+%  "คู่มือการจัดทำเอกสารโครงงานคอมพิวเตอร์" ของสาขาวิชาแล้ว
+% =====================================================================
+\documentclass[final]{cskkuproject}
+% ชนิดเล่ม (เลือก 1 อย่าง):
+%   progress1  รายงานความก้าวหน้าโครงงาน ครั้งที่ 1
+%   progress2  รายงานความก้าวหน้าโครงงาน ครั้งที่ 2
+%   final      เอกสารโครงงานฉบับสมบูรณ์
+% ตัวเลือกเพิ่มเติม เช่น \documentclass[final,plainnumbering]{cskkuproject}
+%   plainnumbering     เลขหัวข้อแบบ 1. / 1.1 / 1.1.1 / (1)
+%   boldheadings       หัวข้อย่อยตัวหนา
+%   chapterfloats      เลขภาพ/ตารางแยกตามบท (2.1, 2.2, ...)
+%   chapterpagenumber  แสดงเลขหน้าในหน้าแรกของบท
+%   titleasis          ไม่แปลงชื่อภาษาอังกฤษบนปกเป็นตัวพิมพ์ใหญ่
+%   englishbook        เล่มภาษาอังกฤษทั้งเล่ม
+%   mermaid            ใช้แผนภาพ Mermaid (ดู README.md)
+
+% ---------------------------------------------------------------------
+% 1) ข้อมูลโครงงาน (ใช้สร้างปก บทคัดย่อ และกิตติกรรมประกาศอัตโนมัติ)
+% ---------------------------------------------------------------------
+\projectCode{CS 2568/xx}             % CS/IT พ.ศ./กลุ่ม ตามที่สาขากำหนด
+\titleTH{ชื่อโครงงานภาษาไทย}
+\titleEN{Project Title in English}
+% ชื่อยาวเกิน 2 บรรทัด ระบบจัดเป็นสามเหลี่ยมกลับหัวให้เอง
+% ตัดบรรทัดเองได้ด้วย \\ เช่น \titleTH{ระบบ...\\ สำหรับ...}
+
+% นักศึกษา (สูงสุด 3 คน) — คำนำหน้าชื่อเขียนติดกับชื่อ ไม่เว้นวรรค
+\firstStudentID{6xxxxxxxx-x}
+\firstStudentPrefixTH{นาย}
+\firstStudentNameTH{ชื่อ นามสกุล}
+\firstStudentPrefixEN{Mr.}
+\firstStudentNameEN{Firstname Lastname}
+
+% คนที่ 2 และ 3: เว้นว่างไว้ถ้าไม่มี
+\secondStudentID{}
+\secondStudentPrefixTH{}
+\secondStudentNameTH{}
+\secondStudentPrefixEN{}
+\secondStudentNameEN{}
+
+\thirdStudentID{}
+\thirdStudentPrefixTH{}
+\thirdStudentNameTH{}
+\thirdStudentPrefixEN{}
+\thirdStudentNameEN{}
+
+% อาจารย์ที่ปรึกษา — ตำแหน่งทางวิชาการเขียนติดกับชื่อ เช่น ผศ.ดร.ชื่อ นามสกุล
+\advisorTH{ผศ.ดร.ชื่อ นามสกุล}
+\advisorEN{Asst. Prof. Firstname Lastname, Ph.D.}
+% \coadvisorTH{อ.ดร.ชื่อ นามสกุล}          % อาจารย์ที่ปรึกษาร่วม (ถ้ามี)
+% \coadvisorEN{Firstname Lastname, Ph.D.}
+
+% รายวิชาและภาคการศึกษา (ตรวจสอบรหัสวิชาตามหลักสูตรของรุ่น)
+\courseCode{CP354 772}
+\courseName{โครงงานคอมพิวเตอร์ 2}
+\semester{2}
+\academicYearTH{2568}
+\submitMonthTH{มีนาคม}                % เดือนและปีที่ส่งเล่ม (บรรทัดสุดท้ายของปก)
+\submitYearTH{2569}
+
+% หลักสูตร (ค่าเริ่มต้นคือ วท.บ. วิทยาการคอมพิวเตอร์ — แก้เมื่อไม่ตรง)
+% \degreeTH{วิทยาศาสตรบัณฑิต}   \degreeEN{Bachelor of Science}
+% \majorTH{วิทยาการคอมพิวเตอร์}  \majorEN{Computer Science}
+
+% คำสำคัญ (แสดงท้ายบทคัดย่อ) 3–5 คำ
+\keywordsTH{คำสำคัญ 1, คำสำคัญ 2, คำสำคัญ 3}
+\keywordsEN{Keyword 1, Keyword 2, Keyword 3}
+
+% ไฟล์รายการอ้างอิง
+\addbibresource{references.bib}
+
+% สารบัญแสดงบท หัวข้อใหญ่ (4.1) และหัวข้อย่อยระดับ 1 (4.1.1) ตามคู่มือข้อ 13
+% ถ้าต้องการแสดงเฉพาะหัวข้อใหญ่ ให้เอา % หน้าบรรทัดถัดไปออก
+% \setcounter{tocdepth}{1}
+
+\begin{document}
+
+% ---------------------------------------------------------------------
+% 2) ปกนอก ปกใน และส่วนต้น (เลขหน้า ก ข ค ...)
+% ---------------------------------------------------------------------
+\makecover            % ปกนอก
+\makeinnercover       % ปกใน (ข้อความเหมือนปกนอก)
+\frontmatter
+
+\begin{abstractTH}
+\input{frontmatter/abstractTH}
+\end{abstractTH}
+
+\begin{abstractEN}
+\input{frontmatter/abstractEN}
+\end{abstractEN}
+
+\begin{acknowledgement}
+\input{frontmatter/acknowledgement}
+\end{acknowledgement}
+
+\makecontents         % สารบัญ -> สารบัญตาราง -> สารบัญภาพ -> สารบัญสมการ (ข้ามรายการที่ไม่มี)
+
+\begin{symbols}       % รายการสัญลักษณ์และคำย่อ (ลบทั้ง 3 บรรทัดถ้าไม่มี)
+\input{frontmatter/symbols}
+\end{symbols}
+
+% ---------------------------------------------------------------------
+% 3) เนื้อเรื่อง 5 บท (เลขหน้า 1 2 3 ...) — ชื่อบทกำหนดตามคู่มือแล้ว
+% ---------------------------------------------------------------------
+\mainmatter
+
+\chapter{\chapteronetitle}      % บทนำ
+\input{chapters/chapter1}
+
+\chapter{\chaptertwotitle}      % งานวิจัยและทฤษฎีที่เกี่ยวข้อง
+\input{chapters/chapter2}
+
+\chapter{\chapterthreetitle}    % วิธีการดำเนินงาน
+\input{chapters/chapter3}
+
+\chapter{\chapterfourtitle}     % การวิเคราะห์ระบบ และพัฒนาโปรแกรม
+\input{chapters/chapter4}
+
+\chapter{\chapterfivetitle}     % บทสรุป
+\input{chapters/chapter5}
+
+% ---------------------------------------------------------------------
+% 4) ส่วนท้าย
+% ---------------------------------------------------------------------
+\printreferences      % เอกสารอ้างอิง: สร้างจาก references.bib เฉพาะรายการที่ \cite
+
+\appendix             % หน้าคั่น "ภาคผนวก" แล้วเริ่มภาคผนวก ก ข ค ...
+\chapter{ตัวอย่างส่วนติดต่อกับผู้ใช้}
+\input{backmatter/appendix-a}
+
+\chapter{คู่มือการติดตั้งระบบ}
+\input{backmatter/appendix-b}
+
+\begin{biography}
+\input{backmatter/biography}
+\end{biography}
+
+\end{document}
