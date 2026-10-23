@@ -45,6 +45,12 @@ class NewsRepositoryPort(Protocol):
         bullets: list[str] | None = None,
         keywords: list[str] | None = None,
     ) -> None: ...
+    def update_story_ids_batch(
+        self,
+        url_to_story_id: dict[str, str],
+        allow_overwrite: bool = False,
+    ) -> dict[str, str]: ...
+    def get_assigned_story_id(self, url: str) -> str | None: ...
 
 
 # ── Concrete implementation ───────────────────────────────────────
@@ -67,9 +73,64 @@ class FileNewsRepository:
         return [n for n in news if str(n.get("fetched_at") or "") >= cutoff]
 
     def get_by_urls(self, urls: list[str]) -> list[dict]:
-        """Fetch article dicts matching the given URLs."""
-        url_set = set(urls)
-        return [a for a in self.load_news() if a.get("url") in url_set]
+        """Fetch article dicts matching raw or canonical URLs."""
+        if not urls:
+            return []
+        from backend.core.url_utils import canonicalize_url
+
+        raw_set = {u.strip() for u in urls if u and u.strip()}
+        canon_set = {canonicalize_url(u) for u in raw_set if canonicalize_url(u)}
+        return [
+            a
+            for a in self.load_news()
+            if a.get("url") in raw_set or canonicalize_url(str(a.get("url") or "")) in canon_set
+        ]
+
+    def get_assigned_story_id(self, url: str) -> str | None:
+        """Lookup persistent story_id by raw or canonical URL."""
+        if not url:
+            return None
+        from backend.core.url_utils import canonicalize_url
+
+        raw_u = url.strip()
+        canon_u = canonicalize_url(raw_u)
+        for a in self.load_news():
+            u = str(a.get("url") or "")
+            if u == raw_u or canonicalize_url(u) == canon_u:
+                return a.get("story_id")
+        return None
+
+    def update_story_ids_batch(
+        self,
+        url_to_story_id: dict[str, str],
+        allow_overwrite: bool = False,
+    ) -> dict[str, str]:
+        """Batch update article story_id assignments."""
+        if not url_to_story_id:
+            return {}
+        from backend.core.url_utils import canonicalize_url
+
+        data = self._read_data()
+        articles = data.get("articles", [])
+        resolved: dict[str, str] = {}
+        target_canon = {canonicalize_url(u): sid for u, sid in url_to_story_id.items() if u}
+
+        for a in articles:
+            u = str(a.get("url") or "")
+            cu = canonicalize_url(u)
+            if cu in target_canon or u in url_to_story_id:
+                new_sid = target_canon.get(cu) or url_to_story_id.get(u)
+                old_sid = a.get("story_id")
+                if allow_overwrite or not old_sid:
+                    a["story_id"] = new_sid
+                    resolved[u] = new_sid
+                else:
+                    resolved[u] = old_sid
+
+        data["articles"] = articles
+        data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
+        self._write_data(data)
+        return resolved
 
     def save_news(self, articles: list[dict]) -> None:
         data = self._read_data()

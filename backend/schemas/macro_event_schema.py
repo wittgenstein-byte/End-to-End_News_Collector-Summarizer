@@ -15,12 +15,13 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.schemas.event_evidence_schema import EventProgressionSynthesis
 from backend.schemas.story_schema import (
     StoryRecord,
     StorySummary,
+    TypedEventAnchors,
     _now_utc,
     _parse_utc_datetime,
 )
@@ -106,6 +107,22 @@ class MacroEventRecord(BaseModel):
         default=None,
         description="Explicit crisis anchor (e.g. 'น้ำท่วมน่าน') allowing multi-week re-linking",
     )
+    storyline_anchor: str | None = Field(
+        default=None,
+        description="Unified storyline crisis/campaign anchor matching typed_anchors.storyline_anchor",
+    )
+    typed_anchors: TypedEventAnchors = Field(
+        default_factory=TypedEventAnchors,
+        description="Typed event anchors aggregated across member stories",
+    )
+    cluster_fingerprint: str = Field(
+        default="fp_empty",
+        description="Deterministic 16-hex hash of member article/event URLs",
+    )
+    synthesis_cache_key: str | None = Field(
+        default=None,
+        description="Deterministic 24-hex hash of macro ID, fingerprint, content digest, and prompt version",
+    )
     created_at: datetime = Field(default_factory=_now_utc, description="Storyline creation timestamp (UTC)")
     updated_at: datetime = Field(default_factory=_now_utc, description="Latest storyline metadata update (UTC)")
     last_activity_at: datetime | None = Field(
@@ -135,6 +152,14 @@ class MacroEventRecord(BaseModel):
 
     metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata and plugin flags")
 
+    @model_validator(mode="after")
+    def sync_storyline_anchor(self) -> MacroEventRecord:
+        if self.storyline_anchor and not self.named_crisis_anchor:
+            self.named_crisis_anchor = self.storyline_anchor
+        elif self.named_crisis_anchor and not self.storyline_anchor:
+            self.storyline_anchor = self.named_crisis_anchor
+        return self
+
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
     def validate_utc_timestamps(cls, v: Any) -> datetime:
@@ -154,6 +179,7 @@ class MacroEventRecord(BaseModel):
         event_id: str,
         event_time: datetime | str | None = None,
         entities: list[str] | None = None,
+        typed_anchors: TypedEventAnchors | None = None,
     ) -> None:
         """Add or update child event in the derived index and refresh activity."""
         if event_id not in self.child_event_ids:
@@ -161,6 +187,9 @@ class MacroEventRecord(BaseModel):
 
         if entities:
             self.merge_entities(entities)
+
+        if typed_anchors:
+            self.merge_typed_anchors(typed_anchors)
 
         if event_time is not None:
             parsed_time = _parse_utc_datetime(event_time)
@@ -209,6 +238,43 @@ class MacroEventRecord(BaseModel):
             if clean and clean not in existing_set:
                 self.entities.append(clean)
                 existing_set.add(clean)
+
+    def merge_typed_anchors(self, other: TypedEventAnchors) -> None:
+        """Merge typed event anchors preserving hierarchy and specificity."""
+        if not other:
+            return
+        for loc in other.event_locations:
+            if loc not in self.typed_anchors.event_locations:
+                self.typed_anchors.event_locations.append(loc)
+        for p in other.provinces:
+            if p not in self.typed_anchors.provinces:
+                self.typed_anchors.provinces.append(p)
+        for d in other.districts:
+            if d not in self.typed_anchors.districts:
+                self.typed_anchors.districts.append(d)
+        for s in other.sub_locations:
+            if s not in self.typed_anchors.sub_locations:
+                self.typed_anchors.sub_locations.append(s)
+        for a in other.actor_names:
+            if a not in self.typed_anchors.actor_names:
+                self.typed_anchors.actor_names.append(a)
+        for r in other.actor_roles:
+            if r not in self.typed_anchors.actor_roles:
+                self.typed_anchors.actor_roles.append(r)
+        for t in other.targets:
+            if t not in self.typed_anchors.targets:
+                self.typed_anchors.targets.append(t)
+        for act in other.actions:
+            if act not in self.typed_anchors.actions:
+                self.typed_anchors.actions.append(act)
+        if not self.storyline_anchor and other.storyline_anchor:
+            self.storyline_anchor = other.storyline_anchor
+        if not self.named_crisis_anchor and other.storyline_anchor:
+            self.named_crisis_anchor = other.storyline_anchor
+        if not self.typed_anchors.storyline_anchor and other.storyline_anchor:
+            self.typed_anchors.storyline_anchor = other.storyline_anchor
+        if not self.typed_anchors.storyline_episode_key and other.storyline_episode_key:
+            self.typed_anchors.storyline_episode_key = other.storyline_episode_key
 
     def is_active_dynamic(
         self,
@@ -274,6 +340,9 @@ class MacroEventSummary(BaseModel):
     summary: str | None = None
     category: str
     status: MacroEventStatus
+    cluster_fingerprint: str = "fp_empty"
+    synthesis_cache_key: str | None = None
+    storyline_anchor: str | None = None
     child_event_count: int
     created_at: str
     updated_at: str
@@ -288,6 +357,9 @@ class MacroEventSummary(BaseModel):
             summary=macro.summary,
             category=macro.category,
             status=macro.status,
+            cluster_fingerprint=macro.cluster_fingerprint,
+            synthesis_cache_key=macro.synthesis_cache_key,
+            storyline_anchor=macro.storyline_anchor or macro.named_crisis_anchor,
             child_event_count=len(macro.child_event_ids),
             created_at=macro.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             updated_at=macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -319,6 +391,10 @@ class MacroEventDetailResponse(BaseModel):
     summary: str | None = None
     category: str
     status: MacroEventStatus
+    cluster_fingerprint: str = "fp_empty"
+    synthesis_cache_key: str | None = None
+    storyline_anchor: str | None = None
+    typed_anchors: TypedEventAnchors = Field(default_factory=TypedEventAnchors)
     created_at: str
     updated_at: str
     child_event_count: int

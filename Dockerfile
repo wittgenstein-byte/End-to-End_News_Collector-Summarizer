@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy runtime files (heavy model weights are excluded via .dockerignore and mounted at runtime)
 COPY backend/ ./backend/
-COPY frontend/index.html frontend/monitoring.html frontend/manifest.webmanifest frontend/sw.js ./frontend/
+COPY frontend/index.html frontend/monitoring.html frontend/issues.html frontend/manifest.webmanifest frontend/sw.js ./frontend/
 COPY frontend/static/ ./frontend/static/
 COPY --from=frontend-builder /app/frontend/static/app.css ./frontend/static/app.css
 

@@ -15,12 +15,74 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.core.url_utils import compute_cluster_fingerprint, compute_synthesis_cache_key
 from backend.schemas.event_evidence_schema import EventProgressionSynthesis
 from backend.schemas.news_schema import ArticleRecord
 
 StoryStatus = Literal["active", "dormant"]
+StoryVerificationStatus = Literal["verified", "pending_review"]
+MacroAssociationStatus = Literal["linked", "new_macro", "pending_macro"]
+TemporalPrecision = Literal["datetime", "date", "relative_interval", "ambiguous", "none"]
+EventTimeConfidence = Literal["explicit", "relative", "ambiguous", "none"]
+
+
+class EventTimeEvidence(BaseModel):
+    """
+    Interval-based incident time evidence preserving UTC timestamps,
+    granularity precision, and year-ambiguity semantics.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    start_utc: datetime | None = Field(default=None, description="Inclusive start of incident window (UTC)")
+    end_utc: datetime | None = Field(default=None, description="Inclusive end of incident window (UTC)")
+    precision: TemporalPrecision = Field(default="none")
+    confidence: EventTimeConfidence = Field(default="none")
+    evidence_span: str | None = Field(default=None)
+
+    @field_validator("start_utc", "end_utc", mode="before")
+    @classmethod
+    def validate_utc(cls, v: Any) -> datetime | None:
+        if v is None or v == "":
+            return None
+        return _parse_utc_datetime(v)
+
+    def interval_gap_hours(self, other: EventTimeEvidence) -> float | None:
+        """
+        Calculate interval distance in hours between self and other.
+        Overlapping intervals yield 0.0.
+        Returns None if either interval lacks start_utc or end_utc.
+        """
+        if self.start_utc is None or self.end_utc is None:
+            return None
+        if other.start_utc is None or other.end_utc is None:
+            return None
+        gap_sec = max(
+            0.0,
+            (self.start_utc - other.end_utc).total_seconds(),
+            (other.start_utc - self.end_utc).total_seconds(),
+        )
+        return gap_sec / 3600.0
+
+
+class TypedEventAnchors(BaseModel):
+    """
+    Structured typed entity anchors separating hierarchical locations,
+    proper actor names, generic roles, targets, actions, and storyline anchors.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    event_locations: list[str] = Field(default_factory=list, description="All normalized locations")
+    provinces: list[str] = Field(default_factory=list, description="Canonical province names (77 provinces)")
+    districts: list[str] = Field(default_factory=list, description="Canonical district/amphoe names")
+    sub_locations: list[str] = Field(default_factory=list, description="Specific venues, rivers, temples, subdistricts")
+    actor_names: list[str] = Field(default_factory=list, description="Specific proper names of individuals/entities")
+    actor_roles: list[str] = Field(default_factory=list, description="Generic functional roles (e.g. นายกรัฐมนตรี, ตำรวจ)")
+    targets: list[str] = Field(default_factory=list, description="Victims, objects, or targets of action")
+    actions: list[str] = Field(default_factory=list, description="Incident actions or progression actions")
+    storyline_anchor: str | None = Field(default=None, description="Base storyline crisis/campaign anchor e.g. น้ำท่วมน่าน")
+    storyline_episode_key: str | None = Field(default=None, description="Time/episode-scoped anchor e.g. น้ำท่วมน่าน:2026-08")
 
 
 def _now_utc() -> datetime:
@@ -123,6 +185,62 @@ class StoryRecord(BaseModel):
         description="Enclosing MacroEventRecord identifier (Single Source of Truth)",
     )
 
+    # Stage A Verification and Conflict Tracking (v4)
+    verification_status: StoryVerificationStatus = Field(
+        default="verified",
+        description="Verification state of story event cluster ('verified' vs 'pending_review')",
+    )
+    conflict_type: str | None = Field(
+        default=None,
+        description="Conflict classification if pending review e.g. same_event_tie, same_vs_followup_tie",
+    )
+    competing_candidate_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of competing candidate stories during ambiguous assignment",
+    )
+
+    # Stage B Macro-Event Association Tracking (v4)
+    macro_association_status: MacroAssociationStatus = Field(
+        default="new_macro",
+        description="Association state to MacroEvent: linked, new_macro, or pending_macro",
+    )
+    candidate_macro_ids: list[str] = Field(
+        default_factory=list,
+        description="Candidate macro-event IDs when macro association is pending",
+    )
+    pending_macro_reason: str | None = Field(
+        default=None,
+        description="Reason why macro association was held as pending",
+    )
+
+    # Fingerprinting & Synthesis Cache Invalidation (v4)
+    cluster_fingerprint: str = Field(
+        default="fp_empty",
+        description="Deterministic 16-hex hash of canonical member article URLs",
+    )
+    synthesis_cache_key: str | None = Field(
+        default=None,
+        description="Deterministic 24-hex hash of story ID, fingerprint, article digest, and prompt version",
+    )
+
+    # Typed Anchors & Temporal Evidence (v4)
+    event_time: EventTimeEvidence = Field(
+        default_factory=EventTimeEvidence,
+        description="Incident window time evidence with UTC bounds and precision",
+    )
+    typed_anchors: TypedEventAnchors = Field(
+        default_factory=TypedEventAnchors,
+        description="Typed event anchors for cross-story verification and conflict resolution",
+    )
+    medoid_embedding: list[float] | None = Field(
+        default=None,
+        description="Embedding of medoid article closest to centroid",
+    )
+    seed_embedding: list[float] | None = Field(
+        default=None,
+        description="Embedding of original seed article",
+    )
+
     # Presentation enrichment fields (cached LLM outputs with heuristic fallback)
     headline: str | None = Field(default=None, description="LLM-generated story headline (falls back to title)")
     summary: str | None = Field(default=None, description="Synthesized multi-article summary")
@@ -146,6 +264,26 @@ class StoryRecord(BaseModel):
             return None
         return _parse_utc_datetime(v)
 
+    @field_validator("event_time", mode="before")
+    @classmethod
+    def validate_event_time(cls, v: Any) -> Any:
+        if v is None or not (isinstance(v, (EventTimeEvidence, dict))):
+            return EventTimeEvidence()
+        return v
+
+    @field_validator("typed_anchors", mode="before")
+    @classmethod
+    def validate_typed_anchors(cls, v: Any) -> Any:
+        if v is None or not (isinstance(v, (TypedEventAnchors, dict))):
+            return TypedEventAnchors()
+        return v
+
+    @model_validator(mode="after")
+    def sync_fingerprint(self) -> StoryRecord:
+        if (not self.cluster_fingerprint or self.cluster_fingerprint == "fp_empty") and self.article_urls:
+            self.cluster_fingerprint = compute_cluster_fingerprint(self.article_urls)
+        return self
+
     # ── GRASP Information Expert Domain Methods ───────────────────
 
     def add_article(
@@ -162,6 +300,7 @@ class StoryRecord(BaseModel):
         if url not in self.article_urls:
             self.article_urls.append(url)
             self.article_count = len(self.article_urls)
+            self.cluster_fingerprint = compute_cluster_fingerprint(self.article_urls)
 
         if source and source not in self.outlets:
             self.outlets.append(source)
@@ -262,16 +401,26 @@ class StorySummary(BaseModel):
     summary: str | None = None
     category: str
     status: StoryStatus
+    verification_status: StoryVerificationStatus = "verified"
+    cluster_fingerprint: str = "fp_empty"
+    synthesis_cache_key: str | None = None
     created_at: str
     updated_at: str
     article_count: int
     outlet_count: int
+    article_urls: list[str] = Field(default_factory=list)
     outlets: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     macro_event_id: str | None = None
+    event_time: EventTimeEvidence = Field(default_factory=EventTimeEvidence)
+    typed_anchors: TypedEventAnchors = Field(default_factory=TypedEventAnchors)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def from_story(cls, story: StoryRecord) -> StorySummary:
+        cache_key = story.synthesis_cache_key or compute_synthesis_cache_key(
+            story.story_id, story.cluster_fingerprint
+        )
         return cls(
             story_id=story.story_id,
             title=story.title,
@@ -279,13 +428,20 @@ class StorySummary(BaseModel):
             summary=story.summary,
             category=story.category,
             status=story.status,
+            verification_status=story.verification_status,
+            cluster_fingerprint=story.cluster_fingerprint,
+            synthesis_cache_key=cache_key,
             created_at=story.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             updated_at=story.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             article_count=story.article_count,
             outlet_count=story.outlet_count,
+            article_urls=list(story.article_urls),
             outlets=list(story.outlets),
             entities=list(story.entities),
             macro_event_id=story.macro_event_id,
+            event_time=story.event_time,
+            typed_anchors=story.typed_anchors,
+            metadata=dict(story.metadata),
         )
 
 
@@ -319,6 +475,9 @@ class StoryDetailResponse(BaseModel):
     summary: str | None = None
     category: str
     status: StoryStatus
+    verification_status: StoryVerificationStatus = "verified"
+    cluster_fingerprint: str = "fp_empty"
+    synthesis_cache_key: str | None = None
     created_at: str
     updated_at: str
     article_count: int
@@ -328,6 +487,9 @@ class StoryDetailResponse(BaseModel):
     timeline: list[TimelineEvent] = Field(default_factory=list)
     articles: list[ArticleRecord] = Field(default_factory=list)
     macro_event_id: str | None = None
+    event_time: EventTimeEvidence = Field(default_factory=EventTimeEvidence)
+    typed_anchors: TypedEventAnchors = Field(default_factory=TypedEventAnchors)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     synthesis: EventProgressionSynthesis | None = None
     trending_score: float | None = None
     breakdown: dict[str, Any] | None = None
@@ -350,6 +512,9 @@ class StoryDetailResponse(BaseModel):
             key=lambda a: a.fetched_at or "",
             reverse=False,
         )
+        cache_key = story.synthesis_cache_key or compute_synthesis_cache_key(
+            story.story_id, story.cluster_fingerprint
+        )
         return cls(
             story_id=story.story_id,
             title=story.title,
@@ -357,6 +522,9 @@ class StoryDetailResponse(BaseModel):
             summary=story.summary,
             category=story.category,
             status=story.status,
+            verification_status=story.verification_status,
+            cluster_fingerprint=story.cluster_fingerprint,
+            synthesis_cache_key=cache_key,
             created_at=story.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             updated_at=story.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             article_count=story.article_count,
@@ -366,6 +534,9 @@ class StoryDetailResponse(BaseModel):
             timeline=list(story.timeline),
             articles=sorted_articles,
             macro_event_id=story.macro_event_id,
+            event_time=story.event_time,
+            typed_anchors=story.typed_anchors,
+            metadata=dict(story.metadata),
             synthesis=synthesis,
             trending_score=trending_score,
             breakdown=breakdown,

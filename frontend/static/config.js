@@ -1,21 +1,151 @@
 /**
- * config.js — แก้ที่นี่ที่เดียวเมื่อ deploy ไป server จริง
+ * config.js — Dynamic Client Configuration & Image Resolution
  *
- * วิธีใช้: window.location.origin จะคืน origin ของ page เอง
- * ถ้า FastAPI serve index.html → origin ตรงกับ backend เสมอ
- * ถ้าแยก server → เปลี่ยน API_BASE ตรงนี้ที่เดียวพอ
+ * Implements 4-tier configuration resolution hierarchy:
+ *   Tier 1: Runtime Injection via window.__NEWSROOM_CONFIG__
+ *   Tier 2: Build-Time / Bundler Environment (import.meta.env?.VITE_API_URL or window.__ENV__?.VITE_API_URL)
+ *   Tier 3: URL Query Parameter (?api=...) or LocalStorage ("newsroom_api_base")
+ *   Tier 4: Smart Dynamic Detection & Dev Port Auto-Mapping (5173, 3000, 5500, 8080 -> 5000)
  */
 
-const IS_DEV = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+/**
+ * Resolves the Backend REST API Base URL following the 4-tier hierarchy.
+ *
+ * @param {object} [options]
+ * @param {Window} [options.win] - Injectable window for testing
+ * @returns {string} Clean API Base URL without trailing slash
+ */
+export function resolveApiBase(options = {}) {
+  const win = options.win || (typeof window !== "undefined" ? window : null);
+  if (!win) return "http://localhost:5000";
 
-export const API_BASE   = IS_DEV
-  ? (window.location.port ? `${window.location.protocol}//${window.location.hostname}:${window.location.port}` : "http://localhost:5000")
-  : window.location.origin;          // production: same origin
+  // Tier 1: Runtime Injection
+  if (win.__NEWSROOM_CONFIG__ && typeof win.__NEWSROOM_CONFIG__.API_BASE === "string") {
+    const raw = win.__NEWSROOM_CONFIG__.API_BASE.trim();
+    if (raw) return raw.replace(/\/+$/, "");
+  }
 
-export const SOCKET_URL = API_BASE;
+  // Tier 2: Build-Time / Global Environment Variables
+  try {
+    if (typeof import.meta !== "undefined" && import.meta?.env?.VITE_API_URL) {
+      const raw = String(import.meta.env.VITE_API_URL).trim();
+      if (raw) return raw.replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  try {
+    if (win.__ENV__ && typeof win.__ENV__.VITE_API_URL === "string") {
+      const raw = win.__ENV__.VITE_API_URL.trim();
+      if (raw) return raw.replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  // Tier 3: Query Parameter or LocalStorage Override
+  try {
+    if (win.location?.search) {
+      const params = new URLSearchParams(win.location.search);
+      const queryApi = params.get("api");
+      if (queryApi && queryApi.trim()) {
+        const cleaned = queryApi.trim().replace(/\/+$/, "");
+        try { win.localStorage?.setItem("newsroom_api_base", cleaned); } catch (_e) {}
+        return cleaned;
+      }
+    }
+    const storedApi = win.localStorage?.getItem("newsroom_api_base");
+    if (storedApi && storedApi.trim()) {
+      return storedApi.trim().replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  // Tier 4: Dynamic Detection & Dev Port Auto-Mapping
+  const hostname = win.location?.hostname || "localhost";
+  const port = win.location?.port || "";
+  const protocol = win.location?.protocol || "http:";
+  const isLoopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "[::1]";
+
+  if (isLoopback) {
+    if (port === "5000") {
+      return win.location.origin;
+    }
+    const devPorts = ["5173", "3000", "8080", "5500", "4173", "8000", "5001"];
+    if (devPorts.includes(port) || port !== "") {
+      return `${protocol}//${hostname}:5000`;
+    }
+    return "http://localhost:5000";
+  }
+
+  return win.location?.origin || "http://localhost:5000";
+}
+
+/**
+ * Resolves the Socket.IO Server URL following the 4-tier hierarchy.
+ *
+ * @param {string} [apiBase] - Optional pre-resolved API Base URL
+ * @param {object} [options]
+ * @param {Window} [options.win] - Injectable window for testing
+ * @returns {string} Clean Socket.IO URL without trailing slash
+ */
+export function resolveSocketUrl(apiBase, options = {}) {
+  const win = options.win || (typeof window !== "undefined" ? window : null);
+  const base = apiBase || resolveApiBase(options);
+
+  if (win?.__NEWSROOM_CONFIG__ && typeof win.__NEWSROOM_CONFIG__.SOCKET_URL === "string") {
+    const raw = win.__NEWSROOM_CONFIG__.SOCKET_URL.trim();
+    if (raw) return raw.replace(/\/+$/, "");
+  }
+
+  try {
+    if (typeof import.meta !== "undefined" && import.meta?.env?.VITE_SOCKET_URL) {
+      const raw = String(import.meta.env.VITE_SOCKET_URL).trim();
+      if (raw) return raw.replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  try {
+    if (win?.__ENV__ && typeof win.__ENV__.VITE_SOCKET_URL === "string") {
+      const raw = win.__ENV__.VITE_SOCKET_URL.trim();
+      if (raw) return raw.replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  try {
+    const storedSocket = win?.localStorage?.getItem("newsroom_socket_url");
+    if (storedSocket && storedSocket.trim()) {
+      return storedSocket.trim().replace(/\/+$/, "");
+    }
+  } catch (_e) {}
+
+  return base;
+}
+
+/**
+ * Resolves an image URL against API_BASE if it is a relative image proxy path.
+ *
+ * @param {string} url - Raw image URL (can be relative proxy path or external URL)
+ * @param {string} [base=API_BASE] - Base URL to prepend
+ * @returns {string} Fully resolved image URL
+ */
+export function resolveImageUrl(url, base = API_BASE) {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/api/image")) {
+    return `${base}${trimmed}`;
+  }
+  if (trimmed.startsWith("api/image")) {
+    return `${base}/${trimmed}`;
+  }
+  return trimmed;
+}
+
+export const API_BASE = resolveApiBase();
+export const SOCKET_URL = resolveSocketUrl(API_BASE);
 export const PAGE_SIZE  = 20;
 export const TRENDING_LIMIT = 50;
 export const HERO_CLUSTER_LIMIT = 12;
+
+export const FEEDBACK_FORM_URL = "https://forms.gle/GKWw4otqQrsuqd4L7";
+export const FEEDBACK_COMPLETED_KEY = "newsroom_feedback_completed";
 
 /**
  * Sentiment visual token configurations

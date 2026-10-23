@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEWSROOM — เจาะประเด็น (Issue Explorer)</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap" rel="stylesheet">
+  
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+  <!-- Styles — Tailwind -->
+  <link rel="stylesheet" href="/frontend/static/app.css?v=4.0.0">
+
+  <!-- Immediate Theme Hydration to prevent flash of unstyled theme -->
+  <script>
+    try {
+      const p = JSON.parse(localStorage.getItem("personalization") || "{}");
+      const t = localStorage.getItem("theme_pref");
+      if (p.darkMode === true || t === "dark") {
+        document.documentElement.classList.add("dark");
+        document.documentElement.classList.remove("light");
+      } else if (p.darkMode === false || t === "light") {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.add("light");
+      }
+    } catch (e) {}
+  </script>
+
+  <style>
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace, Consolas, Courier, monospace;
+    }
+    .font-serif-editorial {
+      font-family: 'Newsreader', Georgia, serif;
+    }
+    /* Subtle Editorial Grid Background */
+    .bg-editorial-grid {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(120, 120, 128, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(120, 120, 128, 0.04) 1px, transparent 1px);
+    }
+    html.dark .bg-editorial-grid {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px) !important;
+    }
+    /* Hide default summary arrow in modern browsers for custom styling */
+    details > summary {
+      list-style: none;
+    }
+    details > summary::-webkit-details-marker {
+      display: none;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased font-body min-h-screen flex flex-col selection:bg-primary/15 selection:text-primary transition-colors duration-150">
+
+  <!-- Top Editorial Masthead -->
+  <header class="sticky top-0 z-40 bg-surface/85 backdrop-blur-md border-b border-outline-variant/40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-baseline gap-2 group">
+          <span class="text-xl font-bold font-serif-editorial tracking-tight text-on-surface group-hover:text-primary transition-colors">NEWSROOM.</span>
+        </a>
+        <span class="text-outline-variant/60 font-mono text-xs">/</span>
+        <div class="flex items-center gap-1.5 text-on-surface px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-[11px] font-mono font-medium uppercase tracking-wider">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          <span>Issue Explorer</span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-1 sm:gap-2 text-xs font-medium">
+        <a href="/" class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">newspaper</span>
+          <span>หน้าหลัก</span>
+        </a>
+        <!-- Theme Toggle Button -->
+        <button 
+          id="theme-toggle-btn" 
+          type="button" 
+          class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container p-1.5 rounded-md transition-all flex items-center cursor-pointer ml-1" 
+          title="สลับโหมดมืด / สว่าง (Toggle Dark/Light Mode)"
+        >
+          <!-- Sun SVG (shows in dark mode) -->
+          <svg class="w-4 h-4 hidden dark:block text-amber-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41"></path>
+          </svg>
+          <!-- Moon SVG (shows in light mode) -->
+          <svg class="w-4 h-4 block dark:hidden text-on-surface" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+          </svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-8 w-full space-y-8">
+
+    <!-- Command & Search Section -->
+    <section class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-4 sm:p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] space-y-3.5">
+      <form id="search-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div class="relative flex-1 group">
+          <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary text-xl pointer-events-none transition-colors">search</span>
+          <input 
+            id="search-input"
+            type="text" 
+            placeholder="ระบุประเด็นข่าว, องค์กร หรือใช้ไวยากรณ์ เช่น สตง -กีฬา, ไทยพีบีเอส | สภา"
+            class="w-full pl-11 pr-10 py-2.5 bg-surface-container-low/60 border border-outline-variant/60 rounded-lg text-sm sm:text-base text-on-surface placeholder:text-outline/60 focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            autocomplete="off"
+            autofocus
+          />
+          <button 
+            id="clear-search-btn"
+            type="button" 
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface hover:bg-surface-container p-1 rounded transition-colors"
+            title="ล้างคำค้นหา"
+          >
+            <span class="material-symbols-outlined text-base block">close</span>
+          </button>
+        </div>
+        <button
+          id="search-submit-btn"
+          type="submit"
+          class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-on-surface text-surface font-medium text-xs sm:text-sm rounded-lg hover:bg-primary hover:text-on-primary focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shrink-0 cursor-pointer tracking-wide"
+        >
+          <span class="material-symbols-outlined text-[18px]">troubleshoot</span>
+          <span>เจาะประเด็น</span>
+        </button>
+      </form>
+
+      <!-- Syntax Hint & Options Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-on-surface-variant pt-3 border-t border-outline-variant/25">
+        <div class="flex flex-wrap items-center gap-4">
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none group">
+            <input id="expand-toggle" type="checkbox" checked class="w-3.5 h-3.5 rounded-sm text-primary focus:ring-primary/30 border-outline-variant cursor-pointer">
+            <span class="text-on-surface-variant group-hover:text-on-surface transition-colors font-medium">กระจายคำพ้องความหมายอัตโนมัติ <span class="font-mono text-[10px] text-outline">(Synonym Expansion)</span></span>
+          </label>
+        </div>
+
+        <details class="relative group">
+          <summary class="cursor-pointer text-on-surface-variant hover:text-primary font-medium flex items-center gap-1.5 select-none py-0.5 px-2 rounded hover:bg-surface-container transition-colors">
+            <span class="material-symbols-outlined text-[16px]">tune</span>
+            <span>ตัวกรองข้อมูล</span>
+            <span class="material-symbols-outlined text-[14px] transition-transform group-open:rotate-180">expand_more</span>
+          </summary>
+          <div class="absolute right-0 top-8 z-30 w-72 sm:w-80 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/60 shadow-xl space-y-3.5 mt-1">
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-2">
+              <span class="text-[11px] font-mono uppercase tracking-wider text-outline font-semibold">Search Parameters</span>
+              <button id="reset-filters-btn" type="button" class="text-[11px] text-primary hover:underline font-medium">ล้างค่าเริ่มต้น</button>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-on-surface-variant mb-1">หมวดหมู่ข่าว</label>
+              <select id="category-select" class="w-full text-xs bg-surface-container-low p-2 rounded-md border border-outline-variant/50 focus:outline-none focus:border-primary">
+                <option value="">ทุกหมวดหมู่</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-on-surface-variant mb-1">สำนักข่าวต้นทาง</label>
+              <select id="source-select" class="w-full text-xs bg-surface-container-low p-2 rounded-md border border-outline-variant/50 focus:outline-none focus:border-primary">
+                <option value="">ทุกสำนักข่าว</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[11px] font-medium text-on-surface-variant mb-1">ตั้งแต่วันที่</label>
+                <input id="date-from-input" type="date" class="w-full text-[11px] bg-surface-container-low p-1.5 rounded-md border border-outline-variant/50 font-mono focus:outline-none focus:border-primary">
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-on-surface-variant mb-1">ถึงวันที่</label>
+                <input id="date-to-input" type="date" class="w-full text-[11px] bg-surface-container-low p-1.5 rounded-md border border-outline-variant/50 font-mono focus:outline-none focus:border-primary">
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Synonyms pill row -->
+      <div id="synonyms-container"></div>
+    </section>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hidden flex flex-col items-center justify-center py-16 space-y-3">
+      <div class="w-6 h-6 border-2 border-outline-variant border-t-on-surface rounded-full animate-spin"></div>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest">Synthesizing Clusters & Timeline...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="hidden bg-error/5 border border-error/30 rounded-xl p-6 text-center space-y-2 max-w-lg mx-auto">
+      <span class="material-symbols-outlined text-2xl text-error">warning</span>
+      <h3 class="text-sm font-bold text-on-surface">ไม่สามารถประมวลผลคำค้นหาได้</h3>
+      <p id="error-message" class="text-xs text-on-surface-variant font-mono"></p>
+    </div>
+
+    <!-- Empty State / Editorial Intelligence Guide -->
+    <div id="empty-state" class="bg-editorial-grid bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-8 sm:p-12 text-center space-y-6">
+      <div class="max-w-lg mx-auto space-y-2.5">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container text-[10px] font-mono uppercase tracking-widest text-on-surface-variant border border-outline-variant/30 mb-1">
+          <span>In-Memory Vector & Lexical Analysis</span>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">สืบค้นความเชื่อมโยงและลำดับเหตุการณ์ข่าว</h2>
+        <p class="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+          ระบบจะทำการสกัดกลุ่มประเด็นย่อย (Sub-topic Clustering), วาดความถี่ไทม์ไลน์ และแยกข่าวที่มีบริบทต่างออกไปให้อัตโนมัติโดยประมวลผลจากฐานข้อมูลโดยตรง
+        </p>
+      </div>
+
+      <div class="max-w-xl mx-auto pt-2 space-y-2.5">
+        <p class="text-[10px] font-mono uppercase tracking-widest text-outline">ประเด็นสำรวจแนะนำ (Quick Queries)</p>
+        <div class="flex flex-wrap justify-center gap-1.5">
+          <button type="button" data-example-query="สตง" class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer">สตง</button>
+          <button type="button" data-example-query="ไทยพีบีเอส" class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer">ไทยพีบีเอส</button>
+          <button type="button" data-example-query="ตึกถล่ม" class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer">ตึกถล่ม</button>
+          <button type="button" data-example-query="TH-AI" class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer font-mono">TH-AI</button>
+          <button type="button" data-example-query="ป.ป.ช." class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer">ป.ป.ช.</button>
+          <button type="button" data-example-query="ศาลรัฐธรรมนูญ" class="text-xs px-3 py-1.5 rounded-md bg-surface-container-lowest hover:bg-on-surface hover:text-surface transition-all border border-outline-variant/60 font-medium shadow-2xs cursor-pointer">ศาลรัฐธรรมนูญ</button>
+        </div>
+      </div>
+
+      <div class="inline-flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-outline pt-4 border-t border-outline-variant/30 font-mono">
+        <span><strong class="text-on-surface font-semibold">เว้นวรรค</strong> = AND</span>
+        <span>•</span>
+        <span><strong class="text-on-surface font-semibold">|</strong> = OR</span>
+        <span>•</span>
+        <span><strong class="text-on-surface font-semibold">-คำค้น</strong> = NOT</span>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results-section" class="hidden space-y-6">
+      
+      <!-- Stats Overview Bar -->
+      <div id="stats-container"></div>
+
+      <!-- Main Layout: 2 Columns on desktop -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Column: Timeline, Articles, Outliers (lg:col-span-8) -->
+        <div class="lg:col-span-8 space-y-6">
+          
+          <!-- Timeline Chart -->
+          <div id="timeline-container"></div>
+
+          <!-- Articles Feed Section -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-mono uppercase tracking-wider font-semibold text-outline">02 /</span>
+                <h3 class="text-sm font-bold text-on-surface tracking-tight">รายการบทความข่าวที่เกี่ยวข้อง</h3>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button id="export-csv-btn" type="button" class="text-[11px] font-mono text-on-surface-variant hover:text-on-surface bg-surface-container-lowest hover:bg-surface-container border border-outline-variant/50 px-2.5 py-1 rounded transition-colors inline-flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[13px]">download</span> CSV
+                </button>
+                <button id="export-json-btn" type="button" class="text-[11px] font-mono text-on-surface-variant hover:text-on-surface bg-surface-container-lowest hover:bg-surface-container border border-outline-variant/50 px-2.5 py-1 rounded transition-colors inline-flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[13px]">data_object</span> JSON
+                </button>
+              </div>
+            </div>
+
+            <!-- Articles List -->
+            <div id="articles-container"></div>
+          </div>
+
+          <!-- Outliers Drawer -->
+          <div id="possibly-unrelated-container"></div>
+        </div>
+
+        <!-- Right Column: Sub-topic Clusters & Related terms (lg:col-span-4) -->
+        <div class="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
+          
+          <!-- Sub-topic Clusters -->
+          <div id="clusters-container"></div>
+
+          <!-- Related Keywords (Click to drill down) -->
+          <div id="related-terms-container"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-outline-variant/30 bg-surface-container-lowest py-5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] font-mono text-outline">
+      <span>NEWSROOM. — EDITORIAL INTELLIGENCE PLATFORM</span>
+      <span>ISSUE EXPLORER ENGINE v3.4</span>
+    </div>
+  </footer>
+
+  <!-- Entry Script -->
+  <script type="module" src="/frontend/static/issues/issues-main.js?v=4.0.0"></script>
+</body>
+</html>

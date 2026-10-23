@@ -13,6 +13,7 @@ POLICY Zero Crash Guarantee — Always returns HTTP 200 with fallback
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import datetime, timezone
 from typing import Any
@@ -20,6 +21,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend.config import settings
+from backend.core.l1_cache import trending_cache
 from backend.repo.macro_event_repo import (
     MacroEventRepositoryPort,
     get_macro_event_repository,
@@ -71,7 +74,7 @@ async def list_macro_events(
     macro_repo: MacroEventRepositoryPort = Depends(get_macro_event_repository),
 ) -> MacroEventListResponse:
     """List macro-events with pagination and filtering."""
-    all_macros = macro_repo.list_macro_events(status=status_filter, limit=1000, offset=0)
+    all_macros = await asyncio.to_thread(macro_repo.list_macro_events, status=status_filter, limit=1000, offset=0)
 
     if category and category.strip().lower() not in ("", "all"):
         target_cat = category.strip().lower()
@@ -113,7 +116,14 @@ async def get_trending_macro_events(
     trending_service: TrendingService = Depends(get_trending_service),
 ) -> list[dict[str, Any]]:
     """Get ranked trending macro-events (storylines) with full score breakdown."""
-    return trending_service.get_trending_macro_events(limit=limit, category=category)
+    cache_key = f"trending_macro:{limit}:{category or 'all'}"
+    cached = await trending_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    res = await asyncio.to_thread(trending_service.get_trending_macro_events, limit=limit, category=category)
+    await trending_cache.set(cache_key, res, ttl_seconds=float(settings.trending_cache_ttl_seconds))
+    return res
 
 
 @router.get("/{macro_id}", response_model=MacroEventDetailResponse)
@@ -143,10 +153,13 @@ async def get_macro_event_detail(
 
     # Collect member articles across child stories for synthesis
     article_urls: list[str] = []
+    url_to_story_id: dict[str, str] = {}
     for cs in child_stories:
         for u in cs.article_urls:
-            if u and u.strip() and u.strip() not in article_urls:
-                article_urls.append(u.strip())
+            clean_u = u.strip() if u else ""
+            if clean_u and clean_u not in article_urls:
+                article_urls.append(clean_u)
+                url_to_story_id[clean_u] = cs.story_id
 
     news_repo = get_news_repository()
     raw_news = news_repo.load_news()
@@ -154,8 +167,13 @@ async def get_macro_event_detail(
 
     member_articles: list[dict[str, Any]] = []
     for u in article_urls:
+        assigned_sid = url_to_story_id.get(u)
         if u in news_map:
-            member_articles.append(news_map[u])
+            art_copy = dict(news_map[u])
+            if assigned_sid and not art_copy.get("story_id"):
+                art_copy["story_id"] = assigned_sid
+            art_copy.setdefault("macro_event_id", macro.macro_event_id)
+            member_articles.append(art_copy)
         else:
             member_articles.append({
                 "url": u,
@@ -163,6 +181,8 @@ async def get_macro_event_detail(
                 "source": "สำนักข่าว",
                 "summary": macro.summary or macro.title,
                 "fetched_at": macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "story_id": assigned_sid,
+                "macro_event_id": macro.macro_event_id,
             })
 
     synthesis = presentation_service.synthesize_event_progression(
@@ -172,6 +192,13 @@ async def get_macro_event_detail(
         allow_llm=False,
     )
 
+    from backend.schemas.story_schema import compute_cluster_fingerprint, compute_synthesis_cache_key
+
+    fp = macro.cluster_fingerprint
+    if (not fp or fp == "fp_empty") and article_urls:
+        fp = compute_cluster_fingerprint(article_urls)
+    cache_key = macro.synthesis_cache_key or compute_synthesis_cache_key(macro.macro_event_id, fp)
+
     return MacroEventDetailResponse(
         macro_event_id=macro.macro_event_id,
         title=macro.title,
@@ -179,6 +206,10 @@ async def get_macro_event_detail(
         summary=macro.summary,
         category=macro.category,
         status=macro.status,
+        cluster_fingerprint=fp,
+        synthesis_cache_key=cache_key,
+        storyline_anchor=macro.storyline_anchor or macro.named_crisis_anchor,
+        typed_anchors=macro.typed_anchors,
         created_at=macro.created_at.strftime("%Y-%m-%d %H:%M:%S"),
         updated_at=macro.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
         child_event_count=len(child_summaries),

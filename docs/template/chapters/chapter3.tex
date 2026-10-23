@@ -1,0 +1,131 @@
+% =====================================================================
+% บทที่ 3 วิธีการดำเนินงาน (คู่มือข้อ 17.3)
+% อธิบายขั้นตอนและวิธีการดำเนินงาน และเครื่องมือที่ใช้ในการทำโครงงาน
+% *** ก่อนส่ง: ลบข้อความตัวอย่าง (...) ***
+% =====================================================================
+
+\section{ขั้นตอนการดำเนินงาน}
+\label{sec:method}
+
+โครงงานนี้ดำเนินงานตามแนวทาง\ldots{} (เช่น Agile แบบ Scrum หรือ Waterfall)
+แบ่งเป็น 5 ขั้นตอน ดังภาพที่~\ref{fig:method}
+
+% แผนภาพขั้นตอนวาดด้วย TikZ (แก้ข้อความในวงเล็บปีกกาได้โดยตรง)
+% หรือใช้ภาพจากโปรแกรมอื่น: \includegraphics[width=0.9\linewidth]{images/ชื่อไฟล์}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=7bp and 10bp,
+    stage/.style={draw=black!70, fill=black!4, rounded corners=3pt, align=center,
+      font=\normalfont\small, minimum height=34bp, text width=64bp, inner sep=3bp},
+    arr/.style={-{Stealth[length=5bp]}, line width=0.8pt, draw=black!60}]
+  \node[stage] (s1) {ศึกษาปัญหาและ\\ความต้องการ};
+  \node[stage, right=of s1] (s2) {วิเคราะห์และ\\ออกแบบระบบ};
+  \node[stage, right=of s2] (s3) {พัฒนาระบบ};
+  \node[stage, right=of s3] (s4) {ทดสอบและ\\ประเมินผล};
+  \node[stage, right=of s4] (s5) {ปรับปรุงและ\\สรุปผล};
+  \draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (s3);
+  \draw[arr] (s3) -- (s4); \draw[arr] (s4) -- (s5);
+  \draw[arr] (s4.south) -- ++(0,-12bp) -| node[pos=0.25, below, font=\normalfont\footnotesize]{พบข้อผิดพลาด} (s3.south);
+\end{tikzpicture}
+\caption{ขั้นตอนการดำเนินงาน}
+\label{fig:method}
+\end{figure}
+
+\subsection{ศึกษาปัญหาและรวบรวมความต้องการ}
+
+สัมภาษณ์\ldots{} จำนวน\ldots{} คน และศึกษาเอกสาร\ldots{} เพื่อรวบรวมความต้องการของระบบ
+
+\subsection{วิเคราะห์และออกแบบระบบ}
+
+วิเคราะห์ความต้องการด้วยแผนภาพ UML และออกแบบฐานข้อมูล (รายละเอียดในบทที่ 4)
+
+\subsection{พัฒนาระบบ}
+
+พัฒนาระบบด้วยภาษา\ldots{} และเฟรมเวิร์ก\ldots{} โดยแบ่งการพัฒนาเป็นรอบละ\ldots{} สัปดาห์
+
+\subsection{ทดสอบและประเมินผล}
+
+ทดสอบระบบด้วยกรณีทดสอบ (Test case) และประเมินความพึงพอใจของผู้ใช้ด้วยแบบสอบถาม
+โดยวิเคราะห์คะแนนด้วยค่าเฉลี่ยตามสมการที่~\eqref{eq:mean}
+
+% สมการ: เลขสมการในวงเล็บชิดขวาให้อัตโนมัติ (1), (2), ... หรือ (3.1) เมื่อใช้ chapterfloats
+%   \eqcaption{ชื่อสมการ} -> แสดงในสารบัญสมการ (สร้างหน้าสารบัญสมการให้เมื่อมีอย่างน้อย 1 สมการ)
+%   อ้างถึงในเนื้อหาด้วย สมการที่~\eqref{ชื่อ label} -> "สมการที่ (1)"
+%   ข้อความภาษาไทยในสมการเขียนใน \text{...}
+\begin{equation}
+\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i
+\eqcaption{ค่าเฉลี่ยเลขคณิต}
+\label{eq:mean}
+\end{equation}
+% คำอธิบายสัญลักษณ์ใต้สมการ: คอลัมน์แรกเป็นสัญลักษณ์ (โหมดคณิตศาสตร์) คอลัมน์ที่สองเป็นคำอธิบาย
+\begin{eqwhere}
+\bar{x} & ค่าเฉลี่ยของคะแนน \\
+x_i     & คะแนนของผู้ตอบคนที่ $i$ \\
+n       & จำนวนผู้ตอบแบบสอบถาม
+\end{eqwhere}
+
+\subsection{ปรับปรุงและสรุปผล}
+
+ปรับปรุงระบบตามผลการทดสอบ และจัดทำรายงานและคู่มือการใช้งาน
+
+\section{เครื่องมือที่ใช้ในการดำเนินงาน}
+\label{sec:tools}
+
+\subsection{ฮาร์ดแวร์}
+
+ฮาร์ดแวร์ที่ใช้ในการพัฒนาและทดสอบระบบแสดงดังตารางที่~\ref{tab:hardware}
+
+\begin{table}[H]
+\caption{ฮาร์ดแวร์ที่ใช้ในการพัฒนาและทดสอบระบบ}
+\label{tab:hardware}
+\centering
+\begin{tabular}{|C{1.2cm}|L{4.4cm}|L{\dimexpr\linewidth-5.6cm-6\tabcolsep-4\arrayrulewidth\relax}|}
+\hline
+\textbf{ลำดับ} & \textbf{รายการ} & \textbf{รายละเอียด} \\ \hline
+1 & คอมพิวเตอร์สำหรับพัฒนา & CPU \ldots{}, RAM \ldots{} GB, SSD \ldots{} GB \\ \hline
+2 & เครื่องแม่ข่าย & \ldots{} \\ \hline
+3 & โทรศัพท์มือถือสำหรับทดสอบ & \ldots{} \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{ซอฟต์แวร์}
+
+ซอฟต์แวร์ที่ใช้ในการพัฒนาระบบแสดงดังตารางที่~\ref{tab:software}
+
+\begin{table}[H]
+\caption{ซอฟต์แวร์ที่ใช้ในการพัฒนาระบบ}
+\label{tab:software}
+\centering
+\begin{tabular}{|C{1.2cm}|L{4.2cm}|C{2.2cm}|L{\dimexpr\linewidth-7.6cm-8\tabcolsep-5\arrayrulewidth\relax}|}
+\hline
+\textbf{ลำดับ} & \textbf{ซอฟต์แวร์} & \textbf{เวอร์ชัน} & \textbf{การใช้งาน} \\ \hline
+1 & Visual Studio Code & 1.9x & เขียนโปรแกรม \\ \hline
+2 & Node.js & 20 LTS & สภาพแวดล้อมการทำงานของส่วนหลัง \\ \hline
+3 & React & 18 & พัฒนาส่วนหน้า \\ \hline
+4 & PostgreSQL & 15 & ระบบจัดการฐานข้อมูล \\ \hline
+5 & Git และ GitHub & -- & จัดการเวอร์ชันของโค้ด \\ \hline
+\end{tabular}
+\end{table}
+
+\section{แผนการดำเนินงาน}
+\label{sec:plan}
+
+แผนการดำเนินงานตลอดระยะเวลาโครงงานแสดงดังตารางที่~\ref{tab:gantt}
+
+% แผนการดำเนินงาน (Gantt chart): ใส่ \cellcolor{ganttbar} ในช่องเดือนที่ทำกิจกรรม
+\begin{table}[H]
+\caption{แผนการดำเนินงาน}
+\label{tab:gantt}
+\centering
+\begin{tabular}{|C{1.2cm}|L{\dimexpr\linewidth-7.8cm-16\tabcolsep-9\arrayrulewidth\relax}|*{6}{C{1.1cm}|}}
+\hline
+\textbf{ลำดับ} & \textbf{กิจกรรม} & \textbf{มิ.ย.} & \textbf{ก.ค.} & \textbf{ส.ค.}
+  & \textbf{ก.ย.} & \textbf{ต.ค.} & \textbf{พ.ย.} \\ \hline
+1 & ศึกษาปัญหาและรวบรวมความต้องการ & \cellcolor{ganttbar} & & & & & \\ \hline
+2 & วิเคราะห์และออกแบบระบบ & & \cellcolor{ganttbar} & \cellcolor{ganttbar} & & & \\ \hline
+3 & พัฒนาระบบ & & & \cellcolor{ganttbar} & \cellcolor{ganttbar} & \cellcolor{ganttbar} & \\ \hline
+4 & ทดสอบและประเมินผล & & & & & \cellcolor{ganttbar} & \cellcolor{ganttbar} \\ \hline
+5 & จัดทำรายงานและคู่มือ & & & & & & \cellcolor{ganttbar} \\ \hline
+\end{tabular}
+\end{table}

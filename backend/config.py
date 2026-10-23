@@ -171,8 +171,8 @@ class Settings:
 
     # Trending
     trending_window_hours: float                = float(_get("TRENDING_WINDOW_HOURS",                "48.0"))
-    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.92"))
-    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.88"))
+    trending_cosine_threshold: float           = float(_get("TRENDING_COSINE_THRESHOLD",           "0.76"))
+    trending_cohesion_threshold: float         = float(_get("TRENDING_COHESION_THRESHOLD",         "0.70"))
     trending_cluster_time_window_hours: float   = float(_get("TRENDING_CLUSTER_TIME_WINDOW_HOURS",   "36.0"))
     embedding_cache_max_size: int              = int(_get("EMBEDDING_CACHE_MAX_SIZE",              "2000"))
     trending_result_cache_ttl_seconds: int     = int(_get("TRENDING_RESULT_CACHE_TTL_SECONDS",     "600"))
@@ -215,7 +215,21 @@ class Settings:
     port: int               = int(_get("PORT", "5000"))
     playwright_service_url: str = _get("PLAYWRIGHT_SERVICE_URL", "http://playwright:8001/scrape")
     obscura_service_url: str    = _get("OBSCURA_SERVICE_URL", "")
-    cors_origins: ClassVar[list[str]] = [x.strip() for x in _get("CORS_ORIGINS", "*").split(",") if x.strip()]
+    # Dynamic Cross-Origin Resource Sharing (CORS)
+    cors_origins: ClassVar[list[str]] = _parse_csv(
+        _get(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5500,http://localhost:3000,https://e2enews.wittensky.com",
+        ),
+        ["http://localhost:5173", "http://127.0.0.1:5500", "http://localhost:3000", "https://e2enews.wittensky.com"],
+    )
+    cors_origin_regex: str | None = (
+        _get("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1|.*\.wittensky\.com)(:\d+)?$").strip() or None
+    )
+
+    # Headless / Decoupled Mode
+    headless: bool          = _get("HEADLESS", "false").lower() in {"1", "true", "yes"}
+    serve_frontend: bool    = _get("SERVE_FRONTEND", "true").lower() in {"1", "true", "yes"}
 
     # Frontend
     frontend_dir: Path      = BASE_DIR / "frontend"
@@ -223,6 +237,23 @@ class Settings:
     # Monitoring & Admin Auth
     monitoring_admin_key: str           = _get("MONITORING_ADMIN_KEY", "admin-dev-secret-2026")
     monitoring_session_ttl_seconds: int = int(_get("MONITORING_SESSION_TTL_SECONDS", "86400"))
+
+    # Issue Explorer (เจาะประเด็น) — isolated feature, kill-switch via flag
+    issue_explorer_enabled: bool     = _get("ISSUE_EXPLORER_ENABLED", "true").lower() in {"1", "true", "yes"}
+    issue_max_matches: int           = int(_get("ISSUE_MAX_MATCHES", "2000"))
+    issue_analysis_cap: int          = int(_get("ISSUE_ANALYSIS_CAP", "300"))
+    issue_cluster_distance: float    = float(_get("ISSUE_CLUSTER_DISTANCE", "0.85"))
+    issue_cache_ttl_seconds: int     = int(_get("ISSUE_CACHE_TTL_SECONDS", "120"))
+    issue_rate_limit_per_min: int    = int(_get("ISSUE_RATE_LIMIT_PER_MIN", "30"))
+
+    def __init__(self) -> None:
+        self.headless: bool = _get("HEADLESS", "false").lower() in {"1", "true", "yes"}
+        self.serve_frontend: bool = _get("SERVE_FRONTEND", "true").lower() in {"1", "true", "yes"}
+        raw_regex = _get(
+            "CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1|.*\.wittensky\.com)(:\d+)?$"
+        ).strip()
+        self.cors_origin_regex: str | None = raw_regex or None
+
 
 
 # Singleton ใช้ได้ทั่วทั้ง app

@@ -528,3 +528,101 @@ def test_articles_without_preset_ids_chronological_sort():
     assert synthesis.progression_timeline[0].evidence_ids == ["art_01"]
     assert "08:00:00" in synthesis.progression_timeline[0].event_time
 
+
+def test_mutual_exclusion_invariant():
+    """
+    Test 11: Mutual Exclusion Invariant.
+    No article ID appearing in irrelevant_articles or political_contexts can ever appear
+    in progression_timeline, confirmed_facts, or conflicts.
+    """
+    svc = StoryPresentationService(client=None)
+    articles = [
+        {
+            "article_id": "art_01",
+            "title": "เกิดเหตุระเบิดปั๊มน้ำมันปัตตานี เสียหายหนัก",
+            "summary": "คนร้ายลอบวางระเบิดปั๊มน้ำมันในพื้นที่ปัตตานี",
+            "source": "ThaiPBS",
+            "url": "https://example.com/bomb1",
+            "published_at": "2026-10-15 10:00:00",
+        },
+        {
+            "article_id": "art_02",
+            "title": "เจ้าหน้าที่เข้าตรวจสอบพื้นที่เหตุระเบิดปั๊มน้ำมัน",
+            "summary": "หน่วยเก็บกู้วัตถุระเบิดเข้าตรวจปั๊มน้ำมัน",
+            "source": "Khaosod",
+            "url": "https://example.com/bomb2",
+            "published_at": "2026-10-15 11:00:00",
+        },
+        {
+            "article_id": "art_03",
+            "title": "ประชุมสภาผู้แทนราษฎรพิจารณางบประมาณดิจิทัล",
+            "summary": "รัฐสภาถกงบประมาณพัฒนาเซมิคอนดักเตอร์",
+            "source": "Matichon",
+            "url": "https://example.com/semiconductor",
+            "published_at": "2026-10-15 12:00:00",
+        },
+    ]
+
+    synthesis = svc.synthesize_event_progression(
+        event_id="cluster_mutual_exclusion",
+        title="คดีระเบิดปั๊มน้ำมันปัตตานี",
+        articles=articles,
+        allow_llm=False,
+        force_refresh=True,
+    )
+
+    excluded_ids = {irr.article_id for irr in synthesis.irrelevant_articles} | {
+        ctx.article_id for ctx in synthesis.political_contexts
+    }
+    assert "art_03" in excluded_ids
+
+    # Every cited ID in progression_timeline must NOT be in excluded_ids
+    timeline_ids = {eid for m in synthesis.progression_timeline for eid in m.evidence_ids}
+    assert not (timeline_ids & excluded_ids), f"Mutual exclusion violated: {timeline_ids & excluded_ids}"
+
+    # Every cited ID in confirmed_facts must NOT be in excluded_ids
+    fact_ids = {eid for f in synthesis.confirmed_facts for eid in f.evidence_ids}
+    assert not (fact_ids & excluded_ids), f"Mutual exclusion violated: {fact_ids & excluded_ids}"
+
+    # Verify metrics accuracy
+    assert synthesis.metrics is not None
+    assert synthesis.metrics.candidate_count == 3
+    assert synthesis.metrics.excluded_count == len(excluded_ids)
+    assert synthesis.metrics.synthesized_evidence_count == 3 - len(excluded_ids)
+
+
+def test_generic_police_role_not_passed_to_specific_incident():
+    """
+    Test 12: Generic role stopwords (ตำรวจ, ผบ.ตร.) cannot pass unrelated articles
+    (e.g. Police Day parade) into a specific clash incident (Srisakhon).
+    """
+    svc = StoryPresentationService(client=None)
+    candidate_items = [
+        {
+            "article_id": "art_01",
+            "title": "ผบ.ทบ. ลงใต้ ศรีสาคร ปะทะเดือด ตำรวจจับ 1 ทหารพรานเจ็บ",
+            "summary": "เหตุปะทะที่อำเภอศรีสาคร จังหวัดนราธิวาส",
+        },
+        {
+            "article_id": "art_02",
+            "title": "เจ้าหน้าที่ปิดล้อมพื้นที่ศรีสาครหลังเหตุปะทะ",
+            "summary": "ความคืบหน้าเหตุปะทะศรีสาคร เจ้าหน้าที่คุมตัวผู้ต้องสงสัย",
+        },
+        {
+            "article_id": "art_03",
+            "title": "วันตำรวจ 2569 ผบ.ตร. กล่าวคำสัตย์ปฏิญาณ-สวนสนาม",
+            "summary": "พิธีสวนสนามวันตำรวจแห่งชาติ ผบ.ตร. มอบนโยบายข้าราชการตำรวจ",
+        },
+    ]
+
+    gate_result = svc._evaluate_event_relevance_heuristic(
+        event_id="cluster_srisakhon",
+        title="ผบ.ทบ. ลงใต้ ศรีสาคร ปะทะเดือด ตำรวจจับ 1 ทหารพรานเจ็บ",
+        candidate_items=candidate_items,
+    )
+
+    assert "art_01" in gate_result.relevant_article_ids
+    assert "art_02" in gate_result.relevant_article_ids
+    # art_03 mentions ตำรวจ and ผบ.ตร. but not the specific Srisakhon incident
+    assert "art_03" in gate_result.excluded_article_ids
+

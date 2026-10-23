@@ -6,9 +6,27 @@
  * เป็น orchestrator เท่านั้น
  */
 
-import { fetchNews, summarizeArticle, createSocket, fetchCategories, fetchSources, getSocket, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js";
-import { CATEGORIES, TRENDING_LIMIT } from "./config.js";
-import * as UI from "./UI.js";
+import { fetchNews, summarizeArticle, fetchCategories, fetchSources, fetchTrendingNews, fetchTrendingStories, recordEngagement, fetchMacroEventDetail, fetchStoryDetail, fetchStorylineSynthesis, triggerStorylineSynthesis } from "./api.js";
+import {
+  initSocket,
+  getSocket,
+  isConnected,
+  onConnectionChange,
+  onStatsUpdate,
+  onNewsBatch,
+  onTrendingUpdate,
+  onBrowserLoading,
+  onBrowserSnapshot,
+  onBrowserTabOpened,
+  emitBrowserOpenTab,
+  emitBrowserCloseTab,
+  emitBrowserNavigate,
+  emitBrowserGoBack,
+  emitBrowserGoForward,
+  emitBrowserRefresh,
+} from "./socket.js";
+import { CATEGORIES, TRENDING_LIMIT, FEEDBACK_FORM_URL, FEEDBACK_COMPLETED_KEY } from "./config.js?v=4.0.3";
+import * as UI from "./UI.js?v=4.0.3";
 
 // ── PDPA & Personalization ────────────────────────────────────────
 const PDPA_KEY = "pdpa_consent";
@@ -52,8 +70,10 @@ let cachedStorylineSyntheses = {};
 let returnViewHash = "#/";
 let currentStorylineData = null;
 let activeStorylineSourceFilter = "";
+let activeStorylineSubEventFilter = "";
 let activeSportDisciplineFilter = "";
 let activeSportContentTypeFilter = "";
+let activeStorylineSort = "latest";
 
 try {
   readingHistory = JSON.parse(localStorage.getItem(READING_HISTORY_KEY) || "[]");
@@ -61,6 +81,56 @@ try {
   cachedStorylineSyntheses = JSON.parse(localStorage.getItem(STORYLINE_SYNTHESIS_CACHE_KEY) || "{}");
 } catch (e) {
   console.warn("Storage parse error for history/cache:", e);
+}
+
+const THAI_STOPWORDS_AND_DATES = new Set([
+  "และ", "ที่", "ใน", "โดย", "จาก", "กับ", "ให้", "มี", "เป็น", "ได้", "ไม่", "ว่า",
+  "ผู้", "ของ", "นาย", "นาง", "น.ส.", "ด่วน", "ย้ำ", "เตรียม", "คืบหน้า", "คดี", "เหตุ",
+  "เกิดเหตุ", "เจ้าหน้าที่", "ตำรวจ", "เวลา", "เมื่อ", "ชั่วโมง", "นาที", "วัน", "เดือน", "ปี",
+  "คน", "แห่ง", "ราย", "ข่าว", "วันนี้", "ล่าสุด", "เผย", "ชี้", "แจง", "เปิด", "พบ",
+  "รายงาน", "เรื่อง", "การ", "ความ", "ไป", "มา", "เข้า", "ออก", "ขึ้น", "ลง", "จะ",
+  "ยัง", "แต่", "นี้", "นั้น", "พวก", "ทุก", "ทั้ง", "หลัง", "ก่อน", "แล้ว", "อีก",
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "2565", "2566", "2567", "2568", "2569", "2570", "2023", "2024", "2025", "2026",
+]);
+
+function extractSpecificEventTokens(text) {
+  if (!text) return new Set();
+  const cleaned = String(text)
+    .replace(/(?:ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)/gi, " ")
+    .replace(/\b\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4}\b/g, " ")
+    .replace(/\b25\d{2}\b/g, " ")
+    .replace(/\b20\d{2}\b/g, " ");
+
+  const tokens = cleaned
+    .split(/[\s,.:;'"“”‘’/\\()[\]{}|—–-]+/)
+    .map(w => w.trim().toLowerCase())
+    .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !THAI_STOPWORDS_AND_DATES.has(w));
+
+  return new Set(tokens);
+}
+
+function hasStrictEventOverlap(storyData, candidateArticle) {
+  if (!candidateArticle) return false;
+  const storyClusterId = (storyData.cluster_id || storyData.macro_event_id || storyData.story_id || "").toLowerCase();
+  const artClusterId = (candidateArticle.cluster_id || candidateArticle.macro_event_id || candidateArticle.story_id || "").toLowerCase();
+  if (storyClusterId && artClusterId && storyClusterId === artClusterId) {
+    return true;
+  }
+  const storyTokens = extractSpecificEventTokens(storyData.headline || storyData.title || "");
+  if (storyTokens.size === 0) return false;
+
+  const candidateText = `${candidateArticle.title || ""} ${candidateArticle.summary || ""}`.toLowerCase();
+  let matches = 0;
+  for (const token of storyTokens) {
+    if (candidateText.includes(token)) {
+      matches++;
+    }
+  }
+  // Require at least 2 distinct specific entity/location tokens
+  return matches >= 2;
 }
 
 function computeArticlesContentSig(articles) {
@@ -72,49 +142,59 @@ function computeArticlesContentSig(articles) {
     .join("|");
 }
 
-function getStorylineCache(storyId, articles) {
+function getStorylineCache(storyId, articles, headline = "", synthesisCacheKey = "", clusterFingerprint = "") {
   if (!cachedStorylineSyntheses) return null;
-  // 1. By storyId directly
-  if (storyId && cachedStorylineSyntheses[storyId]) {
-    return cachedStorylineSyntheses[storyId];
-  }
-  // 2. By content signature (independent of cluster ID!)
   const sig = computeArticlesContentSig(articles);
-  if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
-    return cachedStorylineSyntheses[`sig_${sig}`];
+
+  // 1. Primary deterministic check: backend synthesis_cache_key (SHA-256 of entity_id + cluster_fingerprint + prompt_version)
+  if (synthesisCacheKey && cachedStorylineSyntheses[`key_${synthesisCacheKey}`]) {
+    return cachedStorylineSyntheses[`key_${synthesisCacheKey}`];
   }
-  // 3. By Jaccard / Overlap (resilient when cluster ID shifts or groups evolve!)
-  if (Array.isArray(articles) && articles.length > 0) {
-    const currentUrls = new Set(
-      articles.map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean)
-    );
-    if (currentUrls.size > 0) {
-      for (const [key, cached] of Object.entries(cachedStorylineSyntheses)) {
-        if (!cached || !Array.isArray(cached._member_urls) || cached._member_urls.length === 0) continue;
-        const cachedUrls = new Set(cached._member_urls);
-        let common = 0;
-        for (const u of currentUrls) {
-          if (cachedUrls.has(u)) common++;
-        }
-        const minSize = Math.min(currentUrls.size, cachedUrls.size);
-        if (common >= 2 || (minSize === 1 && common === 1) || (common / minSize >= 0.5)) {
-          if (storyId) cachedStorylineSyntheses[storyId] = cached;
-          return cached;
-        }
-      }
+
+  // 2. Exact content signature match
+  if (sig && cachedStorylineSyntheses[`sig_${sig}`]) {
+    const sigCached = cachedStorylineSyntheses[`sig_${sig}`];
+    if (!synthesisCacheKey || !sigCached._synthesis_cache_key || sigCached._synthesis_cache_key === synthesisCacheKey) {
+      return sigCached;
     }
   }
+
+  // 3. By storyId if present, strictly enforcing synthesis_cache_key / cluster_fingerprint invalidation
+  if (storyId && cachedStorylineSyntheses[storyId]) {
+    const cached = cachedStorylineSyntheses[storyId];
+    if (synthesisCacheKey && cached._synthesis_cache_key && cached._synthesis_cache_key !== synthesisCacheKey) {
+      return null;
+    }
+    if (clusterFingerprint && cached._cluster_fingerprint && cached._cluster_fingerprint !== clusterFingerprint) {
+      return null;
+    }
+    if (cached._content_sig && sig) {
+      return cached._content_sig === sig ? cached : null;
+    }
+  }
+
   return null;
 }
 
-function saveStorylineCache(storyId, articles, synthesis) {
+function saveStorylineCache(storyId, articles, synthesis, headline = "", synthesisCacheKey = "", clusterFingerprint = "") {
   if (!synthesis) return;
   const urls = (articles || []).map(a => (a && a.url ? a.url.trim().split("#")[0].toLowerCase() : "")).filter(Boolean);
-  const toSave = { ...synthesis, _member_urls: urls, _saved_at: Date.now() };
+  const sig = computeArticlesContentSig(articles);
+  const toSave = {
+    ...synthesis,
+    _member_urls: urls,
+    _content_sig: sig,
+    _synthesis_cache_key: synthesisCacheKey || "",
+    _cluster_fingerprint: clusterFingerprint || "",
+    _headline: headline || synthesis.executive_summary || "",
+    _saved_at: Date.now(),
+  };
   if (storyId) {
     cachedStorylineSyntheses[storyId] = toSave;
   }
-  const sig = computeArticlesContentSig(articles);
+  if (synthesisCacheKey) {
+    cachedStorylineSyntheses[`key_${synthesisCacheKey}`] = toSave;
+  }
   if (sig) {
     cachedStorylineSyntheses[`sig_${sig}`] = toSave;
   }
@@ -539,9 +619,8 @@ window.__closeBrowser = () => {
   disarmBrowserLoadTimeout();
 
   // Close backend tabs when user dismisses the in-app browser
-  const socket = getSocket();
-  if (socket && browserTabs.length > 0) {
-    browserTabs.forEach(id => socket.emit("browser_close_tab", { tab_id: id }));
+  if (browserTabs.length > 0) {
+    browserTabs.forEach(id => emitBrowserCloseTab(id));
   }
   browserTabs = [];
   tabStates = {};
@@ -557,8 +636,7 @@ window.__browserNewTab = () => {
   browserTabs.push(tabId);
   currentTabId = tabId;
   tabStates[tabId] = { html: "", url: "", title: "New Tab" };
-  const socket = getSocket();
-  if (socket) socket.emit("browser_open_tab", { tab_id: tabId });
+  emitBrowserOpenTab(tabId);
   document.getElementById("browser-iframe").srcdoc = "";
   document.getElementById("browser-url").value = "";
   document.getElementById("browser-loading").style.display = "none";
@@ -589,8 +667,7 @@ window.__browserCloseTab = (tabId, event) => {
   event.stopPropagation();
   browserTabs = browserTabs.filter(id => id !== tabId);
   delete tabStates[tabId];
-  const socket = getSocket();
-  if (socket) socket.emit("browser_close_tab", { tab_id: tabId });
+  emitBrowserCloseTab(tabId);
   if (currentTabId === tabId) {
     if (browserTabs.length > 0) {
       window.__browserSwitchTab(browserTabs[browserTabs.length - 1]);
@@ -607,26 +684,22 @@ window.__browserNavigate = (urlOverride) => {
   let url = urlOverride || document.getElementById("browser-url").value;
   if (!url.startsWith("http")) url = "https://" + url;
   document.getElementById("browser-url").value = url;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_navigate", { tab_id: currentTabId, url });
+  emitBrowserNavigate(currentTabId, url);
 };
 
 window.__browserBack = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_go_back", { tab_id: currentTabId });
+  emitBrowserGoBack(currentTabId);
 };
 
 window.__browserForward = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_go_forward", { tab_id: currentTabId });
+  emitBrowserGoForward(currentTabId);
 };
 
 window.__browserRefresh = () => {
   if (!currentTabId) return;
-  const socket = getSocket();
-  if (socket) socket.emit("browser_refresh", { tab_id: currentTabId });
+  emitBrowserRefresh(currentTabId);
 };
 
 window.__browserAddBookmark = () => {
@@ -684,6 +757,8 @@ let currentPage   = 1;
 let activeSource  = "";
 let activeCategory = "all";
 let searchQuery   = "";
+let newsDateFrom = "";
+let newsDateTo = "";
 let searchTimer   = null;
 let totalNew      = 0;
 let newArticleSet = new Set();   // Set<url> ของข่าวใหม่ใน session
@@ -736,6 +811,18 @@ window.__skipForYouOnboarding = () => {
 function articleAgeHours(article) {
   const parsed = Date.parse(article.fetched_at || "");
   return Number.isNaN(parsed) ? 0 : Math.max(0, (Date.now() - parsed) / 3600000);
+}
+
+function filterArticlesByNewsDate(articles) {
+  if (!newsDateFrom && !newsDateTo) return articles;
+  const from = newsDateFrom ? new Date(`${newsDateFrom}T00:00:00`) : null;
+  const to = newsDateTo ? new Date(`${newsDateTo}T23:59:59.999`) : null;
+  return articles.filter(article => {
+    const value = article.fetched_at || article.published_at || "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return (!from || date >= from) && (!to || date <= to);
+  });
 }
 
 function tokenSimilarity(article, keywords) {
@@ -1011,6 +1098,8 @@ function renderBookmarkedArticles() {
     );
   }
 
+  articles = filterArticlesByNewsDate(articles);
+
   UI.renderCategoryNav("bookmarks", {}, personalizationData.bookmarkedArticles || {});
   UI.updateSourceFilters(activeSource);
 
@@ -1063,40 +1152,8 @@ async function loadPage(page = 1) {
   UI.hideForYouOnboarding();
 
   currentPage = page;
-
-  // Handle Hero Trending Highlights: shown on Page 1 for 'all' and 'sports' categories, no search, no source filter
   const shouldShowTrending = page === 1 && (!activeCategory || activeCategory === "all" || activeCategory === "sports") && !searchQuery && !activeSource;
-  if (shouldShowTrending) {
-    fetchTrendingStories(TRENDING_LIMIT, activeCategory)
-      .then(trendingList => {
-        if (Array.isArray(trendingList) && trendingList.length > 0) {
-          trendingList.forEach(a => {
-            if (a.url) currentArticleMap.set(a.url, a);
-            if (Array.isArray(a.articles)) {
-              a.articles.forEach(subArt => {
-                if (subArt.url) currentArticleMap.set(subArt.url, subArt);
-              });
-            }
-            if (Array.isArray(a.child_events)) {
-              a.child_events.forEach(ce => {
-                if (Array.isArray(ce.articles)) {
-                  ce.articles.forEach(subArt => {
-                    if (subArt.url) currentArticleMap.set(subArt.url, subArt);
-                  });
-                }
-              });
-            }
-          });
-          UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
-        } else {
-          document.getElementById("hero-trending")?.classList.add("hidden");
-        }
-      })
-      .catch(tErr => {
-        console.warn("Failed to load trending highlights:", tErr);
-        document.getElementById("hero-trending")?.classList.add("hidden");
-      });
-  } else {
+  if (!shouldShowTrending) {
     document.getElementById("hero-trending")?.classList.add("hidden");
   }
 
@@ -1104,6 +1161,8 @@ async function loadPage(page = 1) {
 
   try {
     const data = await fetchNews(page, activeSource, searchQuery, activeCategory);
+    UI.setWsBadge(true);
+    UI.showOfflineStatus(false);
     if (data.news && Array.isArray(data.news)) {
       data.news.forEach(a => { if (a.url) currentArticleMap.set(a.url, a); });
     }
@@ -1124,12 +1183,45 @@ async function loadPage(page = 1) {
 
     const affinity = getAffinity();
     const hiddenSet = new Set((affinity && affinity.hidden_article_urls) || []);
-    const visibleNews = (data.news || []).filter(a => !hiddenSet.has(a.url));
+    const visibleNews = filterArticlesByNewsDate(data.news || []).filter(a => !hiddenSet.has(a.url));
 
     UI.renderGrid(visibleNews, newArticleSet, personalizationData.bookmarkedArticles || {});
     UI.renderPagination(data);
     UI.updateStats({ total: data.total, updated: data.updated });
     UI.updateTicker(data.news.slice(0, 15).map(n => n.title));
+
+    // Load Hero Trending Highlights asynchronously AFTER main feed is rendered
+    if (shouldShowTrending) {
+      fetchTrendingStories(TRENDING_LIMIT, activeCategory)
+        .then(trendingList => {
+          if (Array.isArray(trendingList) && trendingList.length > 0) {
+            trendingList.forEach(a => {
+              if (a.url) currentArticleMap.set(a.url, a);
+              if (Array.isArray(a.articles)) {
+                a.articles.forEach(subArt => {
+                  if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+                });
+              }
+              if (Array.isArray(a.child_events)) {
+                a.child_events.forEach(ce => {
+                  if (Array.isArray(ce.articles)) {
+                    ce.articles.forEach(subArt => {
+                      if (subArt.url) currentArticleMap.set(subArt.url, subArt);
+                    });
+                  }
+                });
+              }
+            });
+            UI.renderHeroTrending(trendingList, personalizationData.bookmarkedArticles || {});
+          } else {
+            document.getElementById("hero-trending")?.classList.add("hidden");
+          }
+        })
+        .catch(tErr => {
+          console.warn("Failed to load trending highlights:", tErr);
+          document.getElementById("hero-trending")?.classList.add("hidden");
+        });
+    }
   } catch (e) {
     console.warn("fetchNews failed, attempting offline cache fallback:", e.message);
     // Offline fallback
@@ -1223,6 +1315,7 @@ async function handleSummarize(event, url) {
     const data = await summarizeArticle(url);
     if (data.ok && data.summary) {
       UI.showModalResult(data.summary, url);
+      promptFeedbackIfEligible();
     } else {
       throw new Error(data.error ?? "เกิดข้อผิดพลาดในการสรุปข่าว");
     }
@@ -1233,6 +1326,42 @@ async function handleSummarize(event, url) {
 
 // expose ให้ onclick attribute ใน ui.js เรียกได้
 window.__summarize = handleSummarize;
+
+// ── Project Evaluation Feedback Handlers ──────────────────────────
+
+function promptFeedbackIfEligible() {
+  if (localStorage.getItem(FEEDBACK_COMPLETED_KEY) === "true") return;
+  setTimeout(() => {
+    UI.showFeedbackPromptModal();
+  }, 1400);
+}
+
+window.__handleFeedbackFormClick = (event) => {
+  try {
+    localStorage.setItem(FEEDBACK_COMPLETED_KEY, "true");
+  } catch (e) {
+    console.warn("Could not save feedback completed flag:", e);
+  }
+  UI.hideFeedbackPromptModal();
+
+  const modalCallout = document.getElementById("modal-feedback-callout");
+  if (modalCallout) modalCallout.remove();
+  const inlineCallout = document.getElementById("inline-feedback-callout");
+  if (inlineCallout) inlineCallout.remove();
+  const evalStatus = document.getElementById("eval-status-banner");
+  if (evalStatus) evalStatus.classList.remove("hidden");
+
+  UI.showToast("ขอบพระคุณสำหรับความคิดเห็นของคุณ");
+};
+
+window.__dismissFeedbackPrompt = () => {
+  UI.hideFeedbackPromptModal();
+};
+
+window.__openFeedbackLandingPage = () => {
+  UI.hideFeedbackPromptModal();
+  window.location.hash = "#/evaluation";
+};
 
 // ── Floating Live Update Actions ──────────────────────────────────
 
@@ -1251,48 +1380,63 @@ window.__dismissNewArticlesBanner = (event) => {
   UI.hideFloatingUpdateBanner();
 };
 
-// ── WebSocket ─────────────────────────────────────────────────────
+// ── WebSocket Subscriptions ───────────────────────────────────────
 
-const socket = createSocket({
-  onConnect() {
-    UI.setWsBadge(true);
-  },
-  onDisconnect() {
-    UI.setWsBadge(false);
-  },
-  onInit(data) {
-    UI.updateStats({ total: data.total, updated: data.updated });
-    loadPage(1);
-    refreshCategoryCounts();
-    refreshSourceFilters();
-  },
-  onNewArticles(data) {
-    totalNew += data.count;
-    if (data.articles && Array.isArray(data.articles)) {
-      data.articles.forEach(a => {
-        newArticleSet.add(a.url);
-        unreadArticlesQueue.push(a);
-      });
-    }
-    UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
-    if (data.articles && data.articles.length) {
-      UI.updateTicker(data.articles.map(a => a.title));
-    }
-    // Show non-intrusive floating indicator without resetting scroll or feed
-    UI.showFloatingUpdateBanner(unreadArticlesQueue.length);
-    refreshCategoryCounts();
-    refreshSourceFilters();
+let initialLoadStarted = false;
+
+// 1. Connection Status Subscription (Drives UI status badge)
+onConnectionChange(({ isConnected: connected, state }) => {
+  UI.setWsBadge(connected);
+  if (state === "RECONNECTING") {
+    console.log("[MAIN] Socket reconnecting in background...");
   }
 });
 
-// ── Browser Socket Handlers (registered immediately — no race condition) ──
-socket.on("browser_loading", (data) => {
+// 2. Initial Stats & Re-sync Subscription
+onStatsUpdate((data) => {
+  UI.setWsBadge(true);
+  UI.updateStats({ total: data.total, updated: data.updated });
+  if (!initialLoadStarted) {
+    initialLoadStarted = true;
+    loadPage(1);
+  }
+  refreshCategoryCounts();
+  refreshSourceFilters();
+});
+
+// 3. Real-Time News Batch Ingestion Subscription
+onNewsBatch((data) => {
+  totalNew += data.count;
+  if (data.articles && Array.isArray(data.articles)) {
+    data.articles.forEach(a => {
+      newArticleSet.add(a.url);
+      unreadArticlesQueue.push(a);
+    });
+  }
+  UI.updateStats({ total: data.total, newCount: totalNew, updated: data.updated });
+  if (data.articles && data.articles.length) {
+    UI.updateTicker(data.articles.map(a => a.title));
+  }
+  // Show non-intrusive floating indicator without resetting scroll or feed
+  UI.showFloatingUpdateBanner(unreadArticlesQueue.length);
+  refreshCategoryCounts();
+  refreshSourceFilters();
+});
+
+// 4. Real-Time Trending Update Subscription
+onTrendingUpdate((data) => {
+  console.log("[MAIN] Real-time trending update received:", data);
+});
+
+// ── Browser Remote Handlers (registered via socket.js) ────────────
+onBrowserLoading((data) => {
   if (data.tab_id === currentTabId) {
     document.getElementById("browser-loading").style.display = "flex";
     armBrowserLoadTimeout();
   }
 });
-socket.on("browser_snapshot", (data) => {
+
+onBrowserSnapshot((data) => {
   // Cache tab state regardless of which tab is active
   if (tabStates[data.tab_id]) {
     tabStates[data.tab_id] = {
@@ -1334,10 +1478,14 @@ socket.on("browser_snapshot", (data) => {
     }
   }
 });
-socket.on("browser_tab_opened", (data) => {
+
+onBrowserTabOpened((data) => {
   // Tab opened confirmation from server
   console.log("Tab opened on server:", data.tab_id);
 });
+
+// ── Initialize Socket Connection ──────────────────────────────────
+initSocket();
 
 // ── Source Filter handler ──────────────────────────────────────────
 
@@ -1371,6 +1519,123 @@ window.__sourceFilterClick = handleSourceFilterClick;
 // ── Search ────────────────────────────────────────────────────────
 
 const searchInput = document.getElementById("search-input");
+const newsDateFromInput = document.getElementById("news-date-from");
+const newsDateToInput = document.getElementById("news-date-to");
+const datePickerFormat = (isoDate) => {
+  if (!isoDate) return "dd/mm/yyyy";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+};
+const datePickerIso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const syncDatePickerDisplay = (input) => {
+  const picker = input?.closest("[data-date-picker]");
+  const display = picker?.querySelector("[data-date-display]");
+  if (display) display.textContent = datePickerFormat(input.value);
+};
+
+document.querySelectorAll("[data-date-picker]").forEach(picker => {
+  const input = document.getElementById(picker.dataset.inputId);
+  const trigger = picker.querySelector(".date-picker-trigger");
+  const popover = picker.querySelector(".date-picker-popover");
+  if (!input || !trigger || !popover) return;
+
+  let visibleMonth = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
+  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+
+  const renderCalendar = () => {
+    const year = visibleMonth.getFullYear();
+    const month = visibleMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const offset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthLabel = new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric" }).format(firstDay);
+    const weekdays = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
+    const selected = input.value;
+    const today = datePickerIso(new Date());
+    const days = Array.from({ length: offset }, () => '<span class="date-picker-empty"></span>');
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const classes = ["date-picker-day", iso === selected ? "is-selected" : "", iso === today ? "is-today" : ""].filter(Boolean).join(" ");
+      days.push(`<button type="button" class="${classes}" data-date="${iso}" aria-label="${day}/${String(month + 1).padStart(2, "0")}/${year}">${day}</button>`);
+    }
+    popover.innerHTML = `
+      <div class="date-picker-heading">
+        <button type="button" data-month-step="-1" aria-label="เดือนก่อนหน้า"><span class="material-symbols-outlined">chevron_left</span></button>
+        <span>${monthLabel}</span>
+        <button type="button" data-month-step="1" aria-label="เดือนถัดไป"><span class="material-symbols-outlined">chevron_right</span></button>
+      </div>
+      <div class="date-picker-weekdays">${weekdays.map(day => `<span>${day}</span>`).join("")}</div>
+      <div class="date-picker-days">${days.join("")}</div>
+      <div class="date-picker-footer"><button type="button" data-date-action="clear">ล้างวันที่</button><button type="button" data-date-action="today">วันนี้</button></div>`;
+  };
+
+  const closePicker = () => {
+    popover.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  };
+
+  trigger.addEventListener("click", () => {
+    document.querySelectorAll(".date-picker-popover:not([hidden])").forEach(openPopover => {
+      if (openPopover !== popover) {
+        openPopover.hidden = true;
+        openPopover.closest("[data-date-picker]")?.querySelector(".date-picker-trigger")?.setAttribute("aria-expanded", "false");
+      }
+    });
+    visibleMonth = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
+    visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    renderCalendar();
+    popover.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+  });
+
+  popover.addEventListener("click", event => {
+    const stepButton = event.target.closest("[data-month-step]");
+    if (stepButton) {
+      visibleMonth.setMonth(visibleMonth.getMonth() + Number(stepButton.dataset.monthStep));
+      renderCalendar();
+      return;
+    }
+    const dateButton = event.target.closest("[data-date]");
+    const actionButton = event.target.closest("[data-date-action]");
+    if (dateButton) input.value = dateButton.dataset.date;
+    else if (actionButton?.dataset.dateAction === "today") input.value = datePickerIso(new Date());
+    else if (actionButton?.dataset.dateAction === "clear") input.value = "";
+    else return;
+    syncDatePickerDisplay(input);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    closePicker();
+  });
+  syncDatePickerDisplay(input);
+});
+
+document.addEventListener("click", event => {
+  if (event.target.closest("[data-date-picker]")) return;
+  document.querySelectorAll(".date-picker-popover:not([hidden])").forEach(popover => {
+    popover.hidden = true;
+    popover.closest("[data-date-picker]")?.querySelector(".date-picker-trigger")?.setAttribute("aria-expanded", "false");
+  });
+});
+
+newsDateFromInput?.addEventListener("change", e => {
+  newsDateFrom = e.target.value;
+  if (newsDateToInput && newsDateFrom && newsDateToInput.value && newsDateToInput.value < newsDateFrom) {
+    newsDateToInput.value = newsDateFrom;
+    newsDateTo = newsDateFrom;
+    syncDatePickerDisplay(newsDateToInput);
+  }
+  if (activeCategory === "bookmarks") renderBookmarkedArticles();
+  else loadPage(1);
+});
+newsDateToInput?.addEventListener("change", e => {
+  newsDateTo = e.target.value;
+  if (newsDateFromInput && newsDateTo && newsDateFromInput.value && newsDateTo < newsDateFromInput.value) {
+    newsDateFromInput.value = newsDateTo;
+    newsDateFrom = newsDateTo;
+    syncDatePickerDisplay(newsDateFromInput);
+  }
+  if (activeCategory === "bookmarks") renderBookmarkedArticles();
+  else loadPage(1);
+});
 searchInput.addEventListener("input", e => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
@@ -1439,12 +1704,59 @@ document.getElementById("toast").addEventListener("click", () => {
   }
 });
 
-// ── Modal close ───────────────────────────────────────────────────
+// ── Modal Dismiss (Outside / Backdrop Click & Escape Key) ──────────
 
-document.getElementById("summary-modal").addEventListener("click", e => {
-  if (e.target === e.currentTarget) UI.closeModal();
+function setupModalBackdropDismiss(modalId, closeFn) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.addEventListener("click", (e) => {
+    // Determine the inner card element
+    const innerCard = modal.querySelector("#modal-content-wrap") || modal.firstElementChild;
+    if (innerCard && !innerCard.contains(e.target)) {
+      closeFn();
+    }
+  });
+}
+
+// Attach outside-click dismiss to all modals
+setupModalBackdropDismiss("summary-modal", () => UI.closeModal());
+setupModalBackdropDismiss("history-modal", () => window.__closeHistoryModal?.());
+setupModalBackdropDismiss("settings-modal", () => window.__closeSettings?.());
+setupModalBackdropDismiss("privacy-modal", () => window.__closePrivacyModal?.());
+setupModalBackdropDismiss("feedback-prompt-modal", () => UI.hideFeedbackPromptModal?.());
+
+document.getElementById("modal-close-btn")?.addEventListener("click", () => UI.closeModal());
+
+// Escape key dismiss handler
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const historyModal = document.getElementById("history-modal");
+    if (historyModal && !historyModal.classList.contains("hidden")) {
+      window.__closeHistoryModal?.();
+      return;
+    }
+    const settingsModal = document.getElementById("settings-modal");
+    if (settingsModal && !settingsModal.classList.contains("hidden")) {
+      window.__closeSettings?.();
+      return;
+    }
+    const privacyModal = document.getElementById("privacy-modal");
+    if (privacyModal && !privacyModal.classList.contains("hidden")) {
+      window.__closePrivacyModal?.();
+      return;
+    }
+    const summaryModal = document.getElementById("summary-modal");
+    if (summaryModal && !summaryModal.classList.contains("pointer-events-none")) {
+      UI.closeModal();
+      return;
+    }
+    const feedbackModal = document.getElementById("feedback-prompt-modal");
+    if (feedbackModal && !feedbackModal.classList.contains("hidden")) {
+      UI.hideFeedbackPromptModal?.();
+      return;
+    }
+  }
 });
-document.getElementById("modal-close-btn").addEventListener("click", () => UI.closeModal());
 
 // ── PWA Router & Preview Sub-View Controller ──────────────────────
 
@@ -1537,6 +1849,9 @@ function handleHashRouting() {
     const params = new URLSearchParams(queryStr || "");
     const autoSummarize = params.get("summarize") === "1" || params.get("summarize") === "true";
     showPreviewByUrl(articleUrl, autoSummarize);
+  } else if (hash.startsWith("#/evaluation") || hash.startsWith("#/feedback") || hash.startsWith("#/survey")) {
+    UI.renderEvaluationView();
+    UI.switchView("evaluation");
   } else {
     UI.switchView("feed");
   }
@@ -1603,6 +1918,21 @@ window.__backFromStoryline = () => {
   window.location.hash = "#/";
 };
 
+window.__toggleStorylineSort = (sortOrder) => {
+  activeStorylineSort = sortOrder || "latest";
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
+    );
+  }
+};
+
 window.__filterStorylinePublisher = (source) => {
   activeStorylineSourceFilter = (activeStorylineSourceFilter === source) ? "" : (source || "");
   if (currentStorylineData) {
@@ -1611,7 +1941,24 @@ window.__filterStorylinePublisher = (source) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
+    );
+  }
+};
+
+window.__filterStorylineSubEvent = (subStoryId) => {
+  activeStorylineSubEventFilter = (activeStorylineSubEventFilter === subStoryId) ? "" : (subStoryId || "");
+  if (currentStorylineData) {
+    UI.renderStorylineView(
+      currentStorylineData,
+      activeStorylineSourceFilter,
+      personalizationData.bookmarkedArticles || {},
+      activeSportDisciplineFilter,
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1624,7 +1971,9 @@ window.__filterSportDiscipline = (discipline) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1637,7 +1986,9 @@ window.__filterSportContentType = (ctype) => {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   }
 };
@@ -1650,7 +2001,10 @@ window.__openHeroSportDiscipline = (discipline) => {
 window.__runStorylineAiSummary = async (storyId) => {
   UI.showStorylineAiLoading();
   try {
-    const isMacro = Boolean(currentStorylineData?.macro_event_id);
+    const isMacro = Boolean(
+      currentStorylineData?._is_macro_view ??
+      (Array.isArray(currentStorylineData?.child_events) || String(storyId).startsWith("macro_"))
+    );
     const articles = currentStorylineData?.articles || [];
     const articleUrls = articles.map(a => a.url).filter(Boolean);
     const payload = {
@@ -1667,11 +2021,18 @@ window.__runStorylineAiSummary = async (storyId) => {
       console.warn("triggerStorylineSynthesis failed, trying fallback:", apiErr);
     }
 
-    if (synthesis && (synthesis.executive_summary || synthesis.progression_timeline)) {
+    if (synthesis && (synthesis.executive_summary || synthesis.progression_timeline || synthesis.synthesis_status === "halted_mismatch")) {
       if (currentStorylineData) {
         currentStorylineData.synthesis = synthesis;
       }
-      saveStorylineCache(storyId, articles, synthesis);
+      saveStorylineCache(
+        storyId,
+        articles,
+        synthesis,
+        currentStorylineData?.headline || currentStorylineData?.title || "",
+        currentStorylineData?.synthesis_cache_key || "",
+        currentStorylineData?.cluster_fingerprint || ""
+      );
       UI.renderStorylineAiSynthesis(synthesis);
       // Re-render storyline view so article cards receive outlier warnings and active styles
       if (currentStorylineData) {
@@ -1680,10 +2041,13 @@ window.__runStorylineAiSummary = async (storyId) => {
           activeStorylineSourceFilter,
           personalizationData.bookmarkedArticles || {},
           activeSportDisciplineFilter,
-          activeSportContentTypeFilter
+          activeSportContentTypeFilter,
+          activeStorylineSubEventFilter,
+          activeStorylineSort
         );
       }
       UI.showToast("สังเคราะห์ความคืบหน้าของเหตุการณ์เรียบร้อยแล้ว");
+      promptFeedbackIfEligible();
       return;
     }
 
@@ -1738,19 +2102,29 @@ async function loadStorylineView(storyId) {
   UI.showStorylineLoading();
   UI.switchView("storyline");
   activeStorylineSourceFilter = "";
+  activeStorylineSubEventFilter = "";
   activeSportDisciplineFilter = "";
   activeSportContentTypeFilter = "";
+  activeStorylineSort = "latest";
 
   try {
-    // 1. First attempt: fetch macro-event detail from API
-    let storyData = await fetchMacroEventDetail(targetId);
+    let storyData = null;
+    const isStoryPrefix = String(targetId).startsWith("story_");
 
-    // 2. Second attempt: if not macro, fetch story detail from API
-    if (!storyData) {
+    // 1. Smart endpoint dispatch based on persistent ID prefix
+    if (isStoryPrefix) {
       storyData = await fetchStoryDetail(targetId);
+      if (!storyData) {
+        storyData = await fetchMacroEventDetail(targetId);
+      }
+    } else {
+      storyData = await fetchMacroEventDetail(targetId);
+      if (!storyData) {
+        storyData = await fetchStoryDetail(targetId);
+      }
     }
 
-    // 3. Third attempt: In-memory lookup from hero carousel
+    // 2. Third attempt: In-memory lookup from hero carousel
     if (!storyData) {
       const heroStory = UI.getHeroTrendingStoryById(targetId);
       if (heroStory) {
@@ -1758,22 +2132,31 @@ async function loadStorylineView(storyId) {
       }
     }
 
-    // 4. Fourth attempt: Match by keywords or cluster in currentArticleMap
+    // 3. Fourth attempt: Match by persistent story_id, macro_event_id, cluster_id, or keywords in currentArticleMap
     if (!storyData) {
       const matchingArticles = [];
-      const lowerTarget = targetId.toLowerCase();
+      const lowerTarget = String(targetId).toLowerCase();
       for (const [url, art] of currentArticleMap.entries()) {
         const titleLower = (art.title || "").toLowerCase();
         const summaryLower = (art.summary || "").toLowerCase();
         const clusterStr = String(art.cluster_id || "").toLowerCase();
-        if (titleLower.includes(lowerTarget) || summaryLower.includes(lowerTarget) || clusterStr === lowerTarget) {
+        const storyStr = String(art.story_id || "").toLowerCase();
+        const macroStr = String(art.macro_event_id || "").toLowerCase();
+        if (
+          storyStr === lowerTarget ||
+          macroStr === lowerTarget ||
+          clusterStr === lowerTarget ||
+          titleLower.includes(lowerTarget) ||
+          summaryLower.includes(lowerTarget)
+        ) {
           matchingArticles.push(art);
         }
       }
 
       if (matchingArticles.length > 0) {
         storyData = {
-          macro_event_id: targetId,
+          story_id: isStoryPrefix ? targetId : undefined,
+          macro_event_id: !isStoryPrefix ? targetId : undefined,
           cluster_id: targetId,
           title: matchingArticles[0].title,
           headline: matchingArticles[0].title,
@@ -1781,12 +2164,13 @@ async function loadStorylineView(storyId) {
           category: matchingArticles[0].category || "general",
           articles: matchingArticles,
           outlets: Array.from(new Set(matchingArticles.map(a => a.source).filter(Boolean))),
+          _is_fallback_pseudo: true,
         };
       }
     }
 
     if (!storyData) {
-      // 5. Final fallback: Use current hero story if available
+      // 4. Final fallback: Use current hero story if available
       const heroStory = UI.getCurrentHeroTrendingStory();
       if (heroStory) {
         storyData = { ...heroStory };
@@ -1798,44 +2182,75 @@ async function loadStorylineView(storyId) {
       return;
     }
 
+    // Record exact target identity and view level (Macro-Event vs Stage A Story)
+    storyData._target_id = targetId;
+    storyData._is_macro_view = Boolean(
+      Array.isArray(storyData.child_events) ||
+      (storyData.macro_event_id && !storyData.story_id) ||
+      String(targetId).startsWith("macro_")
+    );
+
     // Assemble member articles list
     let memberArticles = Array.isArray(storyData.articles) ? [...storyData.articles] : [];
 
-    // If child_events exist, extract nested articles or URLs
+    // If child_events exist, extract nested articles or URLs and preserve child story_id
+    const childStoryIds = new Set();
     if (Array.isArray(storyData.child_events)) {
       storyData.child_events.forEach(ce => {
+        if (ce.story_id) childStoryIds.add(String(ce.story_id).toLowerCase());
         if (Array.isArray(ce.articles)) {
-          memberArticles.push(...ce.articles);
+          ce.articles.forEach(ca => {
+            if (ca && ca.url) {
+              memberArticles.push({ ...ca, story_id: ca.story_id || ce.story_id });
+            }
+          });
         }
         if (Array.isArray(ce.article_urls)) {
           ce.article_urls.forEach(u => {
             const mapped = currentArticleMap.get(u);
-            if (mapped) memberArticles.push(mapped);
+            if (mapped) {
+              memberArticles.push({ ...mapped, story_id: mapped.story_id || ce.story_id });
+            }
           });
         }
       });
     }
 
-    // Cross-match member articles by cluster_id from currentArticleMap
-    const effectiveClusterId = storyData.cluster_id || storyData.macro_event_id || storyData.story_id;
-    if (effectiveClusterId) {
-      const clusterTarget = String(effectiveClusterId).toLowerCase();
+    // Cross-match member articles strictly by authoritative persistent IDs from currentArticleMap
+    const authoritativeIds = new Set(
+      [
+        targetId,
+        storyData.story_id,
+        storyData._is_macro_view ? storyData.macro_event_id : null,
+        storyData.cluster_id,
+        ...childStoryIds,
+      ]
+        .filter(Boolean)
+        .map(id => String(id).toLowerCase())
+    );
+
+    if (authoritativeIds.size > 0) {
       for (const [u, art] of currentArticleMap.entries()) {
-        if (art.cluster_id && String(art.cluster_id).toLowerCase() === clusterTarget) {
+        const artSid = String(art.story_id || "").toLowerCase();
+        const artMid = String(art.macro_event_id || "").toLowerCase();
+        const artCid = String(art.cluster_id || "").toLowerCase();
+        if (
+          (artSid && authoritativeIds.has(artSid)) ||
+          (artMid && storyData._is_macro_view && authoritativeIds.has(artMid)) ||
+          (artCid && authoritativeIds.has(artCid))
+        ) {
           memberArticles.push(art);
         }
       }
     }
 
-    // If few articles found, cross-match relevant articles from currentArticleMap
-    if (memberArticles.length <= 1) {
-      const targetKeywords = (storyData.headline || storyData.title || "")
-        .split(/\s+/)
-        .filter(w => w.length > 2);
-
+    // Only use heuristic token overlap if this is a non-authoritative fallback pseudo-cluster
+    const isAuthoritativeEntity = Boolean(
+      !storyData._is_fallback_pseudo && (storyData.story_id || storyData.macro_event_id)
+    );
+    if (!isAuthoritativeEntity && memberArticles.length <= 1) {
       for (const [u, art] of currentArticleMap.entries()) {
-        const text = `${art.title || ""} ${art.summary || ""}`;
-        if (targetKeywords.some(kw => text.includes(kw))) {
+        if (hasStrictEventOverlap(storyData, art)) {
           memberArticles.push(art);
         }
       }
@@ -1857,24 +2272,27 @@ async function loadStorylineView(storyId) {
       storyData.outlets = Array.from(new Set(dedupedArticles.map(a => a.source).filter(Boolean)));
     }
 
+    const storyHeadline = storyData.headline || storyData.title || "";
+    const synthCacheKey = storyData.synthesis_cache_key || "";
+    const clusterFp = storyData.cluster_fingerprint || "";
+
     // If synthesis is not attached yet, try to load cached/heuristic synthesis from backend or local cache
     if (!storyData.synthesis && targetId) {
-      // 1. Check local client cache first (0ms, resilient to cluster ID changes via URL signature & overlap)
-      const localCached = getStorylineCache(targetId, storyData.articles);
+      const localCached = getStorylineCache(targetId, storyData.articles, storyHeadline, synthCacheKey, clusterFp);
       if (localCached && (localCached.executive_summary || localCached.progression_timeline)) {
         storyData.synthesis = localCached;
       } else {
         try {
-          const isMacro = Boolean(storyData.macro_event_id);
+          const isMacro = Boolean(storyData._is_macro_view);
           const cachedSynth = await fetchStorylineSynthesis(targetId, isMacro);
           if (cachedSynth && (cachedSynth.executive_summary || cachedSynth.progression_timeline)) {
             storyData.synthesis = cachedSynth;
-            saveStorylineCache(targetId, storyData.articles, cachedSynth);
+            saveStorylineCache(targetId, storyData.articles, cachedSynth, storyHeadline, synthCacheKey, clusterFp);
           }
         } catch (_) {}
       }
     } else if (storyData.synthesis && (storyData.synthesis.executive_summary || storyData.synthesis.progression_timeline)) {
-      saveStorylineCache(targetId, storyData.articles, storyData.synthesis);
+      saveStorylineCache(targetId, storyData.articles, storyData.synthesis, storyHeadline, synthCacheKey, clusterFp);
     }
 
     currentStorylineData = storyData;
@@ -1884,7 +2302,9 @@ async function loadStorylineView(storyId) {
       activeStorylineSourceFilter,
       personalizationData.bookmarkedArticles || {},
       activeSportDisciplineFilter,
-      activeSportContentTypeFilter
+      activeSportContentTypeFilter,
+      activeStorylineSubEventFilter,
+      activeStorylineSort
     );
   } catch (err) {
     console.error("Failed to load storyline view:", err);
@@ -1918,6 +2338,7 @@ window.__runPreviewAiSummary = async (url) => {
       if (section) {
         section.innerHTML = UI.renderInlineSummary(data.summary);
       }
+      promptFeedbackIfEligible();
     } else {
       throw new Error(data.error || "เกิดข้อผิดพลาดในการสังเคราะห์ข้อมูล");
     }
@@ -2158,6 +2579,8 @@ if (hasConsent) {
 
 UI.renderCategoryNav(activeCategory, {}, personalizationData.bookmarkedArticles || {});
 UI.renderSourceFilters([], activeSource, {});
+initialLoadStarted = true;
+loadPage(1);
 refreshCategoryCounts();
 refreshSourceFilters();
 checkPDPA();

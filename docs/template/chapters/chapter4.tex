@@ -1,0 +1,253 @@
+% =====================================================================
+% บทที่ 4 การวิเคราะห์ระบบ และพัฒนาโปรแกรม (คู่มือข้อ 17.4)
+%   4.1 การวิเคราะห์ระบบ   4.2 การออกแบบระบบ
+%   4.3 การพัฒนาโปรแกรม   4.4 การทดสอบระบบ
+% หัวข้อย่อยปรับได้ตามลักษณะของโครงงาน (งานวิจัย/ฮาร์ดแวร์ ดูคู่มือข้อ 17.4)
+% *** ก่อนส่ง: ลบข้อความตัวอย่าง (...) และภาพตัวอย่าง (กรอบสีเทา) ***
+% =====================================================================
+
+\section{การวิเคราะห์ระบบ}
+\label{sec:analysis}
+
+\subsection{ผังแสดงทิศทางของกิจกรรม}
+
+การทำงานของระบบเดิมและเอกสารที่เกี่ยวข้องแสดงดังภาพที่~\ref{fig:activity}
+
+% ภาพตัวอย่าง (placeholder): แทนด้วย \includegraphics[width=0.8\linewidth]{images/activity.png}
+\begin{figure}[H]
+\centering
+\cskkuPlaceholder[ผังแสดงทิศทางของกิจกรรม (Activity diagram)]{0.8\linewidth}{5cm}
+\caption{ผังแสดงทิศทางของกิจกรรมของระบบเดิม}
+\label{fig:activity}
+\end{figure}
+
+\subsection{รายการความต้องการ}
+
+ความต้องการเชิงฟังก์ชันของระบบแสดงดังตารางที่~\ref{tab:fr}
+
+\begin{table}[H]
+\caption{ความต้องการเชิงฟังก์ชันของระบบ}
+\label{tab:fr}
+\centering
+\begin{tabular}{|C{1.6cm}|L{4cm}|L{\dimexpr\linewidth-5.6cm-6\tabcolsep-4\arrayrulewidth\relax}|}
+\hline
+\textbf{รหัส} & \textbf{ความต้องการ} & \textbf{รายละเอียด} \\ \hline
+FR-01 & สมัครสมาชิก & ผู้ใช้สมัครสมาชิกด้วยอีเมลของมหาวิทยาลัย \\ \hline
+FR-02 & เข้าสู่ระบบ & ผู้ใช้เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน \\ \hline
+FR-03 & \ldots & ระบบต้องสามารถ\ldots{} \\ \hline
+\end{tabular}
+\end{table}
+
+ความต้องการที่ไม่ใช่เชิงฟังก์ชัน มีดังนี้
+\begin{enumerate}
+  \item ด้านประสิทธิภาพ: ระบบแสดงผลแต่ละหน้าภายใน\ldots{} วินาที
+  \item ด้านความปลอดภัย: ระบบเก็บรหัสผ่านด้วยการเข้ารหัสแบบ\ldots{}
+  \item ด้านการใช้งาน: \ldots{}
+\end{enumerate}
+
+\subsection{Use case diagram}
+
+ผู้ใช้และกรณีการใช้งานของระบบแสดงดังภาพที่~\ref{fig:usecase}
+และคำอธิบายกรณีการใช้งาน (Use case text) แสดงดังตารางที่~\ref{tab:uc01}
+
+\begin{figure}[H]
+\centering
+\cskkuPlaceholder[Use case diagram]{0.8\linewidth}{6cm}
+\caption{Use case diagram ของระบบ}
+\label{fig:usecase}
+\end{figure}
+
+\begin{table}[H]
+\caption{คำอธิบายกรณีการใช้งาน UC-01 เข้าสู่ระบบ}
+\label{tab:uc01}
+\centering
+\begin{tabular}{|L{3.6cm}|L{\dimexpr\linewidth-3.6cm-4\tabcolsep-3\arrayrulewidth\relax}|}
+\hline
+\textbf{Use case} & UC-01 เข้าสู่ระบบ \\ \hline
+\textbf{ผู้กระทำ (Actor)} & นักศึกษา อาจารย์ที่ปรึกษา \\ \hline
+\textbf{เงื่อนไขก่อนเริ่ม} & ผู้ใช้สมัครสมาชิกแล้ว \\ \hline
+\textbf{ขั้นตอนหลัก} & 1) ผู้ใช้กรอกอีเมลและรหัสผ่าน \newline
+                       2) ระบบตรวจสอบข้อมูล \newline
+                       3) ระบบแสดงหน้าหลักตามบทบาทของผู้ใช้ \\ \hline
+\textbf{ขั้นตอนทางเลือก} & 2a) ข้อมูลไม่ถูกต้อง ระบบแสดงข้อความแจ้งเตือน \\ \hline
+\textbf{ผลลัพธ์} & ผู้ใช้เข้าสู่ระบบสำเร็จ \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{System sequence diagram}
+
+ภาพรวมการทำงานของระบบแสดงด้วย System sequence diagram ดังภาพที่\ldots{}
+
+\subsection{Conceptual class diagram}
+
+ความสัมพันธ์เชิงแนวคิดของข้อมูลในระบบแสดงดังภาพที่\ldots{}
+
+\section{การออกแบบระบบ}
+\label{sec:design}
+
+\subsection{สถาปัตยกรรมของระบบ}
+
+ระบบแบ่งเป็น 3 ส่วน ได้แก่ ส่วนหน้า (Frontend) ส่วนหลัง (Backend) และฐานข้อมูล
+ดังภาพที่~\ref{fig:architecture} ส่วนหน้าติดต่อกับส่วนหลังผ่าน REST API~\cite{fielding2000}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=10bp and 34bp,
+    tier/.style={draw=black!70, fill=black!4, rounded corners=3pt, align=center,
+      font=\normalfont\small, minimum height=46bp, text width=78bp},
+    arr/.style={{Stealth[length=5bp]}-{Stealth[length=5bp]}, line width=0.8pt, draw=black!60},
+    lbl/.style={font=\normalfont\footnotesize, inner sep=2bp}]
+  \node[tier] (fe) {ส่วนหน้า\\(React)};
+  \node[tier, right=of fe] (be) {ส่วนหลัง\\(Node.js + Express)};
+  \node[tier, right=of be] (db) {ฐานข้อมูล\\(PostgreSQL)};
+  \draw[arr] (fe) -- node[lbl, above]{REST API} (be);
+  \draw[arr] (be) -- node[lbl, above]{SQL} (db);
+\end{tikzpicture}
+\caption{สถาปัตยกรรมของระบบ}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Class diagram}
+
+รายละเอียดคลาสและความสัมพันธ์แสดงดังภาพที่\ldots{}
+
+\subsection{Sequence diagram}
+
+พฤติกรรมเชิงพลวัตของระบบแสดงด้วย Sequence diagram ดังภาพที่\ldots{}
+
+\subsection{การออกแบบฐานข้อมูล}
+
+ฐานข้อมูลประกอบด้วย\ldots{} ตาราง ความสัมพันธ์แสดงด้วย E-R diagram ดังภาพที่\ldots{}
+โครงสร้างของตาราง users แสดงดังตารางที่~\ref{tab:db-users}
+
+% ตารางยาวหลายหน้า: ใช้ longtable ชื่อตารางจะพิมพ์ซ้ำพร้อม "(ต่อ)" ให้อัตโนมัติ
+\begin{longtable}{|L{3.4cm}|L{3cm}|C{1.6cm}|L{\dimexpr\linewidth-8cm-8\tabcolsep-5\arrayrulewidth\relax}|}
+\caption{โครงสร้างตาราง users}\label{tab:db-users}\\
+\hline
+\textbf{ชื่อฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{คำอธิบาย} \\ \hline
+\endfirsthead
+\caption[]{โครงสร้างตาราง users~\cskkuContinued}\\
+\hline
+\textbf{ชื่อฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{คำอธิบาย} \\ \hline
+\endhead
+\cskkuCode{id}            & INTEGER      & PK & รหัสผู้ใช้ \\ \hline
+\cskkuCode{email}         & VARCHAR(100) & UQ & อีเมลของมหาวิทยาลัย \\ \hline
+\cskkuCode{password_hash} & VARCHAR(255) &    & รหัสผ่านที่เข้ารหัสแล้ว \\ \hline
+\cskkuCode{role}          & VARCHAR(20)  &    & บทบาทของผู้ใช้ \\ \hline
+\cskkuCode{created_at}    & TIMESTAMP    &    & วันและเวลาที่สร้างบัญชี \\ \hline
+\end{longtable}
+
+\subsection{ต้นแบบส่วนติดต่อกับผู้ใช้}
+
+ต้นแบบส่วนติดต่อกับผู้ใช้ (Mockup user interface) ของหน้าหลักแสดงดังภาพที่\ldots{}
+และภาพหน้าจอของระบบทั้งหมดแสดงในภาคผนวก~ก
+
+\section{การพัฒนาโปรแกรม}
+\label{sec:implementation}
+
+\subsection{ภาษาและเครื่องมือที่ใช้ในการพัฒนา}
+
+ระบบพัฒนาด้วยเครื่องมือในตารางที่~\ref{tab:software} โดยใช้ไลบรารี\ldots{}
+
+\subsection{โครงสร้างของโปรแกรม}
+
+โปรแกรมส่วนหลังแบ่งเป็นโมดูลตามหน้าที่ ตัวอย่างฟังก์ชันตรวจสอบการเข้าสู่ระบบ
+แสดงดังโปรแกรมที่~\ref{lst:login}
+
+% โค้ดโปรแกรม: lstlisting (พิมพ์ภาษาไทยในความเห็นได้)
+% หรือนำเข้าจากไฟล์: \lstinputlisting[language=Java, caption={...}, label={...}]{code/Main.java}
+\begin{lstlisting}[language=Java, caption={ฟังก์ชันตรวจสอบการเข้าสู่ระบบ}, label={lst:login}]
+public User login(String email, String pw) {
+    // ค้นหาผู้ใช้จากอีเมล (ไม่สนตัวพิมพ์เล็ก-ใหญ่)
+    User u = users.findByEmail(email.toLowerCase());
+    if (u == null || !hasher.verify(pw, u)) {
+        throw new AuthException(
+            "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+    }
+    return u;
+}
+\end{lstlisting}
+
+\subsection{ข้อกำหนดเฉพาะของแต่ละส่วน}
+
+ข้อกำหนดเฉพาะของโปรแกรม (Program specification) แต่ละส่วนมีดังนี้
+
+% หัวข้อย่อยระดับลึก (คู่มือหน้า 24): \subsubsection -> (1)  \paragraph -> (1.1)
+% (ตัวเลือก plainnumbering: 1.1.1 และ (1)) ไม่ควรลึกกว่านี้ ถ้าต้องแบ่งย่อยอีกให้ใช้ enumerate
+% สารบัญแสดงถึงหัวข้อระดับ 4.3.3 เท่านั้น ตามคู่มือข้อ 13
+\subsubsection{ส่วนสมัครสมาชิก}
+
+รับข้อมูล\ldots{} ตรวจสอบ\ldots{} แล้วบันทึกลงตาราง\ldots{}
+
+\subsubsection{ส่วนจัดการข้อมูล\ldots{}}
+
+\paragraph{การเพิ่มข้อมูล}
+
+รับข้อมูล\ldots{} จากแบบฟอร์ม\ldots{}
+
+\paragraph{การแก้ไขข้อมูล}
+
+ค้นหาข้อมูลจาก\ldots{} แล้วแก้ไข\ldots{}
+
+\subsection{การติดต่อกับฐานข้อมูลและบริการภายนอก}
+
+ระบบติดต่อกับฐานข้อมูลผ่าน\ldots{}
+
+\section{การทดสอบระบบ}
+\label{sec:testing}
+
+\subsection{วิธีการทดสอบ}
+
+ทดสอบการยอมรับของผู้ใช้ (User acceptance testing) กับผู้ใช้จำนวน\ldots{} คน
+ตามกรณีทดสอบในตารางที่~\ref{tab:uat} รายละเอียดของแต่ละกรณีทดสอบเขียนตามรูปแบบตารางที่~\ref{tab:tc01}
+
+\begin{table}[H]
+\caption{รายละเอียดกรณีทดสอบ TC-01}
+\label{tab:tc01}
+\centering
+\begin{tabular}{|L{3.6cm}|L{\dimexpr\linewidth-3.6cm-4\tabcolsep-3\arrayrulewidth\relax}|}
+\hline
+\textbf{รหัสกรณีทดสอบ} & TC-01 \\ \hline
+\textbf{ชื่อกรณีทดสอบ} & เข้าสู่ระบบด้วยข้อมูลที่ถูกต้อง \\ \hline
+\textbf{เงื่อนไขก่อนทดสอบ} & มีบัญชีผู้ใช้ \cskkuCode{test@kku.ac.th} ในระบบ \\ \hline
+\textbf{ขั้นตอน} & 1) เปิดหน้าเข้าสู่ระบบ \newline
+                   2) กรอกอีเมล \cskkuCode{test@kku.ac.th} และรหัสผ่าน \cskkuCode{P@ssw0rd} \newline
+                   3) คลิกปุ่มเข้าสู่ระบบ \\ \hline
+\textbf{ผลที่คาดหวัง} & ระบบแสดงหน้าหลักพร้อมชื่อผู้ใช้ \\ \hline
+\textbf{ผลการทดสอบ} & ผ่าน \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{ผลการทดสอบ}
+
+ผลการทดสอบตามกรณีทดสอบแสดงดังตารางที่~\ref{tab:uat}
+
+\begin{table}[H]
+\caption{ผลการทดสอบการยอมรับของผู้ใช้}
+\label{tab:uat}
+\centering
+\begin{tabular}{|C{1.6cm}|L{5.2cm}|L{\dimexpr\linewidth-8.6cm-8\tabcolsep-5\arrayrulewidth\relax}|C{1.8cm}|}
+\hline
+\textbf{รหัส} & \textbf{กรณีทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผล} \\ \hline
+TC-01 & เข้าสู่ระบบด้วยข้อมูลที่ถูกต้อง & แสดงหน้าหลัก & ผ่าน \\ \hline
+TC-02 & เข้าสู่ระบบด้วยรหัสผ่านผิด & แสดงข้อความแจ้งเตือน & ผ่าน \\ \hline
+TC-03 & \ldots & \ldots & ผ่าน \\ \hline
+\end{tabular}
+\end{table}
+
+ผลการประเมินความพึงพอใจของผู้ใช้จำนวน\ldots{} คน แสดงดังตารางที่~\ref{tab:satisfaction}
+
+\begin{table}[H]
+\caption{ผลการประเมินความพึงพอใจของผู้ใช้}
+\label{tab:satisfaction}
+\centering
+\begin{tabular}{|L{\dimexpr\linewidth-6.6cm-8\tabcolsep-5\arrayrulewidth\relax}|C{1.8cm}|C{1.8cm}|C{3cm}|}
+\hline
+\textbf{หัวข้อการประเมิน} & $\boldsymbol{\bar{x}}$ & \textbf{S.D.} & \textbf{ระดับความพึงพอใจ} \\ \hline
+ความง่ายในการใช้งาน & 4.52 & 0.51 & มากที่สุด \\ \hline
+ความถูกต้องของข้อมูล & 4.31 & 0.60 & มาก \\ \hline
+ความเร็วในการทำงาน & \ldots & \ldots & \ldots \\ \hline
+\textbf{รวม} & \textbf{\ldots} & \textbf{\ldots} & \textbf{\ldots} \\ \hline
+\end{tabular}
+\end{table}

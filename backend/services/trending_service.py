@@ -26,6 +26,7 @@ from urllib.parse import quote, urlparse
 import numpy as np
 
 from backend.config import settings
+from backend.core.url_utils import canonicalize_url
 from backend.repo.engagement_repo import (
     EngagementRepositoryPort,
     get_engagement_repository,
@@ -41,6 +42,7 @@ from backend.schemas.trending_schema import (
     TrendingScoreBreakdown,
     TrendingStoryCluster,
 )
+from backend.scrapers.helpers import clean_headline_date_suffix
 from backend.services.classifier_service import _VALID_CATEGORIES, classify_article
 from backend.services.llm_grouper import LLMBatchEnricher
 
@@ -165,11 +167,11 @@ class WangchanEmbedder:
             return cls._instance
 
     def _ensure_loaded(self) -> bool:
-        if self._model is not None and self._tokenizer is not None:
+        if self._model is not None and self._tokenizer is not None and callable(self._tokenizer):
             return True
 
         with self._init_lock:
-            if self._model is not None and self._tokenizer is not None:
+            if self._model is not None and self._tokenizer is not None and callable(self._tokenizer):
                 return True
 
             if not self._model_dir.exists():
@@ -177,10 +179,47 @@ class WangchanEmbedder:
 
             try:
                 import torch
-                from transformers import AutoModel, AutoTokenizer
+                from transformers import AutoModel, AutoTokenizer, PreTrainedTokenizerFast
 
                 device = torch.device("cpu")
-                tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                tokenizer = None
+
+                # 1. Primary: Load directly from tokenizer.json (fast, exact, no sentencepiece dependency)
+                tok_json = self._model_dir / "tokenizer.json"
+                if tok_json.exists():
+                    try:
+                        tokenizer = PreTrainedTokenizerFast(
+                            tokenizer_file=str(tok_json),
+                            bos_token="<s>",
+                            eos_token="</s>",
+                            unk_token="<unk>",
+                            pad_token="<pad>",
+                            mask_token="<mask<",
+                        )
+                    except Exception as tok_err:
+                        print(f"PreTrainedTokenizerFast load failed: {tok_err}")
+                        tokenizer = None
+
+                # 2. Secondary fallback: AutoTokenizer
+                if not callable(tokenizer):
+                    try:
+                        tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=False)
+                    except Exception:
+                        pass
+
+                # 3. Tertiary fallback: AutoTokenizer with use_fast=True
+                if not callable(tokenizer):
+                    try:
+                        tokenizer = AutoTokenizer.from_pretrained(str(self._model_dir), use_fast=True)
+                    except Exception:
+                        pass
+
+                if not callable(tokenizer):
+                    print("Warning: WangchanEmbedder tokenizer could not be loaded as callable")
+                    self._tokenizer = None
+                    self._model = None
+                    return False
+
                 model = AutoModel.from_pretrained(str(self._model_dir))
                 model.to(device)
                 model.eval()
@@ -192,6 +231,8 @@ class WangchanEmbedder:
             except Exception as e:
                 # If torch or transformers fails to load, gracefully return False
                 print(f"Warning: WangchanEmbedder failed to initialize: {e}")
+                self._tokenizer = None
+                self._model = None
                 return False
 
     @property
@@ -232,7 +273,7 @@ class WangchanEmbedder:
             return np.vstack([emb for emb in embeddings if emb is not None])
 
         # Compute embeddings for cache misses
-        if not self._ensure_loaded():
+        if not self._ensure_loaded() or not callable(self._tokenizer) or self._model is None:
             # Fallback random deterministic unit vectors if model cannot load
             dim = self.hidden_size
             for idx in miss_indices:
@@ -243,54 +284,126 @@ class WangchanEmbedder:
                 embeddings[idx] = vec
             return np.vstack([emb for emb in embeddings if emb is not None])
 
-        import torch
+        try:
+            import torch
 
-        miss_texts = [canonical_texts[i] for i in miss_indices]
-        batch_inputs = self._tokenizer(
-            miss_texts,
-            padding=True,
-            truncation=True,
-            max_length=128,
-            return_tensors="pt",
-        )
+            batch_size = 32
+            computed_chunks: list[np.ndarray] = []
+            for start_idx in range(0, len(miss_indices), batch_size):
+                chunk_indices = miss_indices[start_idx : start_idx + batch_size]
+                chunk_texts = [canonical_texts[i] for i in chunk_indices]
+                batch_inputs = self._tokenizer(
+                    chunk_texts,
+                    padding=True,
+                    truncation=True,
+                    max_length=128,
+                    return_tensors="pt",
+                )
 
-        with torch.inference_mode():
-            outputs = self._model(**batch_inputs)
-            hidden = outputs.last_hidden_state
-            mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
-            summed = torch.sum(hidden * mask, dim=1)
-            counts = torch.clamp(mask.sum(dim=1), min=1e-9)
-            raw_embs = summed / counts
-            normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
-            computed_numpy = normalized.cpu().numpy().astype(np.float32)
+                with torch.inference_mode():
+                    outputs = self._model(**batch_inputs)
+                    hidden = outputs.last_hidden_state
+                    mask = batch_inputs.attention_mask.unsqueeze(-1).expand(hidden.size()).float()
+                    summed = torch.sum(hidden * mask, dim=1)
+                    counts = torch.clamp(mask.sum(dim=1), min=1e-9)
+                    raw_embs = summed / counts
+                    normalized = torch.nn.functional.normalize(raw_embs, p=2, dim=1)
+                    computed_chunks.append(normalized.cpu().numpy().astype(np.float32))
 
-        with self._cache_lock:
-            for i, miss_idx in enumerate(miss_indices):
-                vec = computed_numpy[i]
-                embeddings[miss_idx] = vec
-                if len(self._embedding_cache) < self._cache_max_size:
-                    self._embedding_cache[hashes[miss_idx]] = vec
+            computed_numpy = np.vstack(computed_chunks)
 
-        return np.vstack([emb for emb in embeddings if emb is not None])
+            with self._cache_lock:
+                for i, miss_idx in enumerate(miss_indices):
+                    vec = computed_numpy[i]
+                    embeddings[miss_idx] = vec
+                    if len(self._embedding_cache) < self._cache_max_size:
+                        self._embedding_cache[hashes[miss_idx]] = vec
+
+            return np.vstack([emb for emb in embeddings if emb is not None])
+        except Exception as err:
+            print(f"Warning: WangchanEmbedder encoding exception, fallback to deterministic vectors: {err}")
+            dim = self.hidden_size
+            for idx in miss_indices:
+                if embeddings[idx] is None:
+                    h_int = int(hashes[idx][:8], 16)
+                    rng = np.random.RandomState(h_int)
+                    vec = rng.randn(dim).astype(np.float32)
+                    vec /= float(max(float(np.linalg.norm(vec)), 1e-9))
+                    embeddings[idx] = vec
+            return np.vstack([emb for emb in embeddings if emb is not None])
 
 
-# ── Semantic Clusterer (Strictly Zero Jaccard, Cohesion Validated) ─
+# ── Semantic Clusterer & Event Compatibility Gate ─────────────────
+
+_ANCHOR_STOPWORDS = frozenset({
+    "และ", "ที่", "ใน", "โดย", "จาก", "กับ", "ให้", "มี", "เป็น", "ได้", "ไม่", "ว่า",
+    "ผู้", "ของ", "นาย", "นาง", "น.ส.", "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พ.ต.อ.",
+    "พ.ต.ท.", "ร.ต.อ.", "ด่วน", "ย้ำ", "เตรียม", "คืบหน้า", "คดี", "เหตุ", "เกิดเหตุ",
+    "เจ้าหน้าที่", "ตำรวจ", "เวลา", "เมื่อ", "ชั่วโมง", "นาที", "วัน", "เดือน", "ปี",
+    "คน", "แห่ง", "ราย", "ข่าว", "วันนี้", "ล่าสุด", "เผย", "ชี้", "แจง", "เปิด", "พบ",
+    "รายงาน", "เรื่อง", "การ", "ความ", "ไป", "มา", "เข้า", "ออก", "ขึ้น", "ลง", "จะ",
+    "ยัง", "แต่", "นี้", "นั้น", "พวก", "ทุก", "ทั้ง", "หลัง", "ก่อน", "แล้ว", "อีก",
+    "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า", "สิบ",
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+})
+
+_SPORTS_KEYWORDS = frozenset({
+    "ucl", "ชปล", "พรีเมียร์ลีก", "ไทยลีก", "ฟุตบอล", "กีฬา", "วอลเลย์บอล",
+    "ลูกยาง", "ผลบอล", "แข่ง", "แชมป์", "แต้ม", "สโมสร", "นักเตะ", "เอเอฟซี",
+    "แชมเปียนส์", "แชมเปี้ยนส์", "พาราเกมส์", "เทนนิส", "แบดมินตัน",
+})
+
+
+def _is_sports_article(article: dict[str, Any]) -> bool:
+    cat = str(article.get("category") or "").strip().lower()
+    if cat == "sports":
+        return True
+    url = str(article.get("url") or "").lower()
+    if any(k in url for k in ("/sport", "/football", "/soccer", "/premier-league", "/กีฬา", "/ผลบอล")):
+        return True
+    title = str(article.get("title") or "").lower()
+    return any(k in title for k in _SPORTS_KEYWORDS)
+
+
+def _extract_event_anchors(article: dict[str, Any]) -> set[str]:
+    raw_title = str(article.get("title") or "")
+    clean_title = clean_headline_date_suffix(raw_title)
+    try:
+        from pythainlp.tokenize import word_tokenize
+        tokens = word_tokenize(clean_title, engine="newmm")
+    except Exception:
+        tokens = [w for w in re.split(r"[\s,.-]+", clean_title) if w]
+
+    anchors = set()
+    for tok in tokens:
+        t = tok.strip().lower()
+        if (
+            len(t) > 1
+            and not t.isdigit()
+            and t not in _ANCHOR_STOPWORDS
+            and not re.match(r"^\d+$", t)
+        ):
+            anchors.add(t)
+    return anchors
+
 
 class SemanticClusterer:
     """
-    Clusters articles using WangchanBERTa embeddings and Cosine Distance.
-    Features:
+    Graph clustering using WangchanBERTa embeddings with:
     - Matrix dot product: S = E @ E.T
     - Pairwise temporal constraint (|t_i - t_j| <= window_hours)
+    - Event Anchor Agreement (entity/location/action guardrail against category collapse)
     - Configurable similarity threshold
     - Anti-Chain Clustering: Intra-Cluster Cohesion Validation
-    - Strictly ZERO Jaccard or lexical overlap
+    - Deterministic Content-Anchored Cluster ID
     """
 
     def __init__(
         self,
-        cosine_threshold: float = 0.92,
-        cohesion_threshold: float = 0.88,
+        cosine_threshold: float = 0.76,
+        cohesion_threshold: float = 0.70,
         time_window_hours: float = 36.0,
     ) -> None:
         self.cosine_threshold = cosine_threshold
@@ -319,16 +432,25 @@ class SemanticClusterer:
         # 1. Cosine similarity matrix via matrix multiplication (since E is L2-normalized)
         sim_matrix = np.clip(embeddings @ embeddings.T, -1.0, 1.0)
 
-        # 2. Pairwise adjacency candidate edges with temporal constraint
+        # 2. Pairwise adjacency candidate edges with temporal constraint and Event Anchor Agreement
+        anchors = [_extract_event_anchors(art) for art in articles]
+        is_sports = [_is_sports_article(art) for art in articles]
+
         adj: list[set[int]] = [set() for _ in range(n)]
         for i in range(n):
             for j in range(i + 1, n):
                 dt_hours = abs((article_times[i] - article_times[j]).total_seconds()) / 3600.0
                 if dt_hours > self.time_window_hours:
                     continue
-                if sim_matrix[i, j] >= self.cosine_threshold:
-                    adj[i].add(j)
-                    adj[j].add(i)
+                sim = float(sim_matrix[i, j])
+                if sim >= self.cosine_threshold:
+                    # Multi-sport roundup allows broad pairing across sports disciplines
+                    is_sports_pair = is_sports[i] and is_sports[j]
+                    has_anchor_overlap = bool(anchors[i] & anchors[j])
+                    # Require shared specific event anchor (entity/location/action) unless sports or near-identical embedding
+                    if is_sports_pair or has_anchor_overlap or sim >= 0.95:
+                        adj[i].add(j)
+                        adj[j].add(i)
 
         # 3. Find connected components (initial candidate clusters)
         visited = [False] * n
@@ -393,11 +515,22 @@ class SemanticClusterer:
 
         # 5. Format clustered results and calculate cluster metadata
         clustered_results: list[dict[str, Any]] = []
-        cluster_counter = 1
 
         for comp in validated_clusters:
-            cid = f"cluster_{cluster_counter}"
-            cluster_counter += 1
+            # Deterministic Content-Anchored Cluster ID
+            comp_urls = sorted([
+                str(articles[idx].get("url") or articles[idx].get("canonical_url") or "").strip()
+                for idx in comp
+                if str(articles[idx].get("url") or articles[idx].get("canonical_url") or "").strip()
+            ])
+            if comp_urls:
+                hash_input = "|".join(comp_urls)
+            else:
+                hash_input = "|".join(sorted([
+                    str(articles[idx].get("title") or "").strip() for idx in comp
+                ]))
+            cluster_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:8]
+            cid = f"cluster_{cluster_hash}"
 
             # Compute average intra-cluster similarity
             k = len(comp)
@@ -906,9 +1039,11 @@ class TrendingService:
         repo = self.story_repo
         all_stories = repo.list_stories(status="active", limit=1000)
 
-        # Story Lifecycle Gating: Only active stories eligible
+        # Story Lifecycle Gating: Only active verified stories eligible
         eligible_stories: list[StoryRecord] = []
         for s in all_stories:
+            if getattr(s, "verification_status", "verified") == "pending_review":
+                continue
             if (
                 s.status == "active"
                 and s.article_count > 0
@@ -924,8 +1059,19 @@ class TrendingService:
         if not eligible_stories:
             return []
 
-        # Load member articles from NewsRepositoryPort
-        raw_news = self._news_repo.load_news()
+        # Load only member articles needed by eligible stories (indexed lookup if supported)
+        needed_urls = list(
+            {u.strip() for s in eligible_stories for u in s.article_urls if u and isinstance(u, str) and u.strip()}
+        )
+        raw_news = None
+        if hasattr(self._news_repo, "get_by_urls"):
+            try:
+                raw_news = self._news_repo.get_by_urls(needed_urls)
+            except Exception:
+                raw_news = None
+        if not raw_news:
+            raw_news = self._news_repo.load_news() or []
+
         news_map: dict[str, dict[str, Any]] = {}
         for a in raw_news:
             if isinstance(a, dict):
@@ -1039,13 +1185,20 @@ class TrendingService:
         macro_repo = get_macro_event_repository()
         all_macros = macro_repo.list_macro_events(status="active", limit=500)
 
-        raw_news = self._news_repo.load_news()
         news_map: dict[str, dict[str, Any]] = {}
-        for a in raw_news:
-            if isinstance(a, dict):
-                u = a.get("url")
-                if u and isinstance(u, str):
-                    news_map[u.strip()] = a
+        if all_macros:
+            raw_news = (
+                self._news_repo.load_recent_news(hours=168.0)
+                if hasattr(self._news_repo, "load_recent_news") and now is None
+                else self._news_repo.load_news()
+            )
+            if not raw_news:
+                raw_news = self._news_repo.load_news()
+            for a in raw_news:
+                if isinstance(a, dict):
+                    u = a.get("url")
+                    if u and isinstance(u, str):
+                        news_map[u.strip()] = a
 
         scored_macros: list[dict[str, Any]] = []
 
@@ -1053,6 +1206,13 @@ class TrendingService:
             child_stories = self.story_repo.get_stories_by_macro_id(macro.macro_event_id)
             if not child_stories and macro.child_event_ids:
                 child_stories = self.story_repo.get_stories_by_ids(macro.child_event_ids)
+
+            if child_stories:
+                child_stories = [
+                    cs for cs in child_stories
+                    if getattr(cs, "verification_status", "verified") != "pending_review"
+                    and getattr(cs, "macro_association_status", "linked") != "pending_macro"
+                ]
 
             if not child_stories:
                 continue
@@ -1235,6 +1395,11 @@ class TrendingService:
                 "summary": macro_summary,
                 "category": macro.category,
                 "status": macro.status,
+                "cluster_fingerprint": macro.cluster_fingerprint,
+                "synthesis_cache_key": macro.synthesis_cache_key,
+                "storyline_anchor": macro.storyline_anchor or macro.named_crisis_anchor,
+                "typed_anchors": macro.typed_anchors.model_dump(mode="json") if hasattr(macro, "typed_anchors") and macro.typed_anchors else {},
+                "relations": [r.model_dump(mode="json") for r in macro.relations],
                 "child_event_count": len(child_stories),
                 "child_events_count": len(child_stories),
                 "article_count": len(macro_articles),
@@ -1259,6 +1424,8 @@ class TrendingService:
         if not scored_macros:
             fallback_stories = self.get_trending_stories(limit=limit, category=category, now=now)
             for s in fallback_stories:
+                if not s.macro_event_id:
+                    continue
                 story_arts = []
                 for u in s.article_urls:
                     if u in news_map:
@@ -1268,10 +1435,12 @@ class TrendingService:
                 tags = [f"#{s.category}"] if s.category else []
                 for o in s.outlets:
                     tags.append(f"#{o.replace(' ', '')}")
+                img_u = s.articles[0].get("image_url", "") if s.articles and isinstance(s.articles[0], dict) else ""
+                first_u = s.article_urls[0] if s.article_urls else ""
                 scored_macros.append({
-                    "macro_event_id": s.macro_event_id or f"pseudo_macro_{s.story_id}",
+                    "macro_event_id": s.macro_event_id,
                     "story_id": s.story_id,
-                    "is_macro": bool(s.macro_event_id),
+                    "is_macro": True,
                     "title": s.title,
                     "headline": s.headline or s.title,
                     "summary": s.summary,
@@ -1290,8 +1459,8 @@ class TrendingService:
                     "created_at": s.created_at,
                     "updated_at": s.updated_at,
                     "timeline": [t.model_dump(mode="json") for t in s.timeline],
-                    "image_url": s.image_url,
-                    "url": s.url,
+                    "image_url": getattr(s, "image_url", img_u),
+                    "url": getattr(s, "url", first_u),
                     "hashtags": tags,
                     "entities": [],
                     "child_events": [
@@ -1311,7 +1480,7 @@ class TrendingService:
                     "articles": story_arts,
                 })
 
-        # Hybrid Multi-Signal Deduplication at Macro-Event Level
+        # Deduplicate strictly by authoritative macro_event_id or exact normalized title
         deduped_macros: list[dict[str, Any]] = []
         seen_macro_keys: dict[str, dict[str, Any]] = {}
 
@@ -1320,7 +1489,6 @@ class TrendingService:
             raw_title = m.get("headline") or m.get("title") or ""
             norm_title = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', raw_title).lower()
 
-            # Find matching existing macro
             match_key = None
             if m_id and m_id in seen_macro_keys:
                 match_key = m_id
@@ -1328,7 +1496,7 @@ class TrendingService:
                 for k, prev_m in seen_macro_keys.items():
                     prev_raw = prev_m.get("headline") or prev_m.get("title") or ""
                     prev_norm = re.sub(r'[\s"\'“”‘’\(\)\[\]\-]+', '', prev_raw).lower()
-                    if norm_title and prev_norm and (norm_title in prev_norm or prev_norm in norm_title or (len(norm_title) >= 12 and norm_title[:12] == prev_norm[:12])):
+                    if norm_title and prev_norm and norm_title == prev_norm:
                         match_key = k
                         break
 
@@ -1444,7 +1612,13 @@ class TrendingService:
         cohesion clustering, Tier 2 result caching, and batched LLM enrichment.
         """
         current_time = now or datetime.now(timezone.utc)
-        raw_news = self._news_repo.load_news()
+        window_hours = self._trending_window_hours
+        if now is None and window_hours > 0 and hasattr(self._news_repo, "load_recent_news"):
+            raw_news = self._news_repo.load_recent_news(hours=window_hours + 2.0)
+            if not raw_news:
+                raw_news = self._news_repo.load_news()
+        else:
+            raw_news = self._news_repo.load_news()
 
         if not raw_news:
             return TrendingListResponse(
@@ -1462,14 +1636,45 @@ class TrendingService:
             if category and category.strip().lower() not in {"", "all"}
             else None
         )
-        window_hours = self._trending_window_hours
 
         # 1. Parse article timestamps and find candidate window
         candidates: list[tuple[dict[str, Any], datetime]] = []
         parsed_times: list[datetime] = []
+        unassigned_article_count: int = 0
+        pending_review_count: int = 0
+
         for n in raw_news:
             if not isinstance(n, dict):
                 continue
+
+            # Check persistent story assignment and verification status (Contract B / P0.2)
+            sid = n.get("story_id")
+            resolved_story: StoryRecord | None = None
+            if sid and str(sid).strip():
+                try:
+                    resolved_story = self.story_repo.get_story(str(sid).strip())
+                except Exception:
+                    resolved_story = None
+            else:
+                raw_u = str(n.get("url") or "").strip()
+                if raw_u and hasattr(self.story_repo, "get_story_by_article_url"):
+                    try:
+                        resolved_story = self.story_repo.get_story_by_article_url(raw_u)
+                        if not resolved_story:
+                            canon_u = canonicalize_url(raw_u)
+                            if canon_u and canon_u != raw_u:
+                                resolved_story = self.story_repo.get_story_by_article_url(canon_u)
+                    except Exception:
+                        resolved_story = None
+
+            if resolved_story is not None:
+                if getattr(resolved_story, "verification_status", "verified") == "pending_review":
+                    pending_review_count += 1
+                    continue
+            elif "story_id" in n and (sid is None or not str(sid).strip()):
+                unassigned_article_count += 1
+                continue
+
             t = parse_article_time(n.get("fetched_at", ""), current_time)
             candidates.append((n, t))
             parsed_times.append(t)
@@ -1483,6 +1688,8 @@ class TrendingService:
                 clusters=[],
                 trending_hashtags=[],
                 hero=None,
+                unassigned_article_count=unassigned_article_count,
+                pending_review_count=pending_review_count,
             )
 
         if now is not None:
@@ -1495,8 +1702,7 @@ class TrendingService:
                 ref_time = latest_time
 
         # 2. Pre-filter articles by 48h window and category
-        filtered_news: list[dict[str, Any]] = []
-        filtered_times: list[datetime] = []
+        filtered_pairs: list[tuple[dict[str, Any], datetime]] = []
         for n, art_time in candidates:
             elapsed = (ref_time - art_time).total_seconds() / 3600.0
             if window_hours > 0 and (elapsed > window_hours or elapsed < -2.0):
@@ -1506,10 +1712,20 @@ class TrendingService:
             if cat_filter is None or cat == cat_filter:
                 n_copy = dict(n)
                 n_copy["category"] = cat
-                filtered_news.append(n_copy)
-                filtered_times.append(art_time)
+                filtered_pairs.append((n_copy, art_time))
 
-        if not filtered_news:
+        # Resilience fallback: If window filter yielded 0 articles (e.g. time skew, paused scrapers),
+        # gracefully fallback to using the most recent available candidate articles
+        if not filtered_pairs and candidates:
+            sorted_by_time = sorted(candidates, key=lambda pair: pair[1], reverse=True)
+            for n, art_time in sorted_by_time[:100]:
+                cat = _resolve_category(n)
+                if cat_filter is None or cat == cat_filter:
+                    n_copy = dict(n)
+                    n_copy["category"] = cat
+                    filtered_pairs.append((n_copy, art_time))
+
+        if not filtered_pairs:
             return TrendingListResponse(
                 total=0,
                 updated=current_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1518,7 +1734,18 @@ class TrendingService:
                 clusters=[],
                 trending_hashtags=[],
                 hero=None,
+                unassigned_article_count=unassigned_article_count,
+                pending_review_count=pending_review_count,
             )
+
+        # Cap candidate pool to most recent 60 articles to prevent CPU starvation on 2-vCPU servers
+        max_candidates = max(60, min(limit * 2, 100))
+        if len(filtered_pairs) > max_candidates:
+            filtered_pairs.sort(key=lambda pair: pair[1], reverse=True)
+            filtered_pairs = filtered_pairs[:max_candidates]
+
+        filtered_news = [pair[0] for pair in filtered_pairs]
+        filtered_times = [pair[1] for pair in filtered_pairs]
 
         # 3. Check Tier 2 Result Cache using composite hash key
         content_hash = hashlib.sha256(
@@ -1677,6 +1904,8 @@ class TrendingService:
             clusters=trending_clusters[:effective_limit],
             trending_hashtags=trending_hashtags,
             hero=hero,
+            unassigned_article_count=unassigned_article_count,
+            pending_review_count=pending_review_count,
         )
 
         # Save to Tier 2 Result Cache
@@ -1688,15 +1917,21 @@ class TrendingService:
 
 # ── Factory / DI helper ───────────────────────────────────────────
 
+_TRENDING_SERVICE_INSTANCE: TrendingService | None = None
+
+
 def get_trending_service() -> TrendingService:
-    """FastAPI Depends() factory for TrendingService."""
-    news_repo = get_news_repository()
-    engagement_repo = get_engagement_repository()
-    story_repo = get_story_repository()
-    return TrendingService(
-        news_repo=news_repo,
-        engagement_repo=engagement_repo,
-        story_repo=story_repo,
-        half_life_hours=settings.recency_half_life_hours,
-        trending_window_hours=settings.trending_window_hours,
-    )
+    """FastAPI Depends() factory for TrendingService (Singleton)."""
+    global _TRENDING_SERVICE_INSTANCE
+    if _TRENDING_SERVICE_INSTANCE is None:
+        news_repo = get_news_repository()
+        engagement_repo = get_engagement_repository()
+        story_repo = get_story_repository()
+        _TRENDING_SERVICE_INSTANCE = TrendingService(
+            news_repo=news_repo,
+            engagement_repo=engagement_repo,
+            story_repo=story_repo,
+            half_life_hours=settings.recency_half_life_hours,
+            trending_window_hours=settings.trending_window_hours,
+        )
+    return _TRENDING_SERVICE_INSTANCE

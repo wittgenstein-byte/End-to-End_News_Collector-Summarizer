@@ -1,0 +1,1082 @@
+% =====================================================================
+%  cskkucore.sty  —  แกนจัดรูปแบบร่วม (Core formatting) สำหรับเอกสารโครงงาน
+%  สาขาวิชาวิทยาการคอมพิวเตอร์ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น
+%
+%  ใช้ร่วมกันโดย  cskkuproject.cls (เล่มรายงานโครงงาน)
+%               cskkumanual.cls  (เล่มคู่มือการใช้งาน)
+%
+%  ทุกค่าในไฟล์นี้อ้างอิง "คู่มือการจัดทำเอกสารโครงงานคอมพิวเตอร์" (ม.ค. 2567)
+%  ค่าที่คู่มือไม่ได้เขียนเป็นตัวเลข วัดจาก PDF ของคู่มือ (สร้างจาก Word)
+%  หน่วย bp (big point = 1/72 นิ้ว) ใช้แทน pt เพื่อให้ขนาดตรงกับ Word
+%
+%  ห้ามแก้ไขไฟล์นี้ในโปรเจกต์ของนักศึกษา — แก้ที่ต้นฉบับแล้วแจกจ่ายใหม่
+%
+%  v2.1.0 (2026-10-20) สารบัญสมการ (\eqcaption) และ eqwhere, ขนาดฟอนต์สมการเข้ากับ
+%         TH Sarabun New, สารบัญถึงหัวข้อย่อยระดับ 1 (tocdepth 2), หัวเรื่อง "(ต่อ)" และ
+%         "หน้า" ในหน้าต่อของสารบัญทุกชนิด, ภาคผนวกในสารบัญแสดงเฉพาะชื่อ, \Needspace*
+%  v2.1.1 (2026-10-20) รายการที่ซ้อนต่างชนิด (itemize ใน enumerate หรือกลับกัน) ไม่เยื้องซ้ำ
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{cskkucore}[2026/10/20 v2.1.1 CS KKU core formatting]
+
+% ---------------------------------------------------------------------
+% 0) ตัวเลือก (ส่งต่อมาจาก class)
+% ---------------------------------------------------------------------
+\newif\ifcskku@plainnum       \cskku@plainnumfalse
+\newif\ifcskku@boldheadings   \cskku@boldheadingsfalse
+\newif\ifcskku@chapterfloats  \cskku@chapterfloatsfalse
+\newif\ifcskku@chapterpagenum \cskku@chapterpagenumfalse
+\newif\ifcskku@english        \cskku@englishfalse
+\newif\ifcskku@mermaid        \cskku@mermaidfalse
+\newif\ifcskku@biblatex       \cskku@biblatextrue
+
+\DeclareOption{plainnumbering}{\cskku@plainnumtrue}
+\DeclareOption{boldheadings}{\cskku@boldheadingstrue}
+\DeclareOption{chapterfloats}{\cskku@chapterfloatstrue}
+\DeclareOption{chapterpagenumber}{\cskku@chapterpagenumtrue}
+\DeclareOption{englishbook}{\cskku@englishtrue}
+\DeclareOption{mermaid}{\cskku@mermaidtrue}
+\DeclareOption{nobiblatex}{\cskku@biblatexfalse}
+\DeclareOption*{}
+\ProcessOptions\relax
+
+% ---------------------------------------------------------------------
+% 1) ต้อง compile ด้วย XeLaTeX
+% ---------------------------------------------------------------------
+\RequirePackage{iftex}
+\ifXeTeX\else
+  \PackageError{cskkucore}
+    {ต้อง compile ด้วย XeLaTeX (This template requires XeLaTeX)}
+    {Overleaf: Menu > Settings > Compiler > XeLaTeX}
+\fi
+
+\RequirePackage{etoolbox}
+\RequirePackage{calc}
+\RequirePackage{xcolor}
+
+% ---------------------------------------------------------------------
+% 2) หน้ากระดาษ — คู่มือข้อ 4: A4 ขอบบน 1.5" ซ้าย 1.5" ขวา 1" ล่าง 1"
+%    เลขหน้า: มุมขวาบน baseline ห่างขอบบน 86 bp (วัดจาก PDF คู่มือ)
+% ---------------------------------------------------------------------
+\RequirePackage[a4paper,
+  top=1.5in, bottom=1in, left=1.5in, right=1in,
+  headheight=18.63bp, headsep=19.7bp, footskip=0.5in]{geometry}
+
+% ---------------------------------------------------------------------
+% 3) ฟอนต์ — คู่มือข้อ 5: TH Sarabun New ทั้งเล่ม
+%    แนบ TH Sarabun New v1.3 (SIPA, GPL-2+ with font exception) ไว้ที่
+%    theme/fonts/THSarabunNew-*.ttf  ลำดับการค้นหา:
+%      (1) theme/fonts/THSarabunNew-Regular.ttf (ไฟล์ที่แนบมา)
+%      (2) theme/fonts/Sarabun-Regular.ttf  (ชื่อไฟล์ใน template รุ่นก่อน
+%          — ภายในเป็น TH Sarabun New เช่นกัน)
+%      (3) TH Sarabun New ที่ติดตั้งในเครื่อง
+% ---------------------------------------------------------------------
+% no-math: ให้สมการใช้ฟอนต์คณิตศาสตร์ชุดเดียว (Computer Modern) ทั้งตัวแปร ตัวเลข และชื่อฟังก์ชัน
+% ข้อความภาษาไทยในสมการเขียนด้วย \text{...}
+\RequirePackage[no-math]{fontspec}
+\newcommand*\cskkufontpath{theme/fonts/}
+\def\cskku@fontname{}
+
+\newcommand*\cskku@usefontfiles[1]{% #1 = ชื่อไฟล์ส่วนหน้า เช่น THSarabunNew
+  \setmainfont{#1}[
+    Path=\cskkufontpath, Extension=.ttf,
+    UprightFont=*-Regular, BoldFont=*-Bold,
+    ItalicFont=*-Italic,  BoldItalicFont=*-BoldItalic,
+    Ligatures=TeX]%
+  \setsansfont{#1}[
+    Path=\cskkufontpath, Extension=.ttf,
+    UprightFont=*-Regular, BoldFont=*-Bold,
+    ItalicFont=*-Italic,  BoldItalicFont=*-BoldItalic,
+    Ligatures=TeX]%
+  \def\cskku@fontname{TH Sarabun New (\cskkufontpath #1-*.ttf)}}
+
+\newcommand*\cskku@thaifontsetup{%
+  \IfFileExists{\cskkufontpath THSarabunNew-Regular.ttf}
+    {\cskku@usefontfiles{THSarabunNew}}
+    {\IfFileExists{\cskkufontpath Sarabun-Regular.ttf}
+       {\cskku@usefontfiles{Sarabun}}
+       {\IfFontExistsTF{TH Sarabun New}
+          {\setmainfont{TH Sarabun New}[Ligatures=TeX]%
+           \setsansfont{TH Sarabun New}[Ligatures=TeX]%
+           \def\cskku@fontname{TH Sarabun New (system)}}
+          {\PackageError{cskkucore}{ไม่พบฟอนต์ TH Sarabun New}
+             {คัดลอกโฟลเดอร์ theme/fonts จาก template มาไว้ในโปรเจกต์}}}}}
+
+\ifcskku@english
+  % เล่มภาษาอังกฤษทั้งเล่ม (คู่มือข้อ 5.2): Times New Roman
+  % ใช้ TeX Gyre Termes (โคลน Times ที่มากับ TeX Live/Overleaf) ถ้าไม่มี Times New Roman
+  \IfFontExistsTF{Times New Roman}
+    {\setmainfont{Times New Roman}[Ligatures=TeX]
+     \def\cskku@fontname{Times New Roman}}
+    {\setmainfont{texgyretermes}[Extension=.otf,
+       UprightFont=*-regular, BoldFont=*-bold,
+       ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Ligatures=TeX]
+     \def\cskku@fontname{TeX Gyre Termes}}
+  \setsansfont{texgyreheros}[Extension=.otf,
+       UprightFont=*-regular, BoldFont=*-bold,
+       ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
+\else
+  \cskku@thaifontsetup
+\fi
+
+% ฟอนต์ความกว้างคงที่ (โค้ด/คำสั่ง) ที่มีอักษรไทย: TlwgMonoTH
+%   = TlwgMono (TLWG, GPL + font exception) ที่แก้ให้สระ/วรรณยุกต์วางบนพยัญชนะ
+%     ถูกต้องใน XeTeX (รายละเอียดใน theme/fonts/README.txt)
+%   Scale=MatchLowercase ปรับให้ความสูงตัว x เท่ากับฟอนต์หลัก (ประมาณ 0.82)
+\IfFileExists{\cskkufontpath TlwgMonoTH-Regular.ttf}
+  {\setmonofont{TlwgMonoTH}[
+     Path=\cskkufontpath, Extension=.ttf,
+     UprightFont=*-Regular, BoldFont=*-Bold,
+     ItalicFont=*-Oblique, BoldItalicFont=*-BoldOblique,
+     Scale=MatchLowercase]}
+  {\IfFontExistsTF{Tlwg Mono}
+     {\setmonofont{Tlwg Mono}[Scale=MatchLowercase]%
+      \PackageWarning{cskkucore}{ไม่พบ theme/fonts/TlwgMonoTH-Regular.ttf:
+        ใช้ Tlwg Mono ของเครื่องแทน (สระและวรรณยุกต์ในโค้ดอาจวางผิดตำแหน่ง)}}
+     {\PackageWarning{cskkucore}{ไม่พบ TlwgMonoTH: ใช้ฟอนต์ mono มาตรฐานแทน
+        (อักษรไทยในโค้ดจะไม่แสดง)}}}
+
+\AtEndPreamble{\typeout{[cskkucore] main font: \cskku@fontname}}
+
+% ---------------------------------------------------------------------
+% 4) ขนาดตัวอักษรและระยะบรรทัด — คู่มือข้อ 6
+%    เนื้อหา/หัวข้อย่อย 14, หัวข้อใหญ่ 16, ชื่อบท 18 (bp = พอยต์ของ Word)
+%    ระยะบรรทัด 1 เท่า (Single) ของ TH Sarabun New = 1.331 x ขนาดตัวอักษร
+%    (ascent 844 + descent 457 + gap 30 ต่อ 1000) => 14 bp -> 18.63 bp
+% ---------------------------------------------------------------------
+\ifcskku@english
+  \renewcommand\normalsize{%
+    \@setfontsize\normalsize{12bp}{13.8bp}%
+    \abovedisplayskip 8bp \@plus3bp \@minus4bp
+    \abovedisplayshortskip \z@ \@plus3bp
+    \belowdisplayshortskip 4bp \@plus3bp \@minus3bp
+    \belowdisplayskip \abovedisplayskip
+    \let\@listi\@listI}
+  \renewcommand\small{\@setfontsize\small{11bp}{12.65bp}}
+  \renewcommand\footnotesize{\@setfontsize\footnotesize{10bp}{11.5bp}}
+  \renewcommand\scriptsize{\@setfontsize\scriptsize{8bp}{9.2bp}}
+  \renewcommand\tiny{\@setfontsize\tiny{6bp}{6.9bp}}
+  \renewcommand\large{\@setfontsize\large{14bp}{16.1bp}}
+  \renewcommand\Large{\@setfontsize\Large{16bp}{18.4bp}}
+  \renewcommand\LARGE{\@setfontsize\LARGE{18bp}{20.7bp}}
+  \renewcommand\huge{\@setfontsize\huge{20bp}{23bp}}
+  \renewcommand\Huge{\@setfontsize\Huge{22bp}{25.3bp}}
+\else
+  \renewcommand\normalsize{%
+    \@setfontsize\normalsize{14bp}{18.63bp}%
+    \abovedisplayskip 9bp \@plus3bp \@minus4bp
+    \abovedisplayshortskip \z@ \@plus3bp
+    \belowdisplayshortskip 5bp \@plus3bp \@minus3bp
+    \belowdisplayskip \abovedisplayskip
+    \let\@listi\@listI}
+  \renewcommand\small{\@setfontsize\small{13bp}{17.3bp}}
+  \renewcommand\footnotesize{\@setfontsize\footnotesize{12bp}{15.97bp}}
+  \renewcommand\scriptsize{\@setfontsize\scriptsize{10bp}{13.31bp}}
+  \renewcommand\tiny{\@setfontsize\tiny{8bp}{10.65bp}}
+  \renewcommand\large{\@setfontsize\large{16bp}{21.3bp}}
+  \renewcommand\Large{\@setfontsize\Large{18bp}{23.96bp}}
+  \renewcommand\LARGE{\@setfontsize\LARGE{20bp}{26.62bp}}
+  \renewcommand\huge{\@setfontsize\huge{24bp}{31.94bp}}
+  \renewcommand\Huge{\@setfontsize\Huge{26bp}{34.6bp}}
+\fi
+\normalsize
+\setlength\parskip{0pt}
+\linespread{1}
+
+% ขนาดฟอนต์ในสมการ: TH Sarabun New ตัวเล็กกว่าฟอนต์ละตินทั่วไปที่ขนาดเดียวกัน
+% (ความสูงตัว x ประมาณ 0.79 เท่าของ Computer Modern) สมการขนาดเท่าเนื้อความจึงดูใหญ่เกิน
+% ลดฟอนต์คณิตศาสตร์ทุกขนาดเหลือ 0.8 เท่า ตัวห้อย 0.7 และตัวห้อยซ้อน 0.5 ของขนาดนั้น
+\ifcskku@english\else
+  \newcommand*\cskku@mathsizefor[1]{%
+    \begingroup #1%
+      \@tempdima=.8\dimexpr\f@size\p@\relax
+      \@tempdimb=.7\@tempdima
+      \dimen@=.5\@tempdima
+      \edef\x{\endgroup\noexpand\DeclareMathSizes{\f@size}%
+        {\strip@pt\@tempdima}{\strip@pt\@tempdimb}{\strip@pt\dimen@}}%
+    \x}
+  \cskku@mathsizefor\tiny        \cskku@mathsizefor\scriptsize
+  \cskku@mathsizefor\footnotesize \cskku@mathsizefor\small
+  \cskku@mathsizefor\normalsize  \cskku@mathsizefor\large
+  \cskku@mathsizefor\Large       \cskku@mathsizefor\LARGE
+  \cskku@mathsizefor\huge        \cskku@mathsizefor\Huge
+  \normalsize
+\fi
+
+% ขนาดเชิงความหมาย (semantic) — ใช้ชื่อเหล่านี้แทน \large ฯลฯ ในไฟล์ class
+\newcommand*\cskkuChapterFont{\normalfont\Large\bfseries}   % 18 หนา
+\newcommand*\cskkuSectionFont{\normalfont\large\bfseries}   % 16 หนา
+\newcommand*\cskkuSubFont{%                                 % 14 ปกติ
+  \normalfont\normalsize\ifcskku@boldheadings\bfseries\fi}
+
+% ---------------------------------------------------------------------
+% 5) การตัดคำภาษาไทย (XeTeX + ICU)
+% ---------------------------------------------------------------------
+\XeTeXlinebreaklocale "th"
+\XeTeXlinebreakskip = 0pt plus 0.6pt
+\XeTeXlinebreakpenalty = 0
+\pretolerance=1000
+\tolerance=2500
+\emergencystretch=1.5em
+\hbadness=3000
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+% ไม่ตัดหน้าทันทีหลังสมการ: คำอธิบายใต้สมการ (เช่น eqwhere) อยู่หน้าเดียวกับสมการ
+\postdisplaypenalty=10000
+\raggedbottom
+
+% ---------------------------------------------------------------------
+% 6) ระยะย่อหน้าตามระดับหัวข้อ — คู่มือหน้า 24–25 (วัดจาก PDF)
+%    หัวข้อใหญ่ชิดซ้าย ย่อหน้าใต้หัวข้อตรงกับข้อความของหัวข้อ
+%    แต่ละระดับเริ่มที่จุดย่อหน้าของระดับก่อนหน้า
+% ---------------------------------------------------------------------
+\newlength\cskkuIndentA   % ย่อหน้าใต้หัวข้อใหญ่ / จุดเริ่มหัวข้อย่อยระดับ 1
+\newlength\cskkuIndentB   % ย่อหน้าใต้ระดับ 1   / จุดเริ่มระดับ 2
+\newlength\cskkuIndentC   % ย่อหน้าใต้ระดับ 2   / จุดเริ่มระดับ 3
+\newlength\cskkuIndentD   % ย่อหน้าใต้ระดับ 3
+\newlength\cskkuHeadingGap % ช่องว่างขั้นต่ำหลังเลขหัวข้อ
+\ifcskku@plainnum
+  \setlength\cskkuIndentA{27bp}
+  \setlength\cskkuIndentB{49.6bp}
+  \setlength\cskkuIndentC{76.6bp}
+  \setlength\cskkuIndentD{97.7bp}
+\else
+  % เลขแบบ บท.หัวข้อ ยาวกว่า จึงขยายระดับ 1 เล็กน้อย
+  \setlength\cskkuIndentA{27bp}
+  \setlength\cskkuIndentB{54bp}
+  \setlength\cskkuIndentC{76.6bp}
+  \setlength\cskkuIndentD{100bp}
+\fi
+\setlength\cskkuHeadingGap{6bp}
+\ifcskku@english
+  \setlength\cskkuIndentA{0.5in}
+  \setlength\cskkuIndentB{0.9in}
+  \setlength\cskkuIndentC{1.3in}
+  \setlength\cskkuIndentD{1.7in}
+\fi
+
+\newlength\cskku@curindent
+\setlength\cskku@curindent{\cskkuIndentA}
+\setlength\parindent{\cskkuIndentA}
+\RequirePackage{indentfirst}
+% กำหนดระดับย่อหน้าปัจจุบัน (ใช้ภายใน class และในตำแหน่งพิเศษ)
+\newcommand*\cskkuSetIndent[1]{%
+  \global\cskku@curindent=\dimexpr#1\relax
+  \global\parindent=\dimexpr#1\relax}
+
+% กล่องเลขหัวข้อ: กว้างเท่ากับระยะถึงจุดย่อหน้าถัดไป
+% ถ้าเลขยาวเกิน จะขยายออกโดยคงช่องว่างขั้นต่ำไว้
+\newcommand\cskkuNumBox[2]{%
+  \setbox\z@\hbox{#2}%
+  \ifdim\dimexpr\wd\z@+\cskkuHeadingGap\relax>#1\relax
+    \hbox{\box\z@\hskip\cskkuHeadingGap}%
+  \else
+    \hbox to #1{\box\z@\hfil}%
+  \fi}
+
+% ---------------------------------------------------------------------
+% 7) ชื่อเรียกภาษาไทย
+% ---------------------------------------------------------------------
+\ifcskku@english
+  \newcommand*\cskkuChapterName{Chapter}
+  \newcommand*\cskkuAppendixName{Appendix}
+  \newcommand*\cskkuAppendicesName{Appendices}
+  \newcommand*\cskkuPageWord{Page}
+  \newcommand*\cskkuContinued{(Cont.)}
+  \newcommand*\cskkuReferencesName{References}
+  \AtBeginDocument{%
+    \renewcommand\contentsname{Contents}%
+    \renewcommand\listtablename{List of Tables}%
+    \renewcommand\listfigurename{List of Figures}%
+    \renewcommand\figurename{Figure}%
+    \renewcommand\tablename{Table}%
+    \renewcommand\bibname{References}%
+    \def\refname{References}%
+    \renewcommand\appendixname{Appendix}%
+    \renewcommand\chaptername{Chapter}}
+\else
+  \newcommand*\cskkuChapterName{บทที่}
+  \newcommand*\cskkuAppendixName{ภาคผนวก}
+  \newcommand*\cskkuAppendicesName{ภาคผนวก}
+  \newcommand*\cskkuPageWord{หน้า}
+  \newcommand*\cskkuContinued{(ต่อ)}
+  \newcommand*\cskkuReferencesName{เอกสารอ้างอิง}
+  \AtBeginDocument{%
+    \renewcommand\contentsname{สารบัญ}%
+    \renewcommand\listtablename{สารบัญตาราง}%
+    \renewcommand\listfigurename{สารบัญภาพ}%
+    \renewcommand\figurename{ภาพที่}%
+    \renewcommand\tablename{ตารางที่}%
+    \renewcommand\bibname{เอกสารอ้างอิง}%
+    \def\refname{เอกสารอ้างอิง}%
+    \renewcommand\appendixname{ภาคผนวก}%
+    \renewcommand\chaptername{บทที่}}
+\fi
+
+% ---------------------------------------------------------------------
+% 8) ตัวนับหน้าแบบอักษรไทย ก ข ค ... (ไม่ใช้ ฃ ฅ)
+% ---------------------------------------------------------------------
+\def\@thaialph#1{%
+  \ifcase#1\or ก\or ข\or ค\or ง\or จ\or ฉ\or ช\or ซ\or ฌ\or ญ\or ฎ\or ฏ\or
+  ฐ\or ฑ\or ฒ\or ณ\or ด\or ต\or ถ\or ท\or ธ\or น\or บ\or ป\or ผ\or ฝ\or
+  พ\or ฟ\or ภ\or ม\or ย\or ร\or ล\or ว\or ศ\or ษ\or ส\or ห\or ฬ\or อ\or
+  ฮ\else\@ctrerr\fi}
+\def\thaialph#1{\expandafter\@thaialph\csname c@#1\endcsname}
+% เข้ากันได้กับ template เดิม (\ThaiAlph{0} = ก)
+\newcommand*\ThaiAlph[1]{\@thaialph{\numexpr#1+1\relax}}
+
+% ---------------------------------------------------------------------
+% 9) หัวกระดาษ — เลขหน้ามุมขวาบน ไม่มีเส้น
+%    หน้าแรกของบทใช้ style "plain" = ไม่มีเลขหน้า (คู่มือข้อ 10)
+% ---------------------------------------------------------------------
+\RequirePackage{fancyhdr}
+\fancypagestyle{cskku}{%
+  \fancyhf{}%
+  \fancyhead[R]{\normalfont\normalsize\thepage}%
+  \renewcommand\headrulewidth{0pt}%
+  \renewcommand\footrulewidth{0pt}}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyhead[R]{\normalfont\normalsize
+    \ifcskku@frontmatter\thepage\else\ifcskku@chapterpagenum\thepage\fi\fi}%
+  \renewcommand\headrulewidth{0pt}%
+  \renewcommand\footrulewidth{0pt}}
+\pagestyle{cskku}
+
+% ส่วนต้น / เนื้อเรื่อง / ส่วนท้าย (report.cls ไม่มีคำสั่งเหล่านี้)
+\newif\ifcskku@frontmatter \cskku@frontmatterfalse
+\providecommand\frontmatter{}
+\providecommand\mainmatter{}
+\providecommand\backmatter{}
+\renewcommand\frontmatter{%
+  \clearpage\cskku@frontmattertrue\pagenumbering{thaialph}}
+\renewcommand\mainmatter{%
+  \clearpage\cskku@frontmatterfalse\pagenumbering{arabic}%
+  \cskkuSetIndent{\cskkuIndentA}}
+\renewcommand\backmatter{\clearpage}
+
+% ---------------------------------------------------------------------
+% 10) หัวข้อ — คู่มือข้อ 6 และหน้า 24–25
+% ---------------------------------------------------------------------
+\RequirePackage[explicit]{titlesec}
+\setcounter{secnumdepth}{4}
+
+\ifcskku@plainnum
+  % แบบตัวอย่างในคู่มือ: 1.  /  1.1  /  1.1.1  /  (1)
+  \renewcommand\thesection{\arabic{section}.}
+  \renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+  \renewcommand\thesubsubsection{\thesubsection.\arabic{subsubsection}}
+  \renewcommand\theparagraph{(\arabic{paragraph})}
+\else
+  % แบบ บท.หัวข้อ (คู่มือข้อ 17 และเล่มนักศึกษาส่วนใหญ่): 1.1 / 1.1.1 / (1) / (1.1)
+  \renewcommand\thesection{\thechapter.\arabic{section}}
+  \renewcommand\thesubsection{\thesection.\arabic{subsection}}
+  \renewcommand\thesubsubsection{(\arabic{subsubsection})}
+  \renewcommand\theparagraph{(\arabic{subsubsection}.\arabic{paragraph})}
+\fi
+
+% ชื่อบท: "บทที่ n" บรรทัดแรก ชื่อบทบรรทัดที่สอง 18 หนา กึ่งกลาง
+% หลังชื่อบทเว้น 2 บรรทัด (คู่มือหน้า 24)
+\titleformat{\chapter}[display]
+  {\cskkuChapterFont\centering}
+  {\cskkuChapterName\ \thechapter}
+  {0pt}
+  {#1}
+\titleformat{name=\chapter,numberless}[block]
+  {\cskkuChapterFont\centering}
+  {}{0pt}{#1}
+\titlespacing*{\chapter}{0pt}{-25bp}{33bp}
+\titlespacing*{name=\chapter,numberless}{0pt}{-25bp}{\baselineskip}
+
+% หัวข้อใหญ่ (section): 16 หนา ชิดซ้าย เว้น 1 บรรทัดก่อนหัวข้อ
+\titleformat{\section}[hang]
+  {\cskkuSectionFont}
+  {\cskkuNumBox{\cskkuIndentA}{\thesection}}{0pt}{#1}
+\titleformat{name=\section,numberless}[hang]
+  {\cskkuSectionFont}{}{0pt}{#1}
+\titlespacing*{\section}{0pt}{\baselineskip}{0pt}
+
+% หัวข้อย่อยระดับ 1 (subsection): 14 ปกติ เริ่มที่ IndentA
+\titleformat{\subsection}[hang]
+  {\cskkuSubFont}
+  {\cskkuNumBox{\dimexpr\cskkuIndentB-\cskkuIndentA\relax}{\thesubsection}}{0pt}{#1}
+\titleformat{name=\subsection,numberless}[hang]{\cskkuSubFont}{}{0pt}{#1}
+\titlespacing*{\subsection}{\cskkuIndentA}{0pt}{0pt}
+
+% หัวข้อย่อยระดับ 2 (subsubsection): 14 ปกติ เริ่มที่ IndentB
+\titleformat{\subsubsection}[hang]
+  {\cskkuSubFont}
+  {\cskkuNumBox{\dimexpr\cskkuIndentC-\cskkuIndentB\relax}{\thesubsubsection}}{0pt}{#1}
+\titleformat{name=\subsubsection,numberless}[hang]{\cskkuSubFont}{}{0pt}{#1}
+\titlespacing*{\subsubsection}{\cskkuIndentB}{0pt}{0pt}
+
+% หัวข้อย่อยระดับ 3 (paragraph): 14 ปกติ เริ่มที่ IndentC
+\titleformat{\paragraph}[hang]
+  {\cskkuSubFont}
+  {\cskkuNumBox{\dimexpr\cskkuIndentD-\cskkuIndentC\relax}{\theparagraph}}{0pt}{#1}
+\titleformat{name=\paragraph,numberless}[hang]{\cskkuSubFont}{}{0pt}{#1}
+\titlespacing*{\paragraph}{\cskkuIndentC}{0pt}{0pt}
+
+% หัวข้อระดับที่ 5 (subparagraph): คู่มือกำหนดหัวข้อย่อยไว้ 3 ระดับใต้หัวข้อใหญ่
+% เนื้อหาที่ลึกกว่านี้ควรเขียนเป็นรายการ (enumerate) ถ้าใช้ \subparagraph จะได้หัวข้อไม่มีเลข
+% ที่ระยะ IndentD พร้อมคำเตือนใน log
+\titleformat{\subparagraph}[hang]{\cskkuSubFont}{}{0pt}{#1}
+\titlespacing*{\subparagraph}{\cskkuIndentD}{0pt}{0pt}
+
+% ย่อหน้าหลังหัวข้อแต่ละระดับให้ตรงกับข้อความของหัวข้อ
+\pretocmd{\chapter}{\cskkuSetIndent{\cskkuIndentA}}{}{}
+\pretocmd{\section}{\cskkuSetIndent{\cskkuIndentA}}{}{}
+\pretocmd{\subsection}{\cskkuSetIndent{\cskkuIndentB}}{}{}
+\pretocmd{\subsubsection}{\cskkuSetIndent{\cskkuIndentC}}{}{}
+\pretocmd{\paragraph}{\cskkuSetIndent{\cskkuIndentD}}{}{}
+\pretocmd{\subparagraph}{\cskkuSetIndent{\dimexpr2\cskkuIndentD-\cskkuIndentC\relax}%
+  \PackageWarning{cskkucore}{หัวข้อระดับที่ 5 (\string\subparagraph) ลึกเกินที่คู่มือกำหนด
+    ควรเขียนเป็นรายการ enumerate แทน}}{}{}
+
+% ---------------------------------------------------------------------
+% 11) รายการ (itemize / enumerate) เริ่มตรงกับย่อหน้าของระดับปัจจุบัน
+% ---------------------------------------------------------------------
+\RequirePackage{enumitem}
+\setlist{nosep, topsep=0pt, partopsep=0pt, itemsep=0pt, parsep=0pt}
+% รายการระดับแรกของแต่ละชนิดเริ่มตรงกับย่อหน้าของหัวข้อ แต่ถ้าซ้อนอยู่ในรายการอื่น
+% (เช่น itemize ใน enumerate) ให้เริ่มตรงกับข้อความของรายการแม่ ไม่เยื้องซ้ำ
+\newcommand*\cskku@listindent{\ifnum\@listdepth>\@ne\z@\else\cskku@curindent\fi}
+\setlist[itemize,1]{label=\textbullet, leftmargin=*, labelindent=\cskku@listindent, labelsep=0.6em}
+\setlist[itemize,2]{label=--, leftmargin=*, labelsep=0.6em}
+\setlist[itemize,3]{label=\textopenbullet, leftmargin=*, labelsep=0.6em}
+\setlist[enumerate,1]{label=\arabic*), leftmargin=*, labelindent=\cskku@listindent, labelsep=0.6em}
+\setlist[enumerate,2]{label=\alph*), leftmargin=*, labelsep=0.6em}
+\setlist[enumerate,3]{label=\roman*), leftmargin=*, labelsep=0.6em}
+\setlist[description]{leftmargin=\cskku@curindent, labelindent=\cskku@curindent, font=\bfseries}
+\RequirePackage{textcomp}
+
+% ---------------------------------------------------------------------
+% 12) ภาพและตาราง — คู่มือข้อ 8–9
+%     ตาราง: ชื่อเหนือตาราง ชิดซ้าย  "ตารางที่ n" หนา + ชื่อปกติ
+%     ภาพ  : ชื่อใต้ภาพ บรรทัดเดียวจัดกลาง ยาวเกินจัดแขวน
+%     ชื่อยาวเกิน 1 บรรทัด บรรทัดถัดไปตรงกับอักษรแรกของชื่อ (format=hang)
+%     เว้น 1 บรรทัดรอบภาพ/ตาราง
+% ---------------------------------------------------------------------
+\RequirePackage{graphicx}
+\RequirePackage{float}
+\RequirePackage{array}
+\RequirePackage{tabularx}
+\RequirePackage{longtable}
+\RequirePackage{booktabs}
+\RequirePackage{multirow}
+\RequirePackage{makecell}
+\RequirePackage{caption}
+\RequirePackage{subcaption}
+
+\DeclareCaptionLabelSeparator{cskku}{\hspace{0.45em}}
+\captionsetup{
+  font=normalsize, labelfont=bf, textfont=normalfont,
+  labelsep=cskku, format=hang, justification=justified,
+  singlelinecheck=true}
+\captionsetup[figure]{position=below, skip=0.6\baselineskip}
+\captionsetup[table]{position=above, skip=0.6\baselineskip,
+  singlelinecheck=false, justification=justified}
+\captionsetup[subfigure]{labelformat=parens, labelsep=space, skip=4bp}
+
+\setlength\intextsep{\baselineskip}
+\textfloatsep=\glueexpr\baselineskip+0pt plus 4bp minus 2bp\relax
+\floatsep=\glueexpr\baselineskip+0pt plus 4bp minus 2bp\relax
+\renewcommand\topfraction{0.9}
+\renewcommand\bottomfraction{0.8}
+\renewcommand\textfraction{0.07}
+\renewcommand\floatpagefraction{0.8}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{5}
+
+% ระยะในเซลล์ตาราง: กันสระบน/วรรณยุกต์ไม่ให้ชนเส้น
+\renewcommand\arraystretch{1.25}
+\setlength\tabcolsep{5bp}
+% ความกว้างชื่อตาราง longtable = ความกว้างข้อความ (ตั้งตอนเริ่มเอกสาร หลัง geometry
+% กำหนดขนาดหน้าแล้ว ถ้าตั้งใน preamble จะได้ความกว้างเดิมของ report และชื่อตารางเยื้องขวา)
+\AtBeginDocument{\setlength\LTcapwidth{\textwidth}}
+\setlength\LTpre{0.5\baselineskip}
+\setlength\LTpost{0.5\baselineskip}
+\renewcommand\theadfont{\normalsize\bfseries}
+
+% กันหัวข้อค้างท้ายหน้าเมื่อตามด้วย longtable ทันที (เช่น \section ตามด้วย troubleshooting)
+% longtable ตรวจว่าหัวตาราง + แถวแรกพอในหน้าหรือไม่ ถ้าไม่พอจะขึ้นหน้าใหม่ทันที
+% หัวข้อที่อยู่ก่อนจึงค้างท้ายหน้าเดิม แก้แบบ 2 รอบ: รอบแรกวัดความสูงที่หัวข้อกับต้นตาราง
+% ต้องใช้แล้วบันทึกลง .aux (อ้างด้วยค่า MD5 ของชื่อหัวข้อ) รอบถัดไปถ้าที่ว่างท้ายหน้า
+% ไม่พอ จะย้ายหัวข้อไปหน้าใหม่ก่อน (latexmk และ Overleaf คอมไพล์ซ้ำให้เองเมื่อ .aux เปลี่ยน)
+\RequirePackage{pdftexcmds}
+\newcount\cskku@hdcnt     % ลำดับหัวข้อ (ใช้เป็นกุญแจสำรองถ้าไม่มี MD5)
+\newcount\cskku@shipcnt   % จำนวนหน้าที่ส่งออกแล้ว ใช้ตรวจว่าตารางอยู่หน้าเดียวกับหัวข้อ
+\AddToHook{shipout/before}{\global\advance\cskku@shipcnt\@ne}
+\newif\ifcskku@hdmid      % หัวข้ออยู่กลางหน้า (ไม่ใช่ต้นหน้า)
+\newif\ifcskku@ltnb       % longtable เริ่มทันทีหลังหัวข้อ
+\let\cskku@hdkey\@empty
+\def\cskku@hdstart{0pt}\def\cskku@hdbefore{0pt}\def\cskku@hdroom{0pt}\def\cskku@hdship{-1}
+% ค่าจาก .aux: ถ้าชื่อหัวข้อซ้ำกันใช้ค่ามากสุด
+\def\cskku@hdneed#1#2{%
+  \ifcsname cskku@hdneed@#1\endcsname
+    \ifdim#2>\csname cskku@hdneed@#1\endcsname\relax
+      \global\@namedef{cskku@hdneed@#1}{#2}\fi
+  \else \global\@namedef{cskku@hdneed@#1}{#2}\fi}
+\ifdefined\pdf@mdfivesum
+  \def\cskku@setkey{\ifdefined\ttl@savetitle
+      \xdef\cskku@hdkey{\pdf@mdfivesum{\detokenize\expandafter{\ttl@savetitle}}}%
+    \else \xdef\cskku@hdkey{n\the\cskku@hdcnt}\fi}
+\else
+  \def\cskku@setkey{\xdef\cskku@hdkey{n\the\cskku@hdcnt}}
+\fi
+% titlesec เรียก \<ชื่อหัวข้อ>break แทน \addpenalty{\@secpenalty} ก่อนพิมพ์หัวข้อ
+% (\@tempskipa = ระยะก่อนหัวข้อ) ระยะเผื่อ .5\baselineskip ครอบคลุมความต่างของ
+% ตำแหน่งบรรทัดแรกระหว่างต้นหน้า (\topskip) กับกลางหน้า
+\def\cskku@hdbreak{%
+  \global\advance\cskku@hdcnt\@ne
+  \cskku@setkey
+  \ifcsname cskku@hdneed@\cskku@hdkey\endcsname
+    \begingroup
+      \@tempdimb\csname cskku@hdneed@\cskku@hdkey\endcsname\relax
+      \advance\@tempdimb\@tempskipa
+      \advance\@tempdimb.5\baselineskip
+      \@tempdima\pagegoal \advance\@tempdima-\pagetotal
+      \ifdim\pagetotal>\z@ \ifdim\@tempdima<\@tempdimb
+        \par\vfil\penalty-\@M
+      \fi\fi
+    \endgroup
+  \fi
+  \addpenalty{\@secpenalty}%
+  \begingroup
+    \@tempdima\pagegoal \advance\@tempdima-\pagetotal
+    \xdef\cskku@hdroom{\the\@tempdima}%
+  \endgroup
+  \xdef\cskku@hdstart{\the\pagetotal}%
+  \xdef\cskku@hdbefore{\the\dimexpr\@tempskipa\relax}%
+  \xdef\cskku@hdship{\the\cskku@shipcnt}%
+  \ifdim\pagetotal>\z@ \global\cskku@hdmidtrue \else \global\cskku@hdmidfalse \fi}
+\let\sectionbreak\cskku@hdbreak
+\let\subsectionbreak\cskku@hdbreak
+\let\subsubsectionbreak\cskku@hdbreak
+\let\paragraphbreak\cskku@hdbreak
+\pretocmd\chapter{\global\let\cskku@hdkey\@empty}{}{}
+% \if@nobreak ยังจริงตอน \begin{longtable} ถ้าไม่มีข้อความคั่นหลังหัวข้อ
+% (ตรวจตอนเริ่มเพราะการพิมพ์ชื่อตาราง/แถวแรกจะล้างค่านี้ก่อนถึง \LT@start)
+\AtBeginEnvironment{longtable}{%
+  \if@nobreak \global\cskku@ltnbtrue
+  \else \global\cskku@ltnbfalse \global\let\cskku@hdkey\@empty \fi}
+% เรียกใน \LT@start: \dimen@ = ตำแหน่งในหน้า + หัวตาราง + แถวแรก
+\def\cskku@ltrecord{%
+  \ifcskku@ltnb \ifx\cskku@hdkey\@empty\else
+    \let\cskku@ltval\relax
+    \ifnum\cskku@hdship=\cskku@shipcnt
+      % ตารางเริ่มในหน้าเดียวกับหัวข้อ: วัดความสูงจริง (ไม่รวมระยะก่อนหัวข้อ)
+      \@tempdima\dimen@ \advance\@tempdima-\cskku@hdstart\relax
+      \ifcskku@hdmid
+        \advance\@tempdima-\cskku@hdbefore\relax
+        \edef\cskku@ltval{\the\@tempdima}%
+      \else % วัดที่ต้นหน้า: คงค่าที่วัดกลางหน้าไว้ ไม่ให้ผลสลับไปมาระหว่างรอบ
+        \ifcsname cskku@hdneed@\cskku@hdkey\endcsname
+          \edef\cskku@ltval{\csname cskku@hdneed@\cskku@hdkey\endcsname}%
+        \else \edef\cskku@ltval{\the\@tempdima}\fi
+      \fi
+    \else
+      % ขึ้นหน้าใหม่ระหว่างหัวข้อกับตาราง (หัวข้อค้าง หน้าใหม่ยังว่าง): ขอที่มากกว่า
+      % ที่ว่างเดิมเล็กน้อย (ใน longtable \baselineskip = 0 จึงใช้ค่าคงที่)
+      \ifcskku@hdmid \ifnum\numexpr\cskku@hdship+1\relax=\cskku@shipcnt
+        \ifdim\pagetotal<\p@
+          \@tempdima\cskku@hdroom\relax
+          \advance\@tempdima-\cskku@hdbefore\relax
+          \advance\@tempdima 1bp\relax
+          \ifcsname cskku@hdneed@\cskku@hdkey\endcsname
+            \ifdim\csname cskku@hdneed@\cskku@hdkey\endcsname>\@tempdima
+              \@tempdima\csname cskku@hdneed@\cskku@hdkey\endcsname\relax
+            \fi
+          \fi
+          \edef\cskku@ltval{\the\@tempdima}%
+        \fi
+      \fi\fi
+    \fi
+    \ifx\cskku@ltval\relax\else \ifdim\cskku@ltval<.5\textheight \if@filesw
+      \immediate\write\@auxout{\string\cskku@hdneed{\cskku@hdkey}{\cskku@ltval}}%
+    \fi\fi\fi
+    \global\let\cskku@hdkey\@empty
+  \fi\fi}
+\AtBeginDocument{\if@filesw
+  \immediate\write\@auxout{\string\providecommand\string\cskku@hdneed[2]{}}\fi}
+\patchcmd\LT@start{\advance\dimen@ -\pagegoal}{\cskku@ltrecord\advance\dimen@ -\pagegoal}{}
+  {\PackageInfo{cskkucore}{longtable patch for heading orphans not applied}}
+
+% ตัวช่วยตาราง: หัวคอลัมน์ตัวหนา และคอลัมน์ข้อความยาว
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\providecommand*\tablehead[1]{\textbf{#1}}
+
+% เลขภาพ/ตาราง/สมการ: ต่อเนื่องทั้งเล่ม (ตัวอย่างในคู่มือ) หรือแยกตามบท
+\ifcskku@chapterfloats
+  \renewcommand\thefigure{\thechapter.\arabic{figure}}
+  \renewcommand\thetable{\thechapter.\arabic{table}}
+  \renewcommand\theequation{\thechapter.\arabic{equation}}
+\else
+  \counterwithout{figure}{chapter}
+  \counterwithout{table}{chapter}
+  \counterwithout{equation}{chapter}
+\fi
+
+% ชื่อภาพ/ตารางที่ต่อจากหน้าก่อน: \captioncont{ชื่อเดิม} -> "ตารางที่ 3 ชื่อเดิม (ต่อ)"
+\newcommand\captioncont[1]{%
+  \ContinuedFloat\caption[]{#1~\cskkuContinued}}
+
+% ภาพตัวอย่าง (placeholder) สำหรับแม่แบบ
+\newcommand\cskkuPlaceholder[3][]{%
+  \fbox{\parbox[c][#3][c]{#2}{\centering\textcolor{gray}{#1}}}}
+
+% ---------------------------------------------------------------------
+% 13) สารบัญ / สารบัญตาราง / สารบัญภาพ — คู่มือข้อ 13–15, หน้า 17–19
+%     ลำดับ: สารบัญ -> สารบัญตาราง -> สารบัญภาพ -> สารบัญสมการ  มีหัวคอลัมน์ "หน้า"
+%     ไม่แสดงรายการว่าง (ไม่มีตาราง = ไม่สร้างสารบัญตาราง)
+% ---------------------------------------------------------------------
+\RequirePackage[titles]{tocloft}
+% คู่มือข้อ 13: สารบัญมีบท หัวข้อใหญ่ และหัวข้อย่อยได้ 1 ระดับ (4.1 และ 4.1.1)
+% ไม่ใส่ระดับที่ลึกกว่า เช่น (1) ให้แสดงเฉพาะหัวข้อใหญ่: \setcounter{tocdepth}{1} ใน main.tex
+\setcounter{tocdepth}{2}
+\renewcommand\cftdotsep{2.5}
+\renewcommand\cftchapleader{\hfill}
+\renewcommand\cftchapfont{\normalfont}
+\renewcommand\cftchappagefont{\normalfont}
+\setlength\cftbeforechapskip{2bp}
+\setlength\cftbeforesecskip{0pt}
+\setlength\cftbeforesubsecskip{0pt}
+\setlength\cftchapindent{0pt}
+\setlength\cftsecindent{\cskkuIndentA}
+\setlength\cftsubsecindent{\dimexpr\cskkuIndentA+2.6em\relax}
+\setlength\cftsecnumwidth{2.6em}
+\setlength\cftsubsecnumwidth{3.2em}
+\renewcommand\cftsecfont{\normalfont}
+\renewcommand\cftsecpagefont{\normalfont}
+\renewcommand\cftsubsecfont{\normalfont}
+\renewcommand\cftsubsecpagefont{\normalfont}
+\renewcommand\cftsecleader{\cftdotfill{\cftdotsep}}
+\renewcommand\cftsubsecleader{\cftdotfill{\cftdotsep}}
+\setlength\cftparskip{0pt}
+\renewcommand\@pnumwidth{2.2em}
+\renewcommand\@tocrmarg{3.2em}
+
+% "บทที่ n" หน้าชื่อบทในสารบัญ
+\newlength\cskku@chapnumw
+\settowidth\cskku@chapnumw{\normalfont\cskkuChapterName\ 10\ }
+\setlength\cftchapnumwidth{\cskku@chapnumw}
+\renewcommand\cftchappresnum{\cskkuChapterName\ }
+
+% "ตารางที่ n" / "ภาพที่ n" ในสารบัญตาราง/ภาพ (บรรทัดที่ 2 ตรงกับชื่อ)
+\AtBeginDocument{%
+  \renewcommand\cfttabpresnum{\tablename\ }%
+  \renewcommand\cftfigpresnum{\figurename\ }%
+  \settowidth\cfttabnumwidth{\normalfont\tablename\ \cskku@widestnum\ \ }%
+  \settowidth\cftfignumwidth{\normalfont\figurename\ \cskku@widestnum\ \ }}
+% เลขที่ยาวที่สุดที่เผื่อไว้ในสารบัญตาราง/ภาพ/สมการ: 100 หรือ 10.10 เมื่อใช้ chapterfloats
+\def\cskku@widestnum{\ifcskku@chapterfloats 10.10\else 100\fi}
+\setlength\cfttabindent{0pt}
+\setlength\cftfigindent{0pt}
+\setlength\cftbeforetabskip{0pt}
+\setlength\cftbeforefigskip{0pt}
+\renewcommand\cfttableader{\cftdotfill{\cftdotsep}}
+\renewcommand\cftfigleader{\cftdotfill{\cftdotsep}}
+
+% หัวคอลัมน์ "หน้า"
+\newcommand*\cskku@pageheading{%
+  \par\nobreak\noindent\hfill\textbf{\cskkuPageWord}\par\nobreak}
+
+% สารบัญสมการ: สมการที่มี \eqcaption{ชื่อสมการ} จะอยู่ในสารบัญสมการ "สมการที่ n ชื่อ ..... หน้า"
+\newcommand*\listequationname{\ifcskku@english List of Equations\else สารบัญสมการ\fi}
+\newcommand*\equationname{\ifcskku@english Equation\else สมการที่\fi}
+\newlistof{cskkueq}{loe}{\listequationname}
+\setlength\cftcskkueqindent{0pt}
+\setlength\cftbeforecskkueqskip{0pt}
+\renewcommand\cftcskkueqleader{\cftdotfill{\cftdotsep}}
+\AtBeginDocument{%
+  \renewcommand\cftcskkueqpresnum{\equationname\ }%
+  \settowidth\cftcskkueqnumwidth{\normalfont\equationname\ \cskku@widestnum\ \ }}
+
+% \eqcaption{ชื่อ} ใส่ใน equation หรือในบรรทัดที่มีเลขของ align/gather
+% amsmath วัดขนาด align 2 รอบ จึงเก็บชื่อไว้แล้วเขียนลงสารบัญตอนพิมพ์เลขสมการ (แบบเดียวกับ \label)
+\let\cskku@eqcap\@empty
+\newcommand\eqcaption[1]{\ifmeasuring@\else\gdef\cskku@eqcap{#1}\fi}
+\newcommand*\cskku@eqcapwrite{%
+  \ifx\cskku@eqcap\@empty\else
+    \stepcounter{cskkueq}%
+    \addcontentsline{loe}{cskkueq}{\protect\numberline{\@currentlabel}\cskku@eqcap}%
+    \global\let\cskku@eqcap\@empty
+  \fi}
+\AtBeginDocument{%
+  % equation: เลขสมการกำหนดตั้งแต่ต้นสภาพแวดล้อม เขียนตอนจบ
+  \apptocmd\endmathdisplay@a{%
+    \ifx\df@tag\@empty\global\let\cskku@eqcap\@empty\else\cskku@eqcapwrite\fi}{}%
+    {\PackageWarning{cskkucore}{\string\eqcaption: patch equation ไม่สำเร็จ}}%
+  % align, gather ฯลฯ: เขียนหลังเพิ่มเลขของแต่ละบรรทัด
+  \apptocmd\make@display@tag{%
+    \ifmeasuring@\else
+      \if@eqnsw\cskku@eqcapwrite\else
+        \iftag@\cskku@eqcapwrite\else\global\let\cskku@eqcap\@empty\fi\fi
+    \fi}{}%
+    {\PackageWarning{cskkucore}{\string\eqcaption: patch align ไม่สำเร็จ}}}
+
+% คำอธิบายสัญลักษณ์ใต้สมการ
+%   \begin{eqwhere}
+%     \bar{x} & ค่าเฉลี่ยเลขคณิต \\
+%     n       & จำนวนผู้ตอบแบบสอบถาม
+%   \end{eqwhere}
+% ได้ "เมื่อ  x̄  คือ  ค่าเฉลี่ยเลขคณิต" และบรรทัดถัดไปจัดแนวตรงกัน (คอลัมน์แรกเป็นโหมดคณิตศาสตร์)
+\newcommand*\cskkuWhereWord{\ifcskku@english where\else เมื่อ\fi}
+\newcommand*\cskkuIsWord{\ifcskku@english is\else คือ\fi}
+\newenvironment{eqwhere}{%
+  \par\addvspace{.25\baselineskip}%
+  \renewcommand\arraystretch{1}%
+  \setbox\z@\hbox{\cskkuWhereWord\hspace{.6em}}%
+  \@tempdima\dimexpr\linewidth-\cskku@curindent-\wd\z@\relax
+  \noindent\hspace*{\cskku@curindent}\box\z@
+  \tabularx{\@tempdima}[t]{@{}>{$}l<{$}@{\hspace{.6em}\cskkuIsWord\hspace{.6em}}
+    >{\raggedright\arraybackslash}X@{}}}
+  {\endtabularx\par\addvspace{.25\baselineskip}}
+
+% รายการที่ยาวเกิน 1 หน้า: หน้าถัดไปมีชื่อรายการ "(ต่อ)" และหัวคอลัมน์ "หน้า" ซ้ำ
+% หลังส่งหน้าของรายการออก ลด \textheight และเพิ่ม \headsep เท่าความสูงหัวเรื่อง (ขอบล่างคงเดิม)
+% แล้ววาดหัวเรื่องในที่ว่างด้านบนด้วย hook shipout/foreground (ไม่ต้องแก้ output routine)
+\newif\ifcskku@listcont
+\newif\ifcskku@contpage
+\newbox\cskku@contbox
+\newdimen\cskku@conth
+\newdimen\cskku@savedtextheight
+\newdimen\cskku@savedheadsep
+\newcommand*\cskku@startlistcont[1]{%
+  \global\setbox\cskku@contbox\vbox{%
+    \hsize\textwidth \parindent\z@ \parskip\z@ \normalfont\normalsize
+    {\cskkuChapterFont\centering #1~\cskkuContinued\par}%
+    \vskip\baselineskip
+    \hbox to\textwidth{\hfill\textbf{\cskkuPageWord}}%
+    \vskip\dimexpr\baselineskip-\topskip\relax}%
+  \global\cskku@conth\dimexpr\ht\cskku@contbox+\dp\cskku@contbox\relax
+  \global\cskku@savedtextheight\textheight
+  \global\cskku@savedheadsep\headsep
+  \global\cskku@listconttrue}
+\AddToHook{shipout/after}{%
+  \ifcskku@listcont
+    \global\cskku@contpagetrue
+    \global\textheight\dimexpr\cskku@savedtextheight-\cskku@conth\relax
+    \global\headsep\dimexpr\cskku@savedheadsep+\cskku@conth\relax
+  \fi}
+\AddToHook{shipout/foreground}{%
+  \ifcskku@contpage
+    \put(\strip@pt\dimexpr1in+\hoffset+\oddsidemargin\relax,
+         -\strip@pt\dimexpr1in+\voffset+\topmargin+\headheight+\cskku@savedheadsep\relax)%
+      {\lower\ht\cskku@contbox\copy\cskku@contbox}%
+  \fi}
+\newcommand*\cskku@endlistcont{%
+  \clearpage
+  \ifcskku@listcont
+    \global\cskku@listcontfalse \global\cskku@contpagefalse
+    \global\textheight\cskku@savedtextheight
+    \global\headsep\cskku@savedheadsep
+    \global\@colht\textheight \global\@colroom\textheight \global\vsize\textheight
+  \fi}
+
+% นับจำนวนตาราง/ภาพของการ compile ครั้งก่อน (เก็บใน .aux)
+\def\cskku@prevtables{-1}
+\def\cskku@prevfigures{-1}
+\newcommand*\cskku@setcounts[2]{\gdef\cskku@prevtables{#1}\gdef\cskku@prevfigures{#2}}
+% นับจากรายการที่เขียนลงสารบัญตาราง/ภาพจริง (ตัวนับ table/figure เริ่มใหม่ทุกบทเมื่อใช้ chapterfloats
+% จึงใช้ค่าตอนจบเล่มไม่ได้) ชื่อที่ต่อจากหน้าก่อน (\captioncont) ไม่ถูกนับ
+\newcount\cskku@lotcount
+\newcount\cskku@lofcount
+\def\cskku@lotext{lot}
+\def\cskku@lofext{lof}
+\newcommand*\cskku@countlistentry[1]{%
+  \edef\cskku@listext{#1}%
+  \ifx\cskku@listext\cskku@lotext\global\advance\cskku@lotcount\@ne\fi
+  \ifx\cskku@listext\cskku@lofext\global\advance\cskku@lofcount\@ne\fi}
+% ห่อ \addcontentsline หลังแพ็กเกจอื่น (hyperref) กำหนดเสร็จแล้ว
+\AddToHook{begindocument/end}{%
+  \let\cskku@orig@addcontentsline\addcontentsline
+  \def\addcontentsline#1{\cskku@countlistentry{#1}\cskku@orig@addcontentsline{#1}}}
+\AtEndDocument{%
+  \if@filesw
+    \immediate\write\@mainaux{%
+      \string\cskku@setcounts{\the\cskku@lotcount}{\the\cskku@lofcount}}%
+  \fi}
+\def\cskku@preveqs{0}
+\newcommand*\cskku@seteqcount[1]{\gdef\cskku@preveqs{#1}}
+\AtEndDocument{%
+  \if@filesw\immediate\write\@mainaux{\string\cskku@seteqcount{\the\value{cskkueq}}}\fi}
+\newcommand*\cskku@ifhaslist[2]{% #1 = prev count macro, #2 = code
+  \ifnum#1=0\relax\else#2\fi}
+
+\newcommand\cskku@listheading[1]{%
+  \chapter*{#1}\cskku@pageheading}
+
+% สารบัญ: ไม่เพิ่มตัวเองลงในสารบัญ (ตามตัวอย่างคู่มือหน้า 17)
+\renewcommand\tableofcontents{%
+  \clearpage
+  \begingroup
+    \cskkuSetIndent{0pt}%
+    \cskku@listheading{\contentsname}%
+    \cskku@startlistcont{\contentsname}%
+    % ภาคผนวกเปลี่ยน tocdepth ระหว่างอ่าน .toc: คืนค่าเดิมหลังพิมพ์สารบัญ
+    % (hyperref ใช้ tocdepth กำหนดระดับ bookmark ของ PDF)
+    \edef\cskku@tocdepth{\the\c@tocdepth}%
+    \@starttoc{toc}%
+    \setcounter{tocdepth}{\cskku@tocdepth}%
+  \endgroup
+  \cskku@endlistcont}
+\renewcommand\listoftables{%
+  \cskku@ifhaslist{\cskku@prevtables}{%
+    \clearpage
+    \begingroup
+      \cskkuSetIndent{0pt}%
+      \cskku@listheading{\listtablename}%
+      \addcontentsline{toc}{chapter}{\listtablename}%
+      \cskku@startlistcont{\listtablename}%
+      \let\addvspace\@gobble
+      \@starttoc{lot}%
+    \endgroup
+    \cskku@endlistcont}}
+\renewcommand\listoffigures{%
+  \cskku@ifhaslist{\cskku@prevfigures}{%
+    \clearpage
+    \begingroup
+      \cskkuSetIndent{0pt}%
+      \cskku@listheading{\listfigurename}%
+      \addcontentsline{toc}{chapter}{\listfigurename}%
+      \cskku@startlistcont{\listfigurename}%
+      \let\addvspace\@gobble
+      \@starttoc{lof}%
+    \endgroup
+    \cskku@endlistcont}}
+\newcommand\listofequations{%
+  \cskku@ifhaslist{\cskku@preveqs}{%
+    \clearpage
+    \begingroup
+      \cskkuSetIndent{0pt}%
+      \cskku@listheading{\listequationname}%
+      \addcontentsline{toc}{chapter}{\listequationname}%
+      \cskku@startlistcont{\listequationname}%
+      \let\addvspace\@gobble
+      \@starttoc{loe}%
+    \endgroup
+    \cskku@endlistcont}}
+% สารบัญทั้งหมดตามลำดับคู่มือ (สารบัญสมการต่อท้ายเมื่อมีสมการที่ใช้ \eqcaption)
+\newcommand\makecontents{\tableofcontents\listoftables\listoffigures\listofequations}
+
+% หัวเรื่องส่วนต้น/ท้ายที่ไม่มีเลขบท (บทคัดย่อ, กิตติกรรมประกาศ, ฯลฯ)
+\newcommand\cskkuUnnumberedChapter[2][]{%
+  \chapter*{#2}%
+  % หลังภาคผนวก (เช่น ประวัติผู้เขียน) ให้กลับมาชิดซ้ายในสารบัญ
+  \ifcskku@inappendix
+    \addtocontents{toc}{\protect\setlength\protect\cftchapindent{\z@}}%
+  \fi
+  \if\relax\detokenize{#1}\relax
+    \addcontentsline{toc}{chapter}{#2}%
+  \else
+    \addcontentsline{toc}{chapter}{#1}%
+  \fi
+  \cskkuSetIndent{\cskkuIndentA}}
+
+% ---------------------------------------------------------------------
+% 14) ภาคผนวก — คู่มือข้อ 19
+%     หน้าคั่น "ภาคผนวก" กลางหน้า แล้วแต่ละภาคผนวกเป็น ก ข ค ...
+%     ใช้ \appendix แล้วตามด้วย \chapter{ชื่อภาคผนวก}
+% ---------------------------------------------------------------------
+\newif\ifcskku@inappendix \cskku@inappendixfalse
+\newcommand\cskkuAppendixPage{%
+  \clearpage
+  \thispagestyle{empty}%
+  \null\vfill
+  \begin{center}\cskkuChapterFont\cskkuAppendicesName\end{center}%
+  \vfill\null
+  \addcontentsline{toc}{chapter}{\cskkuAppendicesName}%
+  \clearpage}
+\renewcommand\appendix{%
+  \par
+  \cskkuAppendixPage
+  \cskku@inappendixtrue
+  \setcounter{chapter}{0}%
+  \setcounter{section}{0}%
+  \ifcskku@english
+    \renewcommand\thechapter{\Alph{chapter}}%
+  \else
+    \renewcommand\thechapter{\thaialph{chapter}}%
+  \fi
+  \renewcommand\cskkuChapterName{\cskkuAppendixName}%
+  \addtocontents{toc}{%
+    \protect\renewcommand\protect\cftchappresnum{\cskkuAppendixName\ }%
+    \protect\setlength\protect\cftchapindent{\cskkuIndentA}}%
+  \addtocontents{toc}{\protect\settowidth\protect\cftchapnumwidth
+    {\protect\normalfont\cskkuAppendixName\ ก\ \ }}%
+  % สารบัญแสดงเฉพาะชื่อภาคผนวก (ตามตัวอย่างคู่มือ) ไม่แสดงหัวข้อภายในภาคผนวก
+  \addtocontents{toc}{\protect\setcounter{tocdepth}{\cskkuAppendixTocDepth}}}
+\newcommand*\cskkuAppendixTocDepth{0}
+
+% ---------------------------------------------------------------------
+% 15) การอ้างอิง (biblatex + biber) — คู่มือ "การเขียนเอกสารอ้างอิง"
+%     อ้างแบบตัวเลข [1], [1-3], [1, 3, 5] เรียงตามลำดับที่อ้าง
+%     ชื่อ. (ปี). ชื่อเรื่อง. ...  ชื่อหนังสือตัวหนา  บรรทัดที่ 2 ตรงกับอักษรแรก
+% ---------------------------------------------------------------------
+\ifcskku@biblatex
+  \RequirePackage{cskkubib}
+\fi
+
+% ---------------------------------------------------------------------
+% 16) ลิงก์ในเอกสาร
+%     \url พิมพ์ในโหมดคณิตศาสตร์ การตัดคำไทย (ICU) จึงไม่แทรกช่องว่างใน URL
+%     ห้ามเปลี่ยน \XeTeXlinebreaklocale ใน \UrlFont: ค่าจะค้างไปทั้งเล่ม
+%     ทำให้ข้อความไทยหลัง URL แรกไม่ตัดบรรทัด
+% ---------------------------------------------------------------------
+\RequirePackage{xurl}
+\urlstyle{same}
+\ifcskku@biblatex
+  % xurl ตั้งให้ตัด URL ในเอกสารอ้างอิงระหว่างตัวอักษรได้ง่ายกว่าหลัง / (ค่า 100)
+  % ปรับให้ตัดหลัง / . - : ก่อน และตัดระหว่างตัวอักษรเฉพาะเมื่อจำเป็น
+  \setcounter{biburllcpenalty}{7000}
+  \setcounter{biburlucpenalty}{8000}
+  \setcounter{biburlnumpenalty}{7000}
+  % คู่มือ: ตัด URL หลังเครื่องหมาย / หรือ . (หลัง : และ - ยอมได้แต่ไม่แนะนำ)
+  \setcounter{biburlbreakpenalty}{100}
+  \setcounter{biburlbigbreakpenalty}{400}
+  % biblatex ยืดช่องไฟระหว่างตัวอักษรใน URL ได้ (0mu plus 3mu) ทำให้ URL ในบรรทัดที่จัดชิดขอบ
+  % ดูเหมือนเว้นวรรคทีละตัว เช่น "h t t p s : / /" จึงปิดไว้ให้ไปยืดช่องว่างระหว่างคำแทน
+  \biburlbigskip=0mu\relax
+\fi
+\RequirePackage[hidelinks, unicode, bookmarksnumbered, pdfencoding=auto]{hyperref}
+\RequirePackage{bookmark}
+
+% ---------------------------------------------------------------------
+% 17) โค้ดโปรแกรมและคำสั่ง (listings) — อักษรไทยแสดงได้ (columns=fullflexible)
+% ---------------------------------------------------------------------
+\RequirePackage{listings}
+% \Needspace*{ความสูง}: ถ้าพื้นที่ที่เหลือในหน้าน้อยกว่าความสูงที่กำหนด ให้ขึ้นหน้าใหม่ก่อน
+% ใช้กับโค้ดหรือเนื้อหาสั้นที่ไม่ควรแยกหน้า เช่น \Needspace*{10\baselineskip} ก่อนโค้ด 9 บรรทัด
+% (ใช้แบบมี * เพราะเล่มใช้ \raggedbottom; \needspace ตัวเล็กอาจตัดหน้าเร็วเกินจำเป็น)
+\RequirePackage{needspace}
+\definecolor{cskkuCodeBg}{HTML}{F6F8FA}
+\definecolor{cskkuCodeFrame}{HTML}{D0D7DE}
+\definecolor{cskkuCodeKey}{HTML}{0B3D91}
+\definecolor{cskkuCodeStr}{HTML}{A31515}
+\definecolor{cskkuCodeCom}{HTML}{3A7D44}
+\lstdefinestyle{cskku}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible, keepspaces=true,
+  keywordstyle=\bfseries\color{cskkuCodeKey},
+  stringstyle=\color{cskkuCodeStr},
+  commentstyle=\color{cskkuCodeCom},
+  numbers=left, numberstyle=\scriptsize\ttfamily\color{gray}, numbersep=6bp,
+  frame=single, rulecolor=\color{cskkuCodeFrame}, backgroundcolor=\color{cskkuCodeBg},
+  framesep=4bp, xleftmargin=\dimexpr\cskku@curindent+14bp\relax, framexleftmargin=14bp,
+  breaklines=true, breakatwhitespace=false, tabsize=4,
+  showstringspaces=false, upquote=true,
+  captionpos=t, aboveskip=0.5\baselineskip, belowskip=0.5\baselineskip,
+  literate={--}{{-{}-}}2}
+\lstset{style=cskku}
+% เลขโปรแกรมนับแบบเดียวกับภาพ/ตาราง (ต่อเนื่องทั้งเล่ม หรือแยกตามบทเมื่อใช้ chapterfloats)
+\ifcskku@chapterfloats\else\lstset{numberbychapter=false}\fi
+% ชื่อโปรแกรมอยู่เหนือโค้ด ชิดซ้ายแบบชื่อตาราง
+\captionsetup[lstlisting]{singlelinecheck=false, justification=justified}
+\AtBeginDocument{\renewcommand\lstlistingname{\ifcskku@english Listing\else โปรแกรมที่\fi}}
+% อักษรไทย (U+0E01–U+0E5B) ในโค้ด: ให้ listings นับเป็นตัวอักษรของ token
+% (ถ้าไม่ทำ ข้อความไทยจะพิมพ์ก่อนเครื่องหมายที่อยู่หน้า เช่น "(ครั้งเดียว)" -> "ครั้งเดียว()"
+%  และความเห็นภาษาไทยจะไม่ได้สีของ comment)
+\newcount\cskku@lstcnt
+\def\cskku@lstthaichars{%
+  \cskku@lstcnt="0E01
+  \loop
+    \catcode\cskku@lstcnt=\active
+    \lccode`\~=\cskku@lstcnt \lccode`\/=\cskku@lstcnt
+    \lowercase{\def~{\lst@ProcessLetter /}}%
+  \ifnum\cskku@lstcnt<"0E5B \advance\cskku@lstcnt\@ne \repeat}
+\lst@AddToHook{SelectCharTable}{\cskku@lstthaichars}
+
+% โค้ดสั้นในบรรทัด: \cskkuCode{DATABASE_URL}  \cskkuCode{node --version}
+%   - พิมพ์ตามตัวอักษร (ไม่แปลง -- เป็นขีดยาว, ใช้ _ ได้โดยไม่ต้อง \_)
+%   - ตัดบรรทัดได้หลัง _ / . : - @ = ? & , ; ( และก่อน \ เมื่อยาวเกินคอลัมน์ตาราง
+%   - % # & { } $ ต้องเขียนเป็น \% \# \& \{ \} \$ (พิมพ์ออกมาไม่มี \)
+%   - คำสั่ง LaTeX ใส่ได้ตรง ๆ เช่น \cskkuCode{\cite{key}} -> \cite{key}
+\ExplSyntaxOn
+\tl_new:N  \l__cskku_code_tl
+\str_new:N \l__cskku_code_str
+\bool_new:N \l__cskku_code_brk_bool
+\str_const:Nn \c__cskku_code_break_str { _/.:-@=?&,;( }
+\cs_generate_variant:Nn \str_replace_all:Nnn { NnV }
+\cs_new_protected:Npn \cskku_code:n #1
+  {
+    \str_set:Nn \l__cskku_code_str {#1}
+    \str_replace_all:NnV \l__cskku_code_str { \% } \c_percent_str
+    \str_replace_all:NnV \l__cskku_code_str { \# } \c_hash_str
+    \str_replace_all:NnV \l__cskku_code_str { \& } \c_ampersand_str
+    \str_replace_all:NnV \l__cskku_code_str { \_ } \c_underscore_str
+    \str_replace_all:NnV \l__cskku_code_str { \{ } \c_left_brace_str
+    \str_replace_all:NnV \l__cskku_code_str { \} } \c_right_brace_str
+    \str_replace_all:NnV \l__cskku_code_str { \$ } \c_dollar_str
+    % ลบช่องว่างที่ TeX เติมหลังชื่อคำสั่ง เช่น "\cite {key}" -> "\cite{key}"
+    \prg_replicate:nn { 2 }
+      {
+        \regex_replace_all:nnN { (\\[A-Za-z]+)\x{20}([^A-Za-z]) } { \1\2 }
+          \l__cskku_code_str
+      }
+    \regex_replace_all:nnN { (\\[A-Za-z]+)\x{20}\Z } { \1 } \l__cskku_code_str
+    \tl_clear:N \l__cskku_code_tl
+    \bool_set_false:N \l__cskku_code_brk_bool
+    % จุดตัดหลังอักขระ _ / . ฯลฯ ใส่ไว้หน้าอักขระถัดไป และไม่ใส่ถ้าอักขระถัดไปเป็นช่องว่าง
+    % (ช่องว่างตัดบรรทัดได้อยู่แล้ว) เช่น "(user_id, is_read)" จะตัดที่ช่องว่างหลัง ","
+    % ไม่ใช่กลางชื่อ is_read
+    \str_map_inline:Nn \l__cskku_code_str
+      {
+        \str_if_eq:nnTF {##1} { ~ }
+          { \bool_set_false:N \l__cskku_code_brk_bool }
+          {
+            \bool_lazy_or:nnT
+              { \l__cskku_code_brk_bool }
+              {
+                \str_if_eq_p:nV {##1} \c_backslash_str
+                && ! \tl_if_empty_p:N \l__cskku_code_tl
+              }
+              { \tl_put_right:Nn \l__cskku_code_tl { \penalty 100 \scan_stop: } }
+            \str_if_in:NnTF \c__cskku_code_break_str {##1}
+              { \bool_set_true:N \l__cskku_code_brk_bool }
+              { \bool_set_false:N \l__cskku_code_brk_bool }
+          }
+        \tl_put_right:Nn \l__cskku_code_tl {##1}
+      }
+    \mode_leave_vertical:
+    \group_begin:
+      \ttfamily \tl_use:N \l__cskku_code_tl
+    \group_end:
+  }
+\NewDocumentCommand \cskkuCode { m } { \cskku_code:n {#1} }
+\ExplSyntaxOff
+
+% ---------------------------------------------------------------------
+% 18) วันที่ภาษาไทย / สัญลักษณ์ที่ใช้บ่อย
+% ---------------------------------------------------------------------
+\newcommand*\cskkuThaiMonth[1]{%
+  \ifcase#1\or มกราคม\or กุมภาพันธ์\or มีนาคม\or เมษายน\or พฤษภาคม\or
+  มิถุนายน\or กรกฎาคม\or สิงหาคม\or กันยายน\or ตุลาคม\or พฤศจิกายน\or
+  ธันวาคม\fi}
+\newcommand*\cskkuThaiYear{\the\numexpr\year+543\relax}
+\newcommand*\thaitoday{\the\day\ \cskkuThaiMonth{\month}\ \cskkuThaiYear}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{pifont}
+\providecommand*\cmark{\ding{51}}   % ✓
+\providecommand*\xmark{\ding{55}}   % ✗
+
+% โลโก้ \TeX \LaTeX แบบเดิมจัดระยะ A และ E ไว้สำหรับฟอนต์ Computer Modern
+% เมื่อใช้ TH Sarabun New ตัวอักษรจะซ้อนกัน จึงพิมพ์เป็นข้อความธรรมดา
+\ifcskku@english\else
+  \DeclareRobustCommand\TeX{TeX}
+  \DeclareRobustCommand\LaTeX{LaTeX}
+  \DeclareRobustCommand\LaTeXe{LaTeX2e}
+\fi
+
+% ---------------------------------------------------------------------
+% 19) Mermaid (ต้องเปิด -shell-escape และติดตั้ง mmdc) — ปิดไว้เป็นค่าเริ่มต้น
+% ---------------------------------------------------------------------
+\ifcskku@mermaid
+  \IfFileExists{mermaid.sty}{\RequirePackage{mermaid}}
+    {\PackageWarning{cskkucore}{ไม่พบ mermaid.sty}}
+\fi
+
+\endinput

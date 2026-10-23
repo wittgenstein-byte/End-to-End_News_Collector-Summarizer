@@ -13,10 +13,26 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import threading
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from backend.core.thai_normalizer import (
+    ENTITY_ALIASES,
+    normalize_thai_text,
+    parse_thai_locations,
+    resolve_entity_alias,
+)
+from backend.schemas.story_schema import (
+    EventTimeEvidence,
+    TypedEventAnchors,
+    _parse_utc_datetime,
+)
+
 logger = logging.getLogger(__name__)
+
+BANGKOK_TZ = timezone(timedelta(hours=7))
 
 # Target entity types required by R1 story identification
 _TARGET_ENTITY_TYPES: set[str] = {
@@ -121,13 +137,14 @@ class EntityExtractor:
 
         return entities
 
-    def _extract_raw(self, text: str) -> list[str]:
-        """Execute NER model tagging and assemble BIO spans into entity strings."""
+    def _extract_raw_typed(self, text: str) -> list[tuple[str, str]]:
+        """Execute NER model tagging and assemble BIO spans into (entity_string, entity_type) pairs."""
         if not self._ensure_ner() or self._ner is None:
             return []
 
+        safe_text = text[:800] if len(text) > 800 else text
         try:
-            tagged = self._ner.tag(text)
+            tagged = self._ner.tag(safe_text)
         except Exception as exc:
             logger.warning("NER tagging failed on text (%s); returning empty list", exc)
             return []
@@ -135,7 +152,7 @@ class EntityExtractor:
         if not tagged or not isinstance(tagged, (list, tuple)):
             return []
 
-        entities: list[str] = []
+        typed_entities: list[tuple[str, str]] = []
         seen: set[str] = set()
 
         current_tokens: list[str] = []
@@ -148,7 +165,7 @@ class EntityExtractor:
                 # Clean up outer quotes, brackets, and whitespace (preserving Thai acronym periods like ครม.)
                 span = span.strip(" \t\n\r()[]{}\"'“”‘’«»,;:-_")
                 if len(span) >= 2 and span not in seen:
-                    entities.append(span)
+                    typed_entities.append((span, current_type))
                     seen.add(span)
             current_tokens = []
             current_type = None
@@ -191,12 +208,513 @@ class EntityExtractor:
                 flush()
 
         flush()
-        return entities
+        return typed_entities
+
+    def _extract_raw(self, text: str) -> list[str]:
+        """Execute NER model tagging and assemble BIO spans into entity strings."""
+        return [span for span, _ in self._extract_raw_typed(text)]
+
+    def extract_typed_entities(self, text: str) -> list[tuple[str, str]]:
+        """Extract typed entities returning (entity, type) tuples with caching."""
+        clean_text = text.strip() if text else ""
+        if not clean_text:
+            return []
+
+        cache_key = hashlib.sha256(f"typed_{clean_text}".encode()).hexdigest()
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                return list(cached)  # type: ignore[arg-type]
+
+        typed_entities = self._extract_raw_typed(clean_text)
+
+        with self._cache_lock:
+            if len(self._cache) >= self._max_cache_size:
+                try:
+                    oldest_key = next(iter(self._cache))
+                    del self._cache[oldest_key]
+                except (StopIteration, KeyError):
+                    pass
+            self._cache[cache_key] = list(typed_entities)  # type: ignore[assignment]
+
+        return typed_entities
 
     def clear_cache(self) -> None:
         """Clear the in-memory entity cache."""
         with self._cache_lock:
             self._cache.clear()
+
+    def extract_event_time_evidence(
+        self,
+        text: str,
+        published_at: datetime | str | None = None,
+    ) -> EventTimeEvidence:
+        """
+        Extract interval-based incident time evidence from Thai text,
+        normalizing Buddhist Era years, UTC+7 timezone, and preserving ambiguity.
+        """
+        return extract_event_time_evidence(text, published_at=published_at)
+
+    def extract_typed_anchors(
+        self,
+        text: str,
+        entities: list[str] | None = None,
+        published_at: datetime | str | None = None,
+    ) -> TypedEventAnchors:
+        """
+        Extract typed entity anchors (locations, actor names, generic roles, targets, actions, storyline).
+        """
+        resolved_entities = entities if entities is not None else self.extract_entities(text)
+        typed_entities = self.extract_typed_entities(text)
+        return extract_typed_anchors(
+            text,
+            resolved_entities,
+            published_at=published_at,
+            typed_entities=typed_entities,
+        )
+
+
+# ── Global Constants & Thai Date/Time Parsers ─────────────────────
+
+_THAI_MONTHS: dict[str, int] = {
+    "มกราคม": 1, "ม.ค.": 1, "ม.ค": 1,
+    "กุมภาพันธ์": 2, "ก.พ.": 2, "ก.พ": 2,
+    "มีนาคม": 3, "มี.ค.": 3, "มี.ค": 3,
+    "เมษายน": 4, "เม.ย.": 4, "เม.ย": 4,
+    "พฤษภาคม": 5, "พ.ค.": 5, "พ.ค": 5,
+    "มิถุนายน": 6, "มิ.ย.": 6, "มิ.ย": 6,
+    "กรกฎาคม": 7, "ก.ค.": 7, "ก.ค": 7,
+    "สิงหาคม": 8, "ส.ค.": 8, "ส.ค": 8,
+    "กันยายน": 9, "ก.ย.": 9, "ก.ย": 9,
+    "ตุลาคม": 10, "ต.ค.": 10, "ต.ค": 10,
+    "พฤศจิกายน": 11, "พ.ย.": 11, "พ.ย": 11,
+    "ธันวาคม": 12, "ธ.ค.": 12, "ธ.ค": 12,
+}
+
+_GENERIC_ROLES: frozenset[str] = frozenset({
+    "นายกรัฐมนตรี", "นายกฯ", "รมว.", "รัฐมนตรี", "ผบ.ตร.", "ผู้ว่าฯ", "ผู้ว่าราชการจังหวัด",
+    "ตำรวจ", "เจ้าหน้าที่ตำรวจ", "เจ้าหน้าที่", "เจ้าหน้าที่กู้ภัย", "แพทย์", "พยาบาล",
+    "กู้ภัย", "มูลนิธิ", "ศาล", "อัยการ", "ทนายความ", "ทนาย", "ส.ส.", "ส.ว.", "ครม.",
+    "โฆษกประจำสำนักนายกรัฐมนตรี", "พนักงานสอบสวน", "ฝ่ายสืบสวน", "ผู้การ", "รัฐบาล",
+})
+
+_TARGET_KEYWORDS: frozenset[str] = frozenset({
+    "ผู้เสียชีวิต", "ผู้บาดเจ็บ", "เหยื่อ", "ผู้เสียหาย", "ประชาชน", "ชาวบ้าน",
+    "บ้านเรือน", "สะพาน", "ถนน", "รถยนต์", "เรือ", "เครื่องบิน", "อาคาร", "โรงงาน",
+})
+
+_ACTION_KEYWORDS: frozenset[str] = frozenset({
+    "จับกุม", "แจ้งข้อหา", "สอบสวน", "แถลงข่าว", "ฟ้องร้อง", "เยียวยา", "บุกค้น",
+    "สั่งการ", "ลงพื้นที่", "เร่งช่วย", "อพยพ", "ควบคุมเพลิง", "กู้ซาก", "ชันสูตร",
+    "ลอบยิง", "ยิง", "ชน", "ล่ม", "ถล่ม", "ไฟไหม้", "เพลิงไหม้", "ท่วม",
+})
+
+_STORYLINE_PATTERNS = [
+    re.compile(r"(น้ำท่วม[ก-๙]+)"),
+    re.compile(r"(ไฟไหม้[ก-๙]+)"),
+    re.compile(r"(กราดยิง[ก-๙]+)"),
+    re.compile(r"(คดี[ก-๙]+)"),
+    re.compile(r"(เรือล่ม[ก-๙]+)"),
+]
+
+_WIRE_MARKERS: frozenset[str] = frozenset({
+    "ที่มา:", "ขอบคุณข้อมูล", "รายงานโดยสำนักข่าวเดียวกัน", "สำนักข่าวไทย",
+    "รอยเตอร์", "เอเอฟพี", "reuters", "afp", "ap news", "สำนักข่าว",
+})
+
+_DATE_REGEX = re.compile(
+    r"(?:เมื่อ)?(?:วันที่\s*)?(\d{1,2})\s+("
+    + "|".join(re.escape(k) for k in _THAI_MONTHS)
+    + r")(?:\s+(?:พ\.ศ\.\s*)?(\d{2,4}))?",
+    re.IGNORECASE,
+)
+_TIME_REGEX = re.compile(
+    r"(?:เวลา\s*)?([012]?\d)[:.]([0-5]\d)(?:\s*น\.?)?",
+    re.IGNORECASE,
+)
+_RELATIVE_REGEX = re.compile(
+    r"(เมื่อวานนี้|เมื่อวาน|เมื่อคืนนี้|เมื่อคืนที่ผ่านมา|เมื่อเช้านี้|เมื่อเช้า|วันนี้)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_year(raw_year: int) -> int:
+    if raw_year >= 2500:
+        return raw_year - 543
+    if raw_year < 100:
+        return (2500 + raw_year) - 543
+    return raw_year
+
+
+def extract_event_time_evidence(
+    text: str,
+    published_at: datetime | str | None = None,
+) -> EventTimeEvidence:
+    """
+    Contract A: Extract interval-based incident time evidence from Thai text.
+    Handles Buddhist Era years, UTC+7 timezone conversion, relative intervals,
+    and year-ambiguity semantics.
+    """
+    if not text or not isinstance(text, str):
+        return EventTimeEvidence(precision="none", confidence="none")
+
+    clean_text = text.strip()
+
+    # 1. Explicit calendar date match
+    date_match = _DATE_REGEX.search(clean_text)
+    if date_match:
+        day = int(date_match.group(1))
+        month_name = date_match.group(2)
+        month = _THAI_MONTHS.get(month_name, 1)
+        year_str = date_match.group(3)
+
+        if year_str:
+            year = _normalize_year(int(year_str))
+            time_match = _TIME_REGEX.search(clean_text)
+            if time_match:
+                h = int(time_match.group(1))
+                m = int(time_match.group(2))
+                try:
+                    dt_bkk = datetime(year, month, day, h, m, 0, tzinfo=BANGKOK_TZ)
+                    dt_utc = dt_bkk.astimezone(timezone.utc)
+                    return EventTimeEvidence(
+                        start_utc=dt_utc,
+                        end_utc=dt_utc,
+                        precision="datetime",
+                        confidence="explicit",
+                        evidence_span=date_match.group(0),
+                    )
+                except ValueError:
+                    pass
+
+            # Explicit date without clock time spans full Thai calendar day
+            try:
+                dt_start_bkk = datetime(year, month, day, 0, 0, 0, tzinfo=BANGKOK_TZ)
+                dt_end_bkk = datetime(year, month, day, 23, 59, 59, tzinfo=BANGKOK_TZ)
+                return EventTimeEvidence(
+                    start_utc=dt_start_bkk.astimezone(timezone.utc),
+                    end_utc=dt_end_bkk.astimezone(timezone.utc),
+                    precision="date",
+                    confidence="explicit",
+                    evidence_span=date_match.group(0),
+                )
+            except ValueError:
+                pass
+
+        # Yearless date e.g. "เมื่อวันที่ 20 ส.ค."
+        if published_at is not None:
+            pub_dt = _parse_utc_datetime(published_at).astimezone(BANGKOK_TZ)
+            try:
+                cand_dt = datetime(pub_dt.year, month, day, tzinfo=BANGKOK_TZ)
+            except ValueError:
+                cand_dt = None
+
+            if cand_dt and (pub_dt - timedelta(days=30) <= cand_dt <= pub_dt + timedelta(days=2)):
+                year = pub_dt.year
+                time_match = _TIME_REGEX.search(clean_text)
+                if time_match:
+                    h = int(time_match.group(1))
+                    m = int(time_match.group(2))
+                    try:
+                        dt_bkk = datetime(year, month, day, h, m, 0, tzinfo=BANGKOK_TZ)
+                        return EventTimeEvidence(
+                            start_utc=dt_bkk.astimezone(timezone.utc),
+                            end_utc=dt_bkk.astimezone(timezone.utc),
+                            precision="datetime",
+                            confidence="explicit",
+                            evidence_span=date_match.group(0),
+                        )
+                    except ValueError:
+                        pass
+                try:
+                    dt_start_bkk = datetime(year, month, day, 0, 0, 0, tzinfo=BANGKOK_TZ)
+                    dt_end_bkk = datetime(year, month, day, 23, 59, 59, tzinfo=BANGKOK_TZ)
+                    return EventTimeEvidence(
+                        start_utc=dt_start_bkk.astimezone(timezone.utc),
+                        end_utc=dt_end_bkk.astimezone(timezone.utc),
+                        precision="date",
+                        confidence="explicit",
+                        evidence_span=date_match.group(0),
+                    )
+                except ValueError:
+                    pass
+            else:
+                # Outside 30-day window -> ambiguous
+                return EventTimeEvidence(
+                    start_utc=None,
+                    end_utc=None,
+                    precision="ambiguous",
+                    confidence="ambiguous",
+                    evidence_span=date_match.group(0),
+                )
+        else:
+            # Missing published_at -> ambiguous
+            return EventTimeEvidence(
+                start_utc=None,
+                end_utc=None,
+                precision="ambiguous",
+                confidence="ambiguous",
+                evidence_span=date_match.group(0),
+            )
+
+    # 2. Relative temporal expressions
+    rel_match = _RELATIVE_REGEX.search(clean_text)
+    if rel_match and published_at is not None:
+        span_text = rel_match.group(1)
+        pub_dt = _parse_utc_datetime(published_at).astimezone(BANGKOK_TZ)
+        if "เมื่อวาน" in span_text:
+            rel_d = (pub_dt - timedelta(days=1)).date()
+            dt_s = datetime(rel_d.year, rel_d.month, rel_d.day, 0, 0, 0, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            dt_e = datetime(rel_d.year, rel_d.month, rel_d.day, 23, 59, 59, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            return EventTimeEvidence(
+                start_utc=dt_s,
+                end_utc=dt_e,
+                precision="relative_interval",
+                confidence="relative",
+                evidence_span=span_text,
+            )
+        elif "เมื่อคืน" in span_text:
+            prev_d = (pub_dt - timedelta(days=1)).date()
+            dt_s = datetime(prev_d.year, prev_d.month, prev_d.day, 19, 0, 0, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            dt_e = datetime(pub_dt.year, pub_dt.month, pub_dt.day, 6, 0, 0, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            return EventTimeEvidence(
+                start_utc=dt_s,
+                end_utc=dt_e,
+                precision="relative_interval",
+                confidence="relative",
+                evidence_span=span_text,
+            )
+        elif "เมื่อเช้า" in span_text or "วันนี้" in span_text:
+            rel_d = pub_dt.date()
+            dt_s = datetime(rel_d.year, rel_d.month, rel_d.day, 0, 0, 0, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            dt_e = datetime(rel_d.year, rel_d.month, rel_d.day, 23, 59, 59, tzinfo=BANGKOK_TZ).astimezone(timezone.utc)
+            return EventTimeEvidence(
+                start_utc=dt_s,
+                end_utc=dt_e,
+                precision="relative_interval",
+                confidence="relative",
+                evidence_span=span_text,
+            )
+
+    return EventTimeEvidence(start_utc=None, end_utc=None, precision="none", confidence="none")
+
+
+_ACTOR_PREFIXES: tuple[str, ...] = (
+    "นาย", "นาง", "นางสาว", "น.ส.", "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พล.อ.", "พล.ท.", "พล.ต.",
+    "พ.ต.อ.", "พ.ต.ท.", "พ.ต.ต.", "ร.ต.อ.", "ร.ต.ท.", "ร.ต.ต.", "บิ๊ก", "ดร.", "ศ.", "นพ.", "พญ.",
+    "พรรค", "บมจ.", "บจก.", "บริษัท", "คุณ",
+)
+
+
+def extract_typed_anchors(
+    text: str,
+    entities: list[str] | None = None,
+    published_at: datetime | str | None = None,
+    typed_entities: list[tuple[str, str]] | None = None,
+) -> TypedEventAnchors:
+    """
+    Extract structured typed event anchors from Thai text and named entities.
+    Separates hierarchical locations (provinces, districts, sub_locations),
+    verified proper actor names, generic actor roles, targets, actions,
+    and episode-scoped storyline anchors.
+    """
+    clean_text = normalize_thai_text(text or "")
+
+    # Parse hierarchical locations from text
+    loc_info = parse_thai_locations(clean_text)
+    provinces: list[str] = list(loc_info.get("provinces", []))
+    districts: list[str] = list(loc_info.get("districts", []))
+    sub_locations: list[str] = list(loc_info.get("sub_locations", []))
+
+    actor_names: list[str] = []
+    actor_roles: list[str] = []
+    targets: list[str] = []
+    actions: list[str] = []
+    storyline_anchor: str | None = None
+    storyline_episode_key: str | None = None
+
+    # Process named entities
+    raw_entities: list[str] = []
+    ner_type_map: dict[str, str] = {}
+    if typed_entities is not None:
+        for span, t_type in typed_entities:
+            raw_entities.append(span)
+            ner_type_map[span.strip()] = t_type
+    else:
+        # Extract typed entities with NER if available
+        try:
+            extractor = get_entity_extractor()
+            t_ents = extractor.extract_typed_entities(clean_text)
+            for span, t_type in t_ents:
+                raw_entities.append(span)
+                ner_type_map[span.strip()] = t_type
+        except Exception:
+            pass
+
+    if entities is not None:
+        for ent in entities:
+            if ent not in raw_entities:
+                raw_entities.append(ent)
+
+    for ent in raw_entities:
+        ent_clean = normalize_thai_text(ent).strip()
+        if not ent_clean:
+            continue
+
+        # Check if entity is a location first (e.g. province, district, landmark)
+        ent_loc_info = parse_thai_locations(ent_clean)
+        is_loc = False
+        if ent_loc_info["provinces"] or ent_loc_info["districts"] or ent_loc_info["sub_locations"]:
+            is_loc = True
+            for p in ent_loc_info["provinces"]:
+                if p not in provinces:
+                    provinces.append(p)
+            for d in ent_loc_info["districts"]:
+                if d not in districts:
+                    districts.append(d)
+            for s in ent_loc_info["sub_locations"]:
+                if s not in sub_locations:
+                    sub_locations.append(s)
+        elif ent_clean.startswith(("จังหวัด", "จ.", "อ.", "อำเภอ", "ต.", "ตำบล", "เมือง", "ถ.", "ถนน", "แยก", "สะพาน", "แม่น้ำ", "เกาะ")):
+            is_loc = True
+            if ent_clean not in sub_locations:
+                sub_locations.append(ent_clean)
+
+        if is_loc:
+            continue
+
+        # Check if entity is a generic role
+        if ent_clean in _GENERIC_ROLES or ent_clean.startswith(("เจ้าหน้าที่", "ตำรวจ", "พนักงาน", "ผู้ว่า")):
+            if ent_clean not in actor_roles:
+                actor_roles.append(ent_clean)
+            continue
+
+        # Check if entity is a recognized actor or alias
+        resolved = resolve_entity_alias(ent_clean)
+        tag_type = ner_type_map.get(ent.strip(), "")
+        is_ner_person_or_org = tag_type in ("PERSON", "PER", "ORGANIZATION", "ORGANISATION", "ORG")
+
+        is_known_actor = (
+            resolved in ENTITY_ALIASES.values()
+            or any(ent_clean.startswith(prefix) for prefix in _ACTOR_PREFIXES)
+            or (resolved != ent_clean)
+            or is_ner_person_or_org
+        )
+
+        if is_known_actor and resolved not in actor_names:
+            actor_names.append(resolved)
+        # CRITICAL P0.1: Unknown entity tokens are NOT added to actor_names!
+
+    # Extract target keywords
+    for tgt in _TARGET_KEYWORDS:
+        if tgt in clean_text and tgt not in targets:
+            targets.append(tgt)
+
+    # Extract action keywords
+    for act in _ACTION_KEYWORDS:
+        if act in clean_text and act not in actions:
+            actions.append(act)
+
+    # Extract storyline anchor pattern
+    for pattern in _STORYLINE_PATTERNS:
+        m = pattern.search(clean_text)
+        if m:
+            storyline_anchor = m.group(1)
+            break
+
+    # Build combined event_locations preserving order and uniqueness
+    all_locations: list[str] = []
+    for l_list in (provinces, districts, sub_locations):
+        for loc in l_list:
+            if loc not in all_locations:
+                all_locations.append(loc)
+
+    # Episode-scoped storyline anchor (P1.3)
+    if storyline_anchor:
+        if published_at:
+            try:
+                dt = _parse_utc_datetime(published_at)
+                storyline_episode_key = f"{storyline_anchor}:{dt.strftime('%Y-%m')}"
+            except Exception:
+                storyline_episode_key = f"{storyline_anchor}:{datetime.now(timezone.utc).strftime('%Y-%m')}"
+        else:
+            storyline_episode_key = f"{storyline_anchor}:{datetime.now(timezone.utc).strftime('%Y-%m')}"
+
+    return TypedEventAnchors(
+        event_locations=all_locations,
+        provinces=provinces,
+        districts=districts,
+        sub_locations=sub_locations,
+        actor_names=actor_names,
+        actor_roles=actor_roles,
+        targets=targets,
+        actions=actions,
+        storyline_anchor=storyline_anchor,
+        storyline_episode_key=storyline_episode_key,
+    )
+
+
+def is_syndicated_duplicate(
+    article_a: dict[str, Any] | Any,
+    article_b: dict[str, Any] | Any,
+    cos_sim: float = 0.0,
+) -> bool:
+    """
+    P0.1 Syndication / Near-Duplicate Detector:
+    Returns True if article_b is a syndicated republish of article_a
+    (or both originate from the same syndicated wire wire), using:
+      1. Character 5-gram Jaccard index >= 0.80
+      2. Explicit wire / republish attribution markers
+      3. Cosine similarity >= 0.990 with zero novel information
+    """
+    def _val(obj: Any, key: str) -> str:
+        if isinstance(obj, dict):
+            return str(obj.get(key, "") or "")
+        return str(getattr(obj, key, "") or "")
+
+    title_a = _val(article_a, "title")
+    summary_a = _val(article_a, "summary")
+    source_a = _val(article_a, "source").lower().strip()
+
+    title_b = _val(article_b, "title")
+    summary_b = _val(article_b, "summary")
+    source_b = _val(article_b, "source").lower().strip()
+
+    text_a = f"{title_a} {summary_a}"
+    text_b = f"{title_b} {summary_b}"
+
+    clean_a = re.sub(r"[\s\W_]+", "", text_a)
+    clean_b = re.sub(r"[\s\W_]+", "", text_b)
+
+    def _get_5grams(s: str) -> set[str]:
+        if len(s) < 5:
+            return {s} if s else set()
+        return {s[i : i + 5] for i in range(len(s) - 4)}
+
+    grams_a = _get_5grams(clean_a)
+    grams_b = _get_5grams(clean_b)
+
+    if grams_a and grams_b:
+        jaccard = len(grams_a & grams_b) / len(grams_a | grams_b)
+        if jaccard >= 0.80:
+            return True
+
+    lower_a = text_a.lower()
+    lower_b = text_b.lower()
+    for wm in _WIRE_MARKERS:
+        if wm in lower_a and (source_b in lower_a or "สำนักข่าว" in lower_a):
+            return True
+        if wm in lower_b and (source_a in lower_b or "สำนักข่าว" in lower_b):
+            return True
+
+    if cos_sim >= 0.990:
+        words_a = set(re.findall(r"[\w]+", text_a.lower()))
+        words_b = set(re.findall(r"[\w]+", text_b.lower()))
+        novel = {w for w in (words_b - words_a) if not w.isdigit() and len(w) > 2}
+        if len(novel) == 0:
+            return True
+
+    return False
 
 
 # ── Global Singleton & Factory ────────────────────────────────────

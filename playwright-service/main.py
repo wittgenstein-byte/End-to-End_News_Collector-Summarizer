@@ -1,19 +1,21 @@
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from playwright.async_api import Browser, Route, async_playwright
 
 # --- Browser pool: เปิดครั้งเดียว ใช้ซ้ำ + จำกัด concurrency ป้องกัน RAM พุ่ง ---
-browser_instance: Browser = None
+browser_instance: Optional[Browser] = None
 playwright_instance = None
-_SCRAPE_SEMAPHORE = asyncio.Semaphore(3)
+_scrape_semaphore: Optional[asyncio.Semaphore] = None
 _BLOCKED_RESOURCE_TYPES = frozenset({"image", "media", "font"})
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global browser_instance, playwright_instance
+    global browser_instance, playwright_instance, _scrape_semaphore
+    _scrape_semaphore = asyncio.Semaphore(3)
     playwright_instance = await async_playwright().start()
     browser_instance = await playwright_instance.chromium.launch(
         headless=True,
@@ -58,10 +60,11 @@ async def healthz():
 @app.get("/scrape")
 async def scrape(
     url: str = Query(..., description="URL to scrape"),
-    wait_tag: str | None = Query("body", description="CSS selector to wait for"),
+    wait_tag: Optional[str] = Query("body", description="CSS selector to wait for"),  # noqa: UP045
     wait_ms: int = Query(2000, description="Milliseconds to wait after tag appears")
 ):
-    async with _SCRAPE_SEMAPHORE:
+    sem = _scrape_semaphore or asyncio.Semaphore(3)
+    async with sem:
         context = None
         page = None
         try:

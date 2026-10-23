@@ -132,6 +132,10 @@ class InMemoryNewsRepository(NewsRepositoryPort):
                 return dict(a)
         return None
 
+    def get_by_urls(self, urls: list[str]) -> list[dict[str, Any]]:
+        url_set = {u.strip() for u in urls if u}
+        return [dict(a) for a in self._news if a.get("url") in url_set]
+
     def count_news(self) -> int:
         return len(self._news)
 
@@ -338,9 +342,13 @@ def client_with_data(sample_test_data: tuple[list[StoryRecord], list[dict[str, A
     app.dependency_overrides[get_trending_service] = lambda: trending_service
     app.dependency_overrides[get_story_presentation_service] = lambda: presentation_service
 
+    from backend.routers.trending_router import trending_cache
+    trending_cache._cache.clear()
+
     with TestClient(app) as test_client:
         yield test_client
 
+    trending_cache._cache.clear()
     app.dependency_overrides.clear()
 
 

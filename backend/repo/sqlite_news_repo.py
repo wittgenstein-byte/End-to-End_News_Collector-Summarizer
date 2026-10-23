@@ -97,10 +97,17 @@ class SqliteNewsRepository:
                         story_id TEXT,
                         image_url TEXT DEFAULT '',
                         classification_method TEXT DEFAULT '',
-                        sentiment TEXT
+                        sentiment TEXT,
+                        canonical_url TEXT
                     );
                     """
                 )
+
+                # Ensure canonical_url column exists in existing database schemas
+                cursor = conn.execute("PRAGMA table_info(articles);")
+                columns = [row[1] for row in cursor.fetchall()]
+                if "canonical_url" not in columns:
+                    conn.execute("ALTER TABLE articles ADD COLUMN canonical_url TEXT;")
 
                 # 2. Decoupled heavy content table (loaded on demand for reading/summarizing)
                 conn.execute(
@@ -126,7 +133,20 @@ class SqliteNewsRepository:
                     """
                 )
 
-                # 4. Covering B-Tree Indexes
+                # 4. Canonical Article Index (Contract B Idempotency)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS canonical_article_index (
+                        canonical_url TEXT PRIMARY KEY,
+                        primary_raw_url TEXT NOT NULL,
+                        story_id TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                    """
+                )
+
+                # 5. Covering B-Tree Indexes
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_articles_fetched_at ON articles(fetched_at DESC);"
                 )
@@ -142,6 +162,41 @@ class SqliteNewsRepository:
                 conn.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_url ON articles(url);"
                 )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_articles_canonical_url ON articles(canonical_url);"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_canonical_story_id ON canonical_article_index(story_id);"
+                )
+
+                # Non-destructive migration: populate canonical_url if null or blank
+                unmigrated = conn.execute(
+                    "SELECT url, story_id, fetched_at FROM articles WHERE canonical_url IS NULL OR canonical_url = '';"
+                ).fetchall()
+                if unmigrated:
+                    from backend.core.url_utils import canonicalize_url
+
+                    for row in unmigrated:
+                        raw_u = row["url"]
+                        sid = row["story_id"]
+                        f_at = (
+                            row["fetched_at"]
+                            if row["fetched_at"]
+                            else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                        )
+                        c_u = canonicalize_url(raw_u)
+                        conn.execute("UPDATE articles SET canonical_url = ? WHERE url = ?;", (c_u, raw_u))
+                        conn.execute(
+                            """
+                            INSERT INTO canonical_article_index (
+                                canonical_url, primary_raw_url, story_id, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(canonical_url) DO UPDATE SET
+                                story_id = COALESCE(NULLIF(canonical_article_index.story_id, ''), excluded.story_id),
+                                updated_at = excluded.updated_at;
+                            """,
+                            (c_u, raw_u, sid, f_at, f_at),
+                        )
 
     # ── News Operations ──────────────────────────────────────────
 
@@ -179,7 +234,10 @@ class SqliteNewsRepository:
         if not articles:
             return
 
+        from backend.core.url_utils import canonicalize_url
+
         article_rows = []
+        canonical_rows = []
         content_rows = []
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -188,18 +246,33 @@ class SqliteNewsRepository:
             if not url:
                 continue
 
+            canon_url = str(art.get("canonical_url") or "").strip() or canonicalize_url(url)
+            story_id = art.get("story_id")
+            fetched_at = str(art.get("fetched_at") or now_str)
+
             article_rows.append(
                 (
                     url,
                     str(art.get("title") or ""),
                     str(art.get("source") or ""),
-                    str(art.get("fetched_at") or now_str),
+                    fetched_at,
                     str(art.get("summary") or ""),
                     art.get("category"),
-                    art.get("story_id"),
+                    story_id,
                     str(art.get("image_url") or ""),
                     str(art.get("classification_method") or ""),
                     art.get("sentiment"),
+                    canon_url,
+                )
+            )
+
+            canonical_rows.append(
+                (
+                    canon_url,
+                    url,
+                    story_id,
+                    fetched_at,
+                    now_str,
                 )
             )
 
@@ -224,28 +297,42 @@ class SqliteNewsRepository:
         with self._write_lock:
             conn = self._get_connection()
             with conn:
-                # 1. Upsert metadata
+                # 1. Upsert metadata (Preserve existing non-empty story_id)
                 conn.executemany(
                     """
                     INSERT INTO articles (
                         url, title, source, fetched_at, summary, category,
-                        story_id, image_url, classification_method, sentiment
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        story_id, image_url, classification_method, sentiment, canonical_url
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(url) DO UPDATE SET
                         title = excluded.title,
                         source = excluded.source,
                         fetched_at = excluded.fetched_at,
                         summary = excluded.summary,
                         category = excluded.category,
-                        story_id = excluded.story_id,
+                        story_id = COALESCE(NULLIF(articles.story_id, ''), NULLIF(excluded.story_id, '')),
                         image_url = excluded.image_url,
                         classification_method = excluded.classification_method,
-                        sentiment = excluded.sentiment;
+                        sentiment = excluded.sentiment,
+                        canonical_url = excluded.canonical_url;
                     """,
                     article_rows,
                 )
 
-                # 2. Upsert decoupled content if provided
+                # 2. Upsert canonical article index
+                conn.executemany(
+                    """
+                    INSERT INTO canonical_article_index (
+                        canonical_url, primary_raw_url, story_id, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(canonical_url) DO UPDATE SET
+                        story_id = COALESCE(NULLIF(canonical_article_index.story_id, ''), excluded.story_id),
+                        updated_at = excluded.updated_at;
+                    """,
+                    canonical_rows,
+                )
+
+                # 3. Upsert decoupled content if provided
                 if content_rows:
                     conn.executemany(
                         """
@@ -261,6 +348,137 @@ class SqliteNewsRepository:
                         """,
                         content_rows,
                     )
+
+    def get_by_urls(self, urls: list[str]) -> list[dict[str, Any]]:
+        """Fetch article records matching raw URLs or canonical URLs."""
+        if not urls:
+            return []
+        from backend.core.url_utils import canonicalize_url
+
+        raw_set = {u.strip() for u in urls if u and u.strip()}
+        canon_set = {canonicalize_url(u) for u in raw_set if canonicalize_url(u)}
+        all_targets = list(raw_set | canon_set)
+        if not all_targets:
+            return []
+
+        conn = self._get_connection()
+        placeholders = ",".join("?" for _ in all_targets)
+        cursor = conn.execute(
+            f"""
+            SELECT url, title, source, fetched_at, summary, category, story_id,
+                   image_url, classification_method, sentiment, canonical_url
+            FROM articles
+            WHERE url IN ({placeholders}) OR canonical_url IN ({placeholders});
+            """,
+            all_targets + all_targets,
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_assigned_story_id(self, url: str) -> str | None:
+        """Lookup persistent story_id by raw or canonical URL."""
+        if not url:
+            return None
+        from backend.core.url_utils import canonicalize_url
+
+        raw_u = url.strip()
+        canon_u = canonicalize_url(raw_u)
+
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
+            SELECT story_id FROM canonical_article_index
+            WHERE canonical_url = ? OR primary_raw_url = ?
+            LIMIT 1;
+            """,
+            (canon_u, raw_u),
+        )
+        row = cursor.fetchone()
+        if row and row["story_id"]:
+            return row["story_id"]
+
+        cursor2 = conn.execute(
+            """
+            SELECT story_id FROM articles
+            WHERE canonical_url = ? OR url = ?
+            LIMIT 1;
+            """,
+            (canon_u, raw_u),
+        )
+        row2 = cursor2.fetchone()
+        return row2["story_id"] if row2 and row2["story_id"] else None
+
+    def update_story_ids_batch(
+        self,
+        url_to_story_id: dict[str, str],
+        allow_overwrite: bool = False,
+    ) -> dict[str, str]:
+        """
+        Contract B: Atomically assign story_id mappings inside BEGIN IMMEDIATE transaction.
+        Updates canonical_article_index and articles table.
+        Returns the resolved authoritative mapping {url: authoritative_story_id}.
+        """
+        if not url_to_story_id:
+            return {}
+
+        from backend.core.url_utils import canonicalize_url
+
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        resolved: dict[str, str] = {}
+
+        with self._write_lock:
+            conn = self._get_connection()
+            conn.execute("BEGIN IMMEDIATE;")
+            try:
+                for raw_url, target_story_id in url_to_story_id.items():
+                    raw_u = raw_url.strip()
+                    if not raw_u or not target_story_id:
+                        continue
+                    canon_u = canonicalize_url(raw_u)
+
+                    # 1. Claim or get in canonical_article_index
+                    conn.execute(
+                        """
+                        INSERT INTO canonical_article_index (
+                            canonical_url, primary_raw_url, story_id, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(canonical_url) DO UPDATE SET
+                            story_id = CASE
+                                WHEN ? = 1 THEN excluded.story_id
+                                ELSE COALESCE(NULLIF(canonical_article_index.story_id, ''), excluded.story_id)
+                            END,
+                            updated_at = excluded.updated_at;
+                        """,
+                        (canon_u, raw_u, target_story_id, now_str, now_str, 1 if allow_overwrite else 0),
+                    )
+
+                    # Read back authoritative story_id
+                    cursor = conn.execute(
+                        "SELECT story_id FROM canonical_article_index WHERE canonical_url = ?;",
+                        (canon_u,),
+                    )
+                    row = cursor.fetchone()
+                    auth_story_id = row["story_id"] if row and row["story_id"] else target_story_id
+                    resolved[raw_u] = auth_story_id
+
+                    # 2. Update matching rows in articles table
+                    conn.execute(
+                        """
+                        UPDATE articles
+                        SET story_id = CASE
+                            WHEN ? = 1 THEN ?
+                            ELSE COALESCE(NULLIF(articles.story_id, ''), ?)
+                        END
+                        WHERE canonical_url = ? OR url = ?;
+                        """,
+                        (1 if allow_overwrite else 0, auth_story_id, auth_story_id, canon_u, raw_u),
+                    )
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+        return resolved
 
     def query_news(
         self,

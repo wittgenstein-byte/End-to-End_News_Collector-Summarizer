@@ -15,13 +15,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from backend.core.file_lock import InterProcessFileLock
 from backend.schemas.macro_event_schema import MacroEventRecord
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ class MacroEventRepositoryPort(Protocol):
         self,
         since_time: datetime,
         anchor: str | None = None,
+        max_anchor_episode_days: int = 45,
     ) -> list[MacroEventRecord]: ...
 
     def get_macro_event_by_child_id(self, child_id: str) -> MacroEventRecord | None: ...
@@ -59,6 +62,125 @@ class MacroEventRepositoryPort(Protocol):
     def delete_macro_event(self, macro_id: str) -> bool: ...
 
     def clear_all(self) -> None: ...
+
+
+# ── Concrete Implementation: InMemoryMacroEventRepository ──────────
+
+class InMemoryMacroEventRepository:
+    """
+    In-memory mock/test implementation of MacroEventRepositoryPort.
+    Ensures unit tests run isolated without writing to production JSON files.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._macro_events: dict[str, MacroEventRecord] = {}
+        self._child_to_macro_id: dict[str, str] = {}
+
+    def get_macro_event(self, macro_id: str) -> MacroEventRecord | None:
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return None
+        with self._lock:
+            record = self._macro_events.get(clean_id)
+            return record.model_copy(deep=True) if record else None
+
+    def save_macro_event(self, macro: MacroEventRecord) -> None:
+        with self._lock:
+            rec = macro.model_copy(deep=True)
+            self._macro_events[rec.macro_event_id] = rec
+            for cid in rec.child_event_ids:
+                self._child_to_macro_id[cid] = rec.macro_event_id
+
+    def save_macro_events_batch(self, macros: list[MacroEventRecord]) -> None:
+        with self._lock:
+            for m in macros:
+                self.save_macro_event(m)
+
+    def list_macro_events(
+        self,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[MacroEventRecord]:
+        with self._lock:
+            records = list(self._macro_events.values())
+            if status and status.lower() != "all":
+                records = [r for r in records if r.status == status.lower()]
+            records.sort(key=lambda r: r.updated_at, reverse=True)
+            return [r.model_copy(deep=True) for r in records[offset : offset + limit]]
+
+    def find_candidate_macro_events(
+        self,
+        since_time: datetime,
+        anchor: str | None = None,
+        max_anchor_episode_days: int = 45,
+    ) -> list[MacroEventRecord]:
+        since_utc = (
+            since_time.replace(tzinfo=timezone.utc)
+            if since_time.tzinfo is None
+            else since_time.astimezone(timezone.utc)
+        )
+        clean_anchor = anchor.strip().lower() if anchor else None
+        with self._lock:
+            candidates: list[MacroEventRecord] = []
+            for m in self._macro_events.values():
+                m_act = m.last_activity_at or m.updated_at
+                m_act_utc = (
+                    m_act.replace(tzinfo=timezone.utc)
+                    if m_act.tzinfo is None
+                    else m_act.astimezone(timezone.utc)
+                )
+                time_match = m_act_utc >= since_utc
+                anchor_match = False
+                m_anchors = [
+                    a.lower() for a in (m.storyline_anchor, m.named_crisis_anchor) if a
+                ]
+                if (
+                    clean_anchor
+                    and m_anchors
+                    and any(clean_anchor in ma or ma in clean_anchor for ma in m_anchors)
+                    and (since_utc - timedelta(days=max_anchor_episode_days) <= m_act_utc <= since_utc + timedelta(days=max_anchor_episode_days + 14))
+                ):
+                    anchor_match = True
+                if time_match or anchor_match:
+                    candidates.append(m.model_copy(deep=True))
+            candidates.sort(key=lambda r: r.updated_at, reverse=True)
+            return candidates
+
+    def get_macro_event_by_child_id(self, child_id: str) -> MacroEventRecord | None:
+        clean_cid = child_id.strip() if child_id else ""
+        if not clean_cid:
+            return None
+        with self._lock:
+            mid = self._child_to_macro_id.get(clean_cid)
+            if mid and mid in self._macro_events:
+                return self._macro_events[mid].model_copy(deep=True)
+            return None
+
+    def count_macro_events(self, status: str | None = None) -> int:
+        with self._lock:
+            if not status or status.lower() == "all":
+                return len(self._macro_events)
+            return sum(1 for m in self._macro_events.values() if m.status == status.lower())
+
+    def delete_macro_event(self, macro_id: str) -> bool:
+        clean_id = macro_id.strip() if macro_id else ""
+        if not clean_id:
+            return False
+        with self._lock:
+            if clean_id in self._macro_events:
+                m = self._macro_events.pop(clean_id)
+                for cid in m.child_event_ids:
+                    if self._child_to_macro_id.get(cid) == clean_id:
+                        del self._child_to_macro_id[cid]
+                return True
+            return False
+
+    def clear_all(self) -> None:
+        with self._lock:
+            self._macro_events.clear()
+            self._child_to_macro_id.clear()
 
 
 # ── Concrete Implementation: FileMacroEventRepository ─────────────
@@ -72,6 +194,7 @@ class FileMacroEventRepository:
     def __init__(self, data_file: Path) -> None:
         self._data_file = Path(data_file)
         self._lock = threading.RLock()
+        self._file_lock = InterProcessFileLock(self._data_file.with_suffix(self._data_file.suffix + ".lock"))
         self._macro_events: dict[str, MacroEventRecord] = {}
         self._child_to_macro_id: dict[str, str] = {}
         self._last_mtime: float | None = None
@@ -86,23 +209,24 @@ class FileMacroEventRepository:
             return None
         with self._lock:
             self._sync_cache()
-            return self._macro_events.get(clean_id)
+            rec = self._macro_events.get(clean_id)
+            return rec.model_copy(deep=True) if rec is not None else None
 
     def save_macro_event(self, macro: MacroEventRecord) -> None:
-        """Save or update a single macro-event with atomic disk write."""
-        with self._lock:
+        """Save or update a single macro-event with atomic disk write and cross-process lock."""
+        with self._lock, self._file_lock:
             self._sync_cache()
-            self._upsert_in_memory(macro)
+            self._upsert_in_memory(macro.model_copy(deep=True))
             self._persist_to_disk()
 
     def save_macro_events_batch(self, macros: list[MacroEventRecord]) -> None:
         """Batch save multiple macro-events with a single atomic disk write."""
         if not macros:
             return
-        with self._lock:
+        with self._lock, self._file_lock:
             self._sync_cache()
             for m in macros:
-                self._upsert_in_memory(m)
+                self._upsert_in_memory(m.model_copy(deep=True))
             self._persist_to_disk()
 
     def list_macro_events(
@@ -121,18 +245,19 @@ class FileMacroEventRepository:
                 items = [m for m in items if m.status.lower() == target_status]
 
             items.sort(key=self._sort_key_updated_at, reverse=True)
-            return items[offset : offset + limit]
+            return [m.model_copy(deep=True) for m in items[offset : offset + limit]]
 
     def find_candidate_macro_events(
         self,
         since_time: datetime,
         anchor: str | None = None,
+        max_anchor_episode_days: int = 45,
     ) -> list[MacroEventRecord]:
         """
         Query candidate macro-events:
         1. Macro-events active/updated since since_time (e.g. within 14 days)
-        2. PLUS any macro-event whose named_crisis_anchor matches the provided anchor
-           (allows long-running multi-week crisis re-linking)
+        2. PLUS any macro-event whose named_crisis_anchor/storyline_anchor matches the provided anchor
+           within the max_anchor_episode_days episode window.
         """
         since_utc = self._normalize_datetime(since_time)
         clean_anchor = anchor.strip().lower() if anchor else ""
@@ -151,11 +276,19 @@ class FileMacroEventRepository:
                 time_matched = m_activity >= since_utc or m_updated >= since_utc
 
                 anchor_matched = False
-                if clean_anchor and m.named_crisis_anchor:
-                    anchor_matched = clean_anchor in m.named_crisis_anchor.lower()
+                m_anchors = [
+                    a.lower() for a in (m.storyline_anchor, m.named_crisis_anchor) if a
+                ]
+                if (
+                    clean_anchor
+                    and m_anchors
+                    and any(clean_anchor in ma or ma in clean_anchor for ma in m_anchors)
+                    and (since_utc - timedelta(days=max_anchor_episode_days) <= m_activity <= since_utc + timedelta(days=max_anchor_episode_days + 14))
+                ):
+                    anchor_matched = True
 
                 if time_matched or anchor_matched:
-                    candidates.append(m)
+                    candidates.append(m.model_copy(deep=True))
 
             candidates.sort(key=self._sort_key_updated_at, reverse=True)
             return candidates
@@ -169,7 +302,8 @@ class FileMacroEventRepository:
             self._sync_cache()
             macro_id = self._child_to_macro_id.get(clean_cid)
             if macro_id:
-                return self._macro_events.get(macro_id)
+                rec = self._macro_events.get(macro_id)
+                return rec.model_copy(deep=True) if rec is not None else None
             return None
 
     def count_macro_events(self, status: str | None = None) -> int:
@@ -183,7 +317,7 @@ class FileMacroEventRepository:
 
     def clear_all(self) -> None:
         """Reset repository store (used in tests or maintenance)."""
-        with self._lock:
+        with self._lock, self._file_lock:
             self._macro_events.clear()
             self._child_to_macro_id.clear()
             self._persist_to_disk()
@@ -194,7 +328,8 @@ class FileMacroEventRepository:
         if not clean_id:
             return False
         with self._lock:
-            self._sync_cache()
+            with self._file_lock:
+                self._sync_cache()
             old = self._macro_events.pop(clean_id, None)
             if old is not None:
                 for cid in old.child_event_ids:
@@ -445,6 +580,7 @@ class MongoMacroEventRepository:
         self,
         since_time: datetime,
         anchor: str | None = None,
+        max_anchor_episode_days: int = 45,
     ) -> list[MacroEventRecord]:
         import pymongo
 
@@ -456,7 +592,28 @@ class MongoMacroEventRepository:
             {"last_activity_at": {"$gte": since_iso}},
         ]
         if anchor and anchor.strip():
-            or_clauses.append({"named_crisis_anchor": {"$regex": anchor.strip(), "$options": "i"}})
+            esc_anchor = re.escape(anchor.strip())
+            episode_cutoff = since_time - timedelta(days=max_anchor_episode_days)
+            episode_iso = episode_cutoff.isoformat() if isinstance(episode_cutoff, datetime) else str(episode_cutoff)
+            anchor_match: dict[str, Any] = {
+                "$and": [
+                    {
+                        "$or": [
+                            {"named_crisis_anchor": {"$regex": esc_anchor, "$options": "i"}},
+                            {"storyline_anchor": {"$regex": esc_anchor, "$options": "i"}},
+                        ]
+                    },
+                    {
+                        "$or": [
+                            {"last_activity_at": {"$gte": episode_cutoff}},
+                            {"last_activity_at": {"$gte": episode_iso}},
+                            {"updated_at": {"$gte": episode_cutoff}},
+                            {"updated_at": {"$gte": episode_iso}},
+                        ]
+                    },
+                ]
+            }
+            or_clauses.append(anchor_match)
 
         cursor = self._macros.find({"$or": or_clauses}, {"_id": 0}).sort("updated_at", pymongo.DESCENDING)
         return [MacroEventRecord.model_validate(d) for d in cursor]

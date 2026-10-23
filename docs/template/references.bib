@@ -1,0 +1,97 @@
+% =====================================================================
+% รายการอ้างอิง (biblatex + biber) — รูปแบบตาม "การเขียนเอกสารอ้างอิง" ในคู่มือ
+%
+% - อ้างในเนื้อหาด้วย \cite{key}  ระบบเรียงเลขตามลำดับที่อ้างและพิมพ์เฉพาะรายการที่อ้าง
+% - รายการที่ชื่อเรื่องหรือชื่อผู้แต่งเป็นภาษาไทย จัดรูปแบบแบบไทยให้อัตโนมัติ
+%   (ชื่อ นามสกุล, "ค้นเมื่อ ... จาก") กำหนดเองได้ด้วย langid = {thai} หรือ {english}
+% - ชื่อผู้แต่งไทย: เขียน "ชื่อ นามสกุล" (ไม่ใส่จุลภาค) คั่นหลายคนด้วย and
+%   ชื่อผู้แต่งอังกฤษ: "Last, First" หรือ "First Last"
+% - หน่วยงานเป็นผู้แต่ง: ใส่วงเล็บปีกกาสองชั้น เช่น author = {{Docker, Inc.}}
+% - ปีของเอกสารภาษาไทยใช้ พ.ศ.  ของเอกสารภาษาอังกฤษใช้ ค.ศ.
+% - เว็บไซต์: ใช้ @online พร้อม url และ urldate (วันที่ค้น รูปแบบ ปปปป-ดด-วว เป็น ค.ศ.)
+% =====================================================================
+
+% ----- บทความวารสาร (ภาษาไทย) -----
+@article{thesismgmt2023,
+  author  = {สมหญิง รักเรียน and สมศักดิ์ ขยันทำ},
+  title   = {การพัฒนาระบบจัดการวิทยานิพนธ์ออนไลน์สำหรับบัณฑิตวิทยาลัย},
+  journal = {วารสารวิทยาการคอมพิวเตอร์},
+  volume  = {5},
+  number  = {2},
+  pages   = {10--25},
+  year    = {2566}
+}
+
+% ----- บทความในการประชุมวิชาการ -----
+@inproceedings{projmgmt2023,
+  author    = {Somchai, P. and Wichian, K.},
+  title     = {Development of a project management system for software engineering courses},
+  booktitle = {Proceedings of the National Conference on Computer Science},
+  pages     = {100--110},
+  year      = {2023},
+  location  = {Khon Kaen},
+  publisher = {Khon Kaen University}
+}
+
+@inproceedings{swiftlatex2019,
+  author    = {Zhang, Xiao},
+  title     = {{SwiftLaTeX}: Web-based {LaTeX} compilation using {WebAssembly}},
+  booktitle = {Proceedings of the ACM Symposium on Document Engineering},
+  pages     = {1--4},
+  year      = {2019},
+  location  = {New York},
+  publisher = {ACM}
+}
+
+% ----- วิทยานิพนธ์ -----
+@phdthesis{fielding2000,
+  author      = {Fielding, Roy Thomas},
+  title       = {Architectural styles and the design of network-based software architectures},
+  institution = {University of California, Irvine},
+  year        = {2000}
+}
+
+% ----- หนังสือ (พิมพ์ครั้งที่ 2 ขึ้นไปใส่ edition) -----
+@book{latex2023,
+  author    = {Mittelbach, Frank and Fischer, Ulrike},
+  title     = {The {LaTeX} Companion},
+  edition   = {3},
+  location  = {Boston},
+  publisher = {Addison-Wesley},
+  year      = {2023}
+}
+
+% ----- หนังสือภาษาไทย (ตัวอย่าง ยังไม่ได้อ้างในเนื้อหา) -----
+@book{thaibook2565,
+  author    = {ชื่อ นามสกุล},
+  title     = {การออกแบบและพัฒนาเว็บแอปพลิเคชัน},
+  edition   = {2},
+  location  = {กรุงเทพฯ},
+  publisher = {สำนักพิมพ์ตัวอย่าง},
+  year      = {2565}
+}
+
+% ----- เว็บไซต์ -----
+@online{overleaf2024,
+  author  = {{Overleaf}},
+  title   = {Overleaf: Online {LaTeX} editor},
+  year    = {2024},
+  url     = {https://www.overleaf.com},
+  urldate = {2024-12-01}
+}
+
+@online{docker2024,
+  author  = {{Docker, Inc.}},
+  title   = {Docker documentation},
+  year    = {2024},
+  url     = {https://docs.docker.com/get-started/},
+  urldate = {2024-12-01}
+}
+
+@online{cocalc2024,
+  author  = {{SageMath, Inc.}},
+  title   = {{CoCalc}: Collaborative calculation and data science},
+  year    = {2024},
+  url     = {https://cocalc.com},
+  urldate = {2024-12-01}
+}

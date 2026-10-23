@@ -20,10 +20,13 @@ import argparse
 import json
 import logging
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 # Reconfigure stdout and stderr for UTF-8 encoding support on Windows cp1252 consoles
 if hasattr(sys.stdout, "reconfigure"):
@@ -36,10 +39,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from backend.repo.macro_event_repo import InMemoryMacroEventRepository
 from backend.repo.story_repo import StoryRepositoryPort
 from backend.schemas.news_schema import ArticleRecord
 from backend.schemas.story_schema import StoryRecord
 from backend.services.entity_extractor import EntityExtractor, get_entity_extractor
+from backend.services.macro_event_service import MacroEventService
 from backend.services.story_service import StoryService
 from backend.services.trending_service import (
     SemanticClusterer,
@@ -312,11 +317,11 @@ def build_or_load_eval_dataset(
         if (
             "น่าน" in t
             and any(kw in (t + s) for kw in ("น้ำท่วม", "ดินโคลน", "ฝาย", "เยียวยา", "เพื่อนพึ่ง", "ข่าวปลอม", "ปัว", "ธงน้อย"))
+            and add_match(a, "story_nan_floods_crisis")
         ):
-            if add_match(a, "story_nan_floods_crisis"):
-                c_flood += 1
-                if c_flood >= 28:
-                    break
+            c_flood += 1
+            if c_flood >= 28:
+                break
 
     # 2. story_senate_collusion (Senate collusion investigation event across politics)
     # Real event spanning Aug 24 - Aug 28. Target: 15 articles
@@ -327,11 +332,11 @@ def build_or_load_eval_dataset(
         if (
             any(sw in t for sw in ("สว.", "ส.ว.", "วุฒิสภา", "ผู้สมัคร สว"))
             and any(kw in (t + s) for kw in ("ฮั้ว", "กกต.", "ไอลอว์", "iLaw", "1,767", "1767", "229", "ปิดสำนวน", "ป.ป.ช."))
+            and add_match(a, "story_senate_collusion")
         ):
-            if add_match(a, "story_senate_collusion"):
-                c_senate += 1
-                if c_senate >= 15:
-                    break
+            c_senate += 1
+            if c_senate >= 15:
+                break
 
     # 3. story_pattani_pho_ming_bomb (Pattani Pho Ming municipal office arson and bomb attack)
     # Target: 4 articles
@@ -339,24 +344,28 @@ def build_or_load_eval_dataset(
     for a in raw_articles:
         t = str(a.get("title") or "")
         s = str(a.get("summary") or "")
-        if "พ่อมิ่ง" in t or "พ่อมิ่ง" in s or (
-            "ปัตตานี" in t and ("ระเบิด" in t or "วางเพลิง" in t or "เผา" in t) and ("เทศบาล" in t or "อบต." in t)
-        ):
-            if add_match(a, "story_pattani_pho_ming_bomb"):
-                c_bomb += 1
-                if c_bomb >= 4:
-                    break
+        if (
+            "พ่อมิ่ง" in t
+            or "พ่อมิ่ง" in s
+            or ("ปัตตานี" in t and ("ระเบิด" in t or "วางเพลิง" in t or "เผา" in t) and ("เทศบาล" in t or "อบต." in t))
+        ) and add_match(a, "story_pattani_pho_ming_bomb"):
+            c_bomb += 1
+            if c_bomb >= 4:
+                break
 
     # 4. story_paralympics_paris_2024 (Paris 2024 Paralympics preparation)
     # Target: 3 articles
     c_para = 0
     for a in raw_articles:
         t = str(a.get("title") or "")
-        if ("พาราลิมปิก" in t or "พาราลิมปิกเกมส์" in t) and "2024" in t:
-            if add_match(a, "story_paralympics_paris_2024"):
-                c_para += 1
-                if c_para >= 3:
-                    break
+        if (
+            ("พาราลิมปิก" in t or "พาราลิมปิกเกมส์" in t)
+            and "2024" in t
+            and add_match(a, "story_paralympics_paris_2024")
+        ):
+            c_para += 1
+            if c_para >= 3:
+                break
 
     # 5. story_gold_price_2026_08_24 (Routine daily gold price report on 2026-08-24)
     # Target: 3 articles
@@ -364,11 +373,14 @@ def build_or_load_eval_dataset(
     for a in raw_articles:
         t = str(a.get("title") or "")
         f = str(a.get("fetched_at") or "")
-        if ("ราคาทอง" in t or "ทองคำ" in t) and "2026-08-24" in f:
-            if add_match(a, "story_gold_price_2026_08_24"):
-                c_g1 += 1
-                if c_g1 >= 3:
-                    break
+        if (
+            ("ราคาทอง" in t or "ทองคำ" in t)
+            and "2026-08-24" in f
+            and add_match(a, "story_gold_price_2026_08_24")
+        ):
+            c_g1 += 1
+            if c_g1 >= 3:
+                break
 
     # 6. story_gold_price_2026_08_28 (Routine daily gold price report on 2026-08-28)
     # Target: 3 articles
@@ -376,11 +388,14 @@ def build_or_load_eval_dataset(
     for a in raw_articles:
         t = str(a.get("title") or "")
         f = str(a.get("fetched_at") or "")
-        if ("ราคาทอง" in t or "ทองคำ" in t) and "2026-08-28" in f:
-            if add_match(a, "story_gold_price_2026_08_28"):
-                c_g2 += 1
-                if c_g2 >= 3:
-                    break
+        if (
+            ("ราคาทอง" in t or "ทองคำ" in t)
+            and "2026-08-28" in f
+            and add_match(a, "story_gold_price_2026_08_28")
+        ):
+            c_g2 += 1
+            if c_g2 >= 3:
+                break
 
     # 7. story_gold_price_2026_09_02 (Routine daily gold price report on 2026-09-02)
     # Target: 3 articles
@@ -388,11 +403,14 @@ def build_or_load_eval_dataset(
     for a in raw_articles:
         t = str(a.get("title") or "")
         f = str(a.get("fetched_at") or "")
-        if ("ราคาทอง" in t or "ทองคำ" in t) and "2026-09-02" in f:
-            if add_match(a, "story_gold_price_2026_09_02"):
-                c_g3 += 1
-                if c_g3 >= 3:
-                    break
+        if (
+            ("ราคาทอง" in t or "ทองคำ" in t)
+            and "2026-09-02" in f
+            and add_match(a, "story_gold_price_2026_09_02")
+        ):
+            c_g3 += 1
+            if c_g3 >= 3:
+                break
 
     # 8. story_fuel_price_2026_08_24 (Routine retail fuel price change on 2026-08-24)
     # Target: 3 articles
@@ -400,11 +418,14 @@ def build_or_load_eval_dataset(
     for a in raw_articles:
         t = str(a.get("title") or "")
         f = str(a.get("fetched_at") or "")
-        if ("ราคาน้ำมัน" in t or "น้ำมันขายปลีก" in t) and "2026-08-24" in f:
-            if add_match(a, "story_fuel_price_2026_08_24"):
-                c_f1 += 1
-                if c_f1 >= 3:
-                    break
+        if (
+            ("ราคาน้ำมัน" in t or "น้ำมันขายปลีก" in t)
+            and "2026-08-24" in f
+            and add_match(a, "story_fuel_price_2026_08_24")
+        ):
+            c_f1 += 1
+            if c_f1 >= 3:
+                break
 
     # 9. Singletons & Routine Distractors across categories
     # Target: 52 distinct singleton articles to reach exactly 114 total articles
@@ -566,6 +587,128 @@ def evaluate_story_service(
         "bcubed": bcubed,
     }
     return results, {"predictions": predictions}
+
+
+# ── Stage B (Macro-Event / Storyline) Evaluation & Calibration ────
+
+def evaluate_stage_b_macro_identification(
+    stories: list[StoryRecord],
+    ground_truth_macro_ids: list[str],
+    macro_service: MacroEventService | None = None,
+) -> dict[str, Any]:
+    """
+    Evaluate Stage B (Macro-Event / Storyline Identification):
+    - False Link Rate: FP / (FP + TN) and FP / (TP + FP)
+    - False Split Rate: FN / (TP + FN)
+    - Pending Rate: percentage of stories in 'pending_macro'
+    - Latency distribution: p50, p95, p99, mean latency in ms
+    """
+    if macro_service is None:
+        macro_repo = InMemoryMacroEventRepository()
+        story_repo = InMemoryStoryRepository()
+        for s in stories:
+            story_repo.save_story(s)
+        macro_service = MacroEventService(macro_repo=macro_repo, story_repo=story_repo)
+
+    latencies_ms: list[float] = []
+    predicted_macro_ids: list[str] = []
+    pending_count = 0
+
+    for story in stories:
+        t0 = time.perf_counter()
+        macro, _ = macro_service.assign_event(story)
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        latencies_ms.append(elapsed_ms)
+
+        if macro is not None:
+            predicted_macro_ids.append(macro.macro_event_id)
+        else:
+            predicted_macro_ids.append(f"pending_{story.story_id}")
+            pending_count += 1
+
+    pairwise = calculate_pairwise_metrics(ground_truth_macro_ids, predicted_macro_ids)
+    bcubed = calculate_bcubed_metrics(ground_truth_macro_ids, predicted_macro_ids)
+
+    tp = pairwise["tp"]
+    fp = pairwise["fp"]
+    fn = pairwise["fn"]
+    tn = pairwise["tn"]
+
+    false_link_rate = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
+    false_split_rate = float(fn / (tp + fn)) if (tp + fn) > 0 else 0.0
+    pending_rate = float(pending_count / len(stories)) if stories else 0.0
+
+    p50 = float(np.percentile(latencies_ms, 50)) if latencies_ms else 0.0
+    p95 = float(np.percentile(latencies_ms, 95)) if latencies_ms else 0.0
+    p99 = float(np.percentile(latencies_ms, 99)) if latencies_ms else 0.0
+    mean_lat = float(np.mean(latencies_ms)) if latencies_ms else 0.0
+
+    return {
+        "total_events": len(stories),
+        "pairwise": pairwise,
+        "bcubed": bcubed,
+        "false_link_rate": false_link_rate,
+        "false_split_rate": false_split_rate,
+        "pending_rate": pending_rate,
+        "latency_ms": {
+            "p50": p50,
+            "p95": p95,
+            "p99": p99,
+            "mean": mean_lat,
+        },
+    }
+
+
+def calibrate_macro_thresholds(
+    stories: list[StoryRecord],
+    ground_truth_macro_ids: list[str],
+    link_candidates: list[float] | None = None,
+    margin_candidates: list[float] | None = None,
+) -> dict[str, Any]:
+    """
+    Grid sweep over link_threshold and margin_threshold on Thai dataset
+    to identify optimal threshold configuration minimizing False Link Rate
+    while maximizing B-cubed F1.
+    """
+    links = link_candidates or [0.58, 0.62, 0.66]
+    margins = margin_candidates or [0.03, 0.05, 0.08]
+
+    best_config: dict[str, Any] = {}
+    best_f1 = -1.0
+    all_runs: list[dict[str, Any]] = []
+
+    for link_th in links:
+        for margin_th in margins:
+            macro_repo = InMemoryMacroEventRepository()
+            story_repo = InMemoryStoryRepository()
+            for s in stories:
+                story_repo.save_story(s.model_copy(deep=True))
+            svc = MacroEventService(
+                macro_repo=macro_repo,
+                story_repo=story_repo,
+                link_threshold=link_th,
+                margin_threshold=margin_th,
+            )
+            res = evaluate_stage_b_macro_identification(stories, ground_truth_macro_ids, macro_service=svc)
+            b3_f1 = res["bcubed"]["f1"]
+            run_info = {
+                "link_threshold": link_th,
+                "margin_threshold": margin_th,
+                "bcubed_f1": b3_f1,
+                "false_link_rate": res["false_link_rate"],
+                "false_split_rate": res["false_split_rate"],
+                "pending_rate": res["pending_rate"],
+                "latency_p95_ms": res["latency_ms"]["p95"],
+            }
+            all_runs.append(run_info)
+            if b3_f1 > best_f1:
+                best_f1 = b3_f1
+                best_config = run_info
+
+    return {
+        "best_configuration": best_config,
+        "grid_results": all_runs,
+    }
 
 
 # ── CLI & Report Generator ────────────────────────────────────────
