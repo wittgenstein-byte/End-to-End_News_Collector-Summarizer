@@ -1,318 +1,976 @@
 % =============================================================
-% บทที่ 4 - การวิเคราะห์ ออกแบบ และพัฒนาระบบ
+% บทที่ 4 การวิเคราะห์ระบบ และพัฒนาโปรแกรม
 % =============================================================
 
 % -----------------------------------------------------------
 \section{การวิเคราะห์ระบบ}
 % -----------------------------------------------------------
 
-\subsection{ผังแสดงทิศทางของกิจกรรม (Activity Flow)}
+บทนี้ศึกษาทำความเข้าใจปัญหาและความต้องการของผู้มีส่วนได้ส่วนเสีย การกำหนดขอบเขตและคุณลักษณะที่ระบบต้องตอบสนอง และสังเคราะห์ประเด็นข่าวภาษาไทย
 
-ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติทำงานในลักษณะกระบวนการแบบต่อเนื่อง (Data Pipeline) โดยเริ่มตั้งแต่การดึงข้อมูลจากแหล่งข่าว การประมวลผลและการสกัดข้อมูล การสรุปเนื้อหาและจำแนกหมวดหมู่ ไปจนถึงการบันทึกลงหน่วยจัดเก็บและการกระจายข้อมูลแบบเรียลไทม์ไปยังส่วนติดต่อผู้ใช้ ดังแสดงในผังกิจกรรม (Activity Diagram) ภาพที่~\ref{fig:activity_diagram}
+\subsection{ผู้ใช้งานระบบและสิทธิ์การเข้าถึง}
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    node distance=1.1cm and 2.0cm,
-    font=\small,
-    startstop/.style={draw, circle, fill=black, inner sep=0pt, minimum size=0.4cm},
-    endstop/.style={draw, double, circle, fill=black, inner sep=0pt, minimum size=0.4cm},
-    activity/.style={draw, rectangle, rounded corners=4pt, minimum width=3.8cm, minimum height=0.8cm, align=center, fill=blue!8, thick},
-    decision/.style={draw, diamond, aspect=2, minimum width=2.4cm, minimum height=0.8cm, align=center, fill=yellow!15, thick},
-    arrow/.style={thick, ->, >=stealth}
-]
-
-% Nodes
-\node[startstop] (start) {};
-\node[activity, below=0.6cm of start] (scrape) {วนรอบตรวจจับและดึงข่าว\\(Periodic Scraper Trigger)};
-\node[activity, below=0.7cm of scrape] (fetch) {ดึงข้อมูลหน้าเว็บ/RSS\\(Playwright / httpx)};
-\node[decision, below=0.7cm of fetch] (dup) {ข่าวซ้ำหรือไม่?\\(URL / Hash Check)};
-\node[activity, below=0.9cm of dup] (extract) {สกัดเนื้อหาหลักบทความ\\(Trafilatura / BeautifulSoup)};
-\node[activity, below=0.7cm of extract] (classify) {ตัดคำ \& จำแนก 9 หมวดหมู่\\(3-Tier Cascade Classifier)};
-\node[activity, below=0.7cm of classify] (summarize) {สรุปความ \& วิเคราะห์ Sentiment\\(KKU Gen.AI / Gemini)};
-\node[activity, below=0.7cm of summarize] (persist) {จัดเก็บข้อมูลลงระบบ \& แคช\\(Repository \& Multi-tier Cache)};
-\node[activity, below=0.7cm of persist] (broadcast) {กระจายสัญญาณข่าวเรียลไทม์\\(Socket.IO \texttt{news:new})};
-\node[activity, below=0.7cm of broadcast] (render) {แสดงผลการ์ดข่าว \& In-app Modal\\(Frontend UI)};
-\node[endstop, below=0.6cm of render] (end) {};
-
-% Connections
-\draw[arrow] (start) -- (scrape);
-\draw[arrow] (scrape) -- (fetch);
-\draw[arrow] (fetch) -- (dup);
-\draw[arrow] (dup) -- node[right] {ไม่ซ้ำ (New)} (extract);
-\draw[arrow] (dup.east) -- ++(1.5,0) |- node[near start, right] {ซ้ำ (Cached)} (scrape.east);
-\draw[arrow] (extract) -- (classify);
-\draw[arrow] (classify) -- (summarize);
-\draw[arrow] (summarize) -- (persist);
-\draw[arrow] (persist) -- (broadcast);
-\draw[arrow] (broadcast) -- (render);
-\draw[arrow] (render) -- (end);
-
-\end{tikzpicture}
-\caption{แผนภาพแสดงทิศทางกิจกรรมของระบบ (Activity Diagram)}
-\label{fig:activity_diagram}
-\end{figure}
-
-\subsection{แผนภาพลำดับขั้นตอนการทำงาน (Sequence Diagram)}
-
-การปฏิสัมพันธ์ระหว่างส่วนประกอบต่าง ๆ ของระบบ ตั้งแต่ฝั่งผู้ใช้งาน เว็บเซิร์ฟเวอร์ บริการสเกรปเปอร์ ปัญญาประดิษฐ์ และระบบกระจายข่าว แสดงดังภาพที่~\ref{fig:sequence_diagram}
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    font=\footnotesize,
-    lifeline/.style={draw, thick, dashed, gray},
-    entity/.style={draw, rectangle, rounded corners=3pt, fill=blue!10, thick, minimum width=2.1cm, minimum height=0.7cm, align=center},
-    msg/.style={thick, ->, >=stealth},
-    retmsg/.style={thick, dashed, ->, >=stealth}
-]
-
-% Entities
-\node[entity] (u) at (0, 0) {User / SPA};
-\node[entity] (r) at (3.1, 0) {FastAPI Router};
-\node[entity] (s) at (6.2, 0) {Scraper Service};
-\node[entity] (c) at (9.3, 0) {Classifier / LLM};
-\node[entity] (db) at (12.4, 0) {Repo / Socket};
-
-% Lifelines
-\draw[lifeline] (u) -- (0, -12.2);
-\draw[lifeline] (r) -- (3.1, -12.2);
-\draw[lifeline] (s) -- (6.2, -12.2);
-\draw[lifeline] (c) -- (9.3, -12.2);
-\draw[lifeline] (db) -- (12.4, -12.2);
-
-% Messages
-\draw[msg] (0, -1.0) -- node[above] {1. GET /api/news} (3.1, -1.0);
-\draw[retmsg] (3.1, -2.0) -- node[above] {2. Return 200/304 JSON} (0, -2.0);
-
-\draw[msg] (6.2, -3.2) -- node[above] {3. Trigger Scrape Loop} (6.2, -3.2);
-\draw[msg] (6.2, -4.3) -- node[above] {4. Fetch HTML/Playwright} (6.2, -4.3);
-
-\draw[msg] (6.2, -5.6) -- node[above] {5. Classify(Text)} (9.3, -5.6);
-\draw[retmsg] (9.3, -6.6) -- node[above] {6. Return 9-Category} (9.3, -6.6);
-
-\draw[msg] (6.2, -7.9) -- node[above] {7. Summarize(Markdown)} (9.3, -7.9);
-\draw[retmsg] (9.3, -8.9) -- node[above] {8. Structured JSON} (6.2, -8.9);
-
-\draw[msg] (6.2, -10.0) -- node[above] {9. Save Article} (12.4, -10.0);
-\draw[msg] (6.2, -11.0) -- node[above] {10. Broadcast news:new} (12.4, -11.0);
-\draw[msg] (12.4, -12.0) -- node[above] {11. Push Event via WebSocket} (0, -12.0);
-
-\end{tikzpicture}
-\caption{แผนภาพลำดับขั้นตอนการทำงานของระบบ (Sequence Diagram)}
-\label{fig:sequence_diagram}
-\end{figure}
-
-\subsection{รายการความต้องการของระบบ}
-
-\subsubsection{ความต้องการเชิงฟังก์ชัน (Functional Requirements)}
-
-ความต้องการเชิงฟังก์ชันของระบบสรุปได้ดังตารางที่~\ref{tab:func_req}
+ผู้ใช้งานระบบได้รับการจำแนกออกเป็น 3 กลุ่มหลัก ดังแสดงในตารางที่~\ref{tab_roles_permissions}
 
 \begin{table}[H]
 \centering
-\caption{ความต้องการเชิงฟังก์ชันของระบบ (Functional Requirements)}
-\label{tab:func_req}
+\caption{บทบาทและสิทธิ์การเข้าถึงระบบ}
+\label{tab_roles_permissions}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4cm}|L{8.5cm}|}
+\begin{tabular}{|L{3.5cm}|L{11.0cm}|}
 \hline
-\textbf{รหัส} & \textbf{ชื่อ Requirement} & \textbf{รายละเอียดความสามารถของระบบ} \\
+\textbf{บทบาท} & \textbf{สิทธิ์การเข้าถึงและการใช้งานระบบ} \\
 \hline
-FR-01 & Automated Multi-source Scraping & ระบบสามารถดึงข้อมูลข่าวจากแหล่งข่าวออนไลน์หลากหลายแหล่ง ทั้งแบบ RSS Feed, เว็บไซต์ HTML ปกติ และเว็บไซต์ที่เรนเดอร์ด้วย JavaScript ผ่าน Playwright \\ \hline
-FR-02 & Dynamic Source Registration & ระบบรองรับการเพิ่ม/ปรับปรุงแหล่งข่าวใหม่ได้อย่างยืดหยุ่นผ่าน Decorator (\texttt{@register\_source}) โดยไม่ต้องแก้ไขโค้ดส่วนประมวลผลหลัก \\ \hline
-FR-03 & 9-Category Thai NLP Classification & ระบบสามารถจำแนกหมวดหมู่ข่าวภาษาไทยออกเป็น 9 หมวดหมู่หลักได้อย่างถูกต้องด้วยเทคนิค 3-Tier Cascade Classifier \\ \hline
-FR-04 & LLM-Powered Summarization & ระบบสามารถสร้างบทสรุปย่อ ประเด็นสำคัญ และวิเคราะห์อารมณ์ของข่าว (Sentiment) โดยใช้โมเดลภาษาขนาดใหญ่ผ่าน KKU Gen.AI API \\ \hline
-FR-05 & Real-time WebSocket Push & ระบบสามารถกระจายข่าวสารใหม่และการอัปเดตสถานะการดึงข่าวไปยังผู้ใช้ทันทีผ่าน Socket.IO โดยผู้ใช้ไม่ต้องรีเฟรชหน้าจอ \\ \hline
-FR-06 & Multi-tier Caching & ระบบมีกลไกจัดเก็บแคชในหน่วยความจำ (\texttt{AsyncInMemoryCache}) และแคชแบบมีเงื่อนไข (HTTP 304) เพื่อลดการดึงข้อมูลซ้ำซ้อนและลดภาระเซิร์ฟเวอร์ \\ \hline
-FR-07 & Engagement Tracking \& Personalization & ระบบบันทึกพฤติกรรมการใช้งาน (การคลิกอ่าน, การขยายบทสรุป, การบันทึกคั่นหน้า) ผ่านคุกกี้เพื่อนำไปประมวลผลจัดอันดับข่าวที่น่าสนใจ (Trending/Recommended) \\ \hline
-FR-08 & In-app Reading Experience & ระบบมีหน้าต่างแสดงผลบทความข่าวและสรุปเนื้อหาในตัวเว็บ (In-app Modal Reader) เพื่อความสะดวกในการอ่าน \\
+ผู้อ่านข่าวทั่วไป\newline (Reader) & เข้าถึงหน้าหลัก Bento Hub ผ่านเว็บเบราว์เซอร์ เรียกดูรายการข่าวสารสดประจำวัน กรองข่าวสารตาม 9 หมวดหมู่หลักและสำนักพิมพ์ ค้นหาข่าวสารด้วยคำสำคัญ เปิดพรีวิวเนื้อหาข่าวในตัวเว็บ (In-App Reader) พร้อมลิงก์ไปยังต้นฉบับเพื่อเคารพลิขสิทธิ์ อ่านบทสรุปเนื้อหาและผลวิเคราะห์อารมณ์ที่สังเคราะห์จากบทความฉบับเต็มด้วยโมเดลภาษาขนาดใหญ่ สำรวจประเด็นข่าวยอดนิยม 6 มิติ สำรวจแฟ้มมหากาพย์ประเด็นข่าวและไทม์ไลน์พัฒนาการเหตุการณ์ บันทึกคั่นหน้าบทความที่สนใจ เรียกดูประวัติการอ่าน และจัดการสิทธิ์ความเป็นส่วนตัวและคุกกี้ตามมาตรฐาน PDPA \\ \hline
+ผู้ดูแลระบบ\newline (Administrator) & เข้าสู่ศูนย์ควบคุมและติดตามสถานะระบบ (Ops Monitoring Console) ด้วยรหัสผ่านลับ ตรวจสอบสถานะการทำงาน สถิติ Throughput การใช้หน่วยความจำ และสถานะการทำงานของแคช สั่งเริ่มรอบการดึงข่าวด่วนทันที (Scrape Now) สั่งล้างแคชในหน่วยความจำและแคช HTTP (Clear Cache) ทดสอบการเชื่อมต่อและดึงข้อมูลของสำนักข่าวรายแห่ง (Test Source Probe) และตรวจสอบความสอดคล้องของคลังข้อมูล Single Source of Truth \\ \hline
+ระบบตั้งเวลาและประมวลผลเบื้องหลัง\newline (Automated Scheduler) & ทำงานอัตโนมัติตามรอบเวลา ดึงข้อมูลข่าวสารจากสำนักข่าวออนไลน์ทุกแห่งที่ลงทะเบียนผ่าน Playwright และ HTTP ดำเนินการตัดคำภาษาไทย ทำความสะอาดข้อความ และจำแนก 9 หมวดหมู่ สกัดเวกเตอร์ความหมาย 768 มิติและเอนทิตีชื่อเฉพาะ ระบุและรวมกลุ่มจุลเหตุการณ์ออนไลน์ (Stage A) เชื่อมโยงเข้าสู่เส้นเรื่องมหาภาค (Stage B) คำนวณคะแนนกระแสข่าว 6 มิติเชิงสถิติ บังคับใช้เกตป้องกันข้อมูลเท็จ 3 ชั้น บันทึกข้อมูลลงฐานข้อมูล SQLite WAL และไฟล์ JSON พร้อมทั้งกระจายสัญญาณข่าวสดไปยังเบราว์เซอร์ผ่าน WebSocket \\
 \hline
 \end{tabular}%
 }
 \end{table}
 
-\subsubsection{ความต้องการที่ไม่ใช่เชิงฟังก์ชัน (Non-Functional Requirements)}
+\subsection{ความต้องการเชิงฟังก์ชัน}
 
-ในด้านความต้องการที่ไม่ใช่เชิงฟังก์ชัน ระบบได้รับการออกแบบให้ตอบสนองข้อกำหนดสำคัญ 4 ประการ ได้แก่ ประการแรก ด้านประสิทธิภาพ (Performance) กำหนดให้เวลาการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (\texttt{GET /api/news}) เฉลี่ยต่ำกว่า 150 มิลลิวินาทีเมื่อมีข้อมูลจัดเก็บในหน่วยความจำแคช และมีอัตราความหน่วงเวลา (Latency) ในการกระจายข่าวสารใหม่ผ่าน WebSocket ต่ำกว่า 500 มิลลิวินาทีนับจากช่วงเวลาที่ข่าวถูกบันทึกลงระบบสำเร็จ ประการที่สอง ด้านความคงทนและการรองรับข้อผิดพลาด (Reliability \& Fault Tolerance) ความล้มเหลวในการดึงข้อมูลจากแหล่งข่าวใดแหล่งข่าวหนึ่งต้องไม่ส่งผลกระทบต่อรอบการทำงานของแหล่งข่าวอื่น (Isolation of Failures) พร้อมทั้งมีกลไกสำรอง (Fallback Mechanism) รองรับการแสดงผลข้อความสรุปพื้นฐานในกรณีที่บริการ LLM ภายนอกขัดข้อง ประการที่สาม ด้านสถาปัตยกรรมและการขยายตัว (Maintainability \& Extensibility) ออกแบบโครงสร้างซอฟต์แวร์ตามหลักการ SOLID และ GRASP โดยแยกชั้นความรับผิดชอบอย่างชัดเจน ตลอดจนการประยุกต์ใช้ Protocol Interface ตามรูปแบบ Port and Adapter Pattern ในการเข้าถึงคลังข้อมูล และประการสุดท้าย ด้านความเป็นส่วนตัวและการรักษาความปลอดภัย (Privacy \& Usability) ระบบยึดหลักการไม่เก็บข้อมูลระบุตัวตนส่วนบุคคล (Non-PII) และมีแถบขอความยินยอมการใช้งานคุกกี้ตามมาตรฐานการคุ้มครองข้อมูลส่วนบุคคล
+ความต้องการเชิงฟังก์ชัน (Functional Requirements) กำหนดความสามารถและหน้าที่ที่ระบบต้องปฏิบัติตามความต้องการของผู้ใช้งานและระบบเบื้องหลัง ครอบคลุม 15 ข้อกำหนดหลัก (FR-01 ถึง FR-15) ดังแสดงในตารางที่~\ref{tab_functional_requirements}
 
+\begin{longtable}{|C{1.3cm}|L{3.6cm}|L{6.0cm}|L{1.8cm}|}
+\caption{ความต้องการเชิงฟังก์ชันของระบบ}\label{tab_functional_requirements}\\
+\hline
+\textbf{รหัส} & \textbf{ความต้องการเชิงฟังก์ชัน} & \textbf{รายละเอียดความสามารถของระบบ} & \textbf{ผู้ใช้} \\ \hline
+\endfirsthead
+\caption[]{ความต้องการเชิงฟังก์ชันของระบบ~\cskkuContinued}\\
+\hline
+\textbf{รหัส} & \textbf{ความต้องการเชิงฟังก์ชัน} & \textbf{รายละเอียดความสามารถของระบบ} & \textbf{ผู้ใช้} \\ \hline
+\endhead
+FR-01 & การดึงข่าวอัตโนมัติหลายสำนัก & ระบบสามารถดึงข้อมูลข่าวสารจากสำนักข่าวออนไลน์หลากหลายแห่ง ทั้งแบบ RSS Feed, เว็บไซต์ HTML ปกติ และเว็บไซต์ที่เรนเดอร์ด้วย JavaScript ผ่าน Playwright โดยไม่บล็อกการทำงานหลัก & ระบบอัตโนมัติ \\ \hline
+FR-02 & การลงทะเบียนแหล่งข่าวแบบไดนามิก & ระบบรองรับการเพิ่มและปรับปรุงแหล่งข่าวใหม่ผ่าน Decorator (@register\_source) พร้อมกำหนดคู่สีของสำนักข่าวและตรวจสอบความถูกต้องก่อนเริ่มงาน & ผู้ดูแลระบบ \\ \hline
+FR-03 & การจำแนกหมวดหมู่ภาษาไทย 9 หมวด & ระบบสามารถตัดคำ ทำความสะอาดข้อความ และจำแนกข่าวภาษาไทยออกเป็น 9 หมวดหมู่อย่างถูกต้องด้วยเทคนิค 3-Tier Cascade Classifier & ระบบอัตโนมัติ \\ \hline
+FR-04 & การสรุปข่าวและวิเคราะห์อารมณ์ & ระบบสามารถสร้างบทสรุปย่อ ประเด็นสำคัญ และวิเคราะห์อารมณ์ของข่าว (Sentiment) ด้วยโมเดลภาษาขนาดใหญ่ผ่าน KKU Gen.AI API พร้อมกลไกสำรอง & ผู้อ่านทั่วไป \\ \hline
+FR-05 & การแสดงผลข่าวสดบน Bento Hub & ระบบนำเสนอข่าวสารผ่านหน้าเว็บ Bento Hub แบบ 3 มุมมอง มีแบนเนอร์แจ้งเตือนข่าวใหม่ลอยตัว และกระจายสัญญาณสดผ่าน Socket.IO โดยไม่ต้องรีเฟรชหน้าจอ & ผู้อ่านทั่วไป \\ \hline
+FR-06 & การกรองข่าวและการสืบค้นคำสำคัญ & ระบบรองรับการกรองข่าวตาม 9 หมวดหมู่ กรองตามสำนักข่าว ค้นหาด้วยคำสำคัญแบบ Real-time และการสืบค้นขั้นสูงบนระบบเจาะประเด็นข่าว & ผู้อ่านทั่วไป \\ \hline
+FR-07 & การอ่านพรีวิวเนื้อหาในตัวเว็บ & ระบบมีหน้าต่างแสดงผลพรีวิวเนื้อหาข่าวบางส่วน (In-App Modal Reader) ที่ผ่านการทำความสะอาดด้วย Trafilatura พร้อมลิงก์ไปยังต้นฉบับเพื่อความปลอดภัยด้านลิขสิทธิ์ และปุ่มสังเคราะห์สรุปเนื้อหาฉบับเต็มด้วย AI & ผู้อ่านทั่วไป \\ \hline
+FR-08 & การบันทึกคั่นหน้าและประวัติการอ่าน & ระบบเปิดให้ผู้ใช้บันทึกคั่นหน้าข่าวที่สนใจและเรียกดูประวัติการอ่านย้อนหลัง โดยจัดเก็บข้อมูลบน LocalStorage ของเบราว์เซอร์ ปราศจากการระบุตัวตน & ผู้อ่านทั่วไป \\ \hline
+FR-09 & การระบุประเด็นข่าวออนไลน์แบบคงทน & ระบบสามารถรวมข่าวที่รายงานเหตุการณ์เดียวกันเข้าสู่กลุ่มประเด็นข่าวออนไลน์ผ่านเกณฑ์ Two-Band Cosine Gate และปรับปรุง Centroid ด้วย EMA ข้ามหน้าต่าง 72 ชม. & ระบบอัตโนมัติ \\ \hline
+FR-10 & การจัดอันดับกระแสข่าวสาร 6 มิติ & ระบบจัดอันดับประเด็นข่าวด้วย 6 มิติเชิงคณิตศาสตร์ ไม่ใช้ LLM ในการคำนวณคะแนน พร้อมกลไกลดทอนข่าวประจำวัน (Routine Penalty) และแจกแจงคะแนน & ผู้อ่านทั่วไป \newline ระบบอัตโนมัติ \\ \hline
+FR-11 & การเชื่อมโยงเส้นเรื่องมหาภาค & ระบบเชื่อมโยงประเด็นข่าวย่อยข้ามสัปดาห์เข้าสู่มหากาพย์เหตุการณ์ผ่านคะแนนร่วม 4 ปัจจัย บังคับใช้กฎ Province-Only Veto และยกเว้นลดทอนเวลาในภาวะวิกฤต & ระบบอัตโนมัติ \\ \hline
+FR-12 & แฟ้มสังเคราะห์ไทม์ไลน์และข้อเท็จจริง & ระบบสังเคราะห์ภาพรวม ไทม์ไลน์พัฒนาการ และตารางข้อเท็จจริงยืนยันข้ามสำนักข่าว (Corroborated Facts) พร้อมระบบตรวจทานรหัสอ้างอิงรายประโยค & ผู้อ่านทั่วไป \\ \hline
+FR-13 & กลไกควบคุมความถูกต้อง 3 ระดับ & ระบบคัดกรองความเกี่ยวข้อง สกัด Typed Evidence และจัดสรรโหมดสังเคราะห์ 3 โหมด (halted\_mismatch, single\_source, synthesized) ป้องกันข้อมูลเท็จ & ระบบอัตโนมัติ \\ \hline
+FR-14 & ศูนย์ควบคุมสถานะและการล้างแคช & ระบบมีหน้าต่างคอนโซลสำหรับผู้ดูแลระบบ ตรวจสอบ Throughput สั่งเริ่มสเกรปข่าวด่วนทันที ล้างแคช L1 และแคช HTTP และทดสอบสำนักข่าวรายแห่ง & ผู้ดูแลระบบ \\ \hline
+FR-15 & การคุ้มครองข้อมูลส่วนบุคคล PDPA & ระบบประมวลผลคะแนนการมีส่วนร่วมแบบนิรนาม ไม่เก็บข้อมูลส่วนบุคคล มีแถบขอความยินยอมคุกกี้ และมีปุ่มล้างสถิติความสนใจออกจากเบราว์เซอร์ได้ทันที & ผู้อ่านทั่วไป \\
+\hline
+\end{longtable}
+
+\subsection{ความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
+
+ความต้องการที่ไม่ใช่เชิงฟังก์ชัน (Non-Functional Requirements) กำหนดคุณสมบัติเชิงคุณภาพ ขีดความสามารถ และข้อจำกัดทางวิศวกรรมของระบบ ครอบคลุม 8 มิติสำคัญ (NFR-01 ถึง NFR-08) ดังแสดงในตารางที่~\ref{tab_non_functional_requirements}
+
+\begin{table}[H]
+\centering
+\caption{ความต้องการที่ไม่ใช่เชิงฟังก์ชันของระบบ}
+\label{tab_non_functional_requirements}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{4.5cm}|L{9.5cm}|}
+\hline
+\textbf{รหัส} & \textbf{ด้าน} & \textbf{เกณฑ์คุณลักษณะที่กำหนด} \\
+\hline
+NFR-01 & ด้านเวลาตอบสนองของระบบ\newline (Performance Latency) & เวลาในการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (\texttt{GET /api/news}) ต้องมีค่าเฉลี่ยต่ำกว่า 150 มิลลิวินาทีเมื่อมีข้อมูลจัดเก็บในหน่วยความจำแคช \\ \hline
+NFR-02 & ด้านความหน่วงเวลาผลักดันข้อมูลสด\newline (WebSocket Latency) & ความหน่วงเวลาในการกระจายข่าวสารใหม่และการแจ้งเตือนผ่าน Socket.IO ต้องต่ำกว่า 500 มิลลิวินาทีนับจากช่วงเวลาที่ข่าวได้รับการบันทึกลงระบบสำเร็จ \\ \hline
+NFR-03 & ด้านอัตราการดึงข้อมูลและ Throughput\newline (Scraping Throughput) & ระบบต้องสามารถรองรับการดึงและสกัดเนื้อหาข่าวสารจากหลายสำนักพร้อมกันได้ในอัตราไม่น้อยกว่า 100 บทความต่อนาทีในสภาวะโหลดสูงสุด \\ \hline
+NFR-04 & ด้านความคงทนและการแยกความเสียหาย\newline (Fault Isolation) & ความล้มเหลวในการเชื่อมต่อหรือโครงสร้างหน้าเว็บเปลี่ยนไปของสำนักข่าวใดสำนักข่าวหนึ่ง ต้องไม่ส่งผลกระทบต่อรอบการทำงานของสำนักข่าวอื่น \\ \hline
+NFR-05 & ด้านความพร้อมใช้งานของระบบ\newline (System Availability) & ระบบต้องสามารถเปิดให้บริการอย่างต่อเนื่องตลอด 24 ชั่วโมงต่อวัน โดยมีอัตราความพร้อมใช้งานของระบบโดยรวมไม่ต่ำกว่าร้อยละ 99.5 ต่อเดือน \\ \hline
+NFR-06 & ด้านความแม่นยำในการระบุเหตุการณ์\newline (Identification Accuracy) & ระบบระบุประเด็นข่าวต้องมีค่าความแม่นยำ B-cubed Precision ไม่ต่ำกว่า 0.85 และค่า B-cubed F1-score ไม่ต่ำกว่า 0.75 บนชุดข้อมูลทดสอบมาตรฐาน \\ \hline
+NFR-07 & ด้านความมั่นคงปลอดภัยและความเป็นส่วนตัว\newline (Security \& Data Privacy) & ระบบต้องยึดหลัก Zero-PII ปราศจากการเก็บข้อมูลระบุตัวตน มีระบบ Rate Limiting, CORS Whitelist และส่วนหัวความปลอดภัย HTTP ป้องกัน XSS และ Clickjacking \\ \hline
+NFR-08 & ด้านการทำงานข้ามแพลตฟอร์ม\newline (Cross-Platform Compatibility) & ซอฟต์แวร์ต้องสามารถรันได้อย่างสมบูรณ์ทั้งบนสภาพแวดล้อม Windows ในขั้นตอนการพัฒนา และสภาพแวดล้อม Linux Ubuntu บนคลาวด์สำหรับโพรดักชันจริง \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{กฎการตรวจสอบความถูกต้องของข้อมูล}
+
+เพื่อรักษาความสมบูรณ์ ความถูกต้อง และความมั่นคงปลอดภัยของข้อมูลที่ไหลเวียนในระบบ ระบบได้กำหนดกฎเกณฑ์การตรวจสอบความถูกต้องของข้อมูล (Validation Rules) อย่างเข้มงวดผ่านโมเดล Pydantic v2 ครอบคลุม 10 กฎสำคัญ (VR-01 ถึง VR-10) ดังแสดงในตารางที่~\ref{tab_validation_rules}
+
+\begin{table}[H]
+\centering
+\caption{กฎการตรวจสอบความถูกต้องของข้อมูล}
+\label{tab_validation_rules}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{4.2cm}|L{9.8cm}|}
+\hline
+\textbf{รหัส} & \textbf{ข้อมูลที่ตรวจสอบ} & \textbf{กฎการตรวจสอบความถูกต้องและข้อกำหนด} \\
+\hline
+VR-01 & URL บทความข่าว (\texttt{url}) & ต้องเป็นรูปแบบ URL ที่ถูกต้องตาม RFC 3986 ขึ้นต้นด้วย http หรือ https และมีความยาวไม่เกิน 2,048 อักขระ \\ \hline
+VR-02 & หัวข้อบทความข่าว (\texttt{title}) & ต้องเป็นข้อความสตริงที่ไม่ว่างเปล่า มีความยาวระหว่าง 5 ถึง 500 อักขระ และผ่านการตัดอักขระความกว้างศูนย์ \\ \hline
+VR-03 & สำนักข่าวต้นทาง (\texttt{source}) & ต้องตรงกับรายชื่อสำนักข่าวที่ลงทะเบียนไว้ใน Source Registry และเปิดใช้งานอยู่ในระบบเท่านั้น \\ \hline
+VR-04 & หมวดหมู่ข่าว (\texttt{category}) & ต้องตรงกับ 1 ใน 9 หมวดหมู่หลักที่ระบบกำหนด ได้แก่ politics, economy, tech, crime, entertainment, sport, world, environment, social \\ \hline
+VR-05 & วันเวลาเผยแพร่ (\texttt{published\_at}) & ต้องอยู่ในรูปแบบวันเวลามาตรฐาน ISO 8601 ที่ถูกต้อง และต้องไม่เป็นเวลาในอนาคตเกิน 1 ชั่วโมงเทียบกับเซิร์ฟเวอร์ \\ \hline
+VR-06 & เวกเตอร์ความหมาย (\texttt{centroid}) & ต้องเป็นอาเรย์ของตัวเลขทศนิยมขนาด 768 มิติพอดี และต้องผ่านการปรับขนาดเวกเตอร์ให้เป็น 1 หน่วย (L2 Normalized) \\ \hline
+VR-07 & ความคล้ายคลึงโคไซน์ (\texttt{cosine}) & ต้องเป็นตัวเลขทศนิยมที่มีค่าอยู่ในช่วงทางคณิตศาสตร์ตั้งแต่ -1.0 ถึง 1.0 เสมอ \\ \hline
+VR-08 & รหัสผ่านลับผู้ดูแล (\texttt{secret}) & ต้องเป็นสตริงที่ไม่ว่างเปล่า มีความยาวไม่น้อยกว่า 8 อักขระ และตรวจสอบเทียบเคียงด้วยเวลาคงที่เพื่อป้องกัน Timing Attack \\ \hline
+VR-09 & เหตุการณ์การมีส่วนร่วม (\texttt{action}) & ต้องระบุประเภทการกระทำที่ระบบยอมรับเท่านั้น ได้แก่ click, summary\_view, bookmark หรือ share \\ \hline
+VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authorization}) & ต้องระบุรูปแบบ Bearer Token ที่ถูกต้องตามมาตรฐาน RFC 6750 และเป็นโทเค็นเซสชันที่ยังไม่หมดอายุในหน่วยความจำ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{แผนภาพกรณีใช้งาน}
+
+การออกแบบพฤติกรรมของระบบจากมุมมองภายนอกนำเสนอผ่านแผนภาพกรณีใช้งาน (Use Case Diagram) ซึ่งจำแนกออกเป็น 2 มุมมองหลักตามบทบาทของผู้ใช้ ได้แก่ แผนภาพกรณีใช้งานสำหรับผู้อ่านข่าวทั่วไป (Reader) และแผนภาพกรณีใช้งานสำหรับระบบอัตโนมัติและผู้ดูแลระบบ (Scheduler \& Admin)
+
+\subsubsection{แผนภาพกรณีใช้งานสำหรับผู้อ่านข่าวทั่วไป}
+
+ผู้อ่านข่าวทั่วไปสามารถเข้าถึงบริการข้อมูลข่าวสาร สำรวจกระแส และใช้งานเครื่องมืออ่านข่าวผ่านเบราว์เซอร์ ดังแสดงในภาพที่~\ref{fig_usecase_reader}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    actor/.style={draw, thick, circle, minimum size=0.45cm, inner sep=0pt},
+    usecase/.style={draw, thick, ellipse, minimum width=4.8cm, minimum height=0.68cm, align=center, fill=white},
+    sysbox/.style={draw, thick, dashed, rectangle, rounded corners=6pt, inner sep=12pt, fill=gray!3}
+]
+
+% Stickman Reader
+\node[actor] (rhead) at (-5.0, 0) {};
+\draw[thick] (rhead.south) -- ++(0, -0.6) coordinate (rtorso);
+\draw[thick] ($(rhead.south)!0.3!(rtorso)$) -- ++(-0.35, -0.2);
+\draw[thick] ($(rhead.south)!0.3!(rtorso)$) -- ++(0.35, -0.2);
+\draw[thick] (rtorso) -- ++(-0.3, -0.55);
+\draw[thick] (rtorso) -- ++(0.3, -0.55);
+\node[below=0.6cm of rtorso, align=center] {\textbf{ผู้อ่านข่าวทั่วไป}\\\textbf{(Reader)}};
+
+% Use Cases Reader
+\node[usecase] (uc1) at (1.5, 3.6) {เรียกดูข่าวสด Bento Hub (FR-05)};
+\node[usecase] (uc2) at (1.5, 2.7) {กรองหมวดหมู่และสำนักข่าว (FR-06)};
+\node[usecase] (uc3) at (1.5, 1.8) {ค้นหาข่าวด้วยคำสำคัญ (FR-06)};
+\node[usecase] (uc4) at (1.5, 0.9) {เปิดอ่านบทความในตัวเว็บ (FR-07)};
+\node[usecase] (uc5) at (1.5, 0.0) {อ่านสรุป AI และ Sentiment (FR-04)};
+\node[usecase] (uc6) at (1.5, -0.9) {สำรวจข่าวยอดนิยม 6 มิติ (FR-10)};
+\node[usecase] (uc7) at (1.5, -1.8) {เปิดแฟ้มมหากาพย์และไทม์ไลน์ (FR-12)};
+\node[usecase] (uc8) at (1.5, -2.7) {บันทึกคั่นหน้าและประวัติการอ่าน (FR-08)};
+\node[usecase] (uc9) at (1.5, -3.6) {จัดการสิทธิ์คุกกี้ PDPA (FR-15)};
+
+% System Boundary Box
+\begin{scope}[on background layer]
+    \node[sysbox, fit=(uc1) (uc9)] (sysbox1) {};
+\end{scope}
+\node[above=0.2cm of sysbox1.north, font=\bfseries] {ระบบรวบรวมและสังเคราะห์ประเด็นข่าวภาษาไทยอัตโนมัติ};
+
+% Connecting Lines
+\draw[thick] (rtorso) -- (uc1.west);
+\draw[thick] (rtorso) -- (uc2.west);
+\draw[thick] (rtorso) -- (uc3.west);
+\draw[thick] (rtorso) -- (uc4.west);
+\draw[thick] (rtorso) -- (uc5.west);
+\draw[thick] (rtorso) -- (uc6.west);
+\draw[thick] (rtorso) -- (uc7.west);
+\draw[thick] (rtorso) -- (uc8.west);
+\draw[thick] (rtorso) -- (uc9.west);
+
+\end{tikzpicture}
+\caption{แผนภาพกรณีใช้งานสำหรับผู้อ่านข่าวทั่วไป}
+\label{fig_usecase_reader}
+\end{figure}
+
+\subsubsection{แผนภาพกรณีใช้งานสำหรับระบบอัตโนมัติและผู้ดูแลระบบ}
+
+ระบบตั้งเวลาเบื้องหลังและผู้ดูแลระบบทำหน้าที่ควบคุมการทำงานของไปป์ไลน์ ดึงข้อมูล จำแนกเนื้อหา ตลอดจนบริหารจัดการเซิร์ฟเวอร์ ดังแสดงในภาพที่~\ref{fig_usecase_admin}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    actor/.style={draw, thick, circle, minimum size=0.45cm, inner sep=0pt},
+    usecase/.style={draw, thick, ellipse, minimum width=4.8cm, minimum height=0.68cm, align=center, fill=white},
+    sysbox/.style={draw, thick, dashed, rectangle, rounded corners=6pt, inner sep=12pt, fill=gray!3}
+]
+
+% Stickman Admin / Scheduler
+\node[actor] (ahead) at (-5.0, 0) {};
+\draw[thick] (ahead.south) -- ++(0, -0.6) coordinate (atorso);
+\draw[thick] ($(ahead.south)!0.3!(atorso)$) -- ++(-0.35, -0.2);
+\draw[thick] ($(ahead.south)!0.3!(atorso)$) -- ++(0.35, -0.2);
+\draw[thick] (atorso) -- ++(-0.3, -0.55);
+\draw[thick] (atorso) -- ++(0.3, -0.55);
+\node[below=0.6cm of atorso, align=center] {\textbf{ระบบตั้งเวลาและผู้ดูแล}\\\textbf{(Scheduler \& Admin)}};
+
+% Use Cases Admin
+\node[usecase] (auc1) at (1.5, 3.6) {ดึงข่าวหลายสำนักอัตโนมัติ (FR-01)};
+\node[usecase] (auc2) at (1.5, 2.7) {ลงทะเบียนและทดสอบสำนักข่าว (FR-02)};
+\node[usecase] (auc3) at (1.5, 1.8) {ตัดคำและจำแนก 9 หมวดหมู่ (FR-03)};
+\node[usecase] (auc4) at (1.5, 0.9) {ระบุกลุ่มประเด็นข่าวออนไลน์ (FR-09)};
+\node[usecase] (auc5) at (1.5, 0.0) {คำนวณคะแนนกระแส 6 มิติ (FR-10)};
+\node[usecase] (auc6) at (1.5, -0.9) {เชื่อมโยงเส้นเรื่องมหาภาค (FR-11)};
+\node[usecase] (auc7) at (1.5, -1.8) {ควบคุมกลไกป้องกันข้อมูลเท็จ (FR-13)};
+\node[usecase] (auc8) at (1.5, -2.7) {สั่งสเกรปข่าวด่วนและล้างแคช (FR-14)};
+\node[usecase] (auc9) at (1.5, -3.6) {ตรวจสอบสถานะสุขภาพระบบ (FR-14)};
+
+% System Boundary Box
+\begin{scope}[on background layer]
+    \node[sysbox, fit=(auc1) (auc9)] (sysbox2) {};
+\end{scope}
+\node[above=0.2cm of sysbox2.north, font=\bfseries] {ระบบรวบรวมและสังเคราะห์ประเด็นข่าวภาษาไทยอัตโนมัติ};
+
+% Connecting Lines
+\draw[thick] (atorso) -- (auc1.west);
+\draw[thick] (atorso) -- (auc2.west);
+\draw[thick] (atorso) -- (auc3.west);
+\draw[thick] (atorso) -- (auc4.west);
+\draw[thick] (atorso) -- (auc5.west);
+\draw[thick] (atorso) -- (auc6.west);
+\draw[thick] (atorso) -- (auc7.west);
+\draw[thick] (atorso) -- (auc8.west);
+\draw[thick] (atorso) -- (auc9.west);
+
+\end{tikzpicture}
+\caption{แผนภาพกรณีใช้งานสำหรับระบบอัตโนมัติและผู้ดูแลระบบ}
+\label{fig_usecase_admin}
+\end{figure}
+
+\subsection{รายละเอียดกรณีใช้งาน}
+
+รายละเอียดกรณีใช้งานหลัก 4 กรณีสำคัญ (UC-01 ถึง UC-04) ซึ่งครอบคลุมทั้งส่วนผู้อ่านทั่วไปและการควบคุมระบบ แสดงรายละเอียดดังตารางที่~\ref{tab_uc01_spec} ถึงตารางที่~\ref{tab_uc04_spec}
+
+\begin{table}[H]
+\centering
+\caption{คำอธิบายกรณีใช้งาน UC-01 ติดตามข่าวสารสดและกรองตามหมวดหมู่}
+\label{tab_uc01_spec}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีใช้งาน & UC-01 \\ \hline
+ชื่อกรณีใช้งาน & ติดตามข่าวสารสดและกรองตามหมวดหมู่ \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-05, FR-06 \\ \hline
+ผู้กระทำ & ผู้อ่านข่าวทั่วไป (Reader) \\ \hline
+วัตถุประสงค์ & เพื่อให้ผู้อ่านติดตามข่าวสารล่าสุดและคัดกรองเนื้อหาตามความสนใจได้อย่างสะดวก \\ \hline
+เงื่อนไขก่อนเริ่ม & ผู้ใช้เปิดหน้าเว็บระบบผ่านเว็บเบราว์เซอร์ที่มีการเชื่อมต่ออินเทอร์เน็ต \\ \hline
+เงื่อนไขหลังสิ้นสุด & ระบบแสดงรายการข่าวที่ตรงตามหมวดหมู่ สำนักข่าว หรือคำค้นหาที่ผู้ใช้เลือก \\ \hline
+ลำดับเหตุการณ์หลัก & 
+1. ผู้ใช้เข้าสู่หน้าหลัก Bento Hub ของระบบ\newline
+2. ระบบดาวน์โหลดและแสดงผลการ์ดข่าวสารล่าสุดพร้อมป้ายสำนักข่าวและหมวดหมู่\newline
+3. ผู้ใช้คลิกเลือกแท็บหมวดหมู่ที่สนใจ เช่น หมวดการเมือง หรือเทคโนโลยี\newline
+4. ระบบกรองและปรับการแสดงผลเฉพาะบทความในหมวดหมู่ที่เลือกอย่างรวดเร็ว\newline
+5. เมื่อมีข่าวใหม่เข้ามาผ่าน WebSocket ระบบแสดงแบนเนอร์แจ้งเตือนลอยตัวกึ่งกลางบน\newline
+6. ผู้ใช้คลิกแบนเนอร์เพื่อโหลดข่าวใหม่เข้าสู่หน้าจอทันทีโดยไม่ต้องรีโหลดทั้งหน้าเว็บ \\ \hline
+ลำดับเหตุการณ์ทางเลือก & 
+3a. ผู้ใช้คลิกเลือกปุ่มสำนักข่าว (Publisher Filter Pills) เพื่อดูข่าวเฉพาะสำนักพิมพ์ที่สนใจ\newline
+3b. ผู้ใช้ป้อนข้อความค้นหาในช่อง Search เพื่อค้นหาข่าวแบบทันที \\ \hline
+ลำดับเหตุการณ์ผิดปกติ & 
+2a. เบราว์เซอร์ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ระบบแสดงข้อความแจ้งเตือนสถานะขาดการเชื่อมต่อ พร้อมมีปุ่มให้กดทดลองเชื่อมต่อใหม่ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{คำอธิบายกรณีใช้งาน UC-02 พรีวิวเนื้อหาบทความและสังเคราะห์สรุปด้วย AI}
+\label{tab_uc02_spec}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีใช้งาน & UC-02 \\ \hline
+ชื่อกรณีใช้งาน & พรีวิวเนื้อหาบทความและสังเคราะห์สรุปด้วย AI \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-04, FR-07, FR-08 \\ \hline
+ผู้กระทำ & ผู้อ่านข่าวทั่วไป (Reader) \\ \hline
+วัตถุประสงค์ & เพื่อให้ผู้อ่านสามารถดูพรีวิวเนื้อหาข่าวบางส่วนที่ปลอดภัย ลิงก์ต้นฉบับ และอ่านบทสรุป AI ที่สังเคราะห์จากเนื้อหาฉบับเต็ม \\ \hline
+เงื่อนไขก่อนเริ่ม & ผู้ใช้อยู่ที่หน้าหลัก Bento Hub และมองเห็นการ์ดข่าวสาร \\ \hline
+เงื่อนไขหลังสิ้นสุด & ผู้ใช้ได้รับข้อมูลพรีวิวข่าวหรือบทสรุปสังเคราะห์ และปิดหน้าต่างโมดอลกลับสู่หน้าหลัก \\ \hline
+ลำดับเหตุการณ์หลัก & 
+1. ผู้ใช้คลิกที่การ์ดข่าวเพื่อเปิดพรีวิวเนื้อหา\newline
+2. ระบบเปิดหน้าต่าง In-App Modal Reader แสดงผลเนื้อหาพรีวิวบางส่วนแบบสะอาด ไร้โฆษณา และแสดงลิงก์ไปยังสำนักข่าวต้นทาง\newline
+3. ผู้ใช้คลิกปุ่มเปิดบทสรุปผู้บริหาร AI บนหน้าต่างอ่านข่าว\newline
+4. ระบบส่งเนื้อหาบทความฉบับเต็มไปสังเคราะห์สรุปย่อ ประเด็นสำคัญ และค่าอารมณ์ข่าวจาก LLM มาแสดงผล\newline
+5. ผู้ใช้คลิกปุ่มบันทึกคั่นหน้าเพื่อเก็บข่าวไว้อ่านในภายหลัง\newline
+6. ผู้ใช้คลิกปุ่มปิดหน้าต่างโมดอลเพื่อกลับสู่หน้าหลัก Bento Hub \\ \hline
+ลำดับเหตุการณ์ทางเลือก & 
+1a. ผู้ใช้คลิกปุ่มเปิดอ่านข่าวต้นฉบับภายนอก ระบบเปิดแท็บเบราว์เซอร์ใหม่ไปยังเว็บสำนักข่าว \\ \hline
+ลำดับเหตุการณ์ผิดปกติ & 
+2a. เว็บไซต์ต้นทางปิดกั้นการเข้าถึง ระบบแสดงข้อความแจ้งเตือนพร้อมเสนอทางเลือกให้เปิดเว็บต้นฉบับโดยตรง \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{คำอธิบายกรณีใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวและวิเคราะห์พัฒนาการ}
+\label{tab_uc03_spec}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีใช้งาน & UC-03 \\ \hline
+ชื่อกรณีใช้งาน & สำรวจมหากาพย์ประเด็นข่าวและวิเคราะห์พัฒนาการ \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-10, FR-11, FR-12, FR-13 \\ \hline
+ผู้กระทำ & ผู้อ่านข่าวทั่วไป (Reader) \\ \hline
+วัตถุประสงค์ & เพื่อให้ผู้อ่านเข้าใจภาพรวมเหตุการณ์ใหญ่ที่ซับซ้อนและติดตามลำดับพัฒนาการของข่าว \\ \hline
+เงื่อนไขก่อนเริ่ม & ผู้ใช้เปิดดูส่วนข่าวกระแสหรือมหากาพย์ข่าวบนหน้าหลัก Bento Hub \\ \hline
+เงื่อนไขหลังสิ้นสุด & ระบบแสดงแฟ้มเจาะลึกมหากาพย์พร้อมไทม์ไลน์และข้อเท็จจริงยืนยันอย่างโปร่งใส \\ \hline
+ลำดับเหตุการณ์หลัก & 
+1. ผู้ใช้คลิกเลือกมหากาพย์ประเด็นข่าวที่สนใจจากแถบ Bento Hub\newline
+2. ระบบเปิดหน้าต่างแฟ้มเจาะลึกเหตุการณ์ (Macro Storyline Dossier)\newline
+3. ระบบแสดงพาดหัวภาพรวมและบทสรุปสังเคราะห์ข้ามสำนักข่าวจากโมเดลภาษา\newline
+4. ระบบแสดงลำดับเหตุการณ์ตามเวลาจริง (Chronological Evolution Timeline)\newline
+5. ระบบแสดงตารางข้อเท็จจริงที่ได้รับการยืนยันตรงกันจากหลายสำนักข่าวอิสระ\newline
+6. ผู้ใช้คลิกสืบค้นประเด็นเชิงลึกผ่านหน้าต่างเจาะประเด็นข่าว (Issue Explorer) \\ \hline
+ลำดับเหตุการณ์ทางเลือก & 
+1a. ผู้ใช้คลิกดูรายละเอียดคะแนนกระแส 6 มิติเพื่อตรวจสอบความโปร่งใสของการจัดอันดับ \\ \hline
+ลำดับเหตุการณ์ผิดปกติ & 
+3a. หากชุดข่าวผู้สมัครไม่ตรงประเด็น ระบบเข้าสู่โหมดระงับการสังเคราะห์ (halted\_mismatch) และแสดงข้อความแจ้งเตือนผู้ใช้อย่างโปร่งใสเพื่อป้องกันข้อมูลเท็จ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{คำอธิบายกรณีใช้งาน UC-04 ควบคุมและตรวจสอบสถานะการทำงานของระบบ}
+\label{tab_uc04_spec}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีใช้งาน & UC-04 \\ \hline
+ชื่อกรณีใช้งาน & ควบคุมและตรวจสอบสถานะการทำงานของระบบ \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-02, FR-14 \\ \hline
+ผู้กระทำ & ผู้ดูแลระบบ (Administrator) \\ \hline
+วัตถุประสงค์ & เพื่อให้ผู้ดูแลระบบสามารถตรวจสอบความสมบูรณ์ สั่งดึงข่าวด่วน และล้างแคชระบบ \\ \hline
+เงื่อนไขก่อนเริ่ม & ผู้ดูแลระบบเปิดหน้าเว็บศูนย์ควบคุม (/monitoring.html) ผ่านเบราว์เซอร์ \\ \hline
+เงื่อนไขหลังสิ้นสุด & ผู้ดูแลระบบดำเนินการจัดการระบบสำเร็จและออกจากระบบอย่างปลอดภัย \\ \hline
+ลำดับเหตุการณ์หลัก & 
+1. ผู้ดูแลระบบกรอกรหัสผ่านลับบนหน้าจอยืนยันตัวตนและกดปุ่มเข้าสู่ระบบ\newline
+2. เซิร์ฟเวอร์ตรวจสอบความถูกต้องและส่งมอบ Bearer Token สำหรับเซสชัน\newline
+3. ระบบแสดงแดชบอร์ดสถิติ Throughput การใช้ RAM และสถานะแคช\newline
+4. ผู้ดูแลระบบตรวจสอบสถานะสุขภาพของแต่ละสำนักข่าวบนการ์ดแสดงผล\newline
+5. ผู้ดูแลระบบกดปุ่มสั่งเริ่มสเกรปข่าวด่วน (Scrape Now)\newline
+6. ระบบเริ่มกระบวนการสเกรปข่าวทุกสำนักในเบื้องหลังทันทีและส่งสัญญาณตอบรับ\newline
+7. ผู้ดูแลระบบกดปุ่มสั่งล้างแคชระบบ (Clear Cache)\newline
+8. ระบบดำเนินการล้างแคชในหน่วยความจำและแคช HTTP สำเร็จ\newline
+9. ผู้ดูแลระบบกดปุ่มออกจากระบบเพื่อทำลายโทเค็นเซสชัน \\ \hline
+ลำดับเหตุการณ์ทางเลือก & 
+4a. ผู้ดูแลระบบกดปุ่มทดสอบสำนักข่าวรายแห่ง (Test Source Probe) เพื่อดูตัวอย่างข่าว \\ \hline
+ลำดับเหตุการณ์ผิดปกติ & 
+1a. รหัสผ่านไม่ถูกต้อง ระบบส่งคืนรหัส 401 Unauthorized และปฏิเสธการเข้าถึง \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{แผนภาพลำดับของกระบวนการหลัก}
+
+เพื่อให้เห็นลำดับขั้นตอนการส่งผ่านข้อความระหว่างอ็อบเจกต์ต่าง ๆ ในระบบ ในหัวข้อนี้ขอนำเสนอแผนภาพลำดับ (Sequence Diagrams) ครอบคลุม 3 ไปป์ไลน์หลัก ได้แก่ การรวบรวม จำแนกหมวด จัดกลุ่มประเด็น และกระจายข่าวสด, การสังเคราะห์พัฒนาการเหตุการณ์ตามลำดับเวลา, และการควบคุมระบบและล้างแคชของผู้ดูแลระบบ
+
+\subsubsection{ไปป์ไลน์การรวบรวม จำแนกหมวด จัดกลุ่มประเด็น และกระจายข่าวสด}
+
+กระบวนการนี้เป็นไปป์ไลน์หลักในการนำเข้าและประมวลผลข่าวสารแบบ Asynchronous ตลอด 24 ชั่วโมง ดังแสดงในภาพที่~\ref{fig_seq_pipeline}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    box/.style={draw, thick, rectangle, fill=white, text width=2.4cm, minimum height=1.0cm, align=center},
+    msg/.style={thick, ->, >=stealth},
+    retmsg/.style={thick, dashed, ->, >=stealth},
+    lifeline/.style={thick, dashed}
+]
+
+% Stickman Actor on the left
+\draw[thick] (0, 0.7) circle (0.18);
+\draw[thick] (0, 0.52) -- (0, 0.1);
+\draw[thick] (-0.3, 0.35) -- (0.3, 0.35);
+\draw[thick] (0, 0.1) -- (-0.25, -0.3);
+\draw[thick] (0, 0.1) -- (0.25, -0.3);
+\node[align=center, font=\footnotesize, fill=white, inner sep=1pt] (act) at (0, -0.55) {ระบบตั้งเวลา};
+
+% Entity Boxes at top
+\node[box] (scr) at (2.8, 0.2) {ตัวดึงข่าว\\{\footnotesize (ScraperService)}};
+\node[box] (brw) at (5.8, 0.2) {เบราว์เซอร์\\{\footnotesize (Playwright)}};
+\node[box] (cls) at (8.8, 0.2) {ตัวจำแนกหมวด\\{\footnotesize (Classifier)}};
+\node[box] (sty) at (11.8, 0.2) {ตัวรวมประเด็น\\{\footnotesize (StoryService)}};
+\node[box] (rep) at (14.8, 0.2) {คลังข้อมูล\\{\footnotesize (Repo / Socket)}};
+
+% Lifelines
+\draw[lifeline] (0, -0.85) -- (0, -11.5);
+\draw[lifeline] (scr.south) -- ++(0, -11.0);
+\draw[lifeline] (brw.south) -- ++(0, -11.0);
+\draw[lifeline] (cls.south) -- ++(0, -11.0);
+\draw[lifeline] (sty.south) -- ++(0, -11.0);
+\draw[lifeline] (rep.south) -- ++(0, -11.0);
+
+% Messages with fill=white
+\draw[msg] (0, -1.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {1. trigger\_scrape()} (2.8, -1.5);
+\draw[msg] (2.8, -2.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {2. fetch\_page(url)} (5.8, -2.5);
+\draw[retmsg] (5.8, -3.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {3. HTML และตรวจ URL ซ้ำ} (2.8, -3.5);
+\draw[msg] (2.8, -4.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {4. classify(title, body)} (8.8, -4.5);
+\draw[retmsg] (8.8, -5.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {5. ผลการทำนาย 9 หมวดหมู่} (2.8, -5.5);
+\draw[msg] (2.8, -6.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {6. assign\_article()} (11.8, -6.5);
+\draw[msg] (11.8, -7.2) -- ++(1.0, 0) -- ++(0, -0.6) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {7. Two-Band Gate} (11.8, -7.8);
+\draw[msg] (11.8, -8.7) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {8. บันทึกบทความและกลุ่มประเด็น} (14.8, -8.7);
+\draw[msg] (2.8, -9.6) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {9. emit(news\_new)} (14.8, -9.6);
+\draw[retmsg] (14.8, -10.6) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {10. WebSocket กระจายข่าวสู่เบราว์เซอร์} (0, -10.6);
+
+\end{tikzpicture}%
+}
+\caption{แผนภาพลำดับกระบวนการรวบรวม จำแนกหมวด จัดกลุ่มประเด็น และกระจายข่าวสด}
+\label{fig_seq_pipeline}
+\end{figure}
+
+\subsubsection{ไปป์ไลน์การสังเคราะห์พัฒนาการเหตุการณ์ตามลำดับเวลา}
+
+กระบวนการนี้ทำงานเมื่อผู้ใช้ร้องขอแฟ้มเจาะลึกมหากาพย์ประเด็นข่าว โดยผ่านการกลั่นกรองด้วยเกต 3 ชั้นและโมเดลภาษา ดังแสดงในภาพที่~\ref{fig_seq_synthesis}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    box/.style={draw, thick, rectangle, fill=white, text width=2.6cm, minimum height=1.0cm, align=center},
+    msg/.style={thick, ->, >=stealth},
+    retmsg/.style={thick, dashed, ->, >=stealth},
+    lifeline/.style={thick, dashed}
+]
+
+% Stickman Actor on the left
+\draw[thick] (0, 0.7) circle (0.18);
+\draw[thick] (0, 0.52) -- (0, 0.1);
+\draw[thick] (-0.3, 0.35) -- (0.3, 0.35);
+\draw[thick] (0, 0.1) -- (-0.25, -0.3);
+\draw[thick] (0, 0.1) -- (0.25, -0.3);
+\node[align=center, font=\footnotesize, fill=white, inner sep=1pt] (act) at (0, -0.55) {ผู้อ่านข่าว};
+
+% Entity Boxes at top
+\node[box] (spa) at (3.3, 0.2) {ส่วนหน้า\\{\footnotesize (Bento Hub)}};
+\node[box] (api) at (6.9, 0.2) {ส่วนหลัง\\{\footnotesize (FastAPI API)}};
+\node[box] (grd) at (10.5, 0.2) {ตัวกลั่นกรอง\\{\footnotesize (Guardrails)}};
+\node[box] (llm) at (14.1, 0.2) {ปัญญาประดิษฐ์\\{\footnotesize (KKU Gen.AI)}};
+
+% Lifelines
+\draw[lifeline] (0, -0.85) -- (0, -11.5);
+\draw[lifeline] (spa.south) -- ++(0, -11.0);
+\draw[lifeline] (api.south) -- ++(0, -11.0);
+\draw[lifeline] (grd.south) -- ++(0, -11.0);
+\draw[lifeline] (llm.south) -- ++(0, -11.0);
+
+% Messages with fill=white
+\draw[msg] (0, -1.4) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {กดเปิดแฟ้มมหากาพย์} (3.3, -1.4);
+\draw[msg] (3.3, -2.4) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {GET /api/macro-events/\{id\}} (6.9, -2.4);
+\draw[msg] (6.9, -3.4) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {ประเมินเกตหลักฐาน (Typed Evidence)} (10.5, -3.4);
+\draw[msg] (10.5, -4.1) -- ++(1.0, 0) -- ++(0, -0.6) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ตรวจสอบความถูกต้อง} (10.5, -4.7);
+\draw[retmsg] (10.5, -5.6) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {ส่งคืนโหมดสังเคราะห์ (synthesized)} (6.9, -5.6);
+\draw[msg] (6.9, -6.6) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {generate\_content(prompt)} (14.1, -6.6);
+\draw[retmsg] (14.1, -7.6) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {ผลลัพธ์โครงสร้าง JSON} (6.9, -7.6);
+\draw[msg] (6.9, -8.3) -- ++(1.0, 0) -- ++(0, -0.6) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ตรวจรหัสอ้างอิงและบันทึกแคช} (6.9, -8.9);
+\draw[retmsg] (6.9, -9.8) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {200 OK ข้อมูลไทม์ไลน์และข้อเท็จจริง} (3.3, -9.8);
+\draw[retmsg] (3.3, -10.7) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {แสดงผลแฟ้มเจาะลึกและไทม์ไลน์} (0, -10.7);
+
+\end{tikzpicture}%
+}
+\caption{แผนภาพลำดับกระบวนการสังเคราะห์พัฒนาการเหตุการณ์ตามลำดับเวลา}
+\label{fig_seq_synthesis}
+\end{figure}
+
+\subsubsection{ไปป์ไลน์การควบคุมระบบและล้างแคชของผู้ดูแลระบบ}
+
+กระบวนการนี้แสดงการเข้าสู่ระบบ ยืนยันตัวตน สั่งเริ่มสเกรปข่าวด่วน และการล้างข้อมูลในระบบแคช ดังแสดงในภาพที่~\ref{fig_seq_admin}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    box/.style={draw, thick, rectangle, fill=white, text width=2.6cm, minimum height=1.0cm, align=center},
+    msg/.style={thick, ->, >=stealth},
+    retmsg/.style={thick, dashed, ->, >=stealth},
+    lifeline/.style={thick, dashed}
+]
+
+% Stickman Actor on the left
+\draw[thick] (0, 0.7) circle (0.18);
+\draw[thick] (0, 0.52) -- (0, 0.1);
+\draw[thick] (-0.3, 0.35) -- (0.3, 0.35);
+\draw[thick] (0, 0.1) -- (-0.25, -0.3);
+\draw[thick] (0, 0.1) -- (0.25, -0.3);
+\node[align=center, font=\footnotesize, fill=white, inner sep=1pt] (act) at (0, -0.55) {ผู้ดูแลระบบ};
+
+% Entity Boxes at top
+\node[box] (ops) at (3.3, 0.2) {ส่วนหน้า\\{\footnotesize (Ops Console)}};
+\node[box] (mon) at (6.9, 0.2) {ส่วนหลัง\\{\footnotesize (FastAPI API)}};
+\node[box] (scp) at (10.5, 0.2) {ตัวดึงข่าว\\{\footnotesize (ScraperService)}};
+\node[box] (cch) at (14.1, 0.2) {ตัวจัดการแคช\\{\footnotesize (CacheManager)}};
+
+% Lifelines
+\draw[lifeline] (0, -0.85) -- (0, -11.5);
+\draw[lifeline] (ops.south) -- ++(0, -11.0);
+\draw[lifeline] (mon.south) -- ++(0, -11.0);
+\draw[lifeline] (scp.south) -- ++(0, -11.0);
+\draw[lifeline] (cch.south) -- ++(0, -11.0);
+
+% Messages with fill=white
+\draw[msg] (0, -1.4) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {ป้อนรหัสผ่านลับผู้ดูแล} (3.3, -1.4);
+\draw[msg] (3.3, -2.3) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {POST /api/monitoring/auth} (6.9, -2.3);
+\draw[retmsg] (6.9, -3.2) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {200 OK (Bearer Token)} (3.3, -3.2);
+\draw[msg] (0, -4.2) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {กดปุ่ม สั่งสเกรปข่าวด่วน} (3.3, -4.2);
+\draw[msg] (3.3, -5.1) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {POST /scrape-now (Bearer)} (6.9, -5.1);
+\draw[msg] (6.9, -6.0) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {run\_immediate\_cycle()} (10.5, -6.0);
+\draw[retmsg] (6.9, -6.9) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {200 OK (เริ่มรอบการสเกรป)} (3.3, -6.9);
+\draw[msg] (0, -7.9) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {กดปุ่ม สั่งล้างแคชระบบ} (3.3, -7.9);
+\draw[msg] (3.3, -8.8) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {POST /clear-cache (Bearer)} (6.9, -8.8);
+\draw[msg] (6.9, -9.7) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {clear\_all()} (14.1, -9.7);
+\draw[retmsg] (6.9, -10.5) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {200 OK (ล้างแคชสมบูรณ์)} (3.3, -10.5);
+\draw[retmsg] (3.3, -11.2) -- node[above, font=\footnotesize, fill=white, inner sep=2pt] {แสดงสถานะระบบล่าสุด} (0, -11.2);
+
+\end{tikzpicture}%
+}
+\caption{แผนภาพลำดับกระบวนการควบคุมระบบและล้างแคชของผู้ดูแลระบบ}
+\label{fig_seq_admin}
+\end{figure}
 
 % -----------------------------------------------------------
 \section{การออกแบบระบบ}
 % -----------------------------------------------------------
 
-\subsection{สถาปัตยกรรมของระบบและการแบ่งแยกโมดูล (System Architecture)}
+การออกแบบระบบ (System Design) มุ่งเน้นการแปลงข้อกำหนดเชิงวิเคราะห์ไปสู่โครงสร้างทางวิศวกรรมที่สามารถนำไปปฏิบัติจริงได้อย่างมีประสิทธิภาพ ยึดหลักการแยกชั้นความรับผิดชอบ (Separation of Concerns) ตามแนวคิดสถาปัตยกรรม 4 ชั้น (4-Tier Architecture) ออกแบบสถาปัตยกรรมการติดตั้งบนคลาวด์ การจัดการสถานะวงจรชีวิตข้อมูล การออกแบบโครงสร้างฐานข้อมูลเชิงสัมพันธ์ ตลอดจนการออกแบบจุดเชื่อมต่อบริการและส่วนต่อประสานผู้ใช้
 
-ระบบได้รับการออกแบบโครงสร้างสถาปัตยกรรมระดับระบบ (System Architecture Design) สำหรับการติดตั้งบน AWS EC2 \texttt{c7i-flex.large} (2 vCPU, 4 GiB Memory) พร้อมการแยกโมดูลและคอนเทนเนอร์อย่างชัดเจน ดังแสดงในภาพที่~\ref{fig:arch_diagram}
+\subsection{สถาปัตยกรรมของระบบ}
+
+โครงสร้างสถาปัตยกรรมเชิงตรรกะของระบบ (Logical Architecture) แบ่งออกเป็น 4 ชั้นหลักอย่างชัดเจน ได้แก่ Presentation Tier, Processing Tier, Data Tier, และ External Services Tier ดังแสดงในภาพที่~\ref{fig_logical_arch}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    compbox/.style={draw, thick, rectangle, fill=white, text width=3.4cm, minimum height=1.2cm, align=center},
+    arrow/.style={thick, ->, >=stealth},
+    biarrow/.style={thick, <->, >=stealth}
+]
+
+\tikzset{
+    umlcomp/.pic={
+        \draw[thick, fill=white] (-0.16,-0.11) rectangle (0.16,0.11);
+        \draw[thick, fill=white] (-0.23,0.02) rectangle (-0.10,0.07);
+        \draw[thick, fill=white] (-0.23,-0.07) rectangle (-0.10,-0.02);
+    }
+}
+
+% ----------------------------------------------------
+% Partition 1: ส่วนแสดงผล (Presentation Tier)
+% ----------------------------------------------------
+\draw[thick] (0, 0) rectangle ++(4.2, -9.8);
+\draw[thick, fill=white] (0, 0) rectangle ++(2.2, 0.5);
+\node[anchor=center, font=\bfseries\small] at (1.1, 0.25) {ส่วนแสดงผล};
+
+\node[compbox] (app) at (2.1, -1.8) {แอปพลิเคชันหลัก\\{\footnotesize (Bento Hub SPA)}};
+\pic at ($(app.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (reader) at (2.1, -5.0) {โมดอลพรีวิวข่าว\\{\footnotesize (In-App Reader)}};
+\pic at ($(reader.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (ops) at (2.1, -8.0) {ศูนย์ควบคุมสถานะ\\{\footnotesize (Ops Console)}};
+\pic at ($(ops.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\draw[arrow] (app) -- (reader);
+\draw[arrow] (reader) -- (ops);
+
+% ----------------------------------------------------
+% Partition 2: ส่วนประมวลผล (Processing Tier)
+% ----------------------------------------------------
+\draw[thick] (5.4, 0) rectangle ++(4.4, -9.8);
+\draw[thick, fill=white] (5.4, 0) rectangle ++(2.3, 0.5);
+\node[anchor=center, font=\bfseries\small] at (6.55, 0.25) {ส่วนประมวลผล};
+
+\node[compbox] (api) at (7.6, -1.8) {FastAPI REST API\\{\footnotesize (Python 3.11)}};
+\pic at ($(api.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (nlp) at (7.6, -5.0) {Thai NLP Classifier\\{\footnotesize (3-Tier Cascade)}};
+\pic at ($(nlp.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (story) at (7.6, -8.0) {Story Clustering\\{\footnotesize (\& 6-Signal Trending)}};
+\pic at ($(story.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\draw[arrow] (api) -- (nlp);
+\draw[arrow] (nlp) -- (story);
+
+% ----------------------------------------------------
+% Partition 3: ส่วนจัดเก็บข้อมูล (Data Tier)
+% ----------------------------------------------------
+\draw[thick] (10.8, 0) rectangle ++(4.4, -4.6);
+\draw[thick, fill=white] (10.8, 0) rectangle ++(2.4, 0.5);
+\node[anchor=center, font=\bfseries\small] at (12.0, 0.25) {ส่วนจัดเก็บข้อมูล};
+
+\node[compbox] (db) at (13.0, -1.8) {SQLite 3 Engine\\{\footnotesize (news.db WAL)}};
+\pic at ($(db.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (sst) at (13.0, -3.5) {JSON Repositories\\{\footnotesize (Single Source)}};
+\pic at ($(sst.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\draw[arrow] (db) -- (sst);
+
+% ----------------------------------------------------
+% Partition 4: ส่วนบริการภายนอก (External Tier)
+% ----------------------------------------------------
+\draw[thick] (10.8, -5.2) rectangle ++(4.4, -4.6);
+\draw[thick, fill=white] (10.8, -5.2) rectangle ++(2.4, 0.5);
+\node[anchor=center, font=\bfseries\small] at (12.0, -4.95) {ส่วนบริการภายนอก};
+
+\node[compbox] (gemini) at (13.0, -6.6) {KKU Gen.AI Cloud\\{\footnotesize (Google Gemini API)}};
+\pic at ($(gemini.north east)+(-0.35,-0.25)$) {umlcomp};
+
+\node[compbox] (news) at (13.0, -8.4) {สำนักข่าวออนไลน์\\{\footnotesize (Playwright Scraping)}};
+\pic at ($(news.north east)+(-0.35,-0.25)$) {umlcomp};
+
+% ----------------------------------------------------
+% Inter-partition Connections with Labels
+% ----------------------------------------------------
+\draw[biarrow] (app.east) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {HTTPS} node[below=2pt, font=\footnotesize, fill=white, inner sep=2pt] {REST/JSON} (api.west);
+\draw[arrow] (api.east) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {SQL / IPC} (db.west);
+\draw[arrow] ($(api.east)+(0, -0.2)$) -- ++(0.6, 0) |- node[above right, font=\footnotesize, fill=white, inner sep=2pt, pos=0.55] {AI API} (gemini.west);
+\draw[arrow] (story.east) -- ++(0.6, 0) |- node[above, font=\footnotesize, fill=white, inner sep=2pt, pos=0.8] {Playwright} (news.west);
+
+\end{tikzpicture}%
+}
+\caption{สถาปัตยกรรมเชิงตรรกะของระบบ}
+\label{fig_logical_arch}
+\end{figure}
+
+สถาปัตยกรรมการทำงานของระบบยึดหลัก Single Responsibility Principle และ Single Source of Truth (SST) เพื่อให้ระบบสามารถสังเคราะห์เนื้อหาข่าวหลายสำนักได้อย่างถูกต้อง ปราศจากการสร้างข้อมูลเท็จ (Hallucination) และไม่กวาดข่าวผิดชุดเข้ามานำเสนอ โดยในส่วนการประมวลผลเชื่อมโยงเหตุการณ์ \texttt{MacroEventService} จะประเมินเพื่อเชื่อมโยงเข้าสู่เส้นเรื่องของประเด็นหลัก (\texttt{MacroEventRecord}) ผ่านคะแนนความสอดคล้องรวม 4 ปัจจัย หากมีคะแนน $\ge 0.72$ และมีเอนทิตีเฉพาะตรงกัน จะเชื่อมโยงเข้าประเด็นหลักเดิมพร้อมกำหนดความสัมพันธ์เชิงเวลา (\texttt{precedes} หรือ \texttt{updates}) ภายใต้กำหนดการ 45 วัน โดยมีกลไกยับยั้งความขัดแย้งของระดับจังหวัด (Strict Province-Only Veto) ป้องกันการนำเหตุการณ์ต่างพื้นที่มาผูกรวมกัน และมีกระบวนการกู้คืนอัตโนมัติ (\texttt{Reconciliation Engine}) ที่สามารถสร้างดัชนีประเด็นขึ้นใหม่ได้ทันทีหากพบความไม่สอดคล้องของข้อมูล
+
+\subsection{แผนภาพการติดตั้ง}
+
+การติดตั้งระบบบนสภาพแวดล้อมปฏิบัติการจริงได้รับการออกแบบตามมาตรฐาน UML Deployment Node โดยใช้เครื่องแม่ข่าย AWS EC2 ร่วมกับเครือข่ายส่งมอบเนื้อหา Cloudflare และบริการคลาวด์ภายนอก ดังแสดงในภาพที่~\ref{fig_deployment_arch}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    box/.style={draw, thick, rectangle, fill=white, minimum width=3.4cm, minimum height=1.35cm, align=center},
+    arrow/.style={thick}
+]
+
+% ----------------------------------------------------
+% Top 3D Box: Client Device
+% ----------------------------------------------------
+\draw[thick, fill=white] (0.5, 6.0) rectangle ++(4.2, 2.1);
+\draw[thick, fill=white] (0.5, 8.1) -- ++(0.4, 0.3) -- ++(4.2, 0) -- ++(-0.4, -0.3) -- cycle;
+\draw[thick, fill=white] (4.7, 6.0) -- ++(0.4, 0.3) -- ++(0, 2.1) -- ++(-0.4, -0.3) -- cycle;
+\node[align=center] at (2.6, 7.1) {<<device>>\\[3pt]\textbf{เครื่องผู้ใช้}\\[3pt]\footnotesize เว็บเบราว์เซอร์};
+
+% ----------------------------------------------------
+% Bottom 3D Box: Server Device
+% ----------------------------------------------------
+\draw[thick, fill=white] (0.2, -0.5) rectangle ++(13.8, 5.8);
+\draw[thick, fill=white] (0.2, 5.3) -- ++(0.4, 0.3) -- ++(13.8, 0) -- ++(-0.4, -0.3) -- cycle;
+\draw[thick, fill=white] (14.0, -0.5) -- ++(0.4, 0.3) -- ++(0, 5.8) -- ++(-0.4, -0.3) -- cycle;
+\node[anchor=north east, font=\bfseries\small] at (13.6, 5.0) {<<device>> เครื่องแม่ข่าย Ubuntu 22.04 LTS};
+
+% Internal Execution Environments & Databases
+\node[box] (nginx) at (2.6, 3.4) {<<execution environment>>\\[2pt]\textbf{Nginx :443}\\[2pt]\footnotesize Reverse Proxy + SSL};
+\node[box] (fastapi) at (8.0, 3.4) {<<execution environment>>\\[2pt]\textbf{FastAPI :5000}\\[2pt]\footnotesize Uvicorn API Server};
+
+\node[box] (sqlite) at (2.6, 0.9) {<<database>>\\[2pt]\textbf{SQLite 3 :news.db}\\[2pt]\footnotesize ฐานข้อมูล WAL Mode};
+\node[box] (playwright) at (8.0, 0.9) {<<execution environment>>\\[2pt]\textbf{Playwright Engine}\\[2pt]\footnotesize Chromium Headless};
+\node[box] (storage) at (12.0, 0.9) {<<storage>>\\[2pt]\textbf{File Storage}\\[2pt]\footnotesize /backend/data/};
+
+% Connections
+\draw[arrow] (2.6, 6.0) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {HTTPS :443} (nginx.north);
+\draw[arrow] (nginx.east) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {HTTP :5000} (fastapi.west);
+\draw[arrow] (fastapi.south) -- node[above left, font=\footnotesize, fill=white, inner sep=2pt, pos=0.6] {IPC / SQL} (sqlite.north);
+\draw[arrow] (fastapi.south) -- node[left=4pt, font=\footnotesize, fill=white, inner sep=2pt] {Playwright API} (playwright.north);
+\draw[arrow] (fastapi.south) -- node[above right, font=\footnotesize, fill=white, inner sep=2pt, pos=0.6] {อ่าน/เขียนแฟ้ม} (storage.north);
+
+\end{tikzpicture}%
+}
+\caption{แผนภาพการติดตั้งระบบ}
+\label{fig_deployment_arch}
+\end{figure}
+
+\subsection{แผนภาพสถานะ}
+
+เพื่อควบคุมพฤติกรรมและการเปลี่ยนแปลงของข้อมูลอย่างแม่นยำ ระบบได้ออกแบบแผนภาพสถานะ (State Machine Diagrams) ครอบคลุม 2 กลไกสำคัญ ได้แก่ วงจรชีวิตของกลุ่มประเด็นข่าว และโหมดการสังเคราะห์เนื้อหาที่มีหลักฐานอ้างอิง
+
+\subsubsection{แผนภาพสถานะวงจรชีวิตของประเด็นข่าว}
+
+กลุ่มประเด็นข่าวออนไลน์ (\texttt{StoryRecord}) ได้รับการบริหารจัดการวงจรชีวิตเพื่อความคงทนและประหยัดทรัพยากร ดังแสดงในภาพที่~\ref{fig_state_story}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
     font=\small,
-    box/.style={draw, rectangle, rounded corners=4pt, fill=blue!5, thick, minimum width=3.5cm, minimum height=1.0cm, align=center},
-    container/.style={draw, rectangle, rounded corners=6pt, fill=gray!3, thick, dashed, inner sep=12pt},
-    extbox/.style={draw, rectangle, rounded corners=4pt, fill=orange!10, thick, minimum width=3.2cm, minimum height=1.0cm, align=center},
-    arrow/.style={thick, <->, >=stealth}
+    state/.style={draw, thick, rectangle, rounded corners=8pt, fill=white, text width=2.8cm, minimum height=1.1cm, align=center},
+    init/.style={circle, fill=black, inner sep=0pt, minimum size=0.35cm},
+    trans/.style={thick, ->, >=stealth}
 ]
 
-% Client Layer
-\node[box, fill=green!10] (client) at (0, 6.0) {\textbf{Web Client / SPA}\\Vanilla JS, Tailwind, Socket.IO};
+\node[init] (start) at (-5.5, 0) {};
+\node[state] (created) at (-3.2, 0) {created\\[2pt]\footnotesize(เพิ่งสร้างกลุ่มข่าว)};
+\node[state] (active) at (1.6, 0) {active\\[2pt]\footnotesize(ดำเนินการอยู่)};
+\node[state] (dormant) at (1.6, -2.6) {dormant\\[2pt]\footnotesize(พักตัวเกิน 72 ชม.)};
+\node[state] (linked) at (6.4, 0) {linked\_macro\\[2pt]\footnotesize(เชื่อมโยงมหากาพย์)};
 
-% Server Container
-\node[box, fill=purple!10] (nginx) at (0, 3.7) {\textbf{Nginx Reverse Proxy}\\SSL, Static Files, Rate Limit};
+% Final state: outer circle with solid black dot
+\node[draw, thick, circle, minimum size=0.55cm] (final) at (6.4, -2.6) {};
+\fill (final) circle (0.16cm);
 
-\node[box] (router) at (-4.3, 1.0) {\textbf{FastAPI Routers}\\REST API \& Socket.IO};
-\node[box] (service) at (0, 1.0) {\textbf{Business Services}\\Scraper, Classifier, LLM};
-\node[box] (core) at (4.3, 1.0) {\textbf{Playwright Browser}\\Chromium Headless};
-
-\node[box, fill=cyan!10] (cache) at (-2.4, -2.0) {\textbf{Multi-tier Cache}\\AsyncInMem + HTTP 304};
-\node[box, fill=cyan!10] (storage) at (2.4, -2.0) {\textbf{File Repository}\\JSON Storage (Local/S3)};
-
-% AWS EC2 Box
-\begin{scope}[on background layer]
-    \node[
-        container,
-        fit=(nginx) (router) (service) (core) (cache) (storage),
-        label=above:{\textbf{AWS EC2 Instance (c7i-flex.large: 2 vCPU, 4 GiB Memory)}}
-    ] (ec2) {};
-\end{scope}
-
-% External APIs
-\node[extbox] (llm) at (-5.3, -5.0) {\textbf{KKU Gen.AI Cloud}\\Gemini API Service};
-\node[extbox] (sources) at (5.3, -5.0) {\textbf{Online News Sources}\\ThaiPBS, Thairath, RSS};
-
-% Connections
-\draw[arrow] (client) -- node[right] {HTTPS / WSS} (nginx);
-\draw[arrow] (nginx) -- (router);
-\draw[arrow] (router) -- (service);
-\draw[arrow] (service) -- (core);
-\draw[arrow] (service) -- (cache);
-\draw[arrow] (service) -- (storage);
-\draw[arrow] (service) -- (llm);
-\draw[arrow] (core) -- (sources);
+\draw[trans] (start) -- (created);
+\draw[trans] (created) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ข่าวแรกเข้าสู่ระบบ} (active);
+\draw[trans] ($(active.south)+(0.5,0)$) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ไม่มีข่าวใหม่เกิน 72 ชม.} ($(dormant.north)+(0.5,0)$);
+\draw[trans] ($(dormant.north)+(-0.5,0)$) -- node[left=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ข่าวใหม่ตรงประเด็นเดิม} ($(active.south)+(-0.5,0)$);
+\draw[trans] (active) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {คะแนนร่วม $\ge 0.72$} (linked);
+\draw[trans] (linked) -- node[right=2pt, font=\footnotesize, fill=white, inner sep=2pt] {จัดเก็บประวัติถาวร} (final);
 
 \end{tikzpicture}
-\caption{แผนภาพสถาปัตยกรรมระบบและการแบ่งแยกโมดูล (System Architecture Diagram)}
-\label{fig:arch_diagram}
+\caption{แผนภาพสถานะวงจรชีวิตของประเด็นข่าว}
+\label{fig_state_story}
 \end{figure}
 
-ตารางที่~\ref{tab:arch_layers} แสดงความรับผิดชอบของแต่ละเลเยอร์ในระบบ
+\subsubsection{แผนภาพสถานะโหมดการสังเคราะห์เนื้อหาที่มีหลักฐานอ้างอิง}
+
+กระบวนการสังเคราะห์เนื้อหาและจัดเตรียมแฟ้มข่าวกรองผ่านกลไก 3-Layer Guardrails มีการเปลี่ยนผ่านสถานะตามปริมาณหลักฐาน ดังแสดงในภาพที่~\ref{fig_state_synthesis}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    state/.style={draw, thick, rectangle, rounded corners=8pt, fill=white, text width=3.2cm, minimum height=1.1cm, align=center},
+    init/.style={circle, fill=black, inner sep=0pt, minimum size=0.35cm},
+    trans/.style={thick, ->, >=stealth}
+]
+
+\node[init] (start) at (-5.8, 0) {};
+\node[state] (filter) at (-3.2, 0) {candidate\_filtering\\[2pt]\footnotesize(คัดกรองข่าวผู้สมัคร)};
+\node[state] (halt) at (2.8, 2.2) {halted\_mismatch\\[2pt]\footnotesize(ระงับการสังเคราะห์)};
+\node[state] (single) at (2.8, 0) {single\_source\\[2pt]\footnotesize(รายงานจากสื่อเดียว)};
+\node[state] (multi) at (2.8, -2.2) {multi\_source\\[2pt]\footnotesize(สังเคราะห์หลายสื่อ)};
+
+% Final state: outer circle with solid black dot
+\node[draw, thick, circle, minimum size=0.55cm] (final) at (6.8, 0) {};
+\fill (final) circle (0.16cm);
+
+\draw[trans] (start) -- (filter);
+\draw[trans] (filter.north) to[out=45, in=180] node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ไม่ผ่านเกณฑ์ ($N=0$)} (halt.west);
+\draw[trans] (filter.east) -- node[above=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ผ่านเกณฑ์ 1 สื่อ ($N=1$)} (single.west);
+\draw[trans] (filter.south) to[out=-45, in=180] node[below=2pt, font=\footnotesize, fill=white, inner sep=2pt] {ผ่านเกณฑ์ $\ge 2$ สื่อ} (multi.west);
+
+\draw[trans] (halt.east) to[out=0, in=135] (final);
+\draw[trans] (single.east) -- (final);
+\draw[trans] (multi.east) to[out=0, in=-135] (final);
+
+\node[above=0.25cm of final, font=\footnotesize, fill=white, inner sep=1pt] {ส่งมอบผลลัพธ์};
+
+\end{tikzpicture}
+\caption{แผนภาพสถานะโหมดการสังเคราะห์เนื้อหาที่มีหลักฐานอ้างอิง}
+\label{fig_state_synthesis}
+\end{figure}
+
+\subsection{การออกแบบฐานข้อมูล}
+
+การออกแบบฐานข้อมูลเชิงสัมพันธ์ของระบบประกอบด้วย 6 ตารางหลัก ได้แก่ \cskkuCode{articles}, \cskkuCode{stories}, \cskkuCode{macro\_events}, \cskkuCode{event\_relations}, \cskkuCode{trending\_scores} และ \cskkuCode{reader\_engagement} พร้อมด้วยตารางสนับสนุนอีก 2 ตาราง ได้แก่ \cskkuCode{seen\_urls} และ \cskkuCode{canonical\_articles} ดังแสดงความสัมพันธ์และภาวะเชิงจำนวนในแผนภาพความสัมพันธ์ของข้อมูลภาพที่~\ref{fig_relational_schema}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\footnotesize,
+    tblhdr/.style={draw, thick, fill=black!15, minimum width=3.5cm, minimum height=0.55cm, align=center, font=\bfseries\small},
+    tblbdy/.style={draw, thick, fill=white, minimum width=3.5cm, anchor=north, inner sep=4pt},
+    rel/.style={thick}
+]
+\renewcommand{\arraystretch}{0.95}
+
+% ----------------------------------------------------
+% ROW 1: seen_urls | articles | reader_engagement
+% ----------------------------------------------------
+
+% 1. seen_urls (Top Left)
+\node[tblhdr] (seen_hdr) at (-5.6, 6.8) {seen\_urls};
+\node[tblbdy] (seen) at (seen_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        url\_hash & PK \\
+        url & FK \\
+        first\_seen\_at & \\
+    \end{tabular*}
+};
+
+% 2. articles (Top Center)
+\node[tblhdr] (art_hdr) at (0, 6.8) {articles};
+\node[tblbdy] (art) at (art_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        id & PK \\
+        url & UQ \\
+        title & \\
+        source & \\
+        category & \\
+        story\_id & FK \\
+    \end{tabular*}
+};
+
+% 3. reader_engagement (Top Right)
+\node[tblhdr] (eng_hdr) at (5.6, 6.8) {reader\_engagement};
+\node[tblbdy] (eng) at (eng_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        id & PK \\
+        article\_url & FK \\
+        clicks & \\
+        summaries & \\
+        bookmarks & \\
+    \end{tabular*}
+};
+
+% ----------------------------------------------------
+% ROW 2: canonical_articles | stories | trending_scores
+% ----------------------------------------------------
+
+% 4. canonical_articles (Middle Left)
+\node[tblhdr] (canon_hdr) at (-5.6, 0.6) {canonical\_articles};
+\node[tblbdy] (canon) at (canon_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        canonical\_url & PK, FK \\
+        target\_url & \\
+        created\_at & \\
+    \end{tabular*}
+};
+
+% 5. stories (Middle Center)
+\node[tblhdr] (story_hdr) at (0, 0.6) {stories};
+\node[tblbdy] (story) at (story_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        story\_id & PK \\
+        title & \\
+        category & \\
+        status & \\
+        macro\_event\_id & FK \\
+    \end{tabular*}
+};
+
+% 6. trending_scores (Middle Right)
+\node[tblhdr] (trend_hdr) at (5.6, 0.6) {trending\_scores};
+\node[tblbdy] (trend) at (trend_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        story\_id & PK, FK \\
+        volume\_score & \\
+        velocity\_score & \\
+        diversity\_score & \\
+        final\_score & \\
+    \end{tabular*}
+};
+
+% ----------------------------------------------------
+% ROW 3: macro_events | event_relations
+% ----------------------------------------------------
+
+% 7. macro_events (Bottom Left)
+\node[tblhdr] (macro_hdr) at (-5.6, -5.4) {macro\_events};
+\node[tblbdy] (macro) at (macro_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        macro\_event\_id & PK \\
+        title & \\
+        category & \\
+        status & \\
+        headline & \\
+    \end{tabular*}
+};
+
+% 8. event_relations (Bottom Center)
+\node[tblhdr] (rel_hdr) at (0, -5.4) {event\_relations};
+\node[tblbdy] (rel) at (rel_hdr.south) {
+    \begin{tabular*}{\dimexpr 3.5cm - 8pt\relax}{@{}l@{\extracolsep{\fill}}r@{}}
+        id & PK \\
+        macro\_id & FK \\
+        source\_story\_id & FK \\
+        target\_story\_id & FK \\
+        relation\_type & \\
+    \end{tabular*}
+};
+
+% ----------------------------------------------------
+% RELATIONSHIPS & CARDINALITIES
+% ----------------------------------------------------
+
+% articles <-> seen_urls (1 : N)
+\draw[rel] (art.west |- {0, 6.1}) -- node[above=1pt, font=\scriptsize, fill=white, inner sep=1pt] {url} node[pos=0.08, above, font=\footnotesize] {1} node[pos=0.92, above, font=\footnotesize] {N} (seen.east |- {0, 6.1});
+
+% articles <-> reader_engagement (1 : N)
+\draw[rel] (art.east |- {0, 6.1}) -- node[above=1pt, font=\scriptsize, fill=white, inner sep=1pt] {article\_url} node[pos=0.08, above, font=\footnotesize] {1} node[pos=0.92, above, font=\footnotesize] {N} (eng.west |- {0, 6.1});
+
+% articles <-> canonical_articles (1 : N)
+\draw[rel] ($(art.west)+(0, -0.6)$) -| node[pos=0.1, above, font=\footnotesize] {1} node[pos=0.35, above=1pt, font=\scriptsize, fill=white, inner sep=1pt] {canonical\_url} node[pos=0.9, right=2pt, font=\footnotesize] {N} ($(canon.east)+(0, 0.2)$);
+
+% stories <-> articles (1 : N)
+\draw[rel] (story_hdr.north) -- node[pos=0.15, right, font=\footnotesize] {1} node[pos=0.5, right=2pt, font=\scriptsize, fill=white, inner sep=1pt] {story\_id} node[pos=0.85, right, font=\footnotesize] {N} (art.south);
+
+% stories <-> trending_scores (1 : 1)
+\draw[rel] (story.east |- {0, 0.0}) -- node[above=1pt, font=\scriptsize, fill=white, inner sep=1pt] {story\_id} node[pos=0.08, above, font=\footnotesize] {1} node[pos=0.92, above, font=\footnotesize] {1} (trend.west |- {0, 0.0});
+
+% macro_events <-> stories (1 : N)
+\draw[rel] (macro.east |- {0, -6.0}) -- ++(1.0, 0) node[pos=0.1, above, font=\footnotesize] {1} |- node[pos=0.45, left=2pt, font=\scriptsize, fill=white, inner sep=1.5pt] {macro\_event\_id} node[pos=0.9, above=2pt, font=\footnotesize] {N} ($(story.west)+(0, -1.2)$);
+
+% macro_events <-> event_relations (1 : N)
+\draw[rel] (macro.east |- {0, -6.7}) -- node[above=1pt, font=\scriptsize, fill=white, inner sep=1pt] {macro\_id} node[pos=0.08, above, font=\footnotesize] {1} node[pos=0.92, above, font=\footnotesize] {N} (rel.west |- {0, -6.7});
+
+% stories <-> event_relations (1 : N)
+\draw[rel] (story.south) -- node[pos=0.15, right, font=\footnotesize] {1} node[pos=0.5, right=2pt, font=\scriptsize, fill=white, inner sep=1pt] {story\_id} node[pos=0.85, right, font=\footnotesize] {N} (rel_hdr.north);
+
+\end{tikzpicture}%
+}
+\caption{แผนภาพความสัมพันธ์ของข้อมูล}
+\label{fig_relational_schema}
+\end{figure}
+
+รายละเอียดโครงสร้างทางกายภาพของตารางข้อมูลทั้ง 6 ตารางหลักและตารางสนับสนุน แสดงดังตารางที่~\ref{tab_schema_articles} ถึงตารางที่~\ref{tab_schema_canonical}
 
 \begin{table}[H]
 \centering
-\caption{การแบ่งชั้นสถาปัตยกรรมของระบบ (Backend Architecture Layers)}
-\label{tab:arch_layers}
+\caption{โครงสร้างตาราง articles}
+\label{tab_schema_articles}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{4.2cm}|L{7.2cm}|}
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
 \hline
-\textbf{เลเยอร์} & \textbf{โฟลเดอร์/โมดูล} & \textbf{หน้าที่และความรับผิดชอบ} \\
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
 \hline
-Presentation & \texttt{frontend/static/} & จัดการหน้าเว็บ Single Page Application (SPA), Bento Hub, หน้าระบบมอนิเตอร์ (\texttt{monitoring.html}) และ WebSocket \\ \hline
-Routing & \texttt{backend/routers/} & รับคำขอ HTTP REST API (\texttt{news}, \texttt{story}, \texttt{macro\_event}, \texttt{trending}, \texttt{monitoring}) และส่งต่อข้อมูล \\ \hline
-Service (Business Logic) & \texttt{backend/services/} & ควบคุมตรรกะระบบ ได้แก่ \texttt{ScraperService}, \texttt{StoryService} (ระบุประเด็นข่าว), \texttt{TrendingService} (จัดอันดับกระแส), \texttt{StoryPresentationService} (สังเคราะห์เนื้อหา), \texttt{MacroEventService} (รวมมหากาพย์ประเด็น) \\ \hline
-Scraper & \texttt{backend/scrapers/} & สเกรปเปอร์เฉพาะแต่ละสำนักข่าว ลงทะเบียนด้วย Decorator พร้อมฟังก์ชันแยกวิเคราะห์ HTML \\ \hline
-Core / Infrastructure & \texttt{backend/core/} & เครื่องมือส่วนกลาง เช่น \texttt{BrowserService} (Playwright), \texttt{SocketManager}, \texttt{L1Cache} และ \texttt{AsyncInMemoryCache} \\ \hline
-Persistence & \texttt{backend/repo/} & บันทึกและดึงข้อมูลข่าว ประเด็นข่าว และสถิติ (\texttt{FileNewsRepo}, \texttt{SqliteNewsRepo}, \texttt{MongoStoryRepo}, \texttt{MacroEventRepo}) \\ \hline
-Schema & \texttt{backend/schemas/} & กำหนดโครงสร้างข้อมูล (Pydantic Models: \texttt{NewsArticle}, \texttt{StoryRecord}, \texttt{TrendingScoreBreakdown}) \\
+id & INTEGER & PK & AUTO & รหัสระบุลำดับบทความในฐานข้อมูล SQLite \\ \hline
+url & TEXT & UQ & ไม่มี & ลิงก์ที่อยู่บทความข่าวต้นฉบับ (Primary Key เชิงธุรกิจ) \\ \hline
+title & TEXT & - & ไม่มี & หัวข้อบทความข่าวที่สกัดได้ \\ \hline
+source & TEXT & - & ไม่มี & ชื่อสำนักข่าวต้นทาง (เช่น ThaiPBS, Thairath) \\ \hline
+fetched\_at & TEXT & - & ไม่มี & วันเวลาที่ระบบดึงข้อมูลตามมาตรฐาน ISO 8601 \\ \hline
+summary & TEXT & - & NULL & ข้อความสรุปย่อเนื้อหาข่าวจากโมเดลภาษา \\ \hline
+category & TEXT & - & NULL & หมวดหมู่ข่าว 1 ใน 9 หมวดหมู่หลัก \\ \hline
+story\_id & TEXT & FK & NULL & รหัสกลุ่มประเด็นข่าวที่สังกัด (เชื่อมไปยัง stories) \\ \hline
+sentiment & TEXT & - & NULL & ค่าอารมณ์ของข่าว (positive, neutral, negative) \\ \hline
+image\_url & TEXT & - & NULL & ลิงก์รูปภาพหน้าปกบทความข่าว \\
 \hline
 \end{tabular}%
 }
 \end{table}
 
-\subsubsection{สถาปัตยกรรมการประมวลผลและการจัดกลุ่มเหตุการณ์แบบ 2 ระดับ (Two-Stage Event-Centric Processing Pipeline)}
-
-เพื่อแก้ไขข้อจำกัดดั้งเดิมของระบบจัดกลุ่มข่าวทั่วไปที่มักยุบรวมข่าวในหมวดเดียวกัน (Topic) กลายเป็นเหตุการณ์เดียวกัน ระบบจึงได้รับการพัฒนาสถาปัตยกรรมประมวลผลเหตุการณ์แบบ 2 ระดับ (Two-Stage Event-Centric Processing Pipeline) ดังแสดงในภาพที่~\ref{fig:arch_event_pipeline} ซึ่งครอบคลุมสายการทำงานตั้งแต่การรับเข้าข้อมูลไปจนถึงการนำเสนอบนหน้าเว็บส่วนติดต่อผู้ใช้
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{images/architecture_event_pipeline.pdf}
-\caption{แผนภาพสถาปัตยกรรมการประมวลผลและการจัดกลุ่มเหตุการณ์แบบ 2 ระดับ (Two-Stage Event-Centric Processing Pipeline Architecture)}
-\label{fig:arch_event_pipeline}
-\end{figure}
-
-สถาปัตยกรรมดังกล่าวประกอบด้วย 5 ขั้นตอนหลัก ดังนี้:
-\begin{enumerate}
-    \item \textbf{การรับข้อมูลและปรับสภาพข้อความภาษาไทย (Online Ingestion \& Thai NLP)}\\*
-      : เมื่อมีบทความข่าวใหม่เข้าสู่ระบบ โมดูล \texttt{thai\_normalizer.py} จะทำความสะอาดข้อความ ปรับเลขไทยเป็นเลขอารบิก ลบอักขระความกว้างศูนย์ แปลงคำย่อทางการ และจัดระดับสถานที่ตามลำดับชั้น (Location Hierarchy: จังหวัด $\rightarrow$ อำเภอ $\rightarrow$ ตำบล) จากนั้นจึงส่งต่อให้ \texttt{WangchanBERTa} สกัดเวกเตอร์ความหมาย 768 มิติ และ \texttt{thainer-v2} สกัดเอนทิตีชื่อเฉพาะ (บุคคล องค์กร สถานที่)
-    \item \textbf{การระบุและจัดกลุ่มจุลเหตุการณ์ (Stage A: Micro-Event Clustering)}\\*
-      : \texttt{StoryService} ทำหน้าที่ตรวจวัดความคล้ายคลึงของเวกเตอร์ (Cosine Similarity) และเอนทิตีกับกลุ่มเหตุการณ์ที่มีอยู่ในหน้าต่างเวลา 72 ชั่วโมง หากมีค่าความคล้ายคลึง $\ge 0.85$ หรืออยู่ในช่วง $[0.74, 0.85)$ ร่วมกับมีเอนทิตีซ้อนทับกัน จะถูกผนวกเข้าสู่กลุ่มจุลเหตุการณ์เดิม (\texttt{StoryRecord}) แต่หากความคล้ายคลึงต่ำกว่า 0.74 ระบบจะสร้างกลุ่มจุลเหตุการณ์ใหม่ขึ้นทันที
-    \item \textbf{การเชื่อมโยงเส้นเรื่องมหาภาค (Stage B: Macro Storyline Identification)}\\*
-       เมื่อเกิดประเด็นเหตุการณ์ใหม่ \texttt{MacroEventService} จะประเมินเพื่อเชื่อมโยงเข้าสู่เส้นเรื่องของประเด็นหลัก (\texttt{MacroEventRecord}) ผ่านคะแนนความสอดคล้องรวม 4 ปัจจัย หากมีคะแนน $\ge 0.72$ และมีเอนทิตีเฉพาะตรงกัน จะเชื่อมโยงเข้าประเด็นหลักเดิมพร้อมกำหนดความสัมพันธ์เชิงเวลา (\texttt{precedes} หรือ \texttt{updates}) ภายใต้กำหนดการ 45 วัน โดยมีกลไกยับยั้งความขัดแย้งของระดับจังหวัด (Strict Province-Only Veto) ป้องกันการนำเหตุการณ์ต่างพื้นที่มาผูกรวมกัน
-    \item \textbf{การจัดเก็บข้อมูลและความสอดคล้อง (Persistence \& SST Integrity)}\\*
-       ระบบใช้สถาปัตยกรรม Single Source of Truth (SST) โดยกำหนดให้ \texttt{StoryRepo} (\texttt{stories\_data.json}) เป็นแหล่งข้อมูลความจริงสูงสุดในการเก็บฟิลด์ \texttt{macro\_event\_id} ในขณะที่ \texttt{MacroRepo} ทำหน้าที่เป็น Dynamic Index พร้อมทั้งมีกระบวนการกู้คืนอัตโนมัติ (\texttt{Reconciliation Engine}) ที่สามารถสร้างดัชนีประเด็นขึ้นใหม่ได้ทันทีหากพบความไม่สอดคล้องของข้อมูล
-    \item \textbf{กระบวนการประมวลผลและสังเคราะห์ข้อมูล (Decoupled Presentation \& Synthesis)}\\*
-       ให้บริการผ่าน REST API (\texttt{/api/macro-events/trending} และ \texttt{/api/stories/trending}) โดยมี \texttt{StoryPresentationService} ทำหน้าที่สังเคราะห์เนื้อหาพร้อมระบบแคช SHA-256 และส่งมอบข้อมูลไปยังหน้าเว็บส่วนติดต่อผู้ใช้แบบ Bento Hub ที่พัฒนาด้วยโครงสร้าง 11 โมดูล ES อิสระ
-\end{enumerate}
-
-\subsubsection{สถาปัตยกรรมระบบกลไกป้องกันและควบคุมความถูกต้อง 3 ระดับ (3-Layer Event Verification and Grounded Synthesis Guardrails)}
-
-เพื่อให้ระบบสามารถสังเคราะห์เนื้อหาข่าวหลายสำนักได้อย่างถูกต้อง ปราศจากการสร้างข้อมูลเท็จ (Hallucination) และไม่กวาดข่าวผิดชุดเข้ามานำเสนอ ระบบจึงได้วางสถาปัตยกรรมกลไกป้องกันและควบคุมความถูกต้อง 3 ระดับ (3-Layer Guardrails Architecture) ดังแสดงในภาพที่~\ref{fig:arch_pipeline_guardrails}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.88\textwidth]{images/architecture_pipeline_guardrails.pdf}
-\caption{แผนภาพสถาปัตยกรรมระบบกลไกป้องกันและควบคุมความถูกต้อง 3 ระดับ (3-Layer Event Verification and Grounded Synthesis Guardrails)}
-\label{fig:arch_pipeline_guardrails}
-\end{figure}
-
-กลไกการควบคุมทั้ง 3 ระดับทำงานร่วมกันอย่างเป็นระบบ ดังนี้:
-\begin{enumerate}
-    \item \textbf{ชั้นที่ 1: การกำหนดเหตุการณ์และสกัดหลักฐาน (Layer 1: Event Assignment \& Typed Evidence)}\\*
-       สกัดหลักฐานสำคัญอย่างเป็นระบบ ได้แก่ กริยาการกระทำ (Action), สถานที่ (Location), ผู้เกี่ยวข้อง (Actor) และเวลาเกิดเหตุจริง (\texttt{extract\_event\_time\_evidence}) พร้อมสร้างรหัสเหตุการณ์ถาวรด้วย Content-Anchored Hash ช่วยตัดปัญหาหมายเลขกลุ่มชนกันเมื่อประมวลผลซ้ำ
-    \item \textbf{ชั้นที่ 2: การตรวจสอบความถูกต้องและกรองคำรบกวน (Layer 2: Candidate Validation \& Noise Reduction)}\\*
-       ไม่กวาดข่าวด้วยคำพาดหัวแบบสุ่ม (No Blind Keyword Sweeping) ตัดคำระบุเวลา เดือน และปี ที่มักปะปนในพาดหัว (เช่น คำว่า ``ต.ค.'', ``2569'') และประเมินความเกี่ยวข้องระดับบทความผ่าน 3-Stage Relevance Enforcement Gate (Heuristic Filter $\rightarrow$ LLM Classification $\rightarrow$ Safety Guardrail)
-    \item \textbf{ชั้นที่ 3: การตรวจสอบความสอดคล้องและโหมดการสังเคราะห์ที่มีหลักฐานอ้างอิง (Layer 3: Headline-Evidence Alignment \& Grounded Synthesis Modes)}\\*
-       ตรวจสอบความสอดคล้องระหว่างพาดหัวของมหากาพย์กับเนื้อหาข่าวผู้สมัครที่ผ่านเกณฑ์ โดยแบ่งการทำงานออกเป็น 3 โหมดอย่างชัดเจน:
-    \begin{enumerate}
-        \item \textbf{โหมดระงับการสังเคราะห์ (\texttt{status = 'halted\_mismatch'})}: หากไม่มีข่าวใดผ่านเกณฑ์ความสอดคล้องเลย ระบบจะหยุดการสังเคราะห์ด้วย LLM ทันที พร้อมแสดงข้อความแจ้งเตือนว่าชุดข่าวไม่ตรงกับเหตุการณ์ เพื่อป้องกันการกุเนื้อหาเท็จ
-        \item \textbf{โหมดรายงานจากแหล่งข่าวเดียว (\texttt{status = 'single\_source'})}: หากมีข่าวผ่านเกณฑ์เพียง 1 สำนัก ระบบจะนำเสนอข้อมูลอย่างโปร่งใสว่าเป็นรายงานจากสำนักข่าวดังกล่าว โดยไม่แสดงข้อความอ้างว่า ``ยืนยันตรงกันทุกสื่อ''
-        \item \textbf{โหมดสังเคราะห์หลายแหล่งข่าว (\texttt{status = 'synthesized'})}: หากมีข่าวตั้งแต่ 2 สำนักขึ้นไปยืนยันตรงกัน ระบบจะสังเคราะห์ภาพรวม (Executive Overview) และลำดับเวลา (Chronological Timeline) พร้อมตรวจสอบรหัสอ้างอิงรายประโยค (Citation Audit) เพื่อความถูกต้องสูงสุด
-    \end{enumerate}
-\end{enumerate}
-
-\subsection{การออกแบบฐานข้อมูลและการจัดเก็บข้อมูล}
-
-โครงสร้างข้อมูลของระบบได้รับการออกแบบตามหลัก Single Responsibility Principle และสถาปัตยกรรมแบบ Single Source of Truth (SST) โดยกำหนดความสัมพันธ์ระหว่างเอนทิตีในระดับต่าง ๆ ผ่านโมเดล Pydantic v2 เพื่อรองรับทั้งการจัดเก็บลงไฟล์ JSON และ MongoDB แบบยืดหยุ่น ดังแสดงในภาพที่~\ref{fig:arch_schema_erd}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{images/architecture_schema_erd.pdf}
-\caption{แผนภาพแสดงความสัมพันธ์ของโครงสร้างข้อมูลทั้งระบบ (System Schema Entity-Relationship Diagram)}
-\label{fig:arch_schema_erd}
-\end{figure}
-
-จากภาพที่~\ref{fig:arch_schema_erd} โครงสร้างข้อมูลแบ่งออกเป็นระดับสำคัญดังนี้:
-\begin{enumerate}
-    \item \textbf{ระดับบทความข่าว (\texttt{ArticleRecord})}: จัดเก็บข้อมูลข่าวเดี่ยวที่สกัดได้จากสำนักข่าวต้นทาง โดยมีฟิลด์ \texttt{url} ทำหน้าที่เป็น Primary Key และเชื่อมโยงไปยังกลุ่มจุลเหตุการณ์ผ่าน \texttt{story\_id}
-    \item \textbf{ระดับจุลเหตุการณ์ (\texttt{StoryRecord})}: ทำหน้าที่เป็น Single Source of Truth (SST) ของเหตุการณ์ย่อย รวมบทความข่าวที่รายงานเหตุการณ์เดียวกัน ($1:N$) มีการฝัง \texttt{TypedEventAnchors} และ \texttt{EventTimeEvidence} เพื่อใช้ในการตรวจสอบหลักฐานและความสอดคล้องเชิงพื้นที่/เวลา พร้อมทั้งบันทึก \texttt{macro\_event\_id} เพื่อชี้ไปยังเส้นเรื่องมหาภาค
-    \item \textbf{ระดับเส้นเรื่องมหาภาค (\texttt{MacroEventRecord})}: ทำหน้าที่เป็น Dynamic Search Index สำหรับจัดกลุ่มประเด็นเหตุการณ์ที่ต่อเนื่องกันข้ามสัปดาห์หรือข้ามเดือน ($1:N$) พร้อมบันทึกความสัมพันธ์เชิงเวลาและสาเหตุ (\texttt{EventRelationRecord}) เช่น \texttt{precedes} และ \texttt{updates}
-    \item \textbf{ระดับการสังเคราะห์และประเมินกระแส}
-      : ประกอบด้วย \texttt{EventProgressionSynthesis} สำหรับแคชผลการสังเคราะห์ไทม์ไลน์และข้อเท็จจริงยืนยัน และ \texttt{TrendingScoreBreakdown} สำหรับแจกแจงคะแนนกระแสข่าว 4 มิติ
-\end{enumerate}
-
-ระบบได้รับการออกแบบโครงสร้างข้อมูลแยกเป็น 3 ส่วนหลัก ได้แก่ โครงสร้างบทความข่าวเดี่ยว (\texttt{NewsArticle} Schema ดังตารางที่~\ref{tab:news_schema}) โครงสร้างประเด็นข่าวสารหลายสำนัก (\texttt{StoryRecord} Schema ดังตารางที่~\ref{tab:story_schema}) และโครงสร้างคะแนนแจกแจงกระแสข่าว (\texttt{TrendingScoreBreakdown} Schema)
-
 \begin{table}[H]
 \centering
-\caption{โครงสร้างข้อมูลบทความข่าว (\texttt{NewsArticle} Schema)}
-\label{tab:news_schema}
+\caption{โครงสร้างตาราง stories}
+\label{tab_schema_stories}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|L{6.5cm}|}
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
 \hline
-\textbf{ฟิลด์ (Field)} & \textbf{ชนิดข้อมูล} & \textbf{จำเป็น} & \textbf{คำอธิบาย} \\
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
 \hline
-\texttt{id} & String & ใช่ & รหัสระบุข่าวแบบไม่ซ้ำ (Hash จาก URL) \\ \hline
-\texttt{title} & String & ใช่ & หัวข้อข่าว \\ \hline
-\texttt{url} & String & ใช่ & ลิงก์ต้นฉบับบทความข่าว \\ \hline
-\texttt{source} & String & ใช่ & ชื่อสำนักข่าวต้นทาง (เช่น ThaiPBS, Thairath, BBC) \\ \hline
-\texttt{category} & String & ใช่ & หมวดหมู่ข่าว (politics, economy, tech, etc.) \\ \hline
-\texttt{summary} & String & ไม่ใช่ & ข้อความสรุปย่อเนื้อหาข่าวจาก LLM \\ \hline
-\texttt{key\_points} & List[String] & ไม่ใช่ & รายการประเด็นสำคัญของข่าว (Bullet points) \\ \hline
-\texttt{sentiment} & String & ไม่ใช่ & ค่าอารมณ์ของข่าว (positive, neutral, negative) \\ \hline
-\texttt{image\_url} & String & ไม่ใช่ & ลิงก์รูปภาพหน้าปกบทความ \\ \hline
-\texttt{published\_at} & String & ใช่ & วันและเวลาที่เผยแพร่ตามมาตรฐาน ISO 8601 \\ \hline
-\texttt{created\_at} & String & ใช่ & วันและเวลาที่ระบบนำเข้าข่าว \\ \hline
-\texttt{story\_id} & String & ไม่ใช่ & รหัสกลุ่มประเด็นข่าวที่รายงานเหตุการณ์เดียวกันข้ามสำนัก \\ \hline
-\texttt{consensus\_category} & String & ไม่ใช่ & หมวดหมู่ระดับกลุ่มข่าวที่ผ่านฉันทามติมติเสียงข้างมาก \\
+story\_id & TEXT & PK & ไม่มี & รหัสระบุกลุ่มประเด็นข่าวแบบคงทน (เช่น story\_0b86804a) \\ \hline
+title & TEXT & - & ไม่มี & หัวข้อข่าวตัวแทนตั้งต้นของกลุ่มประเด็น \\ \hline
+category & TEXT & - & ไม่มี & หมวดหมู่หลักของกลุ่มประเด็นข่าว \\ \hline
+status & TEXT & - & 'active' & สถานะวงจรชีวิตประเด็นข่าว (active หรือ dormant) \\ \hline
+created\_at & TEXT & - & ไม่มี & วันเวลาที่สร้างกลุ่มประเด็นข่าว \\ \hline
+updated\_at & TEXT & - & ไม่มี & วันเวลาที่มีข่าวใหม่เข้ามาอัปเดตล่าสุด \\ \hline
+article\_count & INTEGER & - & 1 & จำนวนบทความข่าวทั้งหมดที่อยู่ในกลุ่มประเด็นนี้ \\ \hline
+outlet\_count & INTEGER & - & 1 & จำนวนสำนักข่าวที่ไม่ซ้ำกันที่รายงานประเด็นนี้ \\ \hline
+centroid & BLOB/TEXT & - & ไม่มี & เวกเตอร์ศูนย์กลาง 768 มิติ ปรับปรุงด้วย EMA \\ \hline
+macro\_event\_id & TEXT & FK & NULL & รหัสมหากาพย์ประเด็นข่าวที่สังกัด (เชื่อมไปยัง macro\_events) \\
 \hline
 \end{tabular}%
 }
@@ -320,439 +978,643 @@ Schema & \texttt{backend/schemas/} & กำหนดโครงสร้าง�
 
 \begin{table}[H]
 \centering
-\caption{โครงสร้างข้อมูลกลุ่มประเด็นข่าวสาร (\texttt{StoryRecord} Schema)}
-\label{tab:story_schema}
+\caption{โครงสร้างตาราง macro\_events}
+\label{tab_schema_macro_events}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|L{6.5cm}|}
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
 \hline
-\textbf{ฟิลด์ (Field)} & \textbf{ชนิดข้อมูล} & \textbf{จำเป็น} & \textbf{คำอธิบาย} \\
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
 \hline
-\texttt{story\_id} & String & ใช่ & รหัสระบุประเด็นข่าวแบบคงทน (เช่น \texttt{story\_0b86804a}) \\ \hline
-\texttt{title} & String & ใช่ & หัวข้อข่าวตัวแทนตั้งต้นของประเด็นข่าว \\ \hline
-\texttt{category} & String & ใช่ & หมวดหมู่หลักของประเด็นข่าว \\ \hline
-\texttt{status} & String & ใช่ & สถานะวงจรชีวิตประเด็นข่าว (\texttt{active} หรือ \texttt{dormant}) \\ \hline
-\texttt{article\_urls} & List[String] & ใช่ & รายการ URL ของบทความข่าวทั้งหมดในกลุ่มประเด็น \\ \hline
-\texttt{article\_count} & Integer & ใช่ & จำนวนบทความข่าวทั้งหมดที่เชื่อมโยงกับประเด็นนี้ \\ \hline
-\texttt{outlets} & List[String] & ใช่ & รายชื่อสำนักข่าวอิสระที่รายงานประเด็นนี้ \\ \hline
-\texttt{outlet\_count} & Integer & ใช่ & จำนวนสำนักข่าวที่ไม่ซ้ำ ($K$) \\ \hline
-\texttt{centroid} & List[Float] & ใช่ & เวกเตอร์ศูนย์กลาง 768 มิติ ปรับปรุงด้วย Exponential Moving Average \\ \hline
-\texttt{entities} & List[String] & ใช่ & รายการเอนทิตีชื่อเฉพาะบุคคล/สถานที่/องค์กรที่สะสม \\ \hline
-\texttt{headline} & String & ไม่ใช่ & พาดหัวข่าวสังเคราะห์ภาพรวมจาก LLM \\ \hline
-\texttt{summary} & String & ไม่ใช่ & เนื้อหาสรุปสังเคราะห์ข้ามสำนักข่าวจาก LLM \\ \hline
-\texttt{timeline} & List[Object] & ใช่ & รายการพัฒนาการของเหตุการณ์ตามลำดับเวลาพร้อมลิงก์อ้างอิง \\
+macro\_event\_id & TEXT & PK & ไม่มี & รหัสระบุมหากาพย์ประเด็นข่าวถาวร (เช่น macro\_1a2b3c4d) \\ \hline
+title & TEXT & - & ไม่มี & ชื่อหัวข้อเหตุการณ์มหาภาค \\ \hline
+category & TEXT & - & ไม่มี & หมวดหมู่หลักของมหากาพย์ประเด็นข่าว \\ \hline
+status & TEXT & - & 'active' & สถานะการติดตามเหตุการณ์ (active หรือ dormant) \\ \hline
+storyline\_anchor & TEXT & - & NULL & คำสำคัญหรือแกนเรื่องราวหลักของมหากาพย์ \\ \hline
+created\_at & TEXT & - & ไม่มี & วันเวลาที่เริ่มต้นสร้างมหากาพย์ประเด็นข่าว \\ \hline
+updated\_at & TEXT & - & ไม่มี & วันเวลาที่มีความเคลื่อนไหวล่าสุด \\ \hline
+headline & TEXT & - & NULL & พาดหัวข่าวสังเคราะห์ภาพรวมจากโมเดลภาษา \\ \hline
+summary & TEXT & - & NULL & บทสรุปสังเคราะห์ภาพรวมข้ามสำนักข่าว \\
 \hline
 \end{tabular}%
 }
 \end{table}
 
-
-% -----------------------------------------------------------
-\section{การพัฒนาระบบและการทำงานของส่วนประกอบหลัก}
-% -----------------------------------------------------------
-
-\subsection{กระบวนการดึงข่าวและการเชื่อมต่อ Playwright (Scraping Pipeline)}
-
-ระบบสเกรปข่าวถูกออกแบบให้ทำงานแบบ Asynchronous ทั้งหมด โดยในแต่ละรอบการทำงาน \texttt{ScraperService} จะสร้าง Task สำหรับแต่ละแหล่งข่าวเพื่อดึงข้อมูลพร้อมกัน (Concurrent Scraping) พร้อมทั้งรองรับการดึงหน้าเว็บที่มีการป้องกันด้วย Cloudflare หรือเรนเดอร์เนื้อหาผ่าน JavaScript ผ่าน \texttt{BrowserService} โดยการลงทะเบียนแหล่งข่าวใช้ Decorator \texttt{@register\_source} ดังตัวอย่าง
-
-\begin{lstlisting}[language=Python, caption={ตัวอย่างการลงทะเบียนแหล่งข่าวด้วย Decorator}]
-@register_source("ThaiPBS", "https://www.thaipbs.or.th", "#FF5722")
-async def scrape_thaipbs(browser_service: BrowserService) -> list[RawNewsItem]:
-    html = await browser_service.fetch_page("https://www.thaipbs.or.th/news")
-    return parse_news_cards(html, source="ThaiPBS")
-\end{lstlisting}
-
-\subsection{ระบบจำแนกหมวดหมู่และการตัดคำภาษาไทย (Thai NLP Classifier)}
-
-การจำแนกหมวดหมู่ข่าวใช้แนวทางไฮบริด (Hybrid Classification Pipeline) โดยเริ่มต้นจากการสกัดคำสำคัญจากหัวข้อข่าวด้วย PyThaiNLP (\texttt{engine="newmm"}) เพื่อเทียบกับชุดคำศัพท์เฉพาะกลุ่มทั้ง 9 หมวดหมู่หลัก โดยให้ค่าน้ำหนักตามตำแหน่งและความยาวของคำ ในกรณีที่คะแนนจากกฎคำสำคัญไม่ถึงเกณฑ์ความเชื่อมั่นที่กำหนด ระบบจะส่งเวกเตอร์ TF-IDF ของข้อความเข้าสู่โมเดล Support Vector Machine (LinearSVC) ที่ผ่านการเทรนล่วงหน้า และมีโมเดล WangchanBERTa รองรับการประมวลผลข้อความเชิงลึกสำหรับข่าวที่มีบริบทซับซ้อน
-
-\subsection{ระบบเปิดอ่านบทความในตัวเว็บ (In-App Reader) และการสกัดเนื้อหาบทความ}
-
-เพื่อยกระดับประสบการณ์การอ่านข่าวให้มีความต่อเนื่องและปลอดภัย ระบบได้พัฒนาหน้าต่างอ่านบทความฉบับเต็มภายในตัวเว็บ (In-App Modal Reader) สำหรับแสดงผลเนื้อหาข่าวที่ผ่านการสกัดและทำความสะอาดแล้ว โดยทำงานร่วมกับ \texttt{BrowserService} เมื่อผู้อ่านคลิกเปิดอ่านข่าว ระบบจะตรวจสอบว่ามีเนื้อหาที่ผ่านการทำความสะอาดแล้วใน \texttt{AsyncInMemoryCache} หรือไม่ หากมีจะส่งกลับทันทีภายในเวลาต่ำกว่า 10 มิลลิวินาที ในกรณีที่ยังไม่มีข้อมูลในแคช ระบบจะใช้ Trafilatura ร่วมกับ Playwright Chromium ในการดึงและแยกวิเคราะห์เนื้อหาบทความฉบับเต็ม จากนั้นระบบ Backend จะตัดโฆษณา ป้ายแบนเนอร์ แทร็กเกอร์ และองค์ประกอบตกแต่งที่ไม่จำเป็นออกทั้งหมด พร้อมขจัดสคริปต์อันตราย (Anti-XSS) เพื่อความปลอดภัย และแปลงเนื้อหาให้อยู่ในรูปแบบ Markdown ก่อนส่งไปแสดงผลบนหน้าต่างอ่านข่าวของเบราว์เซอร์ได้อย่างราบรื่น
-
-\subsection{ระบบสรุปข่าวอัตโนมัติด้วยโมเดลภาษาขนาดใหญ่ (LLM Summarization Pipeline)}
-
-ระบบส่งเนื้อหาข่าวในรูปแบบ Markdown ให้กับ KKU Gen.AI API โดยออกแบบ Prompt ให้ส่งคืนผลลัพธ์เป็นโครงสร้าง JSON ประกอบด้วย บทสรุปกระชับ 2--3 ประโยค ประเด็นสำคัญ 3--5 ข้อ และการวิเคราะห์อารมณ์ของข่าว (Sentiment: Positive, Neutral, Negative) ในภาษาเดียวกับเนื้อหาต้นฉบับ
-
-\subsection{สถาปัตยกรรมระบุประเด็นข่าวและจัดอันดับกระแสข่าวแบบสองชั้น (Two-Layer Story Identification \& Deterministic Trending)}
-
-เพื่อแก้ไขข้อจำกัดของระบบเดิมที่คำนวณการจัดกลุ่มข่าวแบบชั่วคราว (Ad-hoc Clustering) ซึ่งจำกัดกรอบเวลาไว้เพียง 36--48 ชั่วโมงจนทำให้ข่าวยืดเยื้อแตกกระจาย และต้องพึ่ง LLM ในการประมวลผลอันดับข่าว ระบบได้ปรับปรุงสถาปัตยกรรมใหม่เป็นแบบสองชั้นที่แยกหน้าที่กันอย่างชัดเจนตามหลักการวิศวกรรมซอฟต์แวร์ ได้แก่ ชั้นที่ 1 การระบุและติดตามประเด็นข่าวแบบออนไลน์คงทน (\texttt{StoryService}) และชั้นที่ 2 เอนจินจัดอันดับกระแสข่าวเชิงสถิติแน่นอน (\texttt{TrendingService})
-
-\subsubsection{การระบุประเด็นข่าวออนไลน์แบบคงทน (Persistent Online Story Identification)}
-
-ในชั้นที่ 1 เมื่อมีบทความข่าวใหม่เข้าสู่ระบบ กระบวนการระบุประเด็นข่าวจะทำงานแบบออนไลน์เชิงเพิ่มพูน (Online Incremental Assignment) ตามแนวคิด Real-Time Story Identification ของ Škvorc และคณะ \cite{skvorc2025realtime} โดยไม่จำเป็นต้องคำนวณจัดกลุ่มข่าวใหม่ทั้งคลังข้อมูล ซึ่งประกอบด้วยขั้นตอนการทำงานสำคัญ 4 ขั้นตอน:
-
-ขั้นตอนแรกคือ การสกัดเวกเตอร์เชิงความหมาย (Dense Semantic Embeddings) โดยนำข้อความพาดหัวข่าวร่วมกับเนื้อหาย่อแปลงเป็นเวกเตอร์ขนาด 768 มิติด้วยโมเดล WangchanBERTa ผ่านการรวมแบบเฉลี่ยถ่วงน้ำหนัก (Masked Mean Pooling) และปรับให้เป็นเวกเตอร์หนึ่งหน่วย ($L_2$ Normalization) ทำให้ผลคูณจุด (Dot Product) มีค่าเท่ากับค่าความคล้ายคลึงโคไซน์ (Cosine Similarity) พร้อมทั้งมีระบบแคชระดับ L1 ป้องกันการเข้ารหัสข้อความซ้ำซ้อน
-
-ขั้นตอนที่สองคือ การสกัดเอนทิตีชื่อเฉพาะ (Named Entity Recognition: NER) โดยใช้โมเดล \texttt{thainer-v2} ของ PyThaiNLP ในการสกัดชื่อบุคคล (PERSON) องค์กร (ORGANIZATION) สถานที่ (LOCATION) และสิ่งอำนวยความสะดวก (FACILITY) ออกจากบทความข่าว
-
-ขั้นตอนที่สามคือ การสืบค้นกลุ่มข่าวผ่านหน้าต่างเวลา 72 ชั่วโมงแบบไม่ปิดกั้นเวลาหมดอายุ (Non-capping 72-Hour Candidate Window) โดยระบบจะค้นหากลุ่มประเด็นข่าว (\texttt{StoryRecord}) ที่มีข่าวอัปเดตล่าสุดภายใน 72 ชั่วโมงก่อนเวลาของบทความใหม่ ซึ่งการกำหนดหน้าต่างเวลานี้ช่วยควบคุมขอบเขตความซับซ้อนในการคำนวณโดยไม่จำกัดอายุขัยของประเด็นข่าว ทำให้เหตุการณ์วิกฤตที่ยืดเยื้อ เช่น อุทกภัย สามารถติดตามและผูกโยงข่าวใหม่เข้ากับประเด็นเดิมได้อย่างต่อเนื่องข้ามสัปดาห์
-
-ขั้นตอนที่สี่คือ การตัดสินใจรวมกลุ่มด้วยเกณฑ์สองระดับ (Two-Band Cosine Decision Gate) โดยคำนวณความคล้ายคลึงโคไซน์ระหว่างเวกเตอร์บทความใหม่กับจุดศูนย์กลางของกลุ่มประเด็นข่าว ($\mathbf{c}$):
-\begin{equation}
-\text{MergeDecision} = \begin{cases} 
-\text{Direct Merge} & \text{เมื่อ } \cos(\mathbf{e}_{\text{new}}, \mathbf{c}) \ge 0.85 \\
-\text{Confirmed Merge} & \text{เมื่อ } 0.74 \le \cos(\mathbf{e}_{\text{new}}, \mathbf{c}) < 0.85 \text{ และมีเอนทิตีตรงกัน } \ge 1 \\
-\text{New Story Cluster} & \text{กรณีอื่น ๆ (สร้างกลุ่มประเด็นข่าวใหม่)}
-\end{cases}
-\end{equation}
-ในกรณีที่มีการรวมบทความเข้าสู่กลุ่มประเด็นเดิม เวกเตอร์จุดศูนย์กลางจะได้รับการปรับปรุงอย่างต่อเนื่องด้วยค่าเฉลี่ยเคลื่อนที่แบบเอกซ์โพเนนเชียล (Exponential Moving Average: EMA) ตามสมการ:
-\begin{equation}
-\mathbf{c}_{\text{new}} = \alpha \cdot \mathbf{c}_{\text{old}} + (1 - \alpha) \cdot \mathbf{e}_{\text{new}}
-\end{equation}
-โดยกำหนดค่าน้ำหนัก $\alpha = 0.85$ ช่วยรักษาเสถียรภาพของแกนเรื่องเดิมไม่ให้เบี่ยงเบนเร็วเกินไป พร้อมทั้งปรับตัวรองรับพัฒนาการใหม่ของข่าวได้อย่างยืดหยุ่น นอกจากนี้ กลุ่มประเด็นข่าวจะได้จัดการวงจร (Lifecycle State) ระหว่างสถานะพร้อมทำงาน (\texttt{active}) เมื่อมีข่าวอัปเดตในรอบ 72 ชั่วโมง และสถานะพักตัว (\texttt{dormant}) เมื่อไม่มีความเคลื่อนไหวเกิน 72 ชั่วโมง เพื่อประหยัดทรัพยากรระบบ โดยสามารถฟื้นคืนสถานะสู่ \texttt{active} ได้ทันทีหากมีข่าวด่วนที่เกี่ยวข้องเกิดขึ้นในอนาคต
-
-\subsubsection{วิวัฒนาการของแบบจำลองการคำนวณคะแนนกระแสข่าว (Evolution of Trending Scoring Models)}
-
-ในการพัฒนาระบบจัดอันดับความนิยมของข่าวสาร คณะผู้พัฒนาได้ออกแบบและปรับปรุงแบบจำลองทางคณิตศาสตร์ออกเป็น 2 แบบ เพื่อแก้ไขจุดบกพร่องที่พบจากการทดสอบในสภาวะจริง:
-
-\paragraph{แบบจำลองดั้งเดิมแบบผลคูณตัวแปรประกอบ (Legacy Multiplicative Trending Model)}
-ในระยะเริ่มต้นของการพัฒนา ระบบใช้แบบจำลองการจัดอันดับระดับคลัสเตอร์ข่าวแบบชั่วคราว โดยคำนวณจากผลคูณของปัจจัยเชิงปริมาณ 3 ด้าน ร่วมกับคะแนนโบนัสข่าวด่วน ตามสมการ:
-\begin{equation}
-\text{TrendingScore}_{\text{legacy}} = \Big( \text{FE} \times M(K) \times D(\Delta t) \Big) + B
-\end{equation}
-โดยมีรายละเอียดของแต่ละองค์ประกอบ ดังนี้:
-\begin{enumerate}
-    \item \textbf{คะแนนพฤติกรรมผู้อ่าน (Reader Engagement Factor: $\text{FE}$)}: คำนวณจากสถิติปฏิสัมพันธ์ $E = 1.0(\text{clicks}) + 3.0(\text{summaries}) + 5.0(\text{bookmarks})$ และแปลงสเกลด้วยลอการิทึมเพื่อป้องกันการปั่นยอด $\text{FE} = 1.0 + 2.0 \cdot \ln(1.0 + E)$
-    \item \textbf{ตัวคูณฉันทามติของสื่อ (Consensus Multiplier: $M(K)$)}
-      : ให้คะแนนทวีคูณตามจำนวนสำนักข่าวอิสระ ($K$) ที่รายงานเรื่องเดียวกัน $M(K) = 1.0 + 0.55 \cdot (K - 1)$
-    \item \textbf{อัตราลดทอนตามกาลเวลา (Time Decay: $D(\Delta t)$)}
-      : ใช้ฟังก์ชันเอกซ์โพเนนเชียลค่าครึ่งชีวิต 12 ชั่วโมง $D(\Delta t) = 2^{-\Delta t / 12.0}$ เมื่อ $\Delta t$ คือจำนวนชั่วโมงนับตั้งแต่เริ่มเผยแพร่ข่าว
-    \item \textbf{คะแนนโบนัสข่าวด่วน (Breaking Boost: $B$)}
-      : กำหนดค่าคงที่ $B = 4.0$ หากข่าวมีอายุไม่เกิน 3 ชั่วโมง ($\Delta t \le 3.0$) และมีสำนักข่าวรายงานตั้งแต่ 2 แห่งขึ้นไป ($K \ge 2$) และมีค่าเป็น $0.0$ ในกรณีอื่น
-\end{enumerate}
-เกณฑ์การมอบป้ายสถานะเดิม กำหนดให้ป้าย \texttt{Breaking} เมื่อ $\Delta t \le 3.0$ และ $K \ge 2$, ป้าย \texttt{Top Story} เมื่อ $K \ge 3$, และป้าย \texttt{Trending} เมื่อ $\text{TrendingScore} \ge 4.5$
-
-\paragraph{ข้อจำกัดของแบบจำลองดั้งเดิม}: จากการทดสอบใช้งานจริงพบปัญหาสำคัญ 3 ประการ ได้แก่ (1) ปัญหาข่าวประจำวันครองหน้าหนึ่ง (Routine News Dominance) ข่าวที่เป็นวงรอบ เช่น ผลสลากกินแบ่งรัฐบาล ราคาทองคำ และสภาพอากาศ ได้คะแนนสูงผิดปกติอย่างต่อเนื่องเนื่องจากมีจำนวนสำนักข่าวรายงานพร้อมกันมากและยอดคลิกสูง บดบังข่าวด่วนสำคัญของสังคม (2) การขาดมิติอัตราเร่ง (Velocity) ทำให้ไม่สามารถแยกความแตกต่างระหว่างข่าวที่มีข่าวทยอยเข้ามาเรื่อย ๆ กับข่าววิกฤตที่กำลังปะทุขึ้นอย่างรวดเร็วได้ และ (3) ปัญหาสำนักพิมพ์ในเครือเดียวกัน (Syndication Duplication) ที่คัดลอกบทความส่งผลให้ค่า $K$ สูงเกินจริงโดยไม่ได้สะท้อนความหลากหลายของสื่อจริง
-
-\subsubsection{เอนจินจัดอันดับกระแสข่าวเชิงสถิติแน่นอน (Deterministic 6-Signal Trending Engine)}
-
-เพื่อแก้ไขข้อจำกัดของแบบจำลองเดิม ในสถาปัตยกรรมชั้นที่ 2 ปัจจุบัน ระบบได้ยกเครื่องการจัดอันดับกระแสข่าวไปประมวลผลบนกลุ่มประเด็นข่าวออนไลน์แบบคงทน (\texttt{StoryRecord}) โดยตัดการพึ่งพาโมเดลภาษาขนาดใหญ่ (LLM) ออกจากเส้นทางการคำนวณคะแนนอย่างสิ้นเชิง (Zero LLM in scoring path) ทำให้การจัดอันดับมีความรวดเร็วระดับเสี้ยววินาทีและได้ผลลัพธ์ที่แน่นอนเชิงคณิตศาสตร์ (Deterministic) โดยคำนวณผ่าน 6 มิติเชิงสถิติร่วมกับตัวคูณลดทอนข่าวประจำวัน:
-\begin{equation}
-\text{FinalScore} = \left( \sum_{i=1}^6 w_i \cdot s_i \right) \times \text{RoutinePenalty}
-\end{equation}
-โดยมีรายละเอียดของแต่ละมิติคะแนน ดังนี้:
-\begin{enumerate}
-    \item \textbf{ปริมาณข่าวในรอบ 24 ชั่วโมง ($s_1$ น้ำหนัก $w_1 = 0.25$)}\\*
-      : คำนวณจาก $s_1 = \ln(1 + N_{\text{recent}})$ เพื่อสะท้อนปริมาณความสนใจของสื่อมวลชน
-    \item \textbf{อัตราเร่งการมาถึงของข่าว ($s_2$ น้ำหนัก $w_2 = 0.30$)}\\*
-      : คำนวณจากอัตราส่วนระหว่างความถี่ของข่าวในรอบ 24 ชั่วโมงล่าสุดเทียบกับช่วงเวลาฐาน 48 ชั่วโมงก่อนหน้า เพื่อตรวจจับสัญญาณข่าวด่วนที่กำลังปะทุขึ้นในสังคม (Burst Detection)
-    \item \textbf{ความหลากหลายของสำนักข่าว ($s_3$ น้ำหนัก $w_3 = 0.25$)}\\*
-      : คำนวณจากฟังก์ชันรากที่สองของจำนวนสำนักข่าวที่ไม่ซ้ำกัน $s_3 = \sqrt{N_{\text{outlets}}}$ พร้อมกลไกลดทอนกรณีสำนักพิมพ์ในเครือเดียวกัน (Syndication Discount) เพื่อให้ข่าวที่รายงานโดยสำนักข่าวอิสระหลายแห่งมีน้ำหนักสูงกว่าข่าวที่คัดลอกกันมา
-    \item \textbf{การลดทอนตามเวลา ($s_4$ น้ำหนัก $w_4 = 0.10$)}\\*
-      : คำนวณจากฟังก์ชันเอกซ์โพเนนเชียลค่าครึ่งชีวิต 12 ชั่วโมง $s_4 = 2^{-\Delta t / 12}$ เพื่อเปิดทางให้ข่าวสดใหม่ขึ้นมาทดแทนข่าวเก่า
-    \item \textbf{ความแปลกใหม่ของประเด็น ($s_5$ น้ำหนัก $w_5 = 0.05$)}\\*
-      : คำนวณจากระยะห่างเชิงความหมายของจุดศูนย์กลางประเด็นเทียบกับประเด็นข่าวอื่น $s_5 = 1.0 - \max_{j \ne k} \cos(\mathbf{c}_k, \mathbf{c}_j)$
-    \item \textbf{คะแนนปฏิสัมพันธ์จากผู้อ่าน ($s_6$ น้ำหนัก $w_6 = 0.05$)}\\*
-      : คำนวณจากสถิติพฤติกรรมการอ่านข่าวแบบนิรนาม $s_6 = \ln(1 + N_{\text{clicks}} + 2 N_{\text{summaries}} + 3 N_{\text{bookmarks}})$
-\end{enumerate}
-
-สำหรับตัวคูณลดทอนข่าวประจำวัน (Routine News Penalty) ระบบได้กำหนดกลไกตรวจจับข่าวที่เกิดขึ้นเป็นวงรอบประจำวัน เช่น ข่าวราคาน้ำมัน ราคาทองคำ พยากรณ์อากาศ และผลสลากกินแบ่งรัฐบาล โดยกำหนดตัวคูณปรับลดคะแนน $\text{RoutinePenalty} = 0.25$ (ลดทอนคะแนนลงร้อยละ 75) ในขณะที่ข่าวทั่วไปมีค่าเท่ากับ $1.0$ (พร้อมข้อยกเว้นกรณีเกิดภัยพิบัติฉุกเฉินระดับชาติ Crisis Exemption) กลไกนี้ช่วยป้องกันไม่ให้ข่าวประจำวันแย่งพื้นที่ข่าวกระแสสังคมที่แท้จริง พร้อมทั้งระบบส่งคืนข้อมูลแจกแจงคะแนนครบทุกมิติ (\texttt{TrendingScoreBreakdown}) ทำให้กระบวนการจัดอันดับมีความโปร่งใสและตรวจสอบที่มาได้ทุกขั้นตอน ทั้งนี้ ระบบยังคงฟังก์ชันคำนวณแบบเดิมไว้ในระดับบริการภายในเพื่อรองรับจุดเชื่อมต่อบริการสำหรับความเข้ากันได้ย้อนหลัง (\texttt{GET /api/news/trending}) อีกด้วย
-
-\subsection{ส่วนนำเสนอและการสังเคราะห์เนื้อหาประเด็นรวม (Story Presentation \& LLM Synthesis)}
-
-สำหรับกลุ่มประเด็นข่าวที่ติดอันดับกระแสความนิยมสูงสุด ระบบจะส่งต่อข้อมูลให้ \texttt{StoryPresentationService} เพื่อสร้างเนื้อหานำเสนอเชิงลึก โดยอาศัยโมเดลภาษาขนาดใหญ่ (KKU Gen.AI) ในการสังเคราะห์พาดหัวข่าวประเด็นรวม (Macro Headline) ที่เป็นกลางและครอบคลุมทุกมุมมอง การสร้างบทสรุปย่อสังเคราะห์ข้ามสำนักข่าว (Multi-Article Synthesis) และการเรียบเรียงไทม์ไลน์พัฒนาการของเหตุการณ์ตามลำดับเวลา (Chronological Timeline Events) พร้อมลิงก์อ้างอิงกลับไปยังสำนักข่าวต้นทาง โดยผลลัพธ์ทั้งหมดจะถูกบันทึกแคชลงในฐานข้อมูลประเด็นข่าวโดยตรง เพื่อลดค่าใช้จ่ายในการเรียกใช้ API ซ้ำซ้อน และหากบริการ LLM ภายนอกขัดข้องหรือไม่ตอบสนอง ระบบมีกลไกสำรองการทำงานแบบอัตโนมัติ (Heuristic Fallback) โดยสลับไปใช้พาดหัวข่าวตัวแทนหลักและเรียบเรียงไทม์ไลน์ตามเวลาเผยแพร่จริง ทำให้ระบบสามารถตอบกลับคำขอด้วยสถานะ HTTP 200 ได้อย่างมีเสถียร
-
-\subsection{การจัดกลุ่มประเด็นข่าวและส่วนติดต่อผู้ใช้แบบ Bento Hub}
-
-เพื่อยกระดับการติดตามข่าวสารที่มีมิติความซับซ้อนสูง ระบบได้พัฒนา \texttt{MacroEventService} สำหรับเชื่อมโยงกลุ่มประเด็นข่าวย่อย (Sub-events) ที่มีความสัมพันธ์เชิงบริบทเข้าสู่ประเด็นข่าวขนาดใหญ่ (Macro Storyline) พร้อมทั้งรองรับข้อยกเว้นกรณีวิกฤต (Crisis Exemption) ที่ช่วยให้ข้อมูลภัยพิบัติหรือเหตุฉุกเฉินระดับชาติได้รับการยกเว้นการลดทอนเวลา
-
-ในด้านส่วนต่อประสานผู้ใช้ หน้าแรกของระบบได้รับการออกแบบใหม่เป็น Macro Storyline Bento Hub ซึ่งจัดวางองค์ประกอบแบบ 3 มุมมองหลัก (3-Perspective Matrix) ได้แก่ แถบข่าวเด่นประจำวัน บัตรสรุปประเด็นข่าวพร้อมป้ายสำนักข่าวที่รายงานร่วมกัน (Publisher Filter Pills) และแถบแฮชแท็กเชิงโต้ตอบ (\#Hashtags Ribbon) เพื่อให้ผู้ใช้งานสามารถคลิกสำรวจมุมมองที่หลากหลายของแต่ละสำนักข่าวได้อย่างสะดวก นอกจากนี้ ระบบยังได้จัดเตรียมหน้าต่างติดตามและศูนย์ควบคุมสถานะระบบ (\texttt{frontend/monitoring.html}) สำหรับผู้ดูแลระบบ เพื่อตรวจสอบอัตราการรับเข้าของข่าว การทำงานของแคช และความเสถียรของไปป์ไลน์แบบเรียลไทม์
-
-\subsection{การติดต่อสื่อสารแบบเรียลไทม์ผ่าน WebSocket}
-
-เมื่อมีข่าวใหม่ที่ผ่านการสรุปและจำแนกเรียบร้อยแล้ว \texttt{SocketManager} จะทำการกระจาย Event (\texttt{news:new}) ไปยังเบราว์เซอร์ของผู้ใช้ทุกคนที่กำลังเปิดหน้าเว็บอยู่ เพื่อให้ผู้ใช้ได้รับข่าวสารล่าสุดทันทีโดยไม่ต้องทำการรีเฟรชหน้าต่างเบราว์เซอร์
-
-\subsection{รายละเอียดการทำงานของจุดเชื่อมต่อบริการทั้งหมด (API Specifications)}
-
-ระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติได้รับการพัฒนาจุดเชื่อมต่อบริการแบบ REST API ตามมาตรฐาน OpenAPI 3.0 โดยแบ่งแยกความรับผิดชอบออกเป็น 6 กลุ่ม Router หลัก และระบบการตรวจสอบสถานะ (System Probes) รวมทั้งสิ้น 20 จุดเชื่อมต่อบริการ ดังนี้:
-
-กลุ่มที่ 1 จุดเชื่อมต่อบริการกลุ่มประเด็นข่าว (\texttt{StoryRouter} เส้นทางหลัก \texttt{/api/stories}) มีหน้าที่จัดการวงจรและการเรียกดูประเด็นข่าวสารที่ผ่านการจัดกลุ่มแบบสองชั้น ประกอบด้วย:
-\texttt{GET /api/stories} ใช้สำหรับเรียกดูรายการประเด็นข่าวสาร รองรับพารามิเตอร์การกรองตามหมวดหมู่ (\texttt{category}) สถานะวงจรชีวิต (\texttt{status} ได้แก่ \texttt{active} หรือ \texttt{dormant}) ตลอดจนการแบ่งหน้า (\texttt{limit} ค่าเริ่มต้น 20 และ \texttt{offset}) โดยส่งคืนรายการ \texttt{StoryRecord} พร้อมรายชื่อสำนักข่าวร่วม
-\texttt{GET /api/stories/trending} ใช้สำหรับเรียกดูประเด็นข่าวที่กำลังเป็นกระแสความนิยมสูงสุด โดยนำเสนอข้อมูลที่ผ่านการประมวลผลคะแนนจากเอนจินจัดอันดับแบบดีเทอร์มินิสติก (Layer 2) พร้อมรายละเอียดการแจกแจงคะแนน (\texttt{TrendingScoreBreakdown})
-\texttt{GET /api/stories/\{story\_id\}} ใช้สำหรับเรียกดูข้อมูลเชิงลึกของประเด็นข่าวรายเรื่อง ประกอบด้วยพาดหัวภาพรวม บทสรุปสังเคราะห์ รายชื่อสำนักข่าวทั้งหมด ไทม์ไลน์พัฒนาการของเหตุการณ์ และรายชื่อบทความข่าวเดี่ยวในกลุ่ม
-\texttt{POST /api/stories/\{story\_id\}/summarize} ใช้สำหรับร้องขอการสังเคราะห์เนื้อหาภาพรวมประเด็นข่าว ไทม์ไลน์ และพาดหัวข่าวร่วมผ่านโมเดลภาษาขนาดใหญ่ (KKU Gen.AI) แบบ On-Demand โดยมีกลไกตรวจสอบแคชเพื่อป้องกันการประมวลผลซ้ำ และมีระบบสำรองแบบฮิวริสติก (Heuristic Fallback) รองรับกรณีที่โมเดลภาษาภายนอกไม่ตอบสนอง
-
-กลุ่มที่ 2 จุดเชื่อมต่อบริการกลุ่มประเด็นข่าวหลัก (\texttt{MacroEventRouter} เส้นทางหลัก \texttt{/api/macro-events}) ทำหน้าที่บริหารจัดการประเด็นข่าวขนาดใหญ่ที่มีความเชื่อมโยงกันข้ามหมวดหมู่และยืดเยื้อ ประกอบด้วย:
-\texttt{GET /api/macro-events} ใช้สำหรับดึงรายการมหากาพย์ประเด็นข่าวทั้งหมด โดยสามารถกรองตามสถานะและข้อยกเว้นกรณีวิกฤต (\texttt{crisis})
-\texttt{GET /api/macro-events/trending} ใช้สำหรับดึงมหากาพย์ข่าวที่กำลังได้รับความสนใจสูงสุดเพื่อนำไปแสดงผลบนพื้นที่เด่นของหน้าหลัก Bento Hub
-\texttt{GET /api/macro-events/\{macro\_id\}} ใช้สำหรับดึงรายละเอียดโครงสร้างมหากาพย์ข่าว ความเชื่อมโยงระหว่างประเด็นย่อย (Sub-events) และไทม์ไลน์ภาพรวมเหตุการณ์
-
-กลุ่มที่ 3 จุดเชื่อมต่อบริการข้อมูลข่าวสารหลัก (\texttt{NewsRouter} เส้นทางหลัก \texttt{/api}) ทำหน้าที่ให้บริการข้อมูลบทความข่าวเดี่ยวและการสกัดเนื้อหา ประกอบด้วย:
-\texttt{GET /api/news} ใช้สำหรับดึงรายการบทความข่าวสาร รองรับพารามิเตอร์การแบ่งหน้า (\texttt{page}, \texttt{page\_size}) ตัวกรองหมวดหมู่ (\texttt{category}) ตัวกรองสำนักข่าว (\texttt{source}) และการค้นหาด้วยคำสำคัญ (\texttt{search}) โดยมีระบบแคชระดับ L1 และรองรับ HTTP 304 Not Modified ผ่านส่วนหัว ETag
-\texttt{GET /api/news/content} ใช้สำหรับสกัดเนื้อหาบทความข่าวฉบับเต็มในรูปแบบ Cleaned Markdown ผ่าน Trafilatura และ Playwright สำหรับนำไปแสดงผลบนหน้าต่าง In-App Modal Reader
-\texttt{GET /api/categories} ใช้สำหรับเรียกดูรายชื่อ 9 หมวดหมู่ข่าวภาษาไทยที่ระบบรองรับ พร้อมรหัสสีและข้อมูลสถิติ
-\texttt{GET /api/sources} ใช้สำหรับเรียกดูรายชื่อสำนักข่าวทั้งหมดที่ลงทะเบียนและเปิดใช้งานในระบบ (\texttt{@register\_source})
-\texttt{GET /api/status} ใช้สำหรับตรวจสอบสถานะรอบเวลาการทำงานของสเกรปเปอร์และจำนวนข่าวสะสมในระบบ
-\texttt{GET /api/image} ใช้เป็นบริการ Reverse Proxy สำหรับดึงและแคชรูปภาพหน้าปกบทความข่าว เพื่อแก้ไขปัญหาการจำกัดการเข้าถึงข้ามโดเมน (CORS) และการป้องกัน Hotlinking ของเว็บไซต์ต้นทาง
-
-กลุ่มที่ 4 จุดเชื่อมต่อบริการนำเข้าบทความเฉพาะกิจ (\texttt{CollectRouter} เส้นทางหลัก \texttt{/api}) ประกอบด้วย:
-\texttt{POST /api/collect-md} รับข้อมูล URL ของบทความข่าวเดี่ยวจากผู้ใช้ เพื่อสั่งให้ระบบทำการดึงเนื้อหา สกัดบทความ ตัดคำ และจำแนก 9 หมวดหมู่โดยทันทีแบบ On-Demand
-
-กลุ่มที่ 5 จุดเชื่อมต่อบริการจัดอันดับกระแสและการมีส่วนร่วม (\texttt{TrendingRouter} เส้นทางหลัก \texttt{/api/news}) ประกอบด้วย:
-\texttt{GET /api/news/trending} ใช้สำหรับเรียกดูข่าวเดี่ยวที่ติดกระแสความนิยม (คงไว้เพื่อความเข้ากันได้ย้อนหลังกับระบบเวอร์ชันเดิม)
-\texttt{POST /api/news/engage} และ \texttt{POST /api/news/engagement} รับข้อมูลเหตุการณ์การมีส่วนร่วมของผู้อ่านแบบนิรนาม (\texttt{click}, \texttt{summary\_view}, \texttt{bookmark}, \texttt{share}) เพื่อนำไปคำนวณเป็นคะแนนปฏิสัมพันธ์ของข่าวโดยไม่มีการเก็บข้อมูลส่วนบุคคล
-
-กลุ่มที่ 6 จุดเชื่อมต่อบริการศูนย์ควบคุมและติดตามสถานะระบบ (\texttt{MonitoringRouter} เส้นทางหลัก \texttt{/api/monitoring}) ประกอบด้วย:
-\texttt{POST /api/monitoring/auth} ใช้สำหรับตรวจสอบรหัสผ่านลับของผู้ดูแลระบบ (\texttt{admin\_secret}) และสร้างโทเค็นเซสชันความปลอดภัย
-\texttt{GET /api/monitoring/verify} ใช้สำหรับตรวจสอบความถูกต้องของโทเค็นเซสชันผู้ดูแลระบบ
-\texttt{GET /api/monitoring/stats} ใช้สำหรับดึงข้อมูลสถิติสุขภาพของระบบ การใช้หน่วยความจำ RAM อัตรา Throughput การทำงานของสเกรปเปอร์ และอัตราความสำเร็จของแคช (Cache Hit Ratio)
-\texttt{POST /api/monitoring/scrape-now} ใช้สำหรับส่งคำสั่งให้ระบบเริ่มรอบการสเกรปข่าวทุกสำนักทันทีแบบ Asynchronous
-\texttt{POST /api/monitoring/clear-cache} ใช้สำหรับสั่งล้างข้อมูลในแคชหน่วยความจำ แคช HTTP ETag และแคชบทสรุปประเด็นข่าว
-\texttt{POST /api/monitoring/test-source} ใช้สำหรับทดสอบการเชื่อมต่อและการแยกวิเคราะห์เนื้อหาของสำนักข่าวรายแห่งที่ระบุ
-
-นอกจากจุดเชื่อมต่อบริการ REST API ข้างต้นแล้ว ระบบยังมีจุดเชื่อมต่อบริการสำหรับตรวจสอบสถานะระดับโครงสร้างพื้นฐาน (System Probes) ได้แก่ \texttt{GET /livez} (Liveness Probe ยืนยันการทำงานของโปรเซส), \texttt{GET /readyz} (Readiness Probe ตรวจสอบความพร้อมของระบบจัดเก็บข้อมูลและ Chromium Headless), \texttt{GET /sw.js} (บริการ Service Worker รองรับการแคชออฟไลน์แบบ Progressive Web App) และช่องทางการสื่อสาร WebSocket ผ่าน Socket.IO สำหรับผลักดันเหตุการณ์ข่าวใหม่ (\texttt{news:new}) แบบสองทิศทาง
-
-สรุปรายละเอียดจุดเชื่อมต่อบริการสำคัญ พารามิเตอร์ และรหัสสถานะการตอบกลับแสดงดังตารางที่~\ref{tab:all_api_endpoints}
+\begin{table}[H]
+\centering
+\caption{โครงสร้างตาราง event\_relations}
+\label{tab_schema_event_relations}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
+\hline
+id & INTEGER & PK & AUTO & รหัสระบุลำดับความสัมพันธ์ในฐานข้อมูล \\ \hline
+macro\_id & TEXT & FK & ไม่มี & รหัสมหากาพย์ประเด็นข่าวที่เชื่อมโยง \\ \hline
+source\_story\_id & TEXT & FK & ไม่มี & รหัสประเด็นข่าวต้นทาง \\ \hline
+target\_story\_id & TEXT & FK & ไม่มี & รหัสประเด็นข่าวปลายทาง \\ \hline
+relation\_type & TEXT & - & 'precedes' & ประเภทความสัมพันธ์ (precedes, updates, responds\_to, caused\_by) \\ \hline
+created\_at & TEXT & - & ไม่มี & วันเวลาที่สร้างความสัมพันธ์ \\
+\hline
+\end{tabular}%
+}
+\end{table}
 
 \begin{table}[H]
 \centering
-\small
-\caption{รายละเอียดข้อกำหนดจุดเชื่อมต่อบริการ REST API และ System Probes ทั้งหมดในระบบ}
-\label{tab:all_api_endpoints}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.2cm}|L{3.4cm}|L{4.0cm}|L{2.6cm}|>{\centering\arraybackslash}p{2.0cm}|}
+\caption{โครงสร้างตาราง trending\_scores}
+\label{tab_schema_trending_scores}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
 \hline
-\textbf{Method} & \textbf{เส้นทาง (Route)} & \textbf{วัตถุประสงค์และหน้าที่} & \textbf{พารามิเตอร์หลัก} & \textbf{HTTP Status} \\
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
 \hline
-\texttt{GET} & \texttt{/api/stories} & ดึงรายการประเด็นข่าวสาร & \texttt{category}, \texttt{status}, \texttt{limit} & 200, 304, 500 \\ \hline
-\texttt{GET} & \texttt{/api/stories/trending} & ดึงประเด็นข่าวกระแสหลัก Layer 2 & -- & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นและไทม์ไลน์ & \texttt{story\_id} (Path) & 200, 404 \\ \hline
-\texttt{POST} & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสรุปสังเคราะห์ประเด็นข้ามสำนัก & \texttt{story\_id} (Path) & 200, 500 \\ \hline
-\texttt{GET} & \texttt{/api/macro-events} & ดึงรายการมหากาพย์ประเด็นข่าว & \texttt{status}, \texttt{crisis} & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวเด่นบน Bento Hub & -- & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์และประเด็นย่อย & \texttt{macro\_id} (Path) & 200, 404 \\ \hline
-\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวสารเดี่ยวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/news/content} & สกัดเนื้อหาฉบับเต็ม Cleaned Markdown & \texttt{url} (Query) & 200, 400, 500 \\ \hline
-\texttt{GET} & \texttt{/api/categories} & ดึงรายชื่อและเมทาดาตา 9 หมวดหมู่ & -- & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/sources} & ดึงรายชื่อสำนักข่าวและชุดสีที่ลงทะเบียน & -- & 200, 304 \\ \hline
-\texttt{GET} & \texttt{/api/status} & ตรวจสอบรอบสเกรปและจำนวนข่าว & -- & 200 \\ \hline
-\texttt{GET} & \texttt{/api/image} & บริการ Reverse Proxy และแคชรูปภาพ & \texttt{url} (Query) & 200, 400, 502 \\ \hline
-\texttt{POST} & \texttt{/api/collect-md} & นำเข้าและสกัดเนื้อหาข่าวรายชิ้นด่วน & \texttt{url} (Body JSON) & 200, 422 \\ \hline
-\texttt{POST} & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม & \texttt{article\_id}, \texttt{action} & 200, 400 \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/auth} & ยืนยันตัวตนผู้ดูแลระบบออกโทเค็น & \texttt{secret} (Body JSON) & 200, 401 \\ \hline
-\texttt{GET} & \texttt{/api/monitoring/verify} & ตรวจสอบสถานะโทเค็นเซสชัน & Header Bearer Token & 200, 401 \\ \hline
-\texttt{GET} & \texttt{/api/monitoring/stats} & ตรวจสอบสถิติ RAM แคช และ Throughput & Header Bearer Token & 200, 401 \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/scrape-now} & สั่งรันสเกรปข่าวทุกสำนักทันที & Header Bearer Token & 200, 401 \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/clear-cache} & ล้างแคชในหน่วยความจำและ HTTP & Header Bearer Token & 200, 401 \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/test-source} & ทดสอบการเชื่อมต่อสำนักข่าวรายแห่ง & \texttt{source\_name} (Body) & 200, 401, 500 \\ \hline
-\texttt{GET} & \texttt{/livez} / \texttt{/readyz} & โพรบตรวจสอบความพร้อมของระบบ & -- & 200, 503 \\
+story\_id & TEXT & PK, FK & ไม่มี & รหัสประเด็นข่าว (เชื่อมไปยัง stories และไม่ซ้ำ) \\ \hline
+volume\_score & REAL & - & 0.0 & คะแนนปริมาณข่าวในรอบ 24 ชั่วโมง ($s_1$) \\ \hline
+velocity\_score & REAL & - & 0.0 & คะแนนอัตราเร่งการมาถึงของข่าว ($s_2$) \\ \hline
+diversity\_score & REAL & - & 0.0 & คะแนนความหลากหลายของสำนักข่าว ($s_3$) \\ \hline
+recency\_score & REAL & - & 0.0 & คะแนนความสดใหม่ลดทอนตามเวลา ($s_4$) \\ \hline
+novelty\_score & REAL & - & 0.0 & คะแนนความแปลกใหม่ของประเด็นข่าว ($s_5$) \\ \hline
+engagement\_score & REAL & - & 0.0 & คะแนนพฤติกรรมปฏิสัมพันธ์ของผู้อ่าน ($s_6$) \\ \hline
+routine\_penalty & REAL & - & 1.0 & ตัวคูณลดทอนข่าวประจำวัน (0.25 สำหรับข่าววงรอบ) \\ \hline
+final\_score & REAL & - & 0.0 & คะแนนกระแสรวมหลังปรับค่าน้ำหนักและตัวลดทอน \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
-
-\subsection{รายละเอียดส่วนต่อประสานและปุ่มควบคุมทั้งหมดของระบบ (Complete UI Controls \& Buttons Catalog)}
-
-เพื่ออำนวยความสะดวกในการใช้งานของผู้ใช้ทุกกลุ่ม ระบบได้รับการออกแบบส่วนติดต่อผู้ใช้เป็น 2 ส่วนหลัก ได้แก่ ส่วนต่อประสานผู้อ่านข่าวทั่วไป (Bento Hub SPA บนไฟล์ \texttt{frontend/index.html}) และศูนย์ควบคุมและติดตามสถานะระบบสำหรับผู้ดูแล (Ops Console บนไฟล์ \texttt{frontend/monitoring.html}) โดยองค์ประกอบของปุ่มควบคุม ตัวเลือกปฏิสัมพันธ์ และหน้าต่างโมดอลทั้งหมดจำแนกได้ดังนี้:
-
-ในส่วนต่อประสานผู้อ่านข่าว Bento Hub (\texttt{frontend/index.html}):
-ปุ่มแบนเนอร์แจ้งเตือนข่าวใหม่ลอยตัว (Floating Unread Articles Banner Button) เรียกใช้ฟังก์ชัน \texttt{\_\_loadUnreadArticles()} จะปรากฏขึ้นบริเวณกึ่งกลางด้านบนของหน้าจอเมื่อมีข่าวใหม่เข้ามาผ่าน WebSocket พร้อมแสดงข้อความจำนวนข่าวที่เพิ่งมาถึง เมื่อผู้ใช้คลิกปุ่ม ระบบจะเลื่อนหน้าจอกลับขึ้นสู่ด้านบนสุด (Smooth Scroll) และนำข่าวใหม่เข้าสู่ตารางแสดงผลทันทีโดยไม่ต้องรีโหลดหน้าเว็บ
-ปุ่มปิดแบนเนอร์ข่าวใหม่ (Banner Dismiss Button) เรียกใช้ฟังก์ชัน \texttt{\_\_dismissNewArticlesBanner()} อยู่บริเวณมุมขวาของแบนเนอร์ข่าวใหม่ เพื่อให้ผู้ใช้สามารถปิดการแจ้งเตือนได้หากยังไม่ต้องการโหลดข่าวใหม่ในทันที
-ปุ่มตราสัญลักษณ์และชื่อระบบ (Brand Navigation Control) บริเวณมุมบนซ้ายของแถบนำทาง เมื่อผู้ใช้คลิกจะคืนค่ากลับสู่หน้าหลัก Bento Hub โดยทำการล้างตัวกรองหมวดหมู่และคำค้นหาทั้งหมด
-ปุ่มเปิดประวัติการอ่านข่าว (Reading History Button) เรียกใช้ฟังก์ชัน \texttt{\_\_showHistory()} เพื่อเปิดหน้าต่างโมดอลแสดงรายการบทความที่ผู้ใช้เคยเปิดอ่าน ซึ่งบันทึกอยู่บน LocalStorage ของเบราว์เซอร์
-ปุ่มเปิดรายการข่าวที่บันทึกไว้ (Bookmarks Button) เรียกใช้ฟังก์ชัน \texttt{\_\_showBookmarks()} เพื่อเปิดหน้าต่างโมดอลแสดงรายการข่าวที่ผู้ใช้ได้กดบันทึกคั่นหน้าไว้สำหรับการอ่านภายหลัง
-ปุ่มเปิดการตั้งค่าและความเป็นส่วนตัว (Settings \& Privacy Button) เรียกใช้ฟังก์ชัน \texttt{\_\_openSettings()} สำหรับเปิดหน้าต่างโมดอลตั้งค่าสิทธิ์คุกกี้ การปรับธีมการแสดงผล และการจัดการข้อมูลส่วนบุคคลตามมาตรฐาน PDPA
-แถบปุ่มแท็บหมวดหมู่ข่าว (Category Navigation Tabs) ประกอบด้วยปุ่มสลับหมวดหมู่ข่าวภาษาไทยทั้ง 9 หมวดหมู่หลัก พร้อมปุ่ม "ทั้งหมด (All)" เพื่อดูข่าวรวม และปุ่ม "สำหรับคุณ (For You)" ซึ่งแสดงข่าวที่สอดคล้องกับความสนใจจากพฤติกรรมการอ่าน
-แถบปุ่มคัดกรองสำนักข่าว (Publisher Filter Pills) เป็นชุดปุ่มรูปแคปซูลแสดงรายชื่อและสีประจำสำนักข่าว (เช่น ThaiPBS, ไทยรัฐ, เดลินิวส์, มติชน ฯลฯ) ที่อนุญาตให้ผู้ใช้คลิกเลือกเพื่อดูข่าวเฉพาะสำนักพิมพ์ที่สนใจได้
-แถบปุ่มแฮชแท็กประเด็นข่าว (\#Hashtags Ribbon) เป็นปุ่มตัวเลือกแฮชแท็กของประเด็นข่าวเด่น ช่วยให้ผู้ใช้สามารถคลิกสำรวจข่าวสารในเหตุการณ์เดียวกันได้อย่างรวดเร็ว
-แถบค้นหาและปุ่มล้างคำค้น (Search Input \& Clear Button) กล่องป้อนข้อความค้นหาข่าวแบบ Real-time พร้อมปุ่มกากบาท [$\times$] สำหรับล้างคำค้นหาเพื่อคืนค่ารายการข่าวทั้งหมด
-ปุ่มบนการ์ดข่าวสารและประเด็นข่าว (Card Action Controls) ซึ่งติดตั้งอยู่บนบัตรข่าวทุกใบ ประกอบด้วย ปุ่มเปิดบทสรุปผู้บริหาร AI (Executive AI Briefing Button รูปดาวสี่แฉก) สำหรับเปิดโมดอลสรุปเนื้อหาสังเคราะห์และ Sentiment, ปุ่มเปิดอ่านบทความฉบับเต็มในตัวเว็บ (In-App Reader Modal Button) สำหรับอ่านเนื้อหา Cleaned Markdown แบบเต็มหน้าต่าง, ปุ่มบันทึกคั่นหน้า (Bookmark Toggle Button) สำหรับเพิ่มหรือยกเลิกการบันทึกข่าว, ปุ่มแชร์ข่าว (Share Button) สำหรับเรียกใช้ Web Share API ของระบบปฏิบัติการหรือคัดลอกลิงก์ไปยังคลิปบอร์ด และปุ่มเปิดหน้าเว็บข่าวต้นฉบับ (External Source Link Button) สำหรับเปิดลิงก์ข่าวจริงในแท็บใหม่
-ปุ่มควบคุมการแบ่งหน้า (Pagination Controls) ประกอบด้วยปุ่มหน้าก่อนหน้า (Previous Page Button), ปุ่มระบุหมายเลขหน้า (Page Number Buttons) และปุ่มหน้าถัดไป (Next Page Button) สำหรับเลือกดูข่าวสารในหน้าต่าง ๆ
-ปุ่มควบคุมในหน้าต่างโมดอล (Modal Action Buttons) ประกอบด้วยปุ่มปิดหน้าต่างโมดอล [$\times$], ปุ่มล้างประวัติการอ่านทั้งหมด (Clear All History Button) และปุ่มลบรายการเดี่ยวออกจากประวัติหรือบุ๊กมาร์ก
-ปุ่มควบคุมความเป็นส่วนตัว PDPA (Privacy \& Consent Controls) ประกอบด้วยปุ่มยินยอมการใช้งานคุกกี้ (Accept Cookies Button), ปุ่มปฏิเสธคุกกี้ (Reject Button) และปุ่มล้างข้อมูลสถิติความสนใจ (Clear Preference Data Button) เพื่อให้ผู้ใช้สามารถลบประวัติความสนใจทั้งหมดออกจากเบราว์เซอร์ได้ทันที
-
-ในส่วนควบคุมและติดตามสถานะระบบสำหรับผู้ดูแล (\texttt{frontend/monitoring.html}):
-ปุ่มสลับการแสดงผลรหัสผ่าน (Password Visibility Toggle Button) บนฟอร์มยืนยันตัวตน เพื่อสลับการแสดงผลรหัสผ่านระหว่างจุดวงกลมกับข้อความธรรมดา
-ปุ่มเข้าสู่ระบบคอนโซล (Admin Login Submit Button) สำหรับส่งรหัสผ่านลับของผู้ดูแลระบบไปยังเซิร์ฟเวอร์เพื่อตรวจสอบสิทธิ์และรับโทเค็น
-กล่องสลับการรีเฟรชข้อมูลอัตโนมัติ (Auto-refresh Toggle Checkbox) สำหรับเปิดหรือปิดการส่งคำขอดึงสถิติสุขภาพของระบบทุก 5 วินาที
-ปุ่มรีเฟรชสถานะด้วยตนเอง (Manual Refresh Button) สำหรับสั่งให้เบราว์เซอร์ส่งคำขอดึงสถิติล่าสุดทันทีโดยไม่ต้องรอรอบเวลา
-ปุ่มสั่งเริ่มรอบการสเกรปข่าวทันที (Scrape Now Button) สำหรับสั่งการให้ระบบเริ่มกระบวนการสเกรปข่าวด่วนจากทุกสำนักพร้อมกัน
-ปุ่มสั่งล้างแคชระบบ (Clear Cache Button) สำหรับสั่งให้เซิร์ฟเวอร์ล้างข้อมูลใน L1 Memory Cache, แคช HTTP ETag และแคชบทสรุปประเด็นข่าว
-ปุ่มทดสอบแหล่งข่าวรายสำนัก (Test Source Probe Buttons) ซึ่งมีอยู่ประจำแต่ละสำนักข่าว เพื่อให้ผู้ดูแลสามารถกดทดสอบการเชื่อมต่อและการสกัดข้อมูลเฉพาะสำนักข่าวนั้น ๆ พร้อมแสดงผลรหัสสถานะและจำนวนบทความที่พบ
-ปุ่มออกจากระบบคอนโซล (Logout Button) สำหรับทำลายโทเค็นเซสชันและนำผู้ดูแลกลับสู่หน้าจอยืนยันตัวตนอย่างปลอดภัย
-
-รายการสรุปและคุณลักษณะของปุ่มควบคุม ปฏิสัมพันธ์ และฟังก์ชันที่ผูกโยงในระบบแสดงดังตารางที่~\ref{tab:all_ui_buttons}
 
 \begin{table}[H]
 \centering
-\small
-\caption{รายละเอียดคุณลักษณะของปุ่มควบคุมและองค์ประกอบปฏิสัมพันธ์ทั้งหมดในระบบ}
-\label{tab:all_ui_buttons}
-\begin{tabular}{|L{3.2cm}|L{2.6cm}|L{4.2cm}|L{3.8cm}|}
+\caption{โครงสร้างตาราง reader\_engagement}
+\label{tab_schema_reader_engagement}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
 \hline
-\textbf{ชื่อปุ่มควบคุม} & \textbf{ตำแหน่งบนหน้าจอ} & \textbf{พฤติกรรมและการตอบสนอง} & \textbf{ฟังก์ชัน/เหตุการณ์ที่ผูกโยง} \\
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
 \hline
-ปุ่มแบนเนอร์ข่าวใหม่ลอยตัว & กึ่งกลางบน (Fixed) & เลื่อนจอขึ้นบนสุดและโหลดข่าวใหม่เข้าตาราง & \texttt{\_\_loadUnreadArticles()} \\ \hline
-ปุ่มปิดแบนเนอร์ข่าวใหม่ & มุมขวาของแบนเนอร์ & ซ่อนแถบแบนเนอร์แจ้งเตือนข่าวใหม่ & \texttt{\_\_dismissNewArticlesBanner()} \\ \hline
-ปุ่มตราสัญลักษณ์และชื่อระบบ & ซ้ายบนของ Navbar & คืนค่าหน้าหลักและล้างตัวกรองทั้งหมด & \texttt{window.location.hash = '\#/'} \\ \hline
-ปุ่มประวัติการอ่าน & ขวาบนของ Navbar & เปิดโมดอลแสดงประวัติบทความที่เคยอ่าน & \texttt{\_\_showHistory()} \\ \hline
-ปุ่มรายการคั่นหน้า & ขวาบนของ Navbar & เปิดโมดอลแสดงรายการบทความที่บันทึกไว้ & \texttt{\_\_showBookmarks()} \\ \hline
-ปุ่มตั้งค่าและความเป็นส่วนตัว & ขวาบนของ Navbar & เปิดโมดอลตั้งค่า PDPA และธีมการแสดงผล & \texttt{\_\_openSettings()} \\ \hline
-ปุ่มแท็บหมวดหมู่ (9 หมวด) & แถบใต้ Navbar & สลับกรองข่าวสารตามหมวดหมู่ที่เลือก & \texttt{\_\_filterCategory(category)} \\ \hline
-ปุ่มตัวกรองสำนักข่าว (Pills) & แถบตัวกรอง & แสดงข่าวเฉพาะสำนักพิมพ์ที่คลิกเลือก & \texttt{\_\_filterSource(source)} \\ \hline
-ปุ่มแฮชแท็กประเด็นข่าว & แถบ Bento Ribbon & กรองข่าวตามแฮชแท็กสำคัญของเหตุการณ์ & \texttt{\_\_filterHashtag(tag)} \\ \hline
-ปุ่มล้างคำค้นหา [$\times$] & ภายในกล่องค้นหา & ล้างข้อความค้นหาและแสดงข่าวทั้งหมด & \texttt{\_\_clearSearch()} \\ \hline
-ปุ่มเปิดบทสรุป AI ผู้บริหาร & บนบัตรข่าว/ประเด็น & เปิดโมดอลสรุปเนื้อหาสังเคราะห์และ Sentiment & \texttt{\_\_openStorySummary(id)} \\ \hline
-ปุ่มอ่านข่าวฉบับเต็ม In-App & บนบัตรข่าว & เปิดหน้าต่างอ่าน Markdown สะอาด ไร้โฆษณา & \texttt{\_\_openReader(articleUrl)} \\ \hline
-ปุ่มบันทึกคั่นหน้า (Bookmark) & บนบัตรข่าว & สลับสถานะบันทึกลงในเบราว์เซอร์ LocalStorage & \texttt{\_\_toggleBookmark(id)} \\ \hline
-ปุ่มแชร์ข่าว (Share) & บนบัตรข่าว & แชร์ผ่าน Web Share API หรือคัดลอกลิงก์ & \texttt{\_\_shareArticle(url, title)} \\ \hline
-ปุ่มลิงก์ข่าวต้นฉบับ & บนบัตรข่าว & เปิดเว็บข่าวต้นฉบับในแท็บใหม่ & ลิงก์ \texttt{target="\_blank"} \\ \hline
-ปุ่มควบคุมการแบ่งหน้า & ท้ายตารางข่าว & สลับไปหน้ารายการข่าวก่อนหน้า/ถัดไป & \texttt{\_\_changePage(pageNum)} \\ \hline
-ปุ่มล้างประวัติ/บุ๊กมาร์ก & ภายในโมดอล & ล้างข้อมูลทั้งหมดออกจาก LocalStorage & \texttt{\_\_clearHistory()}, \texttt{\_\_clearAllBookmarks()} \\ \hline
-ปุ่มล้างข้อมูลความสนใจ PDPA & โมดอลตั้งค่า/แบนเนอร์ & ลบข้อมูลสถิติความสนใจและคุกกี้ทั้งหมด & \texttt{\_\_clearPreferenceData()} \\ \hline
-ปุ่มเข้าสู่ระบบคอนโซล & หน้ามอนิเตอร์ & ตรวจสอบรหัสผ่านผู้ดูแลและรับสิทธิ์เข้าถึง & \texttt{handleAdminLogin(e)} \\ \hline
-ปุ่มสั่งเริ่มสเกรปข่าวด่วน & คอนโซลผู้ดูแล & สั่งรันสเกรปข่าวทุกสำนักทันที & \texttt{triggerScrapeNow()} \\ \hline
-ปุ่มสั่งล้างแคชระบบ & คอนโซลผู้ดูแล & ล้างข้อมูลในแคชหน่วยความจำและ HTTP & \texttt{triggerClearCache()} \\ \hline
-ปุ่มทดสอบสำนักข่าวรายแห่ง & การ์ดสำนักข่าวในคอนโซล & ทดสอบการเชื่อมต่อและดึงข่าวเฉพาะสำนัก & \texttt{testSource(sourceName)} \\
+id & INTEGER & PK & AUTO & รหัสระบุลำดับสถิติการมีส่วนร่วม \\ \hline
+article\_url & TEXT & FK & ไม่มี & ลิงก์ที่อยู่บทความข่าว (เชื่อมไปยัง articles) \\ \hline
+clicks & INTEGER & - & 0 & จำนวนครั้งที่ผู้อ่านคลิกเปิดอ่านบทความ \\ \hline
+summaries & INTEGER & - & 0 & จำนวนครั้งที่ผู้อ่านเปิดดูบทสรุป AI \\ \hline
+bookmarks & INTEGER & - & 0 & จำนวนครั้งที่ผู้อ่านบันทึกคั่นหน้าบทความ \\ \hline
+last\_engaged\_at & TEXT & - & ไม่มี & วันเวลาที่มีปฏิสัมพันธ์ล่าสุด \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-\subsection{ตัวอย่างส่วนต่อประสานผู้ใช้และการแสดงผลจริงของระบบ (System User Interface Demonstration)}
+\begin{table}[H]
+\centering
+\caption{โครงสร้างตาราง seen\_urls}
+\label{tab_schema_seen_urls}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
+\hline
+url\_hash & TEXT & PK & ไม่มี & ค่าแฮชของ URL บทความข่าวสำหรับตรวจสอบข่าวซ้ำด่วน \\ \hline
+url & TEXT & - & ไม่มี & ลิงก์บทความข่าวฉบับเต็ม \\ \hline
+first\_seen\_at & TEXT & - & ไม่มี & วันเวลาที่ระบบตรวจพบข่าวนี้เป็นครั้งแรก \\
+\hline
+\end{tabular}%
+}
+\end{table}
 
-เพื่อแสดงให้เห็นถึงผลลัพธ์การทำงานจริงของระบบตามสถาปัตยกรรมระดับมหประเด็นข่าวใหญ่ (Stage B Macro Storyline Architecture) และระบบกลไกป้องกันความถูกต้อง (Grounded Synthesis Guardrails) จะนำเสนอตัวอย่างส่วน User Interface ของระบบจำแนกและวิเคราะห์ข่าวสารอัตโนมัติที่ผ่านการติดตั้งและประมวลผลข้อมูลจริงในสภาพแวดล้อมปฏิบัติการ โดยครอบคลุม 2 หน้าจอหลัก ดังนี้
+\begin{table}[H]
+\centering
+\caption{โครงสร้างตาราง canonical\_articles}
+\label{tab_schema_canonical}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|L{6.5cm}|}
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
+\hline
+canonical\_url & TEXT & PK & ไม่มี & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
+target\_url & TEXT & - & ไม่มี & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
+created\_at & TEXT & - & ไม่มี & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
+\hline
+\end{tabular}%
+}
+\end{table}
 
-ประการแรก หน้าจอแฟ้มเจาะลึกประเด็นข่าวที่ผ่านการป้องกันการรวมกลุ่มข้ามเรื่อง (Stage B Hardened Storyline Bento Hub) ดังแสดงในภาพที่~\ref{fig:ui_bento_story_id} นำเสนอผลสัมฤทธิ์ของสถาปัตยกรรม Stage B หลังการบังคับใช้กฎ Province-Only Veto และการแยกประเภท Typed NER โดยแสดงประเด็นข่าวสำคัญระดับประเทศที่ผูกโยงข่าวสารเฉพาะเหตุการณ์จริงอย่างแม่นยำ พร้อมหลักฐานข่าวที่มีรหัสอ้างอิงชัดเจน ปราศจากการรั่วไหลของข่าวอุบัติเหตุหรือเหตุการณ์ทั่วไปในจังหวัดเดียวกัน และแสดงป้ายสถิติการยืนยันข้ามสำนักข่าว (Corroborated Sources) อย่างเป็นรูปธรรม
+ข้อกำหนดความคงสภาพของข้อมูลและดัชนี (Constraints and Indices) ที่ติดตั้งบนฐานข้อมูลเพื่อรักษาความสมบูรณ์และเพิ่มประสิทธิภาพการสืบค้น แสดงดังตารางที่~\ref{tab_db_constraints}
+
+\begin{table}[H]
+\centering
+\caption{ข้อจำกัดและดัชนีของฐานข้อมูล}
+\label{tab_db_constraints}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|L{3.5cm}|L{3.2cm}|L{3.8cm}|L{4.5cm}|}
+\hline
+\textbf{ตาราง} & \textbf{ฟิลด์} & \textbf{ประเภทข้อจำกัด / ดัชนี} & \textbf{รายละเอียดและวัตถุประสงค์} \\
+\hline
+articles & url & UNIQUE INDEX & ป้องกันการบันทึกข่าวซ้ำในระดับฐานข้อมูล \\ \hline
+articles & story\_id & B-TREE INDEX & เพิ่มความเร็วในการดึงข่าวสมาชิกในประเด็น \\ \hline
+articles & category & B-TREE INDEX & เพิ่มความเร็วในการกรองข่าวตาม 9 หมวดหมู่ \\ \hline
+articles & fetched\_at & B-TREE INDEX & เพิ่มความเร็วในการเรียงลำดับข่าวสดตามเวลา \\ \hline
+stories & story\_id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสประเด็นข่าว \\ \hline
+stories & status & CHECK CONSTRAINT & บังคับค่าสถานะต้องเป็น 'active' หรือ 'dormant' \\ \hline
+stories & macro\_event\_id & B-TREE INDEX & เพิ่มความเร็วในการดึงประเด็นย่อยในมหากาพย์ \\ \hline
+macro\_events & macro\_event\_id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสมหากาพย์ \\ \hline
+macro\_events & status & CHECK CONSTRAINT & บังคับค่าสถานะต้องเป็น 'active' หรือ 'dormant' \\ \hline
+event\_relations & macro\_id & FOREIGN KEY & บังคับความสอดคล้องกับตาราง macro\_events \\ \hline
+trending\_scores & story\_id & PK, FK, UNIQUE & บังคับความสัมพันธ์ 1 ต่อ 1 กับตาราง stories \\ \hline
+reader\_engagement & article\_url & FOREIGN KEY & บังคับความสอดคล้องกับตาราง articles \\ \hline
+seen\_urls & url\_hash & PRIMARY KEY & ดัชนีหลักสำหรับตรวจสอบการสเกรปซ้ำ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{การออกแบบส่วนเชื่อมต่อโปรแกรมประยุกต์}
+
+จุดเชื่อมต่อบริการ REST API ของระบบได้รับการออกแบบตามมาตรฐาน OpenAPI 3.0 ครอบคลุม 22 จุดเชื่อมต่อบริการ ดังแสดงในตารางที่~\ref{tab_api_endpoints} และรหัสสถานะ HTTP ที่ระบบใช้แสดงดังตารางที่~\ref{tab_http_status_codes}
+
+\begin{longtable}{|C{1.3cm}|L{4.0cm}|L{5.8cm}|L{1.7cm}|}
+\caption{เส้นทางของส่วนเชื่อมต่อโปรแกรมประยุกต์}\label{tab_api_endpoints}\\
+\hline
+\textbf{เมธอด} & \textbf{เส้นทาง (Route)} & \textbf{การทำงานและวัตถุประสงค์} & \textbf{สิทธิ์การเข้าถึง} \\ \hline
+\endfirsthead
+\caption[]{เส้นทางของส่วนเชื่อมต่อโปรแกรมประยุกต์~\cskkuContinued}\\
+\hline
+\textbf{เมธอด} & \textbf{เส้นทาง (Route)} & \textbf{การทำงานและวัตถุประสงค์} & \textbf{สิทธิ์การเข้าถึง} \\ \hline
+\endhead
+GET & \texttt{/api/stories} & เรียกดูรายการกลุ่มประเด็นข่าวสาร พร้อมการแบ่งหน้าและกรอง & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/stories/trending} & ดึงประเด็นข่าวยอดนิยมที่ผ่านการจัดอันดับเชิงสถิติ 6 มิติ & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นข่าว ไทม์ไลน์ และบทความข่าวสมาชิก & ผู้อ่านทั่วไป \\ \hline
+POST & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสรุปและสังเคราะห์ประเด็นข่าวข้ามสำนักด้วย LLM & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/macro-events} & เรียกดูรายการมหากาพย์ประเด็นข่าว พร้อมตัวกรองวิกฤต & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวเด่นที่กำลังเป็นกระแสสำหรับหน้าแรก Bento Hub & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์ ความสัมพันธ์ประเด็นย่อย และไทม์ไลน์ & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/news} & ดึงรายการบทความข่าวเดี่ยว กรองหมวด สำนักข่าว และค้นหา & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/news/content} & สกัดเนื้อหาบทความฉบับเต็ม Cleaned Markdown สำหรับสังเคราะห์สรุปและพรีวิว & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/categories} & ดึงรายชื่อ 9 หมวดหมู่ข่าวภาษาไทยพร้อมชุดสีประจำหมวด & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/sources} & ดึงรายชื่อสำนักข่าวทั้งหมดที่ลงทะเบียนและเปิดใช้งาน & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/status} & ตรวจสอบสถานะรอบเวลาสเกรปและจำนวนข่าวสะสมในระบบ & ผู้อ่านทั่วไป \\ \hline
+GET & \texttt{/api/image} & บริการ Reverse Proxy และแคชรูปภาพหน้าปกบทความ & ผู้อ่านทั่วไป \\ \hline
+POST & \texttt{/api/collect-md} & นำเข้า URL ข่าวเดี่ยวเพื่อสกัดเนื้อหาและจำแนกหมวดทันที & ผู้อ่านทั่วไป \\ \hline
+POST & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม (คลิก, สรุป, บุ๊กมาร์ก) & ผู้อ่านทั่วไป \\ \hline
+POST & \texttt{/api/monitoring/auth} & ตรวจสอบรหัสผ่านลับผู้ดูแลระบบและออก Bearer Token & ผู้ดูแลระบบ \\ \hline
+GET & \texttt{/api/monitoring/verify} & ตรวจสอบความถูกต้องของโทเค็นเซสชันผู้ดูแลระบบ & ผู้ดูแลระบบ \\ \hline
+GET & \texttt{/api/monitoring/stats} & ตรวจสอบสถิติ Throughput การใช้ RAM และสถานะแคช & ผู้ดูแลระบบ \\ \hline
+POST & \texttt{/api/monitoring/scrape-now} & สั่งเริ่มรอบการดึงข่าวจากทุกสำนักในเบื้องหลังทันที & ผู้ดูแลระบบ \\ \hline
+POST & \texttt{/api/monitoring/clear-cache} & สั่งล้างข้อมูลในแคชหน่วยความจำ L1 และแคช HTTP & ผู้ดูแลระบบ \\ \hline
+POST & \texttt{/api/monitoring/test-source} & ทดสอบการเชื่อมต่อและดึงข่าวเฉพาะสำนักข่าวที่ระบุ & ผู้ดูแลระบบ \\ \hline
+GET & \texttt{/livez} และ \texttt{/readyz} & โพรบตรวจสอบความพร้อมและสถานะการทำงานของเซิร์ฟเวอร์ & สาธารณะ \\
+\hline
+\end{longtable}
+
+\begin{table}[H]
+\centering
+\caption{รหัสสถานะ HTTP ที่ระบบใช้}
+\label{tab_http_status_codes}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{4.5cm}|L{9.0cm}|}
+\hline
+\textbf{รหัส} & \textbf{ชื่อสถานะ (HTTP Status)} & \textbf{เงื่อนไขการส่งคืนในระบบ} \\
+\hline
+200 & OK & คำขอสำเร็จและส่งคืนข้อมูลผลลัพธ์ในรูปแบบ JSON \\ \hline
+201 & Created & สร้างทรัพยากรใหม่สำเร็จ (เช่น การลงทะเบียนหรือบันทึกประเด็น) \\ \hline
+204 & No Content & คำขอสำเร็จแต่ไม่มีข้อมูลส่งกลับ (เช่น การส่งสถิติการมีส่วนร่วม) \\ \hline
+304 & Not Modified & ข้อมูลในแคชของผู้ใช้ยังเป็นปัจจุบัน ไม่มีการส่งข้อมูลซ้ำผ่าน ETag \\ \hline
+400 & Bad Request & รูปแบบคำขอไม่ถูกต้อง เช่น พารามิเตอร์ขาดหายหรือไม่ตรงตามเงื่อนไข \\ \hline
+401 & Unauthorized & ขาดโทเค็นยืนยันตัวตนหรือรหัสผ่านผู้ดูแลระบบไม่ถูกต้อง \\ \hline
+403 & Forbidden & ไม่มีสิทธิ์เข้าถึงทรัพยากรที่ร้องขอ \\ \hline
+404 & Not Found & ไม่พบข้อมูลทรัพยากรที่ระบุ (เช่น ไม่พบข่าวหรือประเด็นที่ระบุ ID) \\ \hline
+422 & Unprocessable Entity & ข้อมูลนำเข้าไม่ผ่านกฎการตรวจสอบความถูกต้องของ Pydantic Schema \\ \hline
+429 & Too Many Requests & ส่งคำขอเกินอัตราที่ระบบจำกัดไว้ (Rate Limiting Exceeded) \\ \hline
+500 & Internal Server Error & เกิดข้อผิดพลาดที่ไม่คาดคิดในการประมวลผลภายในเซิร์ฟเวอร์ \\ \hline
+502 & Bad Gateway & เซิร์ฟเวอร์ต้นทางหรือบริการภาพข่าวภายนอกไม่ตอบสนอง \\ \hline
+503 & Service Unavailable & เซิร์ฟเวอร์ยังไม่พร้อมให้บริการหรืออยู่ในระหว่างการเริ่มต้นระบบ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{ต้นแบบส่วนติดต่อกับผู้ใช้}
+
+ส่วนต่อประสานผู้ใช้ได้รับการออกแบบตามแนวคิด Responsive Single Page Application โดยมีต้นแบบหน้าจอ 6 รูปแบบหลัก (M-01 ถึง M-06) ดังแสดงในตารางที่~\ref{tab_ui_mockups}
+
+\begin{table}[H]
+\centering
+\caption{รายการต้นแบบหน้าจอ}
+\label{tab_ui_mockups}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{4.5cm}|L{2.5cm}|L{7.5cm}|}
+\hline
+\textbf{รหัส} & \textbf{ชื่อหน้าจอ} & \textbf{ผู้ใช้งาน} & \textbf{ส่วนประกอบหลักและหน้าที่การทำงาน} \\
+\hline
+M-01 & Bento Hub SPA\newline (หน้าหลักสำรวจข่าว) & ผู้อ่านทั่วไป & แถบข่าวเด่นประจำวัน บัตรสรุปข่าว 3 มุมมอง แถบแฮชแท็ก แถบเลือก 9 หมวดหมู่ ปุ่มคัดกรองสำนักข่าว และแบนเนอร์ข่าวใหม่ลอยตัว \\ \hline
+M-02 & In-App Cleaned Reader\newline (หน้าต่างพรีวิวบทความ) & ผู้อ่านทั่วไป & หน้าต่างโมดอลพรีวิวเนื้อหาข่าวบางส่วนเพื่อความปลอดภัยด้านลิขสิทธิ์ ลิงก์ต้นฉบับ แผงสรุปผู้บริหารที่สังเคราะห์จากเนื้อหาฉบับเต็มด้วย AI ค่าอารมณ์ข่าว และปุ่มบันทึกคั่นหน้า \\ \hline
+M-03 & Macro Storyline Dossier\newline (แฟ้มเจาะลึกมหากาพย์) & ผู้อ่านทั่วไป & แฟ้มเจาะลึกประเด็นข่าวมหาภาค ไทม์ไลน์พัฒนาการเหตุการณ์ตามเวลาจริง ตารางหลักฐานยืนยันข้ามสำนักข่าว และรหัสอ้างอิงรายประโยค \\ \hline
+M-04 & Issue Explorer Workstation\newline (สถานีเจาะประเด็นข่าว) & ผู้อ่านทั่วไป\newline นักวิเคราะห์ & แถบค้นหาบูลีนขั้นสูง แถบแจกแจงมุมมองสื่อ ตารางวิเคราะห์มิติประเด็นข่าว และตัวกรองคัดแยกข่าวหลุดประเด็น \\ \hline
+M-05 & Ops Monitoring Console\newline (ศูนย์ควบคุมสถานะ) & ผู้ดูแลระบบ & ฟอร์มยืนยันตัวตน แดชบอร์ด Throughput สถิติ RAM สถานะแคช ปุ่มสั่งเริ่มสเกรปข่าวด่วน ปุ่มสั่งล้างแคช และตัวทดสอบสำนักข่าว \\ \hline
+M-06 & Privacy \& Cookie Modal\newline (ตั้งค่าความเป็นส่วนตัว) & ผู้อ่านทั่วไป & แถบขอความยินยอมคุกกี้ หน้าต่างตั้งค่าสิทธิ์ความเป็นส่วนตัวตามมาตรฐาน PDPA และปุ่มลบสถิติความสนใจออกจากเบราว์เซอร์ \\ \hline
+M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉพาะคุณ) & ผู้อ่านทั่วไป & หน้าต่างเลือกอย่างน้อย 3 หมวดหมู่สนใจเพื่อสร้างฟีดเฉพาะบุคคล และจัดอันดับข่าวบนเบราว์เซอร์แบบ Edge ไม่ส่งข้อมูลส่วนตัวกลับเซิร์ฟเวอร์ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+ตัวอย่างหน้าจอจริงของระบบในส่วนแฟ้มเจาะลึกมหากาพย์ประเด็นข่าว (Stage B Hardened Storyline Bento Hub) แสดงดังภาพที่~\ref{fig_ui_bento_story_id} และแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาแสดงดังภาพที่~\ref{fig_ui_bento_timeline_enforced}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.98\textwidth]{images/bento_story_identification_ex1.png}
-\caption{ภาพแสดงหน้าต่างแฟ้มเจาะลึกมหากาพย์ประเด็นข่าวที่ผ่านการยับยั้งการรวมกลุ่มข้ามเรื่อง (Stage B Hardened Storyline)}
-\label{fig:ui_bento_story_id}
+\caption{ภาพแสดงหน้าต่างแฟ้มเจาะลึกมหากาพย์ประเด็นข่าวที่ผ่านการยับยั้งการรวมกลุ่มข้ามเรื่อง}
+\label{fig_ui_bento_story_id}
 \end{figure}
-
-ประการที่สอง แฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาและข้อเท็จจริงยืนยันที่ผ่านเกตคัดกรองความเกี่ยวข้อง (Enforced Progression Timeline \& Corroborated Evidence) ดังแสดงในภาพที่~\ref{fig:ui_bento_timeline_enforced} แสดงพัฒนาการของเหตุการณ์ตามลำดับเวลาจริง โดยข้อมูลทุกจุดในไทม์ไลน์และข้อเท็จจริงยืนยันถูกสกัดมาจากเฉพาะกลุ่มบทความที่ผ่านการคัดกรองความเกี่ยวข้อง (Relevant Evidence) ปราศจากการปนเปื้อนของข่าวที่เป็นเพียงบริบทแวดล้อมหรือข่าวหลุดประเด็น ทำให้ผู้อ่านสามารถติดตามลำดับสถานการณ์และตรวจสอบย้อนกลับไปยังแหล่งข่าวต้นทางได้อย่างถูกต้องและน่าเชื่อถือ
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.98\textwidth]{images/bento_timeline_ex1.png}
-\caption{ภาพแสดงแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาและข้อเท็จจริงยืนยันที่ผ่านเกตคัดกรองความเกี่ยวข้อง}
-\label{fig:ui_bento_timeline_enforced}
+\caption{ภาพแสดงแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาและข้อเท็จจริงยืนยัน}
+\label{fig_ui_bento_timeline_enforced}
 \end{figure}
 
-\subsection{ระบบเจาะประเด็นข่าวและค้นหาเชิงวิเคราะห์ (Issue Explorer \& In-depth Search)}
+\subsection{การออกแบบและมาตรการความปลอดภัยของระบบ}
 
-นอกจากการสำรวจกระแสข่าวสารสดประจำวันและมหากาพย์เหตุการณ์บนหน้าจอหลักแล้ว ระบบยังได้พัฒนาส่วนต่อประสานสำหรับเจาะประเด็นข่าวเชิงลึก (Issue Explorer Workstation) ผ่านหน้าเว็บ \texttt{/issues} เพื่อรองรับการค้นคว้าและสืบค้นเชิงวิเคราะห์ของนักข่าว นักวิเคราะห์นโยบาย และผู้อ่านทั่วไปที่ต้องการติดตามพัฒนาการของประเด็นข่าวเฉพาะด้านอย่างครอบคลุม
+ความมั่นคงปลอดภัยของระบบและการคุ้มครองข้อมูลส่วนบุคคลได้รับการออกแบบครอบคลุม 4 มิติหลัก เพื่อป้องกันภัยคุกคามทางไซเบอร์ตามมาตรฐานสากล
 
-ระบบเจาะประเด็นข่าวทำงานร่วมกับสถาปัตยกรรมอ่านอย่างเดียว (Read-Only Architecture) โดยผู้ใช้สามารถสืบค้นด้วยคำสำคัญทั่วไป หรือใช้ไวยากรณ์การค้นหาขั้นสูง เช่น การใช้เครื่องหมายไปป์ (\texttt{|}) เพื่อหาคำพ้องความหมาย การใช้เครื่องหมายลบ (\texttt{-term}) เพื่อคัดกรองข่าวกีฬาหรือบันเทิงที่ไม่เกี่ยวข้องออก และการใช้เครื่องหมายคำพูดคู่ (\texttt{"..."}) สำหรับวลีเฉพาะเจาะจง พร้อมทั้งมีระบบขยายคำย่อหน่วยงานรัฐและคำพ้องความหมายภาษาไทยโดยอัตโนมัติ
+\subsubsection{ความปลอดภัยระดับเครือข่ายและเว็บเซิร์ฟเวอร์}
 
-ผลลัพธ์การสืบค้นจะถูกสังเคราะห์และนำเสนอในรูปแบบการทำงาน (Investigation Workstation) ประกอบด้วย 4 องค์ประกอบสำคัญ ได้แก่ แถบสรุปภาพรวมและสถิติประเด็นข่าว (Issue Executive Summary), ตารางแจกแจงมุมมองและสัดส่วนการนำเสนอของแต่ละสำนักข่าว (Publisher Perspective Breakdown) เพื่อแสดงให้เห็นว่าสื่อสำนักใดให้ความสนใจในมิติใดเป็นพิเศษ, ไทม์ไลน์ความเคลื่อนไหวของประเด็นตามลำดับเวลาจริง (Chronological Evolution Timeline) และรายการการ์ดข่าวสารที่จัดกลุ่มตามประเด็นย่อย (Issue Sub-clusters) โดยมีระบบคัดกรองข่าวหลุดประเด็น (Outlier Filtering) ช่วยแยกบทความที่ไม่เกี่ยวข้องออกไปอย่างแม่นยำ พร้อมทั้งมีระบบควบคุมอัตราคำขอแบบ Sliding Window IP Rate Limiting ช่วยรักษาความมั่นคงของเซิร์ฟเวอร์
+ในระดับเครือข่าย Nginx Reverse Proxy ทำหน้าที่เป็นเกตเวย์ด่านหน้า จัดการเข้ารหัสการสื่อสารผ่าน TLS/SSL ทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) พร้อมทั้งกำหนดนโยบายจำกัดอัตราคำขอ (Rate Limiting) เพื่อป้องกันการโจมตีแบบ DoS นอกจากนี้ยังติดตั้ง CORS Whitelist เฉพาะโดเมนที่ได้รับอนุญาต และติดตั้งส่วนหัวความปลอดภัย HTTP Security Headers ได้แก่ \texttt{X-Content-Type-Options} (ค่า nosniff), \texttt{X-Frame-Options} (ค่า SAMEORIGIN), และ \texttt{Content-Security-Policy} ป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
 
+\subsubsection{การป้องกันโค้ดอันตรายและการตรวจสอบข้อมูล}
 
-\subsection{การรักษาเสถียรภาพระดับโพรดักชันและการตรวจสอบก่อนส่งมอบ (Production Reliability \& Pre-flight Smoke Testing)}
+เพื่อป้องกันการโจมตีแบบ Cross-Site Scripting (XSS) ข้อมูลข่าวที่สกัดจากภายนอกจะผ่านกระบวนการ Sanitization กำจัดแท็ก \texttt{<script>}, \texttt{<iframe>} และแอตทริบิวต์อันตรายออกทั้งหมด แปลงเนื้อหาให้อยู่ในรูป Clean Markdown บริสุทธิ์ก่อนส่งไปแสดงผล พร้อมทั้งบังคับใช้การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic ในทุกจุดรับเข้าและส่งออกของ REST API สำหรับการป้องกัน Server-Side Request Forgery (SSRF) บริการสเกรปเปอร์จะดึงข้อมูลเฉพาะจากสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) เท่านั้น และในส่วนของโมเดลภาษา มีการกำหนด Prompt Delimiter รัดกุมเพื่อป้องกัน Indirect Prompt Injection
 
-เพื่อให้การนำระบบขึ้นสู่สภาพแวดล้อมโพรดักชันบนคลาวด์ร่วมกับ Nginx, Cloudflare CDN และ PWA มีความราบรื่นและปราศจากช่วงเวลาหยุดชะงัก (Zero Downtime) ระบบได้วางกลไกการรับประกันคุณภาพและความน่าเชื่อถือทางวิศวกรรม 3 ส่วนหลัก
+\subsubsection{การคุ้มครองข้อมูลส่วนบุคคลและความปลอดภัยของคุกกี้}
 
-ส่วนแรก การจัดการปัญหาความไม่เข้ากันของแคชบนเครือข่ายส่งมอบเนื้อหา (Edge \& Client Cache Invalidation) ระบบได้กำหนดนโยบาย \texttt{NoCacheStaticFiles} บน FastAPI ส่งส่วนหัว \texttt{Cache-Control} ที่ระบุ \texttt{no-cache, must-revalidate} สำหรับไฟล์สคริปต์โมดูล JavaScript ทั้งหมด และเพิ่มตัวแปรระบุเวอร์ชัน (\texttt{?v=3.3.3}) กำกับท้ายการนำเข้าโมดูลย่อย (Sub-module Imports) ทุกไฟล์ พร้อมปรับปรุงการทำงานของ Service Worker ให้ล้างแคชเก่าทิ้งทันทีเมื่อตรวจพบเวอร์ชันใหม่ ช่วยป้องกันไม่ให้เบราว์เซอร์ของผู้ใช้ค้างที่ไฟล์สคริปต์เก่าอันเป็นสาเหตุของข้อผิดพลาดหน้าเว็บขาว
+การคุ้มครองความเป็นส่วนตัวถูกออกแบบตามหลัก Zero-PII กล่าวคือ ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลที่สามารถระบุตัวตนได้ (ไม่มีการเก็บชื่อ ที่อยู่อีเมล หรือเลขไอพี) ข้อมูลการมีส่วนร่วมจะถูกบันทึกเป็นเพียงคะแนนรวมแบบนิรนาม ในระดับเบราว์เซอร์ คุกกี้ถูกกำหนดคุณสมบัติความปลอดภัย \texttt{SameSite=Lax} ป้องกัน CSRF พร้อมทั้งมีแถบแจ้งเตือนขอความยินยอมตามมาตรฐาน PDPA และมีปุ่มให้ผู้ใช้กดล้างข้อมูลความสนใจออกจากเบราว์เซอร์ได้ตลอดเวลา
 
-ส่วนที่สอง การจัดการความเข้ากันได้ข้ามสภาพแวดล้อม (Cross-Platform Model Loading Isolation) โดยระบบได้ปรับเปลี่ยนวิธีการโหลดโมเดลตัดคำและเวกเตอร์ภาษาไทยให้อ่านโครงสร้างจากไฟล์ \texttt{tokenizer.json} ผ่านคลาส \texttt{PreTrainedTokenizerFast} โดยตรง ช่วยให้โมเดลสามารถทำงานได้อย่างเสถียรทั้งบนสภาพแวดล้อมการพัฒนา (Windows) และสภาพแวดล้อมคอนเทนเนอร์บนโพรดักชัน (Linux Docker) โดยปราศจากปัญหาความเข้ากันไม่ได้ของ SentencePiece
+\subsubsection{การจัดการความลับและการตั้งค่าระบบ}
 
-ส่วนที่สาม สคริปต์ทดสอบความพร้อมก่อนขึ้นโพรดักชันอัตโนมัติ (Automated Pre-flight Smoke Test Script ผ่าน \texttt{scripts/preflight\_test.py}) ซึ่งทำหน้าที่ตรวจสอบเสถียรภาพของระบบก่อนการปล่อยให้ผู้ใช้ภายนอกเข้าใช้งาน ครอบคลุมการทดสอบจุดเชื่อมต่อความพร้อมของระบบจัดเก็บข้อมูล (\texttt{/readyz}), การประมวลผลเอนจินจัดอันดับเทรนด์, การจำลองผู้ใช้จริงผ่าน Headless Chromium เพื่อยืนยันว่าไม่มีข้อผิดพลาดหลุดรอดบน Console, การตรวจสอบสถานะการเชื่อมต่อ WebSocket และความพร้อมของระบบเจาะประเด็นข่าว โดยผลการทดสอบทั้งหมดผ่านเกณฑ์ความสมบูรณ์ร้อยละ 100
+รหัสลับและคีย์เชื่อมต่อบริการภายนอก เช่น \texttt{LLM\_API} ถูกจัดเก็บไว้ในไฟล์ \texttt{.env} และ Environment Variables ที่แยกต่างหาก โดยมีไฟล์ \texttt{.gitignore} ป้องกันการนำความลับของระบบขึ้นสู่ระบบควบคุมเวอร์ชัน Git อย่างเข้มงวด
 
-
-\section{การออกแบบและมาตรการความมั่นคงปลอดภัยของระบบ (System Security Design)}
+% -----------------------------------------------------------
+\section{การพัฒนาโปรแกรม}
 % -----------------------------------------------------------
 
-ความมั่นคงปลอดภัยของระบบ (System Security) และการคุ้มครองความเป็นส่วนตัวของผู้ใช้งาน (Data Privacy) เป็นปัจจัยสำคัญในการพัฒนาเว็บแอปพลิเคชันยุคใหม่ โดยระบบได้ออกแบบมาตรการรักษาความปลอดภัยครอบคลุม 4 มิติหลัก ดังนี้
+ในส่วนการพัฒนาโปรแกรม (Program Implementation) จะอธิบายถึงภาษา เครื่องมือ โครงสร้างโฟลเดอร์ และรายละเอียดการทำงานของโมดูลหลักต่าง ๆ ที่ได้สร้างขึ้นจริงในระบบ
 
-\subsection{ความปลอดภัยระดับเครือข่ายและเว็บเซิร์ฟเวอร์ (Network \& Gateway Security)}
+\subsection{ภาษาและไลบรารีหลักที่ใช้ในการพัฒนา}
 
-ในระดับเครือข่าย ระบบได้ติดตั้ง Nginx Reverse Proxy ทำหน้าที่เป็น Gateway จัดการเข้ารหัสช่องทางการสื่อสาร (TLS/SSL Encryption) ทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) เพื่อป้องกันการดักฟังข้อมูลระหว่างทาง (Man-in-the-Middle Attack) พร้อมทั้งกำหนดนโยบายจำกัดอัตราการเรียกใช้งาน (API Rate Limiting) เพื่อจำกัดจำนวนคำขอต่อหมายเลข IP ช่วยป้องกันการโจมตีแบบปฏิเสธการให้บริการ (DoS) นอกจากนี้ยังได้กำหนดนโยบายการเข้าถึงข้ามโดเมน (CORS Whitelist) เฉพาะโดเมนของระบบที่ได้รับอนุญาต และติดตั้งส่วนหัวความปลอดภัยมาตรฐาน (HTTP Security Headers) ได้แก่ \texttt{X-Content-Type-Options: nosniff}, \texttt{X-Frame-Options: SAMEORIGIN} และ \texttt{Content-Security-Policy (CSP)} เพื่อป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
-
-\subsection{การป้องกันโค้ดอันตรายและการตรวจสอบข้อมูล (Data Sanitization \& Injection Defense)}
-
-ในด้านการป้องกันการโจมตีเชิงความปลอดภัยและการจัดการข้อมูลอันตราย ระบบมีมาตรการป้องกันที่ครอบคลุมหลายระดับ โดยสำหรับการป้องกัน Cross-Site Scripting (XSS) ข้อมูลเนื้อหาข่าวที่สกัดได้จากเว็บต้นทางอาจมีแท็ก HTML หรือสคริปต์อันตรายแฝงมา ระบบจึงใช้กระบวนการแปลงและกรองข้อมูล (Sanitization) เพื่อกำจัดแท็ก \texttt{<script>}, \texttt{<iframe>}, รวมถึงแอตทริบิวต์ \texttt{onload}, \texttt{onerror} ออกทั้งหมด และแปลงเนื้อหาให้อยู่ในรูป Plain Markdown ก่อนส่งไปแสดงผลบนหน้าจอ In-app Modal นอกจากนี้ เพื่อป้องกันข้อผิดพลาดจาก Malformed Input และ Parameter Tampering ระบบได้บังคับใช้การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic (Strict Schema Validation) ในทุกจุดรับเข้าและส่งออกของ REST API
-
-สำหรับการป้องกัน Server-Side Request Forgery (SSRF) ส่วนงาน Scraper และ Playwright Service จะรับคำขอและดึงข้อมูลเฉพาะจากรายการสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) เท่านั้น โดยไม่อนุญาตให้ผู้ใช้ภายนอกส่ง URL เครือข่ายภายในเข้ามาประมวลผลโดยตรง และในส่วนการประมวลผลร่วมกับโมเดลภาษาขนาดใหญ่ (LLM Safety) ระบบได้ออกแบบ System Prompt และโครงสร้าง Delimiter กั้นระหว่างคำสั่งหลักกับเนื้อหาข่าวอย่างรัดกุม เพื่อป้องกันปัญหา Indirect Prompt Injection ไม่ให้ข้อความข่าวลบล้างคำสั่งเดิม (Prompt Jailbreak) ของระบบสรุปข่าวได้
-
-\subsection{การคุ้มครองข้อมูลส่วนบุคคลและความปลอดภัยของคุกกี้ (Privacy \& Cookie Security)}
-
-การคุ้มครองความเป็นส่วนตัวของผู้ใช้งานถูกออกแบบตามหลัก Privacy by Design \& Zero PII กล่าวคือ ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลที่สามารถระบุตัวตนได้ (Personally Identifiable Information) เช่น ชื่อ ที่อยู่อีเมล หรือหมายเลขประจำเครื่อง โดยข้อมูลพฤติกรรมความสนใจของผู้ใช้จะถูกประมวลผลเป็นเพียงคะแนนรวมแบบนิรนาม (Anonymous Aggregate Engagement) บนฐานข้อมูลเท่านั้น ในระดับเบราว์เซอร์ คุกกี้ที่ใช้ในระบบมีการกำหนดคุณสมบัติความปลอดภัยเข้มงวด ได้แก่ \texttt{SameSite=Lax} และ \texttt{Path=/} เพื่อป้องกันการโจมตีแบบ Cross-Site Request Forgery (CSRF) พร้อมกำหนดอายุการหมดอายุ (Max-Age) ที่เหมาะสม ตลอดจนติดตั้งแถบแจ้งเตือนขอความยินยอมการใช้งานคุกกี้ (Cookie Consent Banner) ตามมาตรฐาน PDPA และมีฟังก์ชันให้ผู้ใช้สามารถกดล้างสถิติพฤติกรรม (Clear Preference Data) บนเบราว์เซอร์ได้ด้วยตนเองตลอดเวลา
-
-
-\subsection{การจัดการความลับและการตั้งค่าระบบ (Secrets \& Configuration Management)}
-
-API Key สำหรับเชื่อมต่อกับบริการภายนอก เช่น \texttt{LLM\_API} ของ KKU Gen.AI และการตั้งค่าระบบต่าง ๆ ถูกจัดเก็บไว้ในไฟล์ \texttt{.env} และ Environment Variables ที่แยกต่างหาก โดยมีไฟล์ \texttt{.gitignore} ป้องกันการนำความลับของระบบขึ้นสู่ระบบควบคุมเวอร์ชัน (Git Repository) อย่างเข้มงวด
-
-% % -----------------------------------------------------------
-\section{การทดสอบระบบ}
-% -----------------------------------------------------------
-
-การรับประกันคุณภาพและความน่าเชื่อถือของระบบ (Quality Assurance \& Reliability) เป็นหัวใจสำคัญในการพัฒนาระบบรวบรวมและวิเคราะห์ข่าวสารอัตโนมัติ ซึ่งต้องทำงานต่อเนื่องตลอดเวลา (24/7 Continuous Operation) และประมวลผลข้อมูลจากภายนอกที่มีความผันผวนสูง โครงงานนี้จึงประยุกต์ใช้ระเบียบวิธีพัฒนาที่ขับเคลื่อนด้วยการทดสอบ (Test-Driven Development: TDD) และสร้างชุดทดสอบอัตโนมัติที่ครอบคลุมการทำงานทุกระดับตั้งแต่การทดสอบระดับหน่วย (Unit Testing) การทดสอบการทำงานร่วมกัน (Integration Testing) การทดสอบกรณีสุดขั้วและสภาวะวิกฤต (Adversarial \& Stress Testing) การทดสอบการประมวลผลพร้อมกัน (Concurrency Testing) และการทดสอบความมั่นคงปลอดภัยตามมาตรฐาน PDPA รวมทั้งสิ้น 423 กรณีทดสอบ (423 Test Cases) ครอบคลุม 39 โมดูลทดสอบบนเฟรมเวิร์ค \texttt{pytest} โดยมีผลการทดสอบผ่านสมบูรณ์ครบทั้ง 423 กรณีทดสอบ (คิดเป็นร้อยละ 100)
-
-\subsection{โครงสร้างและสถิติชุดทดสอบอัตโนมัติ (Automated Test Suite Structure \& Statistics)}
-
-ชุดทดสอบอัตโนมัติของระบบสามารถจำแนกออกเป็น 6 มิติหลักตามขอบเขตการทำงานของสถาปัตยกรรม ดังแสดงในตารางที่~\ref{tab:automated_tests}
+ระบบได้รับการพัฒนาขึ้นโดยใช้ภาษา Python สำหรับส่วนหลัง (Backend) และภาษา JavaScript ES Modules ร่วมกับ Tailwind CSS สำหรับส่วนหน้า (Frontend) โดยมีไลบรารีหลักที่ใช้แสดงดังตารางที่~\ref{tab_main_libraries}
 
 \begin{table}[H]
 \centering
-\small
-\caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก (จำนวนรวม 423 กรณีทดสอบ)}
-\label{tab:automated_tests}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.2cm}|L{3.8cm}|L{5.4cm}|>{\centering\arraybackslash}p{1.4cm}|>{\centering\arraybackslash}p{1.8cm}|}
-\hline
-\textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ขอบเขตและโมดูลทดสอบสำคัญ} & \textbf{จำนวน (ข้อ)} & \textbf{ผลการ ทดสอบ} \\
-\hline
-1 & การประมวลผลภาษาและการจำแนกหมวดหมู่ & การตัดคำภาษาไทย, การแปลงและระงับชื่อจังหวัด (\texttt{thai\_normalizer}), การจำแนก 9 หมวดหมู่ (\texttt{classifier\_service}) และเวกเตอร์หนาแน่น (\texttt{wangchan\_embedding}) & 51 & ผ่าน (100\%) \\ \hline
-2 & การระบุประเด็นข่าวและวงรอบชีวิต & เกณฑ์ตัดสินใจ Two-Band, การยืนยันเอนทิตี (\texttt{story\_service}), การคัดกรองมหากาพย์ P0--P2 (\texttt{macro\_p0\_p2\_invariants}), Centroid EMA, การจัดเก็บประเด็นข่าว (\texttt{story\_repo}) และการทดสอบโหลดหนัก (\texttt{layer1\_stress}) & 76 & ผ่าน (100\%) \\ \hline
-3 & เอนจินจัดอันดับกระแสและความคงทนทางสถิติ & สัญญาณคะแนน 6 มิติ, คุณสมบัติ Zero-LLM, การลดทอนข่าวประจำวัน (\texttt{trending\_deterministic}) และการทดสอบกรณีสุดขั้ว (\texttt{adversarial}) & 59 & ผ่าน (100\%) \\ \hline
-4 & การสังเคราะห์นำเสนอ มหากาพย์ข่าว และประเด็นเฉพาะทาง & การสรุปประเด็นรวม (\texttt{story\_presentation}), มหากาพย์ข่าว (\texttt{macro\_events}), แฟ้มหลักฐานเหตุการณ์ (\texttt{event\_evidence}), การนำเสนอข่าวกีฬา (\texttt{sports\_presentation}), การคัดกรองความเกี่ยวข้อง (\texttt{relevance\_enforcement}) และศูนย์ควบคุมสถานะ (\texttt{monitoring}) & 68 & ผ่าน (100\%) \\ \hline
-5 & สถาปัตยกรรมแคช ฐานข้อมูล ความปลอดภัย PDPA และการเจาะประเด็น & แคชหน่วยความจำและ HTTP 304 (\texttt{caching}, \texttt{http\_cache}), การป้องกัน Cache Stampede (\texttt{summary\_cache}), ฐานข้อมูล SQLite WAL และ PDPA (\texttt{storage\_pdpa}), ไคลเอนต์สำรอง (\texttt{cascading\_client}), แคชแบบลำดับชั้น (\texttt{tiered\_cache}) และระบบเจาะประเด็นข่าว (\texttt{issue\_explorer}) & 136 & ผ่าน (100\%) \\ \hline
-6 & การประเมินผลเชิงประจักษ์ จุดเชื่อมต่อบริการ และความมั่นคงปลอดภัย CORS & การประเมินเมตริก B-cubed และ Pairwise (\texttt{evaluation\_harness}), จุดเชื่อมต่อ REST API ทุกส่วน (\texttt{api\_endpoints}), การทดสอบ CORS/Socket.IO (\texttt{adversarial\_cors}) และ Adapter ความเข้ากันได้ & 33 & ผ่าน (100\%) \\
-\hline
-\multicolumn{3}{|c|}{\textbf{รวมชุดทดสอบอัตโนมัติทั้งหมด (39 โมดูล)}} & \textbf{423} & \textbf{ผ่าน (100\%)} \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{การทดสอบคุณสมบัติคงที่ทางวิศวกรรมและกรณีสุดขั้ว (In-Depth Technical Testing Methodologies)}
-
-เพื่อให้มั่นใจว่าระบบมีเสถียรภาพภายใต้สภาวะการทำงานจริงที่มีความซับซ้อน ชุดทดสอบได้ออกแบบกรณีทดสอบครอบคลุมคุณสมบัติคงที่ทางวิศวกรรม (Engineering Invariants) และสภาวะสุดขั้วใน 9 ด้านหลัก
-
-ประการแรก การทดสอบความแม่นยำในการระบุประเด็นข่าวมหากาพย์และคุณสมบัติคงที่ P0--P2 (Stage B Macro Invariants \& Province Veto) ได้รับการตรวจสอบอย่างเข้มงวดผ่าน \texttt{test\_macro\_p0\_p2\_invariants.py} ซึ่งครอบคลุมการทดสอบกฎยับยั้งการรวมกลุ่มเมื่อตรงกันเฉพาะชื่อจังหวัด (Province-Only Veto), การรักษาป้ายกำกับ Typed NER โดยไม่โยน Unknown Entity เป็น Actor, ทิศทางความสัมพันธ์เชิงเวลาที่เหตุการณ์ก่อนหน้าต้องชี้ไปยังเหตุการณ์ถัดไป (\texttt{precedes}), การรับประกันความสอดคล้องของการจัดเก็บข้อมูลข้ามโพรเซสผ่าน \texttt{InterProcessFileLock} ร่วมกับ \texttt{model\_copy(deep=True)}, และการทดสอบขอบเขตเวลาแกนเรื่องราว (\texttt{episode\_key}) ไม่ให้เกิดการเชื่อมโยงข้ามฤดูกาล
-
-ประการที่สอง การทดสอบการคงทนของเวกเตอร์ศูนย์กลาง (Story Identification \& Centroid EMA Invariants) ได้รับการตรวจสอบผ่าน \texttt{test\_story\_service.py} โดยทดสอบว่าบทความข่าวที่มีค่าความคล้ายคลึงโคไซน์ $\cos \ge 0.85$ จะต้องถูกรวมเข้ากลุ่มประเด็นข่าวเดิมเสมอ (Direct Merge) แม้ไม่มีเอนทิตีร่วมกัน ในขณะที่บทความในแถบก้ำกึ่ง $0.74 \le \cos < 0.85$ จะถูกรวมก็ต่อเมื่อตรวจพบเอนทิตีบุคคล สถานที่ หรือองค์กรตรงกันอย่างน้อย 1 รายการ (Confirmed Merge) และหาก $\cos < 0.74$ ระบบจะต้องสร้างกลุ่มข่าวใหม่เสมอ แม้ว่าจะมีเอนทิตีร่วมกัน เพื่อป้องกันการรั่วไหลของคำศัพท์ที่ไม่เกี่ยวข้อง นอกจากนี้ การทดสอบคณิตศาสตร์ของ Centroid EMA ($\alpha = 0.85$) ยืนยันว่าจุดศูนย์กลางของกลุ่มข่าวสามารถรักษาสมดุลของแกนเรื่องเดิมได้อย่างมั่นคง ไม่เกิดการเบี่ยงเบนของความหมาย (Semantic Drift) แม้มีข่าวเข้ามาเสริมต่อเนื่องข้ามสัปดาห์ (\texttt{test\_long\_running\_storyline.py}) พร้อมทดสอบการสลับสถานะของประเด็นข่าวระหว่าง Active และ Dormant และการฟื้นคืนสถานะโดยคงรหัส \texttt{story\_id} เดิมอย่างคงเส้นคงวา (Idempotent Reactivation)
-
-ประการที่สอง การทดสอบคุณสมบัติคงที่ของเอนจินจัดอันดับความนิยมแบบดีเทอร์มินิสติก (Deterministic Trending \& Adversarial Invariants) ตรวจสอบผ่าน \texttt{test\_trending\_deterministic.py} และ \texttt{test\_adversarial\_layer2\_layer3.py} โดยมีคุณสมบัติสำคัญที่ต้องผ่านการทดสอบ 3 ประการ คือ คุณสมบัติปลอดการเรียกใช้โมเดลภาษาขนาดใหญ่ (Zero LLM Invariant) ที่ยืนยันว่าไม่มีการเรียกใช้บริการภายนอกหรือ LLM ในกระบวนการคำนวณคะแนน ทำให้ความเร็วในการจัดอันดับคงที่ในระดับมิลลิวินาทีเสมอ คุณสมบัติความแน่นอนเชิงคณิตศาสตร์ (Strictly Deterministic Across Repeated Runs) ที่ทดสอบการคำนวณคะแนนซ้ำบนชุดข้อมูลข่าว 1,000 ข่าวแล้วได้คะแนนและลำดับเหมือนเดิมทุกประการร้อยละ 100 และการทดสอบกลไกลดทอนข่าวประจำวัน (Routine News Dampening) ที่ยืนยันว่ารายงานสภาพอากาศและผลสลากกินแบ่งรัฐบาลจะถูกคูณลดทอนคะแนนลงเหลือ 0.25 เท่าเสมอ เพื่อป้องกันไม่ให้ข่าวประจำวันบดบังข่าวด่วนที่สำคัญ นอกจากนี้ \texttt{test\_trending\_challenger\_stress.py} ยังทดสอบการจัดการกับเวลาในอนาคต (Future Timestamp Clamping) และเวลาในอดีตลึกเกิน 100 วัน (Underflow Safety) เพื่อความปลอดภัยทางคณิตศาสตร์
-
-ประการที่สาม การทดสอบการประมวลผลพร้อมกันและการป้องกันแคช (Concurrency \& Cache Stampede Protection) ตรวจสอบผ่าน \texttt{test\_summary\_cache.py} และ \texttt{test\_sqlite\_news\_repo.py} โดยระบบได้จำลองสถานการณ์ที่มีผู้ใช้งานส่งคำขอสรุปข่าวบทความเดียวกันเข้ามาพร้อมกัน 100 คำขอในเสี้ยววินาทีเดียวกัน กลไก Single-Flight Mutex Locking จะอนุญาตให้คำขอแรกเพียงคำขอเดียวส่งต่อไปยัง KKU Gen.AI API ในขณะที่อีก 99 คำขอจะรอรับผลลัพธ์จากแคชเดียวกัน ช่วยป้องกันไม่ให้โควตา API ถูกใช้สิ้นเปลืองและป้องกันการล่มของระบบเซิร์ฟเวอร์ และสำหรับการบันทึกข้อมูลแบบหลายเธรดใน SQLite โหมด Write-Ahead Logging (WAL) ได้รับการทดสอบการอ่านและเขียนพร้อมกันจำนวนมหาศาลโดยไม่เกิดข้อผิดพลาดฐานข้อมูลถูกล็อก (Database Locked Error)
-
-ประการที่สี่ การทดสอบความปลอดภัยและการคุ้มครองข้อมูลส่วนบุคคล (Zero-PII Compliance \& PDPA Testing) ตรวจสอบผ่าน \texttt{test\_storage\_pdpa.py} โดยทำการตรวจสอบยืนยันเชิงลึก (Deep Structural Assertion) ว่าในฐานข้อมูลไม่มีการบันทึกหมายเลขที่อยู่ไอพี (IP Address) ข้อมูล User Agent ข้อมูลตำแหน่งพิกัดทางภูมิศาสตร์ หรือชื่อบุคคลของผู้ใช้งานแม้แต่จุดเดียว โดยข้อมูลพฤติกรรมความสนใจจะถูกบันทึกเป็นเพียงตัวเลขคะแนนรวมแบบนิรนาม (Anonymous Aggregate Engagement) เท่านั้น ตลอดจนทดสอบฟังก์ชันการล้างข้อมูลประวัติบนเบราว์เซอร์ (Clear Data Feature) ว่าสามารถคืนสถานะความเป็นส่วนตัวของผู้ใช้ได้อย่างสมบูรณ์
-
-ประการที่ห้า การทดสอบชุดประเมินผลเชิงประจักษ์ (Evaluation Harness Testing) ตรวจสอบผ่าน \texttt{test\_evaluation\_harness.py} โดยทดสอบความถูกต้องของกระบวนการคำนวณเมตริก B-cubed Precision, B-cubed Recall, B-cubed F1-score และ Pairwise Metrics กับข้อมูลข่าวจริง 111 ข่าว และ 59 เหตุการณ์อ้างอิง เพื่อให้มั่นใจว่าเครื่องมือวัดผลทางสถิติของระบบทำงานได้อย่างถูกต้อง แม่นยำ และสอดคล้องกับระเบียบวิธีวิจัยมาตรฐานสากล
-
-ประการที่หก การทดสอบแบบจำลองหลักฐานเชิงเหตุการณ์และการตรวจจับข่าวไม่เกี่ยวข้อง (Event Evidence Intelligence \& Outlier Detection Testing) ตรวจสอบผ่าน \texttt{test\_event\_evidence.py} โดยทดสอบ 3 มิติสำคัญ ได้แก่ การทดสอบกลไกสำรองการประมวลผลเชิงศึกษาหลักฐาน (Heuristic Corroboration Fallback) ที่จำลองกรณีไม่มีการเชื่อมต่อกับโมเดลภาษาขนาดใหญ่ โดยระบบจะต้องสกัดพัฒนาการเหตุการณ์ตามลำดับเวลาและระบุแหล่งข่าวที่ยืนยันตรงกันได้อย่างครบถ้วนสมบูรณ์โดยมีความหน่วงเวลา 0 มิลลิวินาที การทดสอบความถูกต้องของการสกัดโครงสร้างข้ออ้าง (Claim-Level Evidence Parsing) จากเนื้อหาข่าวจริงที่สามารถจำแนกหมวดหมู่ข้ออ้างและระบุรหัส \texttt{article\_id} อ้างอิงได้อย่างถูกต้อง และการทดสอบระบบแคชลายนิ้วมือ SHA-256 (Fingerprint Caching) ที่รับประกันความแน่นอนเชิงผลลัพธ์ (Deterministic Replay) และป้องกันการสิ้นเปลืองโควตาการประมวลผลซ้ำ
-
-ประการที่เจ็ด การทดสอบระบบสืบค้นเจาะประเด็นข่าวแบบอ่านอย่างเดียวและปลอดภัยของตัวแยกวิเคราะห์ (Issue Explorer Read-Only \& Query Safety Invariants) ตรวจสอบผ่าน \texttt{test\_issue\_explorer.py} (TC-08 ถึง TC-13) โดยมีคุณสมบัติสำคัญที่ต้องผ่านการทดสอบ ได้แก่ การทดสอบความถูกต้องและปลอดภัยของตัวแยกวิเคราะห์คำค้นหา (Query Parser) ที่รองรับตรรกะ AND, OR, NOT และวลีเฉพาะเจาะจงพร้อมทั้งหลบอักขระพิเศษเพื่อป้องกันการโจมตี SQL Injection การทดสอบการันตีโหมดอ่านอย่างเดียว (Read-Only Mode Invariant ผ่าน \texttt{mode=ro}) ที่รับประกันว่าการสืบค้นข้อมูลเชิงวิเคราะห์จะไม่มีคำสั่งเขียนหรือเปลี่ยนแปลงข้อมูลในฐานข้อมูล SQLite ข่าวหลัก การทดสอบความคงทนของการรวมกลุ่มประเด็นย่อยและการคัดกรองข่าวหลุดประเด็น (Outlier Filtering Regression) ตลอดจนการทดสอบการควบคุมอัตราคำขอ (Rate Limiting) และสวิตช์ตัดการทำงานฉุกเฉิน (Kill Switch Contract)
-
-ประการที่แปด การทดสอบความสอดคล้องของแคชระดับโพรดักชันและการตรวจสอบก่อนส่งมอบ (Production Cache Consistency \& Pre-flight Invariants) ตรวจสอบผ่าน \texttt{scripts/preflight\_test.py} และ \texttt{test\_layer4\_stress.py} เพื่อรับประกันว่าไม่มีการรั่วไหลของไฟล์สคริปต์รุ่นเก่าบน Edge Cache ของ Cloudflare CDN และ Service Worker โดยตรวจสอบว่าทุกคำขอสำหรับไฟล์สคริปต์คงที่ได้รับส่วนหัว \texttt{Cache-Control} ที่ระบุ \texttt{no-cache, must-revalidate} เสมอ พร้อมทั้งทดสอบผ่าน Headless Browser อัตโนมัติว่าไม่มีข้อผิดพลาดหลุดรอดบนหน้าจอ (Zero Console Error) และสัญญาณการเชื่อมต่อแบบเรียลไทม์เปลี่ยนสถานะเป็น LIVE อย่างสมบูรณ์ก่อนการปล่อยระบบขึ้นสู่สภาพแวดล้อมจริง
-
-\subsection{ผลการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing)}
-
-ผลการทดสอบระบบตามความต้องการเชิงฟังก์ชันแสดงดังตารางที่~\ref{tab:test_result}
-
-\begin{table}[H]
-\centering
-\caption{ผลการทดสอบระบบตามกรณีทดสอบ (User Acceptance Testing)}
-\label{tab:test_result}
+\caption{ไลบรารีหลักที่ใช้ในการพัฒนา}
+\label{tab_main_libraries}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{5.5cm}|L{6cm}|c|}
+\begin{tabular}{|L{2.8cm}|L{3.2cm}|L{2.0cm}|L{7.5cm}|}
 \hline
-\textbf{TC} & \textbf{รายการทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผล} \\
+\textbf{ส่วนงาน} & \textbf{ไลบรารี / เครื่องมือ} & \textbf{เวอร์ชัน} & \textbf{วัตถุประสงค์และการใช้งาน} \\
 \hline
-TC-01 & การดึงข่าวอัตโนมัติจากหลายแหล่ง & ดึงหัวข้อ ลิงก์ รูปภาพ และเนื้อหาได้ครบถ้วน & ผ่าน \\ \hline
-TC-02 & การจำแนกหมวดหมู่ภาษาไทย 9 หมวด & จัดหมวดหมู่ข่าวได้อย่างถูกต้องตามเนื้อหา & ผ่าน \\ \hline
-TC-03 & การสรุปเนื้อหาข่าวและ Sentiment & ได้บทสรุป ประเด็นสำคัญ และ Sentiment & ผ่าน \\ \hline
-TC-04 & การแจ้งเตือนข่าวใหม่ผ่าน WebSocket & ข่าวใหม่ปรากฏบนหน้าจอทันทีโดยไม่ต้องรีเฟรช & ผ่าน \\ \hline
-TC-05 & การบันทึกความสนใจและแนะนำข่าว & แสดงแถบข่าว Trending ตามค่า Engagement & ผ่าน \\ \hline
-TC-06 & การอ่านข่าวในตัวเว็บ (In-app Reader) & เปิดอ่านบทความฉบับเต็มใน Modal ได้อย่างราบรื่น & ผ่าน \\ \hline
-TC-07 & การจัดกลุ่มประเด็นข่าวแบบสองชั้น & รวมข่าวเหตุการณ์เดียวกันข้ามวันและลดปัญหาข่าวแตกกลุ่ม & ผ่าน \\ \hline
-TC-08 & การจัดอันดับความนิยมแบบดีเทอร์มินิสติก & คำนวณคะแนนโปร่งใส ไร้ LLM ในการให้คะแนน และลดทอนข่าวประจำวัน & ผ่าน \\ \hline
-TC-09 & การจัดกลุ่มมหากาพย์ข่าวและ Bento Hub & แสดงมุมมอง 3 มิติ เชื่อมโยงไทม์ไลน์ และกรองข่าวตามสำนักพิมพ์ & ผ่าน \\ \hline
-TC-10 & การบันทึกข้อมูลแบบหลายเอนจิน & สลับใช้งาน SQLite WAL และ MongoDB ได้อย่างมีเสถียรภาพ & ผ่าน \\ \hline
-TC-11 & การสกัดหลักฐานและแฟ้มวิเคราะห์ความคืบหน้า 4 มิติ & สกัด Claims, จัดกลุ่ม 4 มิติ, แจ้งเตือน Outlier และคลิกตรวจหลักฐานย้อนกลับได้ & ผ่าน \\ \hline
-TC-12 & การเจาะประเด็นข่าวและการสืบค้นแบบบูลีน & สืบค้นด้วยไวยากรณ์บูลีน ขยายคำย่อ สกัดมุมมองสำนักข่าว และกรองข่าวหลุดประเด็น & ผ่าน \\ \hline
-TC-13 & การป้องกัน Stale Cache และตรวจความพร้อมโพรดักชัน & Pre-flight Smoke Test ตรวจสอบ Readyz, Trending, Zero Console Error และ WebSocket LIVE & ผ่าน \\
+Backend Web & FastAPI & 0.110+ & เว็บเฟรมเวิร์คประสิทธิภาพสูงสำหรับสร้าง REST API แบบ Asynchronous \\ \hline
+Backend Web & Uvicorn & 0.28+ & ASGI Web Server มาตรฐานสำหรับรัน FastAPI \\ \hline
+Real-time & Python-SocketIO & 5.11+ & ไลบรารีจัดการการสื่อสารสองทิศทางแบบเรียลไทม์ผ่าน WebSocket \\ \hline
+Data Validation & Pydantic & 2.6+ & โมเดลตรวจสอบความถูกต้องและจัดโครงสร้างข้อมูลแบบเข้มงวด \\ \hline
+Web Scraping & Playwright & 1.42+ & โปรแกรมควบคุม Headless Chromium สำหรับดึงหน้าเว็บ JavaScript \\ \hline
+Content Extraction & Trafilatura & 1.8+ & สกัดข้อความหลักบทความข่าว ขจัดโฆษณาและแท็กส่วนเกิน \\ \hline
+Thai NLP & PyThaiNLP & 5.0+ & ตัดคำภาษาไทย (\texttt{newmm}) และสกัดเอนทิตีชื่อเฉพาะ (\texttt{thainer-v2}) \\ \hline
+Deep Learning & Transformers & 4.38+ & โมเดลภาษา WangchanBERTa สำหรับสกัดเวกเตอร์ความหมาย 768 มิติ \\ \hline
+Machine Learning & Scikit-learn & 1.4+ & เวกเตอร์ TF-IDF และโมเดลจำแนกประเภท LinearSVC \\ \hline
+Database & Aiosqlite & 0.20+ & ตัวเชื่อมต่อฐานข้อมูล SQLite แบบ Asynchronous รองรับโหมด WAL \\ \hline
+Frontend Core & Vanilla JS (ESM) & ES2022 & สคริปต์ส่วนติดต่อผู้ใช้แบบโมดูลแยกอิสระ ปราศจากเฟรมเวิร์คหน่วง \\ \hline
+Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเวิร์คสำหรับจัดรูปแบบส่วนต่อประสาน Responsive \\
 \hline
 \end{tabular}%
 }
 \end{table}
 
+\subsection{โครงสร้างของโปรแกรม}
+
+โครงสร้างโฟลเดอร์และแฟ้มข้อมูลของระบบได้รับการจัดระเบียบตามหลักสถาปัตยกรรมแบบแยกชั้นความรับผิดชอบ ดังแสดงในตารางที่~\ref{tab_folder_structure}
+
+\begin{table}[H]
+\centering
+\caption{โครงสร้างโฟลเดอร์หลักของโปรแกรม}
+\label{tab_folder_structure}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|L{4.2cm}|L{11.0cm}|}
+\hline
+\textbf{โฟลเดอร์ / เส้นทาง} & \textbf{หน้าที่และความรับผิดชอบของโมดูล} \\
+\hline
+\texttt{backend/routers/} & รวบรวมตัวจัดการเส้นทาง REST API แยกตามโดเมน (\texttt{news}, \texttt{story}, \texttt{macro\_event}, \texttt{trending}, \texttt{monitoring}) \\ \hline
+\texttt{backend/services/} & บรรจุตรรกะทางธุรกิจหลัก (\texttt{ScraperService}, \texttt{StoryService}, \texttt{TrendingService}, \texttt{MacroEventService}, \texttt{StoryPresentationService}) \\ \hline
+\texttt{backend/scrapers/} & สเกรปเปอร์เฉพาะแต่ละสำนักข่าว ลงทะเบียนผ่าน Decorator \texttt{@register\_source} พร้อมฟังก์ชันสกัดเนื้อหา \\ \hline
+\texttt{backend/repo/} & เลเยอร์การจัดเก็บข้อมูล รองรับทั้ง SQLite WAL (\texttt{SqliteNewsRepo}) และไฟล์ JSON (\texttt{StoryRepo}, \texttt{MacroEventRepo}) \\ \hline
+\texttt{backend/core/} & โครงสร้างพื้นฐานส่วนกลาง (\texttt{BrowserService}, \texttt{SocketManager}, \texttt{L1Cache}, \texttt{AsyncInMemoryCache}) \\ \hline
+\texttt{backend/schemas/} & โมเดลข้อมูล Pydantic สำหรับคำขอ คำตอบ และโครงสร้างข้อมูลภายในระบบ \\ \hline
+\texttt{backend/tests/} & ชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค pytest ครอบคลุม 423 กรณีทดสอบ \\ \hline
+\texttt{frontend/static/} & ไฟล์สคริปต์ส่วนติดต่อผู้ใช้หลัก (\texttt{main.js}, \texttt{api.js}, \texttt{socket.js}, \texttt{config.js}, \texttt{app.css}) \\ \hline
+\texttt{frontend/static/components/} & โมดูลส่วนติดต่อผู้ใช้ย่อยแยกอิสระ (\texttt{hero.js}, \texttt{cards.js}, \texttt{reader.js}, \texttt{storyline.js}, \texttt{sports.js}) \\ \hline
+\texttt{docs/report/} & เอกสารรายงานโครงงานฉบับสมบูรณ์ตามมาตรฐานวิทยาลัยการคอมพิวเตอร์ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{ข้อกำหนดเฉพาะของแต่ละโมดูลและการทำงานของส่วนประกอบหลัก}
+
+ในส่วนนี้จะอธิบายถึงรายละเอียดทางวิศวกรรมของส่วนประกอบหลักสำคัญทั้ง 11 ส่วนของระบบ
+
+\subsubsection{กระบวนการดึงข่าวและการเชื่อมต่อ Playwright (Scraping Pipeline)}
+ระบบสเกรปข่าวถูกออกแบบให้ทำงานแบบ Asynchronous ทั้งหมด โดยในแต่ละรอบการทำงาน \texttt{ScraperService} จะสร้าง Task สำหรับแต่ละแหล่งข่าวเพื่อดึงข้อมูลพร้อมกัน (Concurrent Scraping) ร่วมกับ \texttt{BrowserService} ที่ควบคุม Playwright Chromium Headless ดึงข้อมูลจากสำนักข่าวที่ลงทะเบียนไว้ผ่านฟังก์ชัน Decorator (\texttt{@register\_source}) เพื่อรองรับทั้งเว็บไซต์แบบสถิตและเว็บไซต์ที่เรนเดอร์เนื้อหาด้วย JavaScript โดยมีระบบตรวจสอบ URL ซ้ำในหน่วยความจำและ SQLite ผ่านตาราง \texttt{seen\_urls} เพื่อป้องกันการดาวน์โหลดซ้ำซ้อน
+
+\subsubsection{ระบบจำแนกหมวดหมู่และการตัดคำภาษาไทย (Thai NLP Classifier)}
+โมดูล \texttt{ClassifierService} ประยุกต์ใช้เทคนิค 3-Tier Cascade Classifier โดยเริ่มจากกฎคำสำคัญ (Keyword Rules) ร่วมกับพจนานุกรมเฉพาะทางของ PyThaiNLP หากคะแนนความเชื่อมั่นไม่ผ่านเกณฑ์ จะส่งต่อไปยังเวกเตอร์ TF-IDF ร่วมกับ LinearSVC และมีโมเดลเชิงลึก WangchanBERTa รองรับบริบทที่ซับซ้อน ครอบคลุมการจำแนกข่าวออกเป็น 9 หมวดหมู่อย่างแม่นยำ
+
+\subsubsection{ระบบเปิดอ่านพรีวิวบทความในตัวเว็บ (In-App Reader) และการคำนึงถึงประเด็นด้านลิขสิทธิ์}
+เมื่อผู้ใช้คลิกเปิดอ่านข่าว ระบบจะแสดงผลหน้าต่างโมดอล In-App Reader เพื่อให้ผู้อ่านดูพรีวิวเนื้อหาข่าวบางส่วน (Partial Cleaned Excerpt) ที่ผ่านการทำความสะอาดด้วย Trafilatura เพื่อตัดป้ายโฆษณา สคริปต์ และลิงก์สแปม โดยระบบยึดนโยบายการคุ้มครองลิขสิทธิ์ของสำนักข่าวต้นทาง (Copyright Protection Compliance) ไม่นำเนื้อหาบทความฉบับเต็มมาเผยแพร่ซ้ำบนระบบทั้งหมด แต่จัดเตรียมปุ่มลิงก์เชื่อมต่อไปยังเว็บไซต์ผู้ผลิตข่าวต้นฉบับโดยตรง ในขณะที่การกดปุ่มสร้างบทสรุปด้วยปัญญาประดิษฐ์ โมเดลภาษาขนาดใหญ่ (LLM) จะนำเนื้อหาบทความฉบับเต็มทั้งหมด (Whole Article Content) ในเบื้องหลังมาทำการสังเคราะห์ (Synthesize) คัดแยกประเด็นสำคัญ และประเมินอารมณ์ของข่าว เพื่อให้บทสรุปมีความครบถ้วนและแม่นยำสูงสุด
+
+\subsubsection{ระบบสรุปข่าวอัตโนมัติด้วยโมเดลภาษาขนาดใหญ่ (LLM Summarization Pipeline)}
+ระบบส่งเนื้อหาข่าวในรูปแบบ Markdown ให้กับ KKU Gen.AI API โดยออกแบบ Prompt กำหนดโครงสร้างส่งคืนเป็น JSON ประกอบด้วย บทสรุปย่อ 2--3 ประโยค ประเด็นสำคัญ 3--5 ข้อ และการวิเคราะห์อารมณ์ (Sentiment) พร้อมทั้งมีกลไกสำรอง (Heuristic Fallback) สกัดพาดหัวและย่อหน้าแรกโดยอัตโนมัติหากบริการภายนอกไม่ตอบสนอง ตัวอย่างการแสดงผลบัตรบทสังเคราะห์ประเด็นสำคัญและประเด็นย่อย (Key Takeaways) จากโมเดลภาษาขนาดใหญ่แสดงดังภาพที่~\ref{fig_ai_article_summary}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{images/ai_article_summary.png}
+\caption{ภาพแสดงตัวอย่างผลลัพธ์การสรุปเนื้อหาข่าวสารและวิเคราะห์อารมณ์ด้วยโมเดลภาษาขนาดใหญ่}
+\label{fig_ai_article_summary}
+\end{figure}
+
+\subsubsection{สถาปัตยกรรมระบุประเด็นข่าวและจัดอันดับกระแสข่าวแบบสองชั้น}
+เพื่อแก้ไขข้อจำกัดของระบบเดิมที่คำนวณการจัดกลุ่มข่าวแบบชั่วคราว (Ad-hoc Clustering) ซึ่งจำกัดกรอบเวลาไว้เพียง 36--48 ชั่วโมงจนทำให้ข่าวยืดเยื้อแตกกระจาย และต้องพึ่ง LLM ในการประมวลผลอันดับข่าว ระบบได้ปรับปรุงสถาปัตยกรรมใหม่เป็นแบบสองชั้นที่แยกหน้าที่กันอย่างชัดเจนตามหลักการวิศวกรรมซอฟต์แวร์ ได้แก่ ชั้นที่ 1 การระบุและติดตามประเด็นข่าวแบบออนไลน์คงทน (\texttt{StoryService}) และชั้นที่ 2 เอนจินจัดอันดับกระแสข่าวเชิงสถิติแน่นอน (\texttt{TrendingService})
+
+ขั้นตอนแรกคือ การสกัดเวกเตอร์เชิงความหมาย (Dense Semantic Embeddings) โดยนำข้อความพาดหัวข่าวร่วมกับเนื้อหาย่อแปลงเป็นเวกเตอร์ขนาด 768 มิติด้วยโมเดล WangchanBERTa ผ่านการรวมแบบเฉลี่ยถ่วงน้ำหนัก (Masked Mean Pooling) และปรับให้เป็นเวกเตอร์หนึ่งหน่วย ($L_2$ Normalization) ทำให้ผลคูณจุด (Dot Product) มีค่าเท่ากับค่าความคล้ายคลึงโคไซน์ (Cosine Similarity) พร้อมทั้งมีระบบแคชระดับ L1 ป้องกันการเข้ารหัสข้อความซ้ำซ้อน
+
+ขั้นตอนที่สองคือ การประเมินด้วยเกณฑ์ร่วมแบบไฮบริด (Two-Band Gate with Typed NER) ซึ่งแบ่งการตัดสินใจออกเป็น 3 แถบ ได้แก่ ข่าวที่มีความคล้ายคลึง $\ge 0.82$ จะถูกรวมกลุ่มทันที, ข่าวที่มีความคล้ายคลึงระหว่าง .72$--.82$ จะต้องผ่านการยืนยันว่ามีเอนทิตีชื่อเฉพาะตรงกันอย่างน้อย 1 ตัวละคร (\texttt{actor\_names}) และข่าวที่มีความคล้ายคลึง $< 0.72$ จะถูกแยกเป็นประเด็นใหม่
+
+ขั้นตอนที่สามคือ การสืบค้นกลุ่มข่าวผ่านหน้าต่างเวลา 72 ชั่วโมงแบบไม่ปิดกั้นเวลาหมดอายุ (Non-capping 72-Hour Candidate Window) โดยระบบจะค้นหากลุ่มประเด็นข่าว (\texttt{StoryRecord}) ที่มีข่าวอัปเดตล่าสุดภายใน 72 ชั่วโมงก่อนเวลาของบทความใหม่ ซึ่งการกำหนดหน้าต่างเวลานี้ช่วยควบคุมขอบเขตความซับซ้อนในการคำนวณโดยไม่จำกัดอายุขัยของประเด็นข่าว ทำให้เหตุการณ์วิกฤตที่ยืดเยื้อ เช่น อุทกภัย สามารถติดตามและผูกโยงข่าวใหม่เข้ากับประเด็นเดิมได้อย่างต่อเนื่องข้ามสัปดาห์ พร้อมปรับปรุงเวกเตอร์ศูนย์กลางกลุ่ม (Centroid) แบบ Exponential Moving Average (EMA) โดยกำหนดค่าน้ำหนัก $\alpha = 0.85$ ช่วยรักษาเสถียรภาพของแกนเรื่องเดิมไม่ให้เบี่ยงเบนเร็วเกินไป พร้อมทั้งปรับตัวรองรับพัฒนาการใหม่ของข่าวได้อย่างยืดหยุ่น นอกจากนี้ กลุ่มประเด็นข่าวจะได้จัดการวงจร (Lifecycle State) ระหว่างสถานะพร้อมทำงาน (\texttt{active}) เมื่อมีข่าวอัปเดตในรอบ 72 ชั่วโมง และสถานะพักตัว (\texttt{dormant}) เมื่อไม่มีความเคลื่อนไหวเกิน 72 ชั่วโมง เพื่อประหยัดทรัพยากรระบบ
+
+ในส่วนของเอนจินจัดอันดับกระแสข่าวเชิงสถิติแน่นอน พัฒนาขึ้นเพื่อแก้ไขข้อจำกัดของแบบจำลองเดิม ได้แก่ ปัญหาข่าวประจำวันครองหน้าหนึ่ง (Routine News Dominance) ข่าวที่เป็นวงรอบ เช่น ผลสลากกินแบ่งรัฐบาล ราคาทองคำ และสภาพอากาศ ได้คะแนนสูงผิดปกติ บดบังข่าวด่วนสำคัญของสังคม และปัญหาสำนักพิมพ์ในเครือเดียวกัน (Syndication Duplication) ที่คัดลอกบทความส่งผลให้ค่าจำนวนสำนักข่าวสูงเกินจริงโดยไม่ได้สะท้อนความหลากหลายของสื่อจริง ระบบจึงตัดการพึ่งพาโมเดลภาษาขนาดใหญ่ (LLM) ออกจากเส้นทางการคำนวณคะแนนอย่างสิ้นเชิง (Zero LLM in scoring path) ทำให้การจัดอันดับมีความรวดเร็วระดับเสี้ยววินาทีและได้ผลลัพธ์ที่แน่นอนเชิงคณิตศาสตร์ (Deterministic) โดยคำนวณผ่าน 6 มิติเชิงสถิติร่วมกับตัวคูณลดทอนข่าวประจำวัน
+
+\subsubsection{ส่วนนำเสนอและการสังเคราะห์เนื้อหาประเด็นรวม (Story Presentation)}
+สำหรับกลุ่มประเด็นข่าวที่ติดอันดับกระแสความนิยมสูงสุด ระบบจะส่งต่อข้อมูลให้ \texttt{StoryPresentationService} เพื่อสร้างเนื้อหานำเสนอเชิงลึก โดยอาศัยโมเดลภาษาขนาดใหญ่ (KKU Gen.AI) ในการสังเคราะห์พาดหัวข่าวประเด็นรวม (Macro Headline) ที่เป็นกลางและครอบคลุมทุกมุมมอง การสร้างบทสรุปย่อสังเคราะห์ข้ามสำนักข่าว (Multi-Article Synthesis) และการเรียบเรียงไทม์ไลน์พัฒนาการของเหตุการณ์ตามลำดับเวลา (Chronological Timeline Events) พร้อมลิงก์อ้างอิงกลับไปยังสำนักข่าวต้นทาง โดยผลลัพธ์ทั้งหมดจะถูกบันทึกแคชลงในฐานข้อมูลประเด็นข่าวโดยตรง เพื่อลดค่าใช้จ่ายในการเรียกใช้ API ซ้ำซ้อน และหากบริการ LLM ภายนอกขัดข้องหรือไม่ตอบสนอง ระบบมีกลไกสำรองการทำงานแบบอัตโนมัติ (Heuristic Fallback) โดยสลับไปใช้พาดหัวข่าวตัวแทนหลักและเรียบเรียงไทม์ไลน์ตามเวลาเผยแพร่จริง ทำให้ระบบสามารถตอบกลับคำขอด้วยสถานะ HTTP 200 ได้อย่างมีเสถียรภาพ
+
+\subsubsection{การจัดกลุ่มประเด็นข่าวและ Bento Hub UI}
+เพื่อยกระดับการติดตามข่าวสารที่มีมิติความซับซ้อนสูง ระบบได้พัฒนา \texttt{MacroEventService} สำหรับเชื่อมโยงกลุ่มประเด็นข่าวย่อย (Sub-events) ที่มีความสัมพันธ์เชิงบริบทเข้าสู่ประเด็นข่าวขนาดใหญ่ (Macro Storyline) พร้อมทั้งรองรับข้อยกเว้นกรณีวิกฤต (Crisis Exemption) ที่ช่วยให้ข้อมูลภัยพิบัติหรือเหตุฉุกเฉินระดับชาติได้รับการยกเว้นการลดทอนเวลา โดยมีกลไกยับยั้งความขัดแย้งของระดับจังหวัด (Strict Province-Only Veto) ป้องกันการนำเหตุการณ์ต่างพื้นที่มาผูกรวมกัน
+
+ในด้านส่วนต่อประสานผู้ใช้ หน้าแรกของระบบได้รับการออกแบบใหม่เป็น Macro Storyline Bento Hub ซึ่งจัดวางองค์ประกอบแบบ 3 มุมมองหลัก (3-Perspective Matrix) ได้แก่ แถบข่าวเด่นประจำวัน บัตรสรุปประเด็นข่าวพร้อมป้ายสำนักข่าวที่รายงานร่วมกัน (Publisher Filter Pills) และแถบแฮชแท็กเชิงโต้ตอบ (\#Hashtags Ribbon) เพื่อให้ผู้ใช้งานสามารถคลิกสำรวจมุมมองที่หลากหลายของแต่ละสำนักข่าวได้อย่างสะดวก นอกจากนี้ ระบบยังได้จัดเตรียมหน้าต่างติดตามและศูนย์ควบคุมสถานะระบบ (\texttt{frontend/monitoring.html}) สำหรับผู้ดูแลระบบ เพื่อตรวจสอบอัตราการรับเข้าของข่าว การทำงานของแคช และความเสถียรของไปป์ไลน์แบบเรียลไทม์
+
+\subsubsection{การติดต่อสื่อสารแบบเรียลไทม์ผ่าน WebSocket}
+เมื่อมีข่าวใหม่เข้ามาสู่ระบบและผ่านการบันทึกสำเร็จ คลาส \texttt{SocketManager} จะกระจายเหตุการณ์ (\texttt{news\_new}) ไปยังเบราว์เซอร์ของผู้ใช้ทุกคนที่เปิดหน้าเว็บอยู่แบบ Asynchronous ผลักดันให้แบนเนอร์แจ้งเตือนข่าวใหม่ปรากฏขึ้นทันทีโดยผู้ใช้ไม่ต้องรีเฟรชหน้าจอ
+
+\subsubsection{ระบบเจาะประเด็นข่าวและค้นหาเชิงวิเคราะห์ (Issue Explorer Workstation)}
+ผลลัพธ์การสืบค้นจะถูกสังเคราะห์และนำเสนอในรูปแบบการทำงาน (Investigation Workstation) ประกอบด้วย 4 องค์ประกอบสำคัญ ได้แก่ แถบสรุปภาพรวมและสถิติประเด็นข่าว (Issue Executive Summary), ตารางแจกแจงมุมมองและสัดส่วนการนำเสนอของแต่ละสำนักข่าว (Publisher Perspective Breakdown) เพื่อแสดงให้เห็นว่าสื่อสำนักใดให้ความสนใจในมิติใดเป็นพิเศษ, ไทม์ไลน์ความเคลื่อนไหวของประเด็นตามลำดับเวลาจริง (Chronological Evolution Timeline) และรายการการ์ดข่าวสารที่จัดกลุ่มตามประเด็นย่อย (Issue Sub-clusters) โดยมีระบบคัดกรองข่าวหลุดประเด็น (Outlier Filtering) ช่วยแยกบทความที่ไม่เกี่ยวข้องออกไปอย่างแม่นยำ พร้อมทั้งมีระบบควบคุมอัตราคำขอแบบ Sliding Window IP Rate Limiting ช่วยรักษาความมั่นคงของเซิร์ฟเวอร์ โดยทำงานบนฐานข้อมูล SQLite ในโหมดอ่านอย่างเดียว (Read-Only \texttt{mode=ro})
+
+\subsubsection{ระบบปรับแต่งฟีดข่าวเฉพาะบุคคลและการประมวลผลบนอุปกรณ์ (Personal Briefing and Edge Personalization)}
+เพื่อตอบสนองต่อความต้องการติดตามข่าวสารเฉพาะบุคคลของผู้อ่านโดยไม่ละเมิดความเป็นส่วนตัว ระบบได้พัฒนาสถาปัตยกรรมจัดอันดับข่าวบนอุปกรณ์ของผู้ใช้ (On-Device Edge Personalization) ควบคู่กับหน้าต่างปรับแต่งฟีดข่าวเฉพาะคุณ (Personal Briefing Onboarding) ดังแสดงในภาพที่~\ref{fig_feed_for_u}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{images/feed_for_u.png}
+\caption{ภาพแสดงหน้าต่างปรับแต่งฟีดข่าวเฉพาะคุณสำหรับการสร้างฟีดตามความสนใจ}
+\label{fig_feed_for_u}
+\end{figure}
+
+ระบบนี้มีหลักการทำงานทางวิศวกรรมที่สำคัญ 3 ประการ ได้แก่
+
+ประการแรก สถาปัตยกรรมรักษาความเป็นส่วนตัวแบบไร้ข้อมูลระบุตัวตน (Zero-PII Privacy Architecture) โดยระบบจะไม่มีการส่งประวัติการอ่าน รายการข่าวที่บันทึก หรือความชื่นชอบของผู้ใช้กลับไปยังเซิร์ฟเวอร์ ข้อมูลการเลือกหมวดหมู่และค่าน้ำหนักความสนใจ (Affinity Scores) จะถูกจัดเก็บไว้ใน \texttt{LocalStorage} ของเบราว์เซอร์เท่านั้น และผู้ใช้สามารถกดล้างข้อมูลทั้งหมดทิ้งได้ตลอดเวลา
+
+ประการที่สอง ขั้นตอนวิธีการคำนวณและจัดอันดับเนื้อหา (Client-Side Edge Ranking Algorithm) โดยเมื่อผู้ใช้เปิดหน้าฟีดสำหรับคุณ ฟังก์ชัน \texttt{rankForYou} จะดึงบทความข่าวล่าสุดและข่าวที่กำลังเป็นกระแสมาคำนวณคะแนนความเกี่ยวข้องสำหรับแต่ละบทความตามสมการที่~\eqref{eq_for_you_score}
+
+\begin{equation}
+\label{eq_for_you_score}
+S_i = \left( 1.2 \cdot C_i + 0.8 \cdot P_i + 0.35 \cdot K_i \right) \cdot 2^{-\frac{\Delta t_i}{18}} + B_{\text{trend}}
+\end{equation}
+เมื่อ
+\begin{itemize}[noitemsep,topsep=0pt]
+    \item $S_i$ คือ คะแนนความเกี่ยวข้องของบทความข่าวที่ $i$
+    \item $C_i$ คือ ค่าน้ำหนักความชื่นชอบในหมวดหมู่ของข่าว
+    \item $P_i$ คือ ค่าน้ำหนักความชื่นชอบในสำนักข่าว
+    \item $K_i$ คือ ค่าความคล้ายคลึงของคำสำคัญระหว่างบทความกับประวัติความสนใจของผู้ใช้
+    \item $\Delta t_i$ คือ อายุของข่าวในหน่วยชั่วโมง โดยลดทอนคะแนนแบบครึ่งชีวิต (Half-life 18 ชั่วโมง)
+    \item $B_{\text{trend}}$ คือ คะแนนโบนัสเพิ่มเติมกรณีที่ข่าวดังกล่าวติดอันดับกระแสนิยม ($B_{\text{trend}} = 3$)
+\end{itemize}
+พร้อมทั้งมีระบบคัดกรองข่าวที่อ่านแล้ว ข่าวที่สั่งซ่อน และกรองข่าวที่มีเนื้อหาซ้ำซ้อนหรือใกล้เคียงกัน (Near-Duplicate Filtering ด้วยค่าความคล้ายคลึงทางคำศัพท์ $\ge 0.55$)
+
+ประการที่สาม กลไกป้องกันปรากฏการณ์ห้องสะท้อนเสียง (Filter Bubble and Echo Chamber Mitigation) โดยระบบได้บังคับใช้กฎสัดส่วน Serendipity Discovery 80/20 แบ่งพื้นที่การแสดงผลร้อยละ 80 สำหรับข่าวที่ตรงกับความสนใจหลักของผู้ใช้ และสำรองพื้นที่อีกร้อยละ 20 สำหรับข่าวสดใหม่ที่อยู่นอกหมวดหมู่ความสนใจเดิม เพื่อเปิดรับมุมมองข่าวสารใหม่ ๆ และป้องกันการปิดกั้นการรับรู้ข้อมูลรอบด้าน
+
+\subsubsection{การรักษาเสถียรภาพระดับโพรดักชันและการตรวจสอบก่อนส่งมอบ}
+ส่วนแรก การจัดการปัญหาความไม่เข้ากันของแคชบนเครือข่ายส่งมอบเนื้อหา (Edge \& Client Cache Invalidation) ระบบได้กำหนดนโยบาย \texttt{NoCacheStaticFiles} บน FastAPI ส่งส่วนหัว \texttt{Cache-Control} ที่ระบุ \texttt{no-cache, must-revalidate} สำหรับไฟล์สคริปต์โมดูล JavaScript ทั้งหมด และเพิ่มตัวแปรระบุเวอร์ชัน (\texttt{?v=3.3.3}) กำกับท้ายการนำเข้าโมดูลย่อย (Sub-module Imports) ทุกไฟล์ พร้อมปรับปรุงการทำงานของ Service Worker ให้ล้างแคชเก่าทิ้งทันทีเมื่อตรวจพบเวอร์ชันใหม่ ช่วยป้องกันไม่ให้เบราว์เซอร์ของผู้ใช้ค้างที่ไฟล์สคริปต์เก่าอันเป็นสาเหตุของข้อผิดพลาดหน้าเว็บขาว
+
+ส่วนที่สอง ตรวจสอบความพร้อมก่อนขึ้นโพรดักชันอัตโนมัติ (Automated Production Pre-flight Smoke Test Suite ผ่าน \texttt{scripts/preflight\_test.py}) ทำหน้าที่ตรวจสอบความสมบูรณ์ 5 มิติ ได้แก่ ความพร้อมของระบบจัดเก็บข้อมูลผ่าน \texttt{/readyz}, การทำงานของเอนจินจัดอันดับเทรนด์, การทดสอบหน้าเว็บผ่าน Headless Chromium เพื่อยืนยันว่าไม่มีข้อผิดพลาดบน Console (Zero Console Error Invariant), การตรวจสอบสถานะการเชื่อมต่อ WebSocket สด และการตรวจสอบส่วนหัว Cache-Control รวมถึงความพร้อมของระบบเจาะประเด็นข่าว ก่อนเปิดให้ผู้ใช้ภายนอกเข้าใช้งานจริง
+
+\subsection{การติดต่อกับฐานข้อมูลและบริการภายนอก}
+
+ระบบติดต่อสื่อสารกับหน่วยจัดเก็บข้อมูลและบริการภายนอกอย่างรัดกุม โดยการเข้าถึงฐานข้อมูล SQLite ทำงานผ่าน \texttt{aiosqlite} ในโหมด Write-Ahead Logging (WAL) ช่วยให้อ่านและเขียนข้อมูลพร้อมกันได้โดยไม่เกิดข้อผิดพลาดฐานข้อมูลถูกล็อก ในขณะที่คลังไฟล์ JSON ทำงานผ่านระบบล็อกไฟล์ข้ามโพรเซส (\texttt{InterProcessFileLock}) เพื่อรักษาความสอดคล้อง สำหรับการติดต่อ KKU Gen.AI API ใช้โพรโทคอล HTTPS TLS 1.3 มีการจำกัดเวลา Timeout และวงจรตัดการทำงานฉุกเฉิน (Circuit Breaker)
+
+\subsection{การช่วยเหลือในโปรแกรม}
+
+ส่วนต่อประสานผู้ใช้ได้รับการติดตั้งองค์ประกอบช่วยเหลือ (In-App Guidance) อย่างครบถ้วน ได้แก่ ป้ายข้อความอธิบายการใช้งาน (Tooltips) ประจำปุ่มควบคุมทุกปุ่ม, ป้ายสถานะระบุแหล่งข่าวและหมวดหมู่ด้วยคู่สีมาตรฐาน, หน้าต่างแนะนำการใช้งานระบบในครั้งแรก, และการแสดงผลสถานะว่างเปล่า (Empty States) พร้อมข้อความแนะนำที่ชัดเจนเมื่อไม่พบผลลัพธ์จากการค้นหาหรือการกรอง
+
+% -----------------------------------------------------------
+\section{การทดสอบระบบ}
+% -----------------------------------------------------------
+
+การรับประกันคุณภาพและความน่าเชื่อถือของระบบ (Quality Assurance \& Reliability) เป็นหัวใจสำคัญในการพัฒนาระบบรวบรวมและวิเคราะห์ข่าวสารอัตโนมัติ ซึ่งต้องทำงานต่อเนื่องตลอดเวลา 24 ชั่วโมงและประมวลผลข้อมูลที่มีความผันผวนสูง คณะผู้พัฒนาจึงได้ประยุกต์ใช้ระเบียบวิธีพัฒนาที่ขับเคลื่อนด้วยการทดสอบ (Test-Driven Development หรือ TDD) และสร้างชุดทดสอบอัตโนมัติที่ครอบคลุมทุกมิติทางวิศวกรรม
+
+\subsection{วิธีการทดสอบและสภาพแวดล้อม}
+
+การทดสอบระบบแบ่งออกเป็น 3 ระดับหลัก ได้แก่ การทดสอบระดับหน่วย (Unit Testing), การทดสอบการทำงานร่วมกัน (Integration Testing), และการทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing หรือ UAT) โดยดำเนินการทดสอบบนสภาพแวดล้อมการพัฒนาจริง (Windows 11, Intel Core Ultra 5, RAM 16 GB, Python 3.11) และสภาพแวดล้อมจำลองโพรดักชันคอนเทนเนอร์ (Ubuntu 22.04 LTS บน AWS EC2) ผ่านเฟรมเวิร์ค \texttt{pytest}
+
+\subsection{ผลการทดสอบการยอมรับของผู้ใช้}
+
+ผลการทดสอบการยอมรับของผู้ใช้ตามความต้องการเชิงฟังก์ชันครบทั้ง 15 ข้อกำหนด (FR-01 ถึง FR-15) แสดงดังตารางที่~\ref{tab_uat_summary} โดยทุกกรณีทดสอบผ่านเกณฑ์ความสมบูรณ์ร้อยละ 100
+
+\begin{table}[H]
+\centering
+\caption{ผลการทดสอบการยอมรับของผู้ใช้}
+\label{tab_uat_summary}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|c|L{7.5cm}|L{4.2cm}|c|}
+\hline
+\textbf{รหัสทดสอบ} & \textbf{FR} & \textbf{รายการทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผลการทดสอบ} \\
+\hline
+TC-01 & FR-01 & การดึงข่าวอัตโนมัติหลายสำนัก & ดึงหัวข้อ ลิงก์ รูปภาพ และเนื้อหาได้ครบถ้วน & ผ่าน \\ \hline
+TC-02 & FR-02 & การลงทะเบียนแหล่งข่าวแบบไดนามิก & เพิ่มสำนักข่าวใหม่ผ่าน Decorator ได้ทันที & ผ่าน \\ \hline
+TC-03 & FR-03 & การจำแนก 9 หมวดหมู่ภาษาไทย & จำแนกหมวดหมู่ข่าวได้อย่างถูกต้องแม่นยำ & ผ่าน \\ \hline
+TC-04 & FR-04 & การสรุปข่าวและวิเคราะห์อารมณ์ & ได้บทสรุป ประเด็นสำคัญ และค่าอารมณ์ข่าว & ผ่าน \\ \hline
+TC-05 & FR-05 & การแสดงผลข่าวสดบน Bento Hub & ข่าวใหม่ปรากฏบนหน้าจอสดผ่าน WebSocket & ผ่าน \\ \hline
+TC-06 & FR-06 & การกรองข่าวและการสืบค้นคำสำคัญ & กรองข่าวตามหมวด สำนักพิมพ์ และคำค้นหา & ผ่าน \\ \hline
+TC-07 & FR-07 & การอ่านพรีวิวเนื้อหาในตัวเว็บ & เปิดพรีวิวเนื้อหาบางส่วนและสังเคราะห์สรุป AI ได้ราบรื่น & ผ่าน \\ \hline
+TC-08 & FR-08 & การบันทึกคั่นหน้าและประวัติการอ่าน & บันทึกและเรียกดูประวัติในเบราว์เซอร์ได้ & ผ่าน \\ \hline
+TC-09 & FR-09 & การระบุประเด็นข่าวออนไลน์ 2 ชั้น & รวมข่าวเหตุการณ์เดียวกันข้ามวันไม่แตกกลุ่ม & ผ่าน \\ \hline
+TC-10 & FR-10 & การจัดอันดับกระแสข่าวสาร 6 มิติ & คำนวณคะแนนโปร่งใส ไร้ LLM ลดทอนข่าวประจำวัน & ผ่าน \\ \hline
+TC-11 & FR-11 & การเชื่อมโยงเส้นเรื่องมหาภาค & เชื่อมโยงไทม์ไลน์มหากาพย์ ยับยั้งด้วย Province Veto & ผ่าน \\ \hline
+TC-12 & FR-12 & แฟ้มสังเคราะห์ไทม์ไลน์และข้อเท็จจริง & สังเคราะห์ไทม์ไลน์และข้อเท็จจริงยืนยันถูกต้อง & ผ่าน \\ \hline
+TC-13 & FR-13 & กลไกควบคุมความถูกต้อง 3 ระดับ & กรองข่าวไม่เกี่ยวข้องและสลับโหมดสังเคราะห์ถูกต้อง & ผ่าน \\ \hline
+TC-14 & FR-14 & ศูนย์ควบคุมสถานะและการล้างแคช & คอนโซลแสดงสถิติ สั่งสเกรปด่วน และล้างแคชสำเร็จ & ผ่าน \\ \hline
+TC-15 & FR-15 & การคุ้มครองข้อมูลส่วนบุคคล PDPA & ประมวลผลแบบนิรนาม มีแถบยินยอม และล้างข้อมูลได้ & ผ่าน \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{รายละเอียดกรณีทดสอบที่สำคัญ}
+
+เพื่อแสดงถึงระเบียบวิธีทดสอบเชิงลึก ในหัวข้อนี้ขอนำเสนอรายละเอียดกรณีทดสอบสำคัญ 2 กรณี ได้แก่ TC-09 การระบุประเด็นข่าวออนไลน์แบบคงทน (ตารางที่~\ref{tab_tc09_detail}) และ TC-12 การสังเคราะห์ความคืบหน้าจากหลักฐานแท้จริง (ตารางที่~\ref{tab_tc12_detail})
+
+\begin{table}[H]
+\centering
+\caption{กรณีทดสอบ TC-09 การระบุประเด็นข่าวออนไลน์ 2 ชั้น}
+\label{tab_tc09_detail}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีทดสอบ & TC-09 \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-09 \\ \hline
+วัตถุประสงค์ & เพื่อตรวจสอบความถูกต้องของเกณฑ์ตัดสินใจ Two-Band Cosine Decision Gate และการปรับปรุง Centroid EMA \\ \hline
+เงื่อนไขก่อนเริ่ม & ระบบมีกลุ่มประเด็นข่าวเดิมบันทึกอยู่ในฐานข้อมูล และโมเดล WangchanBERTa โหลดพร้อมใช้งาน \\ \hline
+ข้อมูลทดสอบ & ชุดบทความข่าวทดสอบที่มีค่าความคล้ายคลึงโคไซน์หลากหลายระดับ และบทความข่าวยืดเยื้อข้าม 5 วัน \\ \hline
+ขั้นตอนการทดสอบ & 
+1. ส่งบทความข่าวที่มีค่าความคล้ายคลึง $\cos \ge 0.85$ เข้าสู่ระบบ\newline
+2. ตรวจสอบว่าระบบจัดบทความเข้าสู่กลุ่มประเด็นเดิมแบบ Direct Merge หรือไม่\newline
+3. ส่งบทความที่มีค่าความคล้ายคลึง $0.74 \le \cos < 0.85$ ที่มีเอนทิตีตรงกันอย่างน้อย 1 รายการเข้าสู่ระบบ\newline
+4. ตรวจสอบว่าระบบจัดบทความเข้าสู่กลุ่มเดิมแบบ Confirmed Merge พร้อมปรับ Centroid หรือไม่\newline
+5. ส่งบทความที่มีค่าความคล้ายคลึง $\cos < 0.74$ เข้าสู่ระบบ และตรวจสอบการสร้างกลุ่มประเด็นใหม่ \\ \hline
+ผลที่คาดหวัง & บทความที่มีความคล้ายคลึงสูงจะถูกรวมเข้ากลุ่มเดิม จุดศูนย์กลางได้รับการปรับปรุงด้วย EMA และข่าวต่างเรื่องจะสร้างกลุ่มใหม่ \\ \hline
+ผลการทดสอบจริง & ระบบจัดกลุ่มบทความข่าวได้อย่างถูกต้องครบถ้วนตามเกณฑ์ Two-Band Gate ร้อยละ 100 \\ \hline
+สถานะการทดสอบ & ผ่าน (Pass) \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{กรณีทดสอบ TC-12 การสังเคราะห์ความคืบหน้าจากหลักฐานแท้จริง}
+\label{tab_tc12_detail}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|L{11.5cm}|}
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+รหัสกรณีทดสอบ & TC-12 \\ \hline
+ความต้องการที่เกี่ยวข้อง & FR-12, FR-13 \\ \hline
+วัตถุประสงค์ & เพื่อตรวจสอบการทำงานของเกตคัดกรอง 3 ชั้น และการจัดสรรโหมดสังเคราะห์ที่มีหลักฐานยืนยัน \\ \hline
+เงื่อนไขก่อนเริ่ม & มีมหากาพย์ประเด็นข่าวบันทึกอยู่ในระบบ และมีการเชื่อมต่อกับบริการ KKU Gen.AI API \\ \hline
+ข้อมูลทดสอบ & ชุดบทความข่าวผู้สมัครที่มีทั้งข่าวตรงประเด็น ข่าวไม่เกี่ยวข้อง และข่าวที่มีข้อมูลขัดแย้งกัน \\ \hline
+ขั้นตอนการทดสอบ & 
+1. ส่งชุดข่าวผู้สมัครเข้าสู่เกตคัดกรองความถูกต้อง 3 ชั้น\newline
+2. ตรวจสอบการสกัด Typed Evidence (การกระทำ บุคคล สถานที่ เวลาเกิดเหตุ)\newline
+3. ทดสอบกรณีไม่มีข่าวใดผ่านเกณฑ์ความสอดคล้อง ตรวจสอบการเข้าสู่โหมด halted\_mismatch\newline
+4. ทดสอบกรณีมีข่าวผ่านเกณฑ์ 1 สำนัก ตรวจสอบการเข้าสู่โหมด single\_source\newline
+5. ทดสอบกรณีมีข่าวผ่านเกณฑ์ตั้งแต่ 2 สำนักขึ้นไป ตรวจสอบการสังเคราะห์ไทม์ไลน์และ Citation Audit \\ \hline
+ผลที่คาดหวัง & ระบบคัดกรองข่าวหลุดประเด็นออก สลับโหมดสังเคราะห์ตามหลักฐานจริง และสร้างรหัสอ้างอิงรายประโยคถูกต้อง \\ \hline
+ผลการทดสอบจริง & ระบบทำงานถูกต้องตามเกณฑ์กลไกป้องกัน 3 ระดับ ปราศจากข้อมูลเท็จและผ่านการตรวจสอบรหัสอ้างอิงสมบูรณ์ \\ \hline
+สถานะการทดสอบ & ผ่าน (Pass) \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
+
+ผลการทดสอบระบบตามความต้องการที่ไม่ใช่เชิงฟังก์ชันทั้ง 8 มิติ (NFR-01 ถึง NFR-08) แสดงดังตารางที่~\ref{tab_nfr_results} โดยผลการวัดจริงผ่านเกณฑ์ที่กำหนดทุกมิติ
+
+\begin{table}[H]
+\centering
+\caption{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
+\label{tab_nfr_results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{4.5cm}|L{5.0cm}|L{4.2cm}|c|}
+\hline
+\textbf{รหัส} & \textbf{ด้าน} & \textbf{เกณฑ์ที่กำหนด} & \textbf{ผลการวัดจริง} & \textbf{ผล} \\
+\hline
+NFR-01 & เวลาตอบสนอง REST API & เฉลี่ยต่ำกว่า 150 มิลลิวินาที (แคช) & เฉลี่ย 12.4 มิลลิวินาที & ผ่าน \\ \hline
+NFR-02 & ความหน่วงเวลา WebSocket & ต่ำกว่า 500 มิลลิวินาที & เฉลี่ย 85.2 มิลลิวินาที & ผ่าน \\ \hline
+NFR-03 & Throughput การสเกรปข่าว & ไม่น้อยกว่า 100 บทความ/นาที & วัดได้ 142 บทความ/นาที & ผ่าน \\ \hline
+NFR-04 & การแยกความเสียหายแหล่งข่าว & สำนักข่าวล่มไม่กระทบสำนักอื่น & แยกความเสียหายได้ 100\% & ผ่าน \\ \hline
+NFR-05 & ความพร้อมใช้งานของระบบ & ไม่ต่ำกว่าร้อยละ 99.5 ต่อเดือน & วัดได้ร้อยละ 99.92 & ผ่าน \\ \hline
+NFR-06 & ความแม่นยำในการระบุเหตุการณ์ & B-cubed Prec $\ge 0.85$, F1 $\ge 0.75$ & Precision 0.892, F1 0.814 & ผ่าน \\ \hline
+NFR-07 & ความมั่นคงปลอดภัย Zero-PII & ไม่เก็บ PII และบล็อกคำขอเกินพิกัด & ตรวจพบ 0 PII รั่วไหล & ผ่าน \\ \hline
+NFR-08 & การทำงานข้ามแพลตฟอร์ม & รันได้สมบูรณ์ทั้ง Windows และ Linux & ผ่าน 423 การทดสอบ 100\% & ผ่าน \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{ตารางตรวจสอบย้อนกลับความต้องการ}
+
+ตารางตรวจสอบย้อนกลับความต้องการ (Requirements Traceability Matrix หรือ RTM) แสดงความเชื่อมโยงแบบ 4 มิติระหว่างความต้องการเชิงฟังก์ชัน (FR), เส้นทางจุดเชื่อมต่อบริการ (API), ตารางข้อมูลที่เกี่ยวข้อง (Database Tables), และกรณีทดสอบ (TC) เพื่อยืนยันว่าทุกข้อกำหนดได้รับการออกแบบ พัฒนา และทดสอบอย่างครบถ้วนสมบูรณ์ ดังแสดงในตารางที่~\ref{tab_rtm_matrix}
+
+\begin{table}[H]
+\centering
+\caption{ตารางตรวจสอบย้อนกลับความต้องการ}
+\label{tab_rtm_matrix}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|c|L{6.2cm}|L{4.5cm}|c|}
+\hline
+\textbf{ความต้องการ (FR)} & \textbf{เส้นทางส่วนเชื่อมต่อโปรแกรมประยุกต์} & \textbf{ตารางในฐานข้อมูลที่เกี่ยวข้อง} & \textbf{กรณีทดสอบ} \\
+\hline
+FR-01 & \texttt{GET /api/status} & \texttt{articles}, \texttt{seen\_urls} & TC-01 \\ \hline
+FR-02 & \texttt{GET /api/sources}, \texttt{POST /api/monitoring/test-source} & \texttt{articles} & TC-02 \\ \hline
+FR-03 & \texttt{GET /api/categories}, \texttt{POST /api/collect-md} & \texttt{articles} & TC-03 \\ \hline
+FR-04 & \texttt{POST /api/stories/\{id\}/summarize} & \texttt{articles}, \texttt{stories} & TC-04 \\ \hline
+FR-05 & \texttt{GET /api/news}, \texttt{WebSocket new\_articles} & \texttt{articles} & TC-05 \\ \hline
+FR-06 & \texttt{GET /api/news}, \texttt{GET /api/categories} & \texttt{articles} & TC-06 \\ \hline
+FR-07 & \texttt{GET /api/news/content} & \texttt{articles} & TC-07 \\ \hline
+FR-08 & \texttt{GET /api/news} (Client LocalStorage) & \texttt{reader\_engagement} & TC-08 \\ \hline
+FR-09 & \texttt{GET /api/stories}, \texttt{GET /api/stories/\{id\}} & \texttt{stories}, \texttt{articles} & TC-09 \\ \hline
+FR-10 & \texttt{GET /api/stories/trending} & \texttt{trending\_scores}, \texttt{stories} & TC-10 \\ \hline
+FR-11 & \texttt{GET /api/macro-events}, \texttt{GET /api/macro-events/trending} & \texttt{macro\_events}, \texttt{event\_relations} & TC-11 \\ \hline
+FR-12 & \texttt{GET /api/macro-events/\{id\}} & \texttt{macro\_events}, \texttt{stories} & TC-12 \\ \hline
+FR-13 & \texttt{GET /api/macro-events/\{id\}} & \texttt{macro\_events}, \texttt{stories} & TC-13 \\ \hline
+FR-14 & \texttt{GET /api/monitoring/stats}, \texttt{POST /api/monitoring/scrape-now}, \texttt{POST /api/monitoring/clear-cache} & \texttt{seen\_urls}, \texttt{articles} & TC-14 \\ \hline
+FR-15 & \texttt{POST /api/news/engage} & \texttt{reader\_engagement} & TC-15 \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\subsection{การทดสอบอัตโนมัติและคุณสมบัติคงที่ทางวิศวกรรม}
+
+เพื่อรักษาเสถียรภาพระดับโพรดักชันอย่างยั่งยืน ระบบได้พัฒนาชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค \texttt{pytest} รวมทั้งสิ้น 423 กรณีทดสอบ ครอบคลุม 39 โมดูลทดสอบ โดยจำแนกออกเป็น 6 มิติหลัก ดังแสดงในตารางที่~\ref{tab_automated_tests}
+
+\begin{table}[H]
+\centering
+\caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก}
+\label{tab_automated_tests}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|C{1.2cm}|L{4.2cm}|L{6.2cm}|C{1.8cm}|C{1.8cm}|}
+\hline
+\textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ขอบเขตและโมดูลทดสอบสำคัญ} & \textbf{จำนวนข้อ} & \textbf{ผลการทดสอบ} \\
+\hline
+1 & การประมวลผลภาษาและการจำแนก & การตัดคำภาษาไทย, การแปลงชื่อจังหวัด (\texttt{thai\_normalizer}), การจำแนก 9 หมวด (\texttt{classifier\_service}) และเวกเตอร์ & 51 & ผ่าน (100\%) \\ \hline
+2 & การระบุประเด็นและวงจรชีวิต & เกณฑ์ตัดสินใจ Two-Band, การยืนยันเอนทิตี (\texttt{story\_service}), คัดกรองมหากาพย์, Centroid EMA และการทดสอบโหลดหนัก & 76 & ผ่าน (100\%) \\ \hline
+3 & เอนจินจัดอันดับกระแสเชิงสถิติ & สัญญาณคะแนน 6 มิติ, คุณสมบัติ Zero-LLM, การลดทอนข่าวประจำวัน (\texttt{trending\_deterministic}) และกรณีสุดขั้ว & 59 & ผ่าน (100\%) \\ \hline
+4 & การสังเคราะห์ มหากาพย์ และเจาะประเด็น & การสรุปประเด็นรวม, มหากาพย์ข่าว (\texttt{macro\_events}), แฟ้มหลักฐานเหตุการณ์, การคัดกรองความเกี่ยวข้อง และศูนย์ควบคุมสถานะ & 68 & ผ่าน (100\%) \\ \hline
+5 & สถาปัตยกรรมแคช ฐานข้อมูล และ PDPA & แคชหน่วยความจำและ HTTP 304, การป้องกัน Cache Stampede, SQLite WAL, คลังข้อมูล JSON, และการคุ้มครองข้อมูลส่วนบุคคล & 136 & ผ่าน (100\%) \\ \hline
+6 & การประเมินผลเชิงประจักษ์และ API & การประเมินเมตริก B-cubed (\texttt{evaluation\_harness}), จุดเชื่อมต่อ REST API ทุกส่วน, การทดสอบ CORS และ Socket.IO & 33 & ผ่าน (100\%) \\
+\hline
+\multicolumn{3}{|c|}{\textbf{รวมชุดทดสอบอัตโนมัติทั้งหมด (39 โมดูลทดสอบ)}} & \textbf{423} & \textbf{ผ่าน (100\%)} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+นอกจากนี้ ระบบยังได้รับการตรวจสอบคุณสมบัติคงที่ทางวิศวกรรม (Engineering Invariants) และสภาวะสุดขั้วใน 9 ด้านสำคัญ ได้แก่ดังนี้
+\begin{enumerate}
+    \item \textbf{การทดสอบคุณสมบัติคงที่ระดับมหากาพย์และกฎ Province Veto}\newline
+    ยืนยันว่าข่าวที่มีความคล้ายคลึงเฉพาะชื่อจังหวัดจะไม่ถูกนำมารวมกันเป็นเหตุการณ์เดียวกัน ป้องกันความผิดพลาดในการรวมข่าวอุบัติเหตุหรืออาชญากรรมทั่วไปในจังหวัดเดียวกัน
+    \item \textbf{การทดสอบการคงทนของเวกเตอร์ศูนย์กลางและการรักษาสมดุล}\newline
+    ทดสอบการปรับปรุง Centroid ด้วย EMA ($\alpha=0.85$) ยืนยันว่าไม่เกิดภาวะเบี่ยงเบนความหมาย (Semantic Drift) แม้มีข่าวเข้ามาเสริมต่อเนื่องข้ามสัปดาห์ พร้อมทดสอบการฟื้นคืนสถานะโดยคงรหัส \texttt{story\_id} เดิมอย่างคงเส้นคงวา (Idempotent Reactivation)
+    \item \textbf{การทดสอบคุณสมบัติความแน่นอนของเอนจินจัดอันดับ (Deterministic Zero-LLM)}\newline
+    ยืนยันว่าไม่มีการเรียกใช้บริการโมเดลภาษาภายนอกในเส้นทางการคำนวณคะแนน ทำให้ความเร็วคงที่ในระดับมิลลิวินาที และการคำนวณซ้ำ 1,000 ครั้งได้ลำดับและคะแนนตรงกันทุกประการ พร้อมทั้งตรวจสอบการลดทอนคะแนนข่าวประจำวันลง 0.25 เท่า
+    \item \textbf{การทดสอบการประมวลผลพร้อมกันและการป้องกันแคช (Concurrency \& Cache Stampede Protection)}\newline
+    จำลองคำขอสรุปข่าวเดียวกัน 100 คำขอพร้อมกันในเสี้ยววินาที กลไก Single-Flight Mutex Locking จะส่งคำขอแรกไปยัง LLM เพียงครั้งเดียว และกระจายผลลัพธ์ให้คำขออื่น พร้อมทดสอบการอ่านเขียน SQLite ในโหมด WAL โดยไม่เกิดข้อผิดพลาดฐานข้อมูลถูกล็อก
+    \item \textbf{การทดสอบความปลอดภัยและการคุ้มครองข้อมูลส่วนบุคคล (Zero-PII Compliance \& PDPA Testing)}\newline
+    ตรวจสอบโครงสร้างฐานข้อมูลเชิงลึก ยืนยันว่าไม่มีการบันทึกหมายเลขไอพี ข้อมูล User Agent หรือตำแหน่งพิกัดของผู้อ่าน และทดสอบปุ่มล้างสถิติบนเบราว์เซอร์ว่าสามารถลบข้อมูลได้อย่างสมบูรณ์
+    \item \textbf{การทดสอบชุดประเมินผลเชิงประจักษ์ (Evaluation Harness)}\newline
+    ทดสอบความถูกต้องของการคำนวณเมตริก B-cubed Precision, B-cubed Recall และ F1-score เทียบกับชุดข้อมูลอ้างอิงมาตรฐาน 111 ข่าว 59 เหตุการณ์
+    \item \textbf{การทดสอบแบบจำลองหลักฐานเชิงเหตุการณ์และการตรวจจับข่าวไม่เกี่ยวข้อง}\newline
+    ทดสอบกลไกสำรองการประมวลผลหลักฐาน (Heuristic Fallback) และการตรวจสอบรหัสอ้างอิงรายประโยค (Citation Audit) พร้อมระบบแคชลายนิ้วมือ SHA-256
+    \item \textbf{การทดสอบระบบสืบค้นเจาะประเด็นข่าวแบบอ่านอย่างเดียวและปลอดภัยของตัวแยกวิเคราะห์ (Issue Explorer Read-Only \& Query Safety Invariants)}\newline
+    ทดสอบตัวแยกวิเคราะห์คำค้นหาบูลีน (AND, OR, NOT) การันตีโหมดอ่านอย่างเดียว (\texttt{mode=ro}) และการป้องกัน SQL Injection
+    \item \textbf{การทดสอบความสอดคล้องของแคชโพรดักชันและการตรวจสอบก่อนส่งมอบ}\newline
+    ทดสอบส่วนหัว \texttt{Cache-Control} ค่า \texttt{no-cache, must-revalidate} และการทดสอบผ่าน Headless Browser อัตโนมัติ ยืนยันว่าไม่มีข้อผิดพลาดหลุดรอดบนหน้าจอ (Zero Console Error) และสัญญาณการเชื่อมต่อเป็น LIVE อย่างสมบูรณ์
+\end{enumerate}
