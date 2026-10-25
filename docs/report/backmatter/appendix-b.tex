@@ -1,74 +1,32 @@
 % =====================================================================
-% ภาคผนวก — ชื่อภาคผนวกกำหนดใน main.tex ด้วย \chapter{...} หลัง \appendix
-% ระบบใส่ "ภาคผนวก ก ข ค ..." ให้อัตโนมัติ และใช้ \section{...} ภายในได้ตามปกติ
+% ภาคผนวก ข กรณีทดสอบการยอมรับของผู้ใช้
 % =====================================================================
 
+ตารางที่~\ref{tab_uat_test_procedure} แสดงรายละเอียดขั้นตอนการทดสอบและผลลัพธ์ที่คาดหวังของกรณีทดสอบการยอมรับของผู้ใช้ (User Acceptance Testing หรือ UAT) ทั้ง 15 กรณีทดสอบ (TC-01 ถึง TC-15) ซึ่งผู้ทดสอบใช้ประกอบการประเมินการทำงานของระบบตามข้อกำหนดในหัวข้อ 4.4
 
-\section{รายการ REST API Endpoints}
-
-\begin{table}[H]
-\centering
-\footnotesize
-\caption{รายละเอียด REST API สำหรับบริการข้อมูลข่าวสารและประเด็นข่าว}
-\label{tab:api_specs_news}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|L{3.5cm}|L{4.4cm}|L{3.5cm}|}
+\begin{longtable}{|C{1.1cm}|L{2.7cm}|L{4.5cm}|L{4.5cm}|}
+\caption{กรณีทดสอบการยอมรับของผู้ใช้}\label{tab_uat_test_procedure}\\
 \hline
-\textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
+\textbf{รหัส} & \textbf{กรณีทดสอบ} & \textbf{ขั้นตอนการทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
+\endfirsthead
+\caption[]{กรณีทดสอบการยอมรับของผู้ใช้~\cskkuContinued}\\
 \hline
-\texttt{GET} & \texttt{/api/stories} & ดึงรายการประเด็นข่าวสองชั้น & \texttt{category}, \texttt{status}, \texttt{limit} \\ \hline
-\texttt{GET} & \texttt{/api/stories/trending} & ดึงประเด็นข่าวติดกระแส Layer 2 & คืนค่า \texttt{ScoreBreakdown} \\ \hline
-\texttt{GET} & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นและไทม์ไลน์ & คืนค่า \texttt{StoryRecord} \\ \hline
-\texttt{POST} & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสังเคราะห์ภาพรวมข้ามสำนัก & พาดหัวรวมและไทม์ไลน์ \\ \hline
-\texttt{GET} & \texttt{/api/macro-events} & ดึงรายการมหากาพย์ประเด็นข่าว & \texttt{status}, \texttt{crisis} \\ \hline
-\texttt{GET} & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวกระแส Bento Hub & คืนค่ารายการ Macro Events \\ \hline
-\texttt{GET} & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์และประเด็นย่อย & คืนค่ารายละเอียด Macro Event \\ \hline
-\texttt{GET} & \texttt{/api/news} & ดึงรายการข่าวสารเดี่ยวแบบแบ่งหน้า & \texttt{page}, \texttt{category}, \texttt{search} \\ \hline
-\texttt{GET} & \texttt{/api/news/content} & สกัดเนื้อหาบทความฉบับเต็ม In-App & \texttt{url} (Query) $\rightarrow$ Cleaned MD \\ \hline
-\texttt{GET} & \texttt{/api/categories} & ดึงรายการ 9 หมวดหมู่ภาษาไทย & คืนค่า List Category Metadata \\ \hline
-\texttt{GET} & \texttt{/api/sources} & ดึงรายการสำนักข่าวที่ลงทะเบียน & คืนค่า List Source Metadata \\ \hline
-\texttt{GET} & \texttt{/api/status} & ตรวจสอบสถานะรอบเวลาและจำนวนข่าว & คืนค่าสถิติจำนวนข่าวในคลัง \\ \hline
-\texttt{GET} & \texttt{/api/image} & Reverse Proxy และแคชรูปภาพข่าว & \texttt{url} (Query) $\rightarrow$ Image Stream \\ \hline
-\texttt{POST} & \texttt{/api/collect-md} & สกัดเนื้อหาข่าวด่วน On-Demand & \texttt{url} (Body JSON) \\ \hline
-\texttt{POST} & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม & \texttt{article\_id}, \texttt{action} \\
+\textbf{รหัส} & \textbf{กรณีทดสอบ} & \textbf{ขั้นตอนการทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
+\endhead
+TC-01 & การดึงข่าวอัตโนมัติหลายสำนัก & 1. เปิดการทำงานของเซิร์ฟเวอร์และระบบตั้งเวลาเบื้องหลัง\newline 2. ส่งคำสั่งเริ่มรอบการดึงข่าวจากสำนักข่าวออนไลน์ 14 แห่ง\newline 3. ตรวจสอบการทำงานของ Playwright Headless Browser และ HTTP Client & ระบบสามารถดึงข้อมูลข่าวสาร สกัดหัวข้อข่าว ลิงก์ รูปภาพ และเนื้อหาบทความได้ครบถ้วน โดยไม่เกิดข้อผิดพลาดในการเชื่อมต่อ \\ \hline
+TC-02 & การลงทะเบียนแหล่งข่าวแบบไดนามิก & 1. เพิ่มฟังก์ชันสเกรปเปอร์ใหม่ในโมดูล scrapers พร้อมกำหนด Decorator @register\_source\newline 2. ระบุชื่อสำนักข่าว URL หน้าแรก และรหัสสีประจำสำนัก\newline 3. รีสตาร์ตระบบและเรียกดูรายการสำนักข่าวผ่าน API & สำนักข่าวใหม่ปรากฏในรายการแหล่งข่าวทันที พร้อมสีประจำสำนักและพร้อมสำหรับรอบการดึงข่าวถัดไป \\ \hline
+TC-03 & การจำแนก 9 หมวดหมู่ภาษาไทย & 1. ป้อนข้อความข่าวภาษาไทยตัวอย่างจากทั้ง 9 หมวดหมู่เข้าสู่ระบบ\newline 2. ตรวจสอบกระบวนการตัดคำ การคัดกรองคำหยุด และการประมวลผลผ่าน 3-Tier Cascade Classifier\newline 3. บันทึกผลการทำนายหมวดหมู่ & ระบบจำแนกหมวดหมู่ข่าวได้ถูกต้องตรงตามเนื้อหา โดยใช้เวลาประมวลผลเฉลี่ยต่ำกว่า 5 มิลลิวินาทีต่อบทความ \\ \hline
+TC-04 & การสรุปข่าวและวิเคราะห์อารมณ์ & 1. เลือกบทความข่าวที่มีความยาวมากกว่า 1,000 คำ\newline 2. ส่งเนื้อหาไปยังบริการ KKU Gen.AI API เพื่อสรุปความและวิเคราะห์อารมณ์\newline 3. ตรวจสอบโครงสร้างผลลัพธ์ JSON ที่ได้รับ & ระบบสร้างบทสรุปความยาว 2--3 ประโยค ประเด็นสำคัญ 3 ข้อ และค่าอารมณ์ของข่าว (บวก ลบ เป็นกลาง) ได้อย่างถูกต้องตรงประเด็น \\ \hline
+TC-05 & การแสดงผลข่าวสดบน Bento Hub & 1. เปิดหน้าเว็บ Bento Hub บนเว็บเบราว์เซอร์\newline 2. จำลองการมีข่าวใหม่เข้าสู่ระบบในเบื้องหลัง\newline 3. ตรวจสอบการส่งสัญญาณผ่าน Socket.IO และการแสดงผลบนหน้าจอ & หน้าจอแสดงแถบแบนเนอร์แจ้งเตือนข่าวใหม่ลอยตัว และรายการข่าวสดอัปเดตบนหน้าจอทันทีโดยไม่ต้องกดรีเฟรชหน้าเว็บ \\ \hline
+TC-06 & การกรองข่าวและการสืบค้นคำสำคัญ & 1. คลิกเลือกปุ่มหมวดหมู่ข่าว เช่น การเมือง หรือ เทคโนโลยี\newline 2. คลิกเลือกกรองตามสำนักข่าวรายแห่ง\newline 3. พิมพ์คำค้นหาในช่องสืบค้นแบบเรียลไทม์ & การ์ดข่าวบนหน้าจอปรับเปลี่ยนแสดงเฉพาะข่าวที่ตรงกับหมวดหมู่ สำนักข่าว หรือมีคำค้นหาปรากฏในพาดหัวอย่างรวดเร็ว \\ \hline
+TC-07 & การอ่านพรีวิวเนื้อหาในตัวเว็บ & 1. คลิกที่การ์ดข่าวเพื่อเปิดพรีวิวบทความ\newline 2. ตรวจสอบการแสดงผลหน้าต่างโมดอล In-App Reader และปุ่มเปิดเว็บต้นฉบับ\newline 3. ตรวจสอบความสะอาดของเนื้อหาพรีวิวและการสังเคราะห์สรุปจากบทความฉบับเต็ม & หน้าต่างโมดอลแสดงเนื้อหาพรีวิวบางส่วนเพื่อความปลอดภัยด้านลิขสิทธิ์ สะอาดตา ไร้โฆษณา มีลิงก์เปิดเว็บต้นฉบับ และสังเคราะห์สรุปเนื้อหาฉบับเต็มด้วย AI ได้สมบูรณ์ \\ \hline
+TC-08 & การบันทึกคั่นหน้าและประวัติการอ่าน & 1. คลิกปุ่มบุ๊กมาร์กบนการ์ดข่าวที่สนใจ\newline 2. เปิดอ่านบทความข่าวหลายชิ้น\newline 3. เปิดแผงรายการคั่นหน้าและประวัติการอ่าน & รายการข่าวที่คั่นหน้าและประวัติการอ่านแสดงครบถ้วน โดยข้อมูลถูกบันทึกบน LocalStorage ในเบราว์เซอร์ของผู้ใช้ \\ \hline
+TC-09 & การระบุประเด็นข่าวออนไลน์ 2 ชั้น & 1. ป้อนข่าวรายงานเหตุการณ์เดียวกันที่เผยแพร่ห่างกัน 3 วันข้ามหลายสำนัก\newline 2. ตรวจสอบการคำนวณเวกเตอร์ฝังตัว WangchanBERTa และการตรวจจับเอนทิตี\newline 3. ตรวจสอบการจัดกลุ่มและการปรับปรุง Centroid ด้วย EMA & ข่าวทั้งหมดถูกรวมเข้าเป็นประเด็นข่าวเดียวกันภายใต้ Story ID เดิม ไม่เกิดปัญหาข่าวแตกกลุ่มข้ามวัน \\ \hline
+TC-10 & การจัดอันดับกระแสข่าวสาร 6 มิติ & 1. ตรวจสอบการคำนวณคะแนนกระแสข่าวของประเด็นข่าวต่าง ๆ ผ่านสูตรสถิติ 6 มิติ\newline 2. เปรียบเทียบประเด็นข่าวเหตุการณ์ด่วนกับข่าวประจำวัน เช่น พยากรณ์อากาศ\newline 3. เรียกดูการแจกแจงคะแนนรายมิติ & ข่าวประจำวันถูกลดทอนคะแนนด้วย Routine Penalty อย่างถูกต้อง และประเด็นข่าวด่วนหลายสำนักได้รับการจัดอันดับนำหน้าอย่างโปร่งใส \\ \hline
+TC-11 & การเชื่อมโยงเส้นเรื่องมหาภาค & 1. ป้อนประเด็นข่าวย่อยที่เกิดขึ้นต่อเนื่องในรอบเดือนเข้าสู่ระบบ\newline 2. ตรวจสอบกฎการเชื่อมโยงข้ามเวลาและกฎ Province-Only Veto\newline 3. ตรวจสอบโครงสร้างความสัมพันธ์ใน Macro Event & ประเด็นข่าวย่อยถูกผูกโยงเป็นมหากาพย์ตามลำดับเวลา และข่าวคนละเรื่องที่เกิดในจังหวัดเดียวกันถูกยับยั้งไม่ให้รวมกลุ่มกัน \\ \hline
+TC-12 & แฟ้มสังเคราะห์ไทม์ไลน์และข้อเท็จจริง & 1. เปิดหน้าต่าง Macro Storyline Dossier ของเหตุการณ์สำคัญ\newline 2. ตรวจสอบไทม์ไลน์พัฒนาการของเหตุการณ์ตามลำดับเวลา\newline 3. ตรวจสอบตารางข้อเท็จจริงที่ได้รับการยืนยันตรงกันข้ามสำนักข่าว & ไทม์ไลน์เรียงลำดับเวลาถูกต้อง และข้อเท็จจริงทุกข้อมีแหล่งข่าวยืนยันตรงกันตั้งแต่ 2 แหล่งขึ้นไปพร้อมรหัสอ้างอิงชัดเจน \\ \hline
+TC-13 & กลไกควบคุมความถูกต้อง 3 ระดับ & 1. ป้อนชุดข่าวที่มีทั้งข่าวตรงประเด็นและข่าวหลุดประเด็นปะปนกัน\newline 2. ตรวจสอบการทำงานของ Event Relevance Gate\newline 3. ตรวจสอบการปฏิเสธการสังเคราะห์เมื่อพบข่าวหลุดประเด็น & ข่าวหลุดประเด็นถูกคัดแยกออก และระบบส่งเฉพาะข่าวที่เป็นพยานหลักฐานแท้จริงไปสังเคราะห์ ป้องกันข้อมูลเท็จได้อย่างสมบูรณ์ \\ \hline
+TC-14 & ศูนย์ควบคุมสถานะและการล้างแคช & 1. เข้าสู่หน้าต่าง Ops Monitoring Console ด้วยรหัสผ่านผู้ดูแลระบบ\newline 2. กดปุ่มคำสั่งเริ่มสเกรปข่าวด่วนทันที (Scrape Now)\newline 3. กดปุ่มคำสั่งล้างแคชระบบ (Clear Cache) & รอบการดึงข่าวเริ่มต้นทันที ข้อมูลแคชในหน่วยความจำและ HTTP ETag ถูกล้างอย่างสมบูรณ์ และหน้าคอนโซลแสดงสถานะอัปเดต \\ \hline
+TC-15 & การคุ้มครองข้อมูลส่วนบุคคล PDPA & 1. เข้าสู่เว็บไซต์เป็นครั้งแรกและตรวจสอบแถบขอความยินยอมคุกกี้\newline 2. ตั้งค่าปฏิเสธคุกกี้บันทึกความสนใจ\newline 3. กดปุ่มล้างสถิติความสนใจ (Clear Preference) ในหน้าต่างตั้งค่า & ระบบไม่บันทึกข้อมูลส่วนบุคคลที่ระบุตัวตนได้ สถิติความสนใจเดิมถูกลบออกจากเบราว์เซอร์ทันที และระบบทำงานได้อย่างสมบูรณ์ \\
 \hline
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\footnotesize
-\caption{รายละเอียด REST API สำหรับระบบควบคุมและโพรบโครงสร้างพื้นฐาน}
-\label{tab:api_specs_ops}
-\begin{tabular}{|>{\centering\arraybackslash}p{1.1cm}|L{3.5cm}|L{4.4cm}|L{3.5cm}|}
-\hline
-\textbf{Method} & \textbf{Endpoint} & \textbf{คำอธิบาย} & \textbf{Parameters / Response} \\
-\hline
-\texttt{POST} & \texttt{/api/monitoring/auth} & ยืนยันตัวตนผู้ดูแลระบบออกโทเค็น & \texttt{secret} (Body JSON) \\ \hline
-\texttt{GET} & \texttt{/api/monitoring/verify} & ตรวจสอบโทเค็นเซสชันผู้ดูแล & Bearer Token \\ \hline
-\texttt{GET} & \texttt{/api/monitoring/stats} & ตรวจสอบสุขภาพ Throughput และ RAM & Bearer Token $\rightarrow$ Stats \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/scrape-now} & สั่งรันสเกรปข่าวด่วนทุกสำนักทันที & คืนค่า Trigger Success \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/clear-cache} & ล้างแคชในหน่วยความจำและ HTTP & คืนค่า Cache Cleared \\ \hline
-\texttt{POST} & \texttt{/api/monitoring/test-source} & ทดสอบดึงข่าวรายสำนัก & \texttt{source\_name} (Body JSON) \\ \hline
-\texttt{GET} & \texttt{/livez} / \texttt{/readyz} & โพรบตรวจสอบความพร้อมของระบบ & ตรวจสอบโพรเซสและระบบไฟล์ \\
-\hline
-\end{tabular}
-\end{table}
-
-\section{รายการ WebSocket Events (Socket.IO)}
-
-\begin{table}[H]
-\centering
-\footnotesize
-\caption{รายละเอียด WebSocket Events สำหรับการสื่อสารแบบ Real-time}
-\label{tab:ws_events}
-\begin{tabular}{|>{\centering\arraybackslash}p{2.8cm}|>{\centering\arraybackslash}p{2.2cm}|L{7.5cm}|}
-\hline
-\textbf{Event Name} & \textbf{ทิศทาง} & \textbf{คำอธิบายและข้อมูลที่ส่ง (Payload)} \\
-\hline
-\texttt{news:new} & Server $\rightarrow$ Client & ส่งข้อมูลข่าวใหม่ที่เพิ่งผ่านการประมวลผลเสร็จสิ้น เพื่อแสดงผลบนหน้าจอทันที \\ \hline
-\texttt{scraper:status} & Server $\rightarrow$ Client & แจ้งสถานะความคืบหน้าของกระบวนการสเกรปข่าว (เช่น เริ่มต้น, จำนวนที่ดึงได้, เสร็จสิ้น) \\ \hline
-\texttt{news:updated} & Server $\rightarrow$ Client & ส่งข้อมูลการอัปเดตบทความ เช่น เมื่อการสรุป LLM เสร็จสมบูรณ์ \\ \hline
-\texttt{connect} / \texttt{disconnect} & ทั้งสองทิศทาง & ตรวจจับการเชื่อมต่อและการตัดการเชื่อมต่อของผู้ใช้ \\
-\hline
-\end{tabular}
-\end{table}
+\end{longtable}
