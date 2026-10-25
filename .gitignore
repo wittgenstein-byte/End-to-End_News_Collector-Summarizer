@@ -32,7 +32,10 @@ venv/
 # Report
 system_flow_report.md
 Template_Project_2026_v2.pdf
+Example_A_SystemDev_Project_2026_v2.pdf
+Feedback.csv
 .agents
+questionaire.pdf
 CLAUDE.md
 PROJECT.md
 ORIGINAL_REQUEST.md
@@ -46,6 +49,8 @@ graphify-out
 *.aux
 *.bbl
 *.blg
+*.bcf
+*.run.xml
 *.fdb_latexmk
 *.fls
 *.lof
