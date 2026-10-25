@@ -1,25 +1,39 @@
 # 📰 NEWSROOM — Thai News Aggregator & Intelligent Summarizer
 
-ระบบรวบรวมข่าวสารภาษาไทยอัตโนมัติแบบเรียลไทม์จาก 14 สำนักข่าวชั้นนำ พร้อมระบบจัดหมวดหมู่อัจฉริยะ (3-Tier Classification Engine), ระบบติดตามประเด็นข่าวมหากาพย์และจัดอันดับเทรนด์ (Two-Layer Story Identification & Deterministic Trending), ระบบสรุปใจความสำคัญด้วย AI (LLM Executive Briefing), สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture) และเว็บแอปพลิเคชันแบบก้าวหน้า (Progressive Web App - PWA) ที่ปลอดภัยต่อลิขสิทธิ์และเคารพความเป็นส่วนตัว
+ระบบรวบรวมและวิเคราะห์ข่าวสารภาษาไทยอัตโนมัติแบบเรียลไทม์จาก 14 สำนักข่าวชั้นนำ พร้อมระบบจัดหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification Engine), ระบบติดตามประเด็นข่าวมหากาพย์และจัดอันดับเทรนด์ (Two-Stage Story Identification & Deterministic Trending), ระบบสรุปใจความสำคัญด้วย AI (LLM Executive Briefing), สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture), เว็บแอปพลิเคชันแบบก้าวหน้า (Progressive Web App - PWA) ที่ปลอดภัยต่อลิขสิทธิ์และเคารพความเป็นส่วนตัว พร้อมเล่มรายงานวิชาการฉบับสมบูรณ์ (LaTeX Template Project 2026 v2 & Example A)
 
 ---
 
 ## 🌟 จุดเด่นของระบบ (Key Highlights)
 
-- 📡 **รวบรวมข่าวสารจาก 14 สำนักข่าวชั้นนำ:** ดึงข่าวต่อเนื่องทั้งผ่าน RSS Feed, HTTP Scraping และ Headless Browser (Playwright)
-- 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification Engine):** ผสานการตรวจจับรวดเร็วระดับเสี้ยววินาทีด้วย URL Priority (<0.1ms), โมเดล Calibrated LinearSVC (TF-IDF) และโมเดลการเรียนรู้เชิงลึก **WangchanBERTa (Fine-tuned Transformer)** สำหรับวิเคราะห์บริบทข่าวกำกวมสูงข้าม 9 หมวดหมู่
+- 📡 **รวบรวมข่าวสารจาก 14 สำนักข่าวชั้นนำ:** ดึงข่าวต่อเนื่องทั้งผ่าน RSS Feed, HTTP Scraping และ Headless Browser (Playwright with CDP sessions)
+- 🧠 **ระบบจำแนกหมวดหมู่อัจฉริยะ 3 ระดับ (3-Tier Classification Engine):**
+  - **Tier 1 (Fast-Path URL Priority, <0.1ms):** สกัดหมวดหมู่จากโครงสร้าง URL path และ slug ภาษาไทย/อังกฤษ
+  - **Tier 2 (Fast Machine Learning, ~2ms):** โมเดล Calibrated LinearSVC ร่วมกับ TF-IDF 20,000 มิติ ตัดคำภาษาไทยด้วย PyThaiNLP (`newmm`)
+  - **Tier 3 (Deep Learning Transformer):** โมเดล **WangchanBERTa Sequence Classification** ตรวจจับบริบทเชิงลึกข้าม 9 หมวดหมู่สำหรับข่าวที่กำกวมสูง (F1-score 0.941)
+  - **Fallback Tier:** ระบบสำรองคำสำคัญทางภาษาศาสตร์ (Keyword Cues) และค่าปริยายสังคม
 - 🧭 **ติดตามมหากาพย์ประเด็นข่าว 2 ชั้น (Two-Stage Story & Macro-Event Identification):**
-  - **Stage A (Sub-Events):** จัดกลุ่มข่าวเหตุการณ์ย่อยด้วย Dense Vector (WangchanBERTa 768-d), การยืนยัน Named Entity (`thainer-v2`) และหน้าต่างสืบค้น 72 ชั่วโมงแบบไม่จำกัดอายุขัย
-  - **Stage B (Macro Storyline):** เชื่อมโยงพัฒนาการมหากาพย์ข้ามช่วงเวลา พร้อมกลไกความปลอดภัยทางวิศวกรรม: **Strict Province-Only Veto** (ยับยั้งการรวมกลุ่มหากตรงกันเพียงชื่อจังหวัด), **Episode-Scoped Anchors (45 วัน)** ป้องกันการรวมข้ามฤดูกาล, **Thai Normalization & Location Hierarchy** 3 ระดับครอบคลุม 77 จังหวัด, และ **Inter-Process File Lock** ป้องกันการแก้ไขชนกันข้ามโพรเซส
+  - **Stage A (Sub-Events):** จัดกลุ่มข่าวเหตุการณ์ย่อยด้วย Dense Semantic Embeddings (WangchanBERTa 768-d), Cosine Similarity ($0.72$--$0.82$), การยืนยัน Named Entity (`thainer-v2`) และหน้าต่างสืบค้น 72 ชั่วโมงแบบไม่จำกัดอายุขัย พร้อม Centroid EMA ($\alpha=0.85$)
+  - **Stage B (Macro Storyline):** เชื่อมโยงพัฒนาการมหากาพย์ข้ามช่วงเวลา พร้อมกลไกความปลอดภัยทางวิศวกรรม:
+    - **Strict Province-Only Veto:** ยับยั้งการรวมกลุ่มข่าวที่ตรงกันเพียงชื่อจังหวัด ป้องกันการหลอมรวมข่าวอาชญากรรมหรืออุบัติเหตุต่างเรื่อง
+    - **Episode-Scoped Anchors (45 วัน):** ควบคุมกรอบเวลาของมหากาพย์ ป้องกันการรวมข้ามฤดูกาล
+    - **Thai Normalization & Location Hierarchy:** ระบบพจนานุกรมชื่อเฉพาะและลำดับชั้นสถานที่ 3 ระดับครอบคลุม 77 จังหวัด
+    - **Inter-Process File Lock (`file_lock.py`):** ป้องกันการบันทึกข้อมูลชนกันข้ามโพรเซสด้วย Kernel-level Lock
 - 🛡️ **เกตคัดกรองความเกี่ยวข้องและแบบจำลองหลักฐาน (Relevance Gate & Evidence Dossier):** คัดแยกข่าว 3 กลุ่ม (*Relevant Evidence*, *Context*, *Excluded*) ก่อนส่งให้ LLM สังเคราะห์ พร้อมระบบ Output Validator ตรวจสอบความถูกต้องและป้องกันข่าวบริบทแวดล้อมปนเปื้อนเข้าไทม์ไลน์หลัก
-- 📊 **จัดอันดับเทรนด์ข่าวเชิงสถิติ (Deterministic Trending Engine):** คำนวณความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ (Volume, Burst Velocity, Outlet Diversity, Recency Decay, Novelty, Reader Telemetry) ปราศจาก LLM ในขั้นตอนคำนวณคะแนน โปร่งใสและตรวจสอบได้ (Explainable Scoring)
-- ⚡ **สรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing):** สังเคราะห์สาระสำคัญ (Key Takeaways), วิเคราะห์โทนข่าว (Sentiment) และจัดทำไทม์ไลน์เหตุการณ์ด้วย Gemini LLM พร้อมระบบ Fallback เมื่อ API ขัดข้อง
-- 🏗️ **สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture):** Backend รองรับโหมด Headless API พร้อม Dynamic CORS Matrix และ Socket.IO ซิงโครไนซ์สมบูรณ์แบบ สามารถแยกรัน Frontend อิสระบนพอร์ตหรือ CDN ใดก็ได้
-- 🧩 **คอมโพเนนต์ย่อยแบบ Clean Architecture (Modular Vanilla JS):** แยกส่วนตรรกะ UI ออกเป็น 11 โมดูลเดี่ยวตามหลัก Single Responsibility โดยทุกไฟล์มีขนาดต่ำกว่า 800 บรรทัด พร้อม Thin Barrel Facade ที่คง Backward-compatibility 100%
-- 🚀 **ประสิทธิภาพและการประหยัดพลังงาน (Lifecycle & Performance):** จัดการ Autoplay Timer และ Event Listener ตาม Page Visibility API หยุดการทำงานในพื้นหลังเพื่อประหยัดแบตเตอรี่และป้องกัน Memory Leaks พร้อมระบบ Outside-Click / Escape ปิด Modal ทุกตัว
-- 📱 **สถาปัตยกรรม PWA ปลอดภัยลิขสิทธิ์ (Copyright-Safe PWA):** ติดตั้งเป็นแอปบนมือถือและคอมพิวเตอร์ รองรับการอ่านออฟไลน์ และหลีกเลี่ยงการละเมิดลิขสิทธิ์รูปภาพด้วยภาพเวกเตอร์ Editorial Placeholder
-- 🛡️ **สถาปัตยกรรมแคช 4 ระดับ (4-Layer Caching):** ประมวลผลรวดเร็วและประหยัดทรัพยากรด้วย Client Cache, Async TTLCache, Browser Snapshot Cache และ HTTP Conditional Request (ETag/304)
-- 📋 **ระบบแบบประเมินโครงงาน (Project Evaluation System):** หน้า Landing Page สำหรับประเมินโครงงาน (`#/evaluation`), ปุ่มนำทางโดดเด่นสะดุดตาบน Header และระบบแจ้งเตือนชวนทำแบบประเมินผ่าน Google Forms หลังใช้งาน AI
+- 📊 **จัดอันดับเทรนด์ข่าวเชิงสถิติ (Deterministic Trending Engine):** คำนวณความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ (Volume 25%, Burst Velocity 30%, Outlet Diversity 25%, Recency Decay 10%, Novelty 5%, Telemetry 5%) ปราศจาก LLM ในขั้นตอนคำนวณคะแนน โปร่งใส ตรวจสอบได้ พร้อมระบบลดทอนคะแนนข่าวกิจวัตรประจำวัน ($0.25\times$)
+- ⚡ **สรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing):** สังเคราะห์สาระสำคัญ (Key Takeaways), วิเคราะห์โทนข่าว (Sentiment) และจัดทำไทม์ไลน์เหตุการณ์ด้วย Gemini LLM พร้อมระบบ Heuristic Fallback เมื่อ API ขัดข้อง
+- 🏗️ **สถาปัตยกรรมแยกส่วนอิสระ (Headless Decoupled Architecture):** Backend รองรับโหมด Headless API (`HEADLESS=true`) พร้อม Dynamic CORS Matrix และ Socket.IO ซิงโครไนซ์สมบูรณ์แบบ สามารถแยกรัน Frontend อิสระบนพอร์ตหรือ CDN ใดก็ได้
+- 🍱 **อินเทอร์เฟซผู้ใช้แบบ Bento Grid & Modular Clean Architecture:**
+  - ดีไซน์ Bento Hub สวยงามทันสมัย แบ่งสัดส่วนข่าวเด่น เทรนด์มหากาพย์ และข่าวล่าสุด
+  - แยกส่วนตรรกะ UI ออกเป็น 11 โมดูลเดี่ยวตามหลัก Single Responsibility (ทุกไฟล์ขนาดต่ำกว่า 800 บรรทัด)
+  - ตัวกรองวันที่กำหนดเอง (Custom Date Filter) พร้อม Date Picker ภาษาไทย
+  - สวิตช์สลับลำดับการแสดงผลไทม์ไลน์ (Latest / Oldest)
+  - หน้าต่างอ่านบทความแบบ In-App Clean Markdown Reader
+  - Workstation สำหรับนักข่าวและนักสืบสวน (Issue Explorer) และหน้าต่างตรวจสอบการทำงานระบบ (Ops Console)
+- 🔒 **การคุ้มครองความเป็นส่วนตัวและ PDPA (Zero-PII Compliance):** จัดเก็บข้อมูล Telemetry และการตั้งค่าบนฝั่งไคลเอนต์ (LocalStorage) เท่านั้น ปราศจากการเก็บรวบรวมข้อมูลส่วนบุคคลที่ระบุตัวตนได้
+- 📱 **สถาปัตยกรรม PWA ปลอดภัยลิขสิทธิ์ (Copyright-Safe PWA):** ติดตั้งเป็นแอปพลิเคชันบนมือถือและคอมพิวเตอร์ รองรับการอ่านออฟไลน์ และหลีกเลี่ยงการละเมิดลิขสิทธิ์รูปภาพด้วยภาพเวกเตอร์ Editorial Placeholder
+- 📸 **ไปป์ไลน์บันทึกภาพหน้าจออัตโนมัติ (Playwright Visual Pipeline):** สคริปต์อัตโนมัติจับภาพหน้าจอระบบ 6 มุมมองหลักสำหรับประกอบเล่มรายงานวิชาการแบบ Zero-diff
+- 🎓 **เอกสารรายงานวิชาการระดับมืออาชีพ (XeLaTeX Academic Report):** รายงานโครงงาน 5 บท + 3 ภาคผนวก ความยาว 99 หน้า จัดทำตาม Template Project 2026 v2 & Example A พร้อมแผนภาพเวกเตอร์ TikZ บริสุทธิ์ 6 รูปแบบ ตารางแคตตาล็อก 38 รายการ และคงคุณสมบัติห้ามใช้เครื่องหมายโคลอนในข้อความภาษาไทยอย่างเคร่งครัด
 
 ---
 
@@ -27,86 +41,90 @@
 
 ```
 backend/
-├── main.py                     — FastAPI application factory, headless toggle & Socket.IO mounting
-├── config.py                   — ศูนย์กลางตั้งค่าคอนฟิก (Settings singleton, Headless toggle & CORS Matrix)
-├── .env / .env.example         — Environment variables (API keys, model checkpoints, parameters)
+├── main.py                          — FastAPI application factory, headless toggle & Socket.IO mounting
+├── config.py                        — ศูนย์กลางตั้งค่าคอนฟิก (Settings singleton, Headless toggle & CORS Matrix)
+├── capture_report_screenshots.py    — Playwright automated screenshot pipeline สำหรับเล่มรายงาน (M-01 to M-06)
+├── .env / .env.example              — Environment variables (API keys, model checkpoints, parameters)
 ├── core/
-│   ├── browser.py              — Playwright browser automation (Service + Local Fallback)
-│   ├── constants.py            — ค่าคงที่ของระบบ และ HTTP Browser Headers
-│   ├── fetcher_service.py      — HTML extraction & Markdown converter
-│   ├── file_lock.py            — Cross-platform Inter-Process Kernel File Lock (fcntl/msvcrt)
-│   ├── thai_normalizer.py      — Thai NLP normalization, alias resolution & 77-province hierarchy
-│   ├── url_utils.py            — URL canonicalization & tracking parameter stripper
-│   └── socket_manager.py       — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวและ Dynamic CORS
+│   ├── browser.py                   — Playwright browser automation (Service + Local Fallback)
+│   ├── constants.py                 — ค่าคงที่ของระบบ และ HTTP Browser Headers
+│   ├── fetcher_service.py           — HTML extraction & Markdown converter
+│   ├── file_lock.py                 — Cross-platform Inter-Process Kernel File Lock (fcntl/msvcrt)
+│   ├── thai_normalizer.py           — Thai NLP normalization, alias resolution & 77-province hierarchy
+│   ├── url_utils.py                 — URL canonicalization & tracking parameter stripper
+│   └── socket_manager.py            — Socket.IO singleton manager สำหรับสตรีมมิ่งข่าวและ Dynamic CORS
 ├── schemas/
-│   ├── news_schema.py          — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
-│   ├── story_schema.py         — Pydantic models (StoryRecord, TimelineEvent, StorySynthesis)
-│   ├── trending_schema.py      — Pydantic models (TrendingStoryItem, TrendingScoreBreakdown)
-│   ├── macro_event_schema.py   — Pydantic models (MacroEventRecord, TopicCluster)
-│   └── event_evidence_schema.py — Pydantic models สำหรับตรวจสอบความสัมพันธ์ของหลักฐานข่าว
+│   ├── news_schema.py               — Pydantic models (ArticleRecord, NewsSummary, CollectRequest)
+│   ├── story_schema.py              — Pydantic models (StoryRecord, TimelineEvent, StorySynthesis)
+│   ├── trending_schema.py           — Pydantic models (TrendingStoryItem, TrendingScoreBreakdown)
+│   ├── macro_event_schema.py        — Pydantic models (MacroEventRecord, TopicCluster)
+│   └── event_evidence_schema.py      — Pydantic models สำหรับตรวจสอบความสัมพันธ์ของหลักฐานข่าว
 ├── repo/
-│   ├── news_repo.py            — ข้อมูลข่าวพื้นฐาน (FileNewsRepository / NewsRepositoryPort)
-│   ├── story_repo.py           — ข้อมูลกลุ่มข่าวแบบต่อเนื่อง (FileStoryRepository / MongoDB)
-│   ├── engagement_repo.py      — ข้อมูล Telemetry การมีส่วนร่วมของผู้ใช้ (คลิก, สรุป, บุ๊กมาร์ก)
-│   ├── macro_event_repo.py     — การจัดเก็บกลุ่มเหตุการณ์ระดับมหภาค
-│   └── sqlite_news_repo.py     — การจัดเก็บสำรองด้วย SQLite
+│   ├── news_repo.py                 — ข้อมูลข่าวพื้นฐาน (FileNewsRepository / NewsRepositoryPort)
+│   ├── story_repo.py                — ข้อมูลกลุ่มข่าวแบบต่อเนื่อง (FileStoryRepository / MongoDB)
+│   ├── engagement_repo.py           — ข้อมูล Telemetry การมีส่วนร่วมของผู้ใช้ (คลิก, สรุป, บุ๊กมาร์ก)
+│   ├── macro_event_repo.py          — การจัดเก็บกลุ่มเหตุการณ์ระดับมหภาค
+│   └── sqlite_news_repo.py          — การจัดเก็บสำรองด้วย SQLite
 ├── routers/
-│   ├── news_router.py          — API ข่าว: /api/news, /api/sources, /api/categories, /api/status
-│   ├── story_router.py         — API ประเด็นข่าว: /api/stories, /api/stories/{id}, /api/storylines
-│   ├── trending_router.py      — API เทรนด์: /api/trending/stories, /api/trending/score-breakdown
-│   ├── collect_router.py       — API สรุปข่าว: /api/collect-md (LLM Summarization)
-│   ├── monitoring_router.py    — API ตรวจสอบสถานะระบบ: /api/monitoring/health, /api/monitoring/metrics
-│   └── macro_event_router.py   — API จัดการเหตุการณ์ระดับมหภาค
+│   ├── news_router.py               — API ข่าว: /api/news, /api/sources, /api/categories, /api/status
+│   ├── story_router.py              — API ประเด็นข่าว: /api/stories, /api/stories/{id}, /api/storylines
+│   ├── trending_router.py           — API เทรนด์: /api/trending/stories, /api/trending/score-breakdown
+│   ├── collect_router.py            — API สรุปข่าว: /api/collect-md (LLM Summarization)
+│   ├── monitoring_router.py         — API ตรวจสอบสถานะระบบ: /api/monitoring/health, /api/monitoring/metrics
+│   └── macro_event_router.py        — API จัดการเหตุการณ์ระดับมหภาค
 ├── services/
-│   ├── scraper_service.py      — Background loop ทำงานดึงข่าวรอบละ 15 นาที
-│   ├── classifier_service.py   — เครื่องมือจัดหมวดหมู่อัจฉริยะ 3-Tier Multi-strategy Classifier
-│   ├── story_service.py        — การจับคู่และรวมกลุ่มบทความข่าวแบบ Online Incremental
-│   ├── trending_service.py     — การคำนวณคะแนนความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ
+│   ├── scraper_service.py           — Background loop ทำงานดึงข่าวรอบละ 15 นาที
+│   ├── classifier_service.py        — เครื่องมือจัดหมวดหมู่อัจฉริยะ 3-Tier Multi-strategy Classifier
+│   ├── story_service.py             — การจับคู่และรวมกลุ่มบทความข่าวแบบ Online Incremental
+│   ├── trending_service.py          — การคำนวณคะแนนความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติ
 │   ├── story_presentation_service.py — สังเคราะห์หัวข้อข่าวและไทม์ไลน์ภาพรวมด้วย LLM
-│   ├── summarizer_service.py   — บริการถอดใจความและสรุปบทความข่าวรายชิ้น
-│   ├── entity_extractor.py     — สกัด Named Entities (PyThaiNLP thainer-v2)
-│   └── browser_service.py      — จัดการ Playwright CDP sessions
+│   ├── summarizer_service.py        — บริการถอดใจความและสรุปบทความข่าวรายชิ้น
+│   ├── entity_extractor.py          — สกัด Named Entities (PyThaiNLP thainer-v2)
+│   └── browser_service.py           — จัดการ Playwright CDP sessions
 ├── scrapers/
-│   ├── registry.py             — Decorator @register_source และแคตตาล็อกสำนักข่าว
-│   ├── helpers.py              — HTML/RSS parser, ตัวดึงรูปภาพ และ Article Builder
-│   └── sources.py              — สคริปต์สแครปข่าวสำหรับ 14 สำนักข่าว
+│   ├── registry.py                  — Decorator @register_source และแคตตาล็อกสำนักข่าว
+│   ├── helpers.py                   — HTML/RSS parser, ตัวดึงรูปภาพ และ Article Builder
+│   └── sources.py                   — สคริปต์สแครปข่าวสำหรับ 14 สำนักข่าว
 ├── model/
-│   ├── tfidf_vectorizer.pkl    — TF-IDF Vectorizer สำหรับข้อความภาษาไทย
-│   ├── svm_classifier.pkl      — Support Vector Machine Classifier
-│   └── wangchanberta_classifier — Local Offline Embedding Checkpoint (WangchanBERTa)
-└── tests/                      — ชุดทดสอบระบบครอบคลุมทั้ง Unit Tests, Integration Tests และ Decoupling Tests
+│   ├── tfidf_vectorizer.pkl         — TF-IDF Vectorizer สำหรับข้อความภาษาไทย
+│   ├── svm_classifier.pkl           — Support Vector Machine Classifier
+│   └── wangchanberta_classifier     — Local Offline Embedding Checkpoint (WangchanBERTa)
+└── tests/                           — ชุดทดสอบระบบครอบคลุมกว่า 420+ กรณีทดสอบ
 
 frontend/
-├── index.html                  — หน้าเว็บหลักแบบ Responsive Single Page Application (SPA)
-├── manifest.webmanifest        — Progressive Web App Manifest
-├── sw.js                       — Service Worker สำหรับแคชและประมวลผลออฟไลน์
+├── index.html                       — หน้าเว็บหลักแบบ Responsive Bento Grid Single Page Application (SPA)
+├── manifest.webmanifest             — Progressive Web App Manifest
+├── sw.js                            — Service Worker สำหรับแคชและประมวลผลออฟไลน์
 └── static/
-    ├── app.css                 — สไตล์ชีต Editorial Theme และ Tailwind Utilities
-    ├── tailwind-input.css      — ต้นฉบับ Tailwind CSS Input ไฟล์
-    ├── config.js               — การตั้งค่าฝั่งผู้ใช้ (4-Tier API Resolution, หมวดหมู่, สีสำนักข่าว)
-    ├── api.js                  — REST API Client อิสระ พร้อม Typed Errors และ Normalization
-    ├── socket.js               — Dedicated WebSocket Manager พร้อม Pub/Sub Event Bus
-    ├── UI.js                   — Thin Barrel Facade re-exporting โมดูลคอมโพเนนต์ย่อย
+    ├── app.css                      — สไตล์ชีต Editorial Theme และ Tailwind Utilities
+    ├── config.js                    — การตั้งค่าฝั่งผู้ใช้ (4-Tier API Resolution, หมวดหมู่, สีสำนักข่าว)
+    ├── api.js                       — REST API Client อิสระ พร้อม Typed Errors และ Normalization
+    ├── socket.js                    — Dedicated WebSocket Manager พร้อม Pub/Sub Event Bus
+    ├── UI.js                        — Thin Barrel Facade re-exporting โมดูลคอมโพเนนต์ย่อย
     ├── utils/
-    │   └── common.js           — ฟังก์ชันช่วยจัดรูปแบบ, XSS Escaping, วันที่ปฏิทินไทย
+    │   └── common.js                — ฟังก์ชันช่วยจัดรูปแบบ, XSS Escaping, วันที่ปฏิทินไทย
     ├── components/
-    │   ├── status.js           — สถานะการเชื่อมต่อ WS, สถิติ Telemetry, Ticker บาร์
-    │   ├── filters.js          — แถบเลือกหมวดหมู่, ตัวกรองสำนักข่าว, แถบค้นหา
-    │   ├── cards.js            — ข่าวการ์ดแบบ Responsive Grid, Pagination, Dateline
-    │   ├── reader.js           — หน้าต่างอ่านบทความ, Switch View, Modal ควบคุม
-    │   ├── hero.js             — Hero Carousel ข่าวเด่น พร้อม Autoplay Lifecycle
-    │   ├── sports-intelligence.js — ตัวจำแนกประเภทกีฬา 10 สาขา และการตรวจจับคลัสเตอร์
-    │   ├── sports.js           — Sports Hub View, Bento Grid กีฬา, AI Digest
-    │   ├── storyline.js        — Macro Storyline View, ลำดับเหตุการณ์มหากาพย์
-    │   ├── digest.js           — AI Synthesis Dossier Modal, การตรวจสอบหลักฐาน
-    │   └── evaluation.js       — หน้าประเมินโครงงานและการตอบแบบสอบถาม
-    └── main.js                 — State Manager, Dynamic View Loader, Hash Routing (`#/`, `#/preview/`, `#/storyline/`, `#/evaluation`)
+    │   ├── status.js                — สถานะการเชื่อมต่อ WS, สถิติ Telemetry, Ticker บาร์
+    │   ├── filters.js               — แถบเลือกหมวดหมู่, ตัวกรองสำนักข่าว, ตัวกรองช่วงวันที่, แถบค้นหา
+    │   ├── cards.js                 — ข่าวการ์ดแบบ Responsive Grid, Pagination, Dateline
+    │   ├── reader.js                — หน้าต่างอ่านบทความ In-App Clean Reader, Switch View
+    │   ├── hero.js                  — Hero Carousel ข่าวเด่น พร้อม Autoplay Lifecycle
+    │   ├── sports-intelligence.js   — ตัวจำแนกประเภทกีฬา 10 สาขา และการตรวจจับคลัสเตอร์
+    │   ├── sports.js                — Sports Hub View, Bento Grid กีฬา, AI Digest
+    │   ├── storyline.js             — Macro Storyline View, ลำดับเหตุการณ์มหากาพย์, ตัวกรอง/เรียงลำดับ
+    │   ├── digest.js                — AI Synthesis Dossier Modal, การตรวจสอบหลักฐาน
+    │   └── evaluation.js            — หน้าประเมินโครงงานและการตอบแบบสอบถาม
+    └── main.js                      — State Manager, Dynamic View Loader, Hash Routing (`#/`, `#/storyline/`, `#/evaluation`, `#/issues`, `#/ops`)
 
-data/                           — ไดเรกทอรีจัดเก็บข้อมูลในเครื่อง (สร้างขึ้นอัตโนมัติ)
-├── news_data.json              — ฐานข้อมูลบทความข่าว
-├── stories_data.json           — ฐานข้อมูลกลุ่มเรื่องราวเหตุการณ์ (StoryRecords)
-├── engagement_data.json        — ข้อมูล Telemetry การใช้งาน
-└── collected_md/               — ไฟล์สรุปข่าวในรูปแบบ Markdown
+docs/                                — เอกสารและรายงานวิชาการ
+└── report/
+    ├── main.tex                     — ไฟล์คอมไพล์หลัก XeLaTeX + Biber
+    ├── cskkuproject.cls             — LaTeX Document Class มาตรฐานวิทยาลัยการคอมพิวเตอร์ มข. (Template v2)
+    ├── references.bib               — รายการบรรณานุกรมงานวิจัยและมาตรฐานวิศวกรรม
+    ├── frontmatter/                 — ปกหน้า, บทคัดย่อภาษาไทย/อังกฤษ, กิตติกรรมประกาศ
+    ├── chapters/                    — เนื้อหาโครงงาน 5 บท (สอดคล้องตามเกณฑ์ Example A)
+    ├── backmatter/                  — ภาคผนวก ก (คู่มือและการทดสอบ M-01 to M-06), ภาคผนวก ข, ภาคผนวก ค, ประวัติผู้เขียน
+    └── images/                      — ภาพประกอบระบบและภาพสกรีนช็อตอัตโนมัติจาก Playwright
 ```
 
 ---
@@ -138,21 +156,21 @@ data/                           — ไดเรกทอรีจัดเก�
 
 ---
 
-## 🧩 การจัดโครงสร้างโมดูลฝั่ง Frontend (Modular UI Architecture)
+## 🍱 สถาปัตยกรรมอินเทอร์เฟซผู้ใช้แบบโมดูลาร์ (Modular UI Architecture)
 
-ไฟล์ `UI.js` เดิมที่มีขนาดใหญ่ได้รับการ Re-architect ใหม่เป็น 11 โมดูลเดี่ยวตามหลัก **Clean Code & Single Responsibility**:
+ไฟล์ `UI.js` เดิมได้รับการจัดโครงสร้างใหม่เป็น 11 โมดูลเดี่ยวตามหลัก **Clean Code & Single Responsibility**:
 
 | โมดูล | ขอบเขตความรับผิดชอบ | ขนาด (LOC) |
 |---|---|---|
 | [utils/common.js](file:///frontend/static/utils/common.js) | XSS Sanitization (`esc`), ปฏิทินพุทธศักราช, Format เวลาไทย | ~300 |
 | [components/status.js](file:///frontend/static/components/status.js) | WebSocket Badge, Scraper Telemetry, Ticker Marquee | ~160 |
-| [components/filters.js](file:///frontend/static/components/filters.js) | Category Navigation, Search Input, Source Chips | ~195 |
+| [components/filters.js](file:///frontend/static/components/filters.js) | Category Navigation, Search Input, Source Chips, Custom Date Picker | ~250 |
 | [components/cards.js](file:///frontend/static/components/cards.js) | News Grid Rendering, Responsive Dateline, Pagination | ~235 |
-| [components/reader.js](file:///frontend/static/components/reader.js) | View Switching (`switchView`), Reader Drawer, Modal Helpers | ~500 |
+| [components/reader.js](file:///frontend/static/components/reader.js) | View Switching (`switchView`), In-App Clean Reader, Modal Helpers | ~500 |
 | [components/hero.js](file:///frontend/static/components/hero.js) | Hero Trending Carousel, Touch Swipe, Autoplay Lifecycle | ~710 |
 | [components/sports-intelligence.js](file:///frontend/static/components/sports-intelligence.js) | จำแนกกีฬา 10 ประเภท (ฟุตบอลไทย/ยุโรป, แบดมินตัน, วอลเลย์บอล ฯลฯ) | ~215 |
 | [components/sports.js](file:///frontend/static/components/sports.js) | Sports Hub View, Discipline Tabs, AI Digest Cards | ~740 |
-| [components/storyline.js](file:///frontend/static/components/storyline.js) | Multi-source Storyline View, Perspective Breakdown, Graph | ~780 |
+| [components/storyline.js](file:///frontend/static/components/storyline.js) | Multi-source Storyline View, Perspective Breakdown, Latest/Oldest Sort | ~780 |
 | [components/digest.js](file:///frontend/static/components/digest.js) | Event Progression Synthesis, Cross-Outlet Citations, Quality Audit | ~340 |
 | [components/evaluation.js](file:///frontend/static/components/evaluation.js) | Research Project Evaluation View, Scoring Form | ~160 |
 | [UI.js](file:///frontend/static/UI.js) | Thin Backward-Compatible Barrel Facade (Re-exporting All) | ~33 |
@@ -160,11 +178,24 @@ data/                           — ไดเรกทอรีจัดเก�
 - **ทุกไฟล์มีขนาดไม่เกิน 800 บรรทัด** อย่างเคร่งครัด
 - **ลด DOM Thrashing & Memory Leaks:** ปิดการทำงานของ Autoplay Timer ชั่วคราวเมื่อผู้ใช้สลับหน้าจอ (เช่น เข้าโหมดอ่านบทความเจาะลึก) หรือพับแท็บเบราว์เซอร์ (`visibilitychange`)
 - **Outside-Click / Backdrop Dismiss:** แตะหรือคลิกบริเวณพื้นที่ว่างด้านนอกการ์ด หรือกดปุ่ม `Escape` เพื่อปิด Modal ทุกตัวได้อย่างสะดวกรวดเร็ว
-- **Mobile Responsive Perfection:** จัดวางองค์ประกอบ Header บน Mobile ให้เรียบง่ายสะอาดตา (มีเฉพาะปุ่มแบบประเมิน) และนำปุ่มการตั้งค่าไปไว้ที่มุมบนขวาในโหมด Desktop
+- **Responsive Bento Layout:** จัดวางองค์ประกอบอย่างลงตัวทั้งบนสมาร์ตโฟน แท็บเล็ต และคอมพิวเตอร์เดสก์ท็อป
 
 ---
 
 ## 🧠 ระบบจำแนกหมวดหมู่ข่าว (3-Tier Classification Engine)
+
+```mermaid
+flowchart TD
+    RawNews["บทความข่าวใหม่ (Title, Summary, URL)"] --> T1{"Tier 1: URL Priority\n(<0.1ms)"}
+    T1 -- "ตรง Pattern ชัดเจน" --> C1["ตอบผลลัพธ์ทันที (Fast Path)"]
+    T1 -- "ไม่พบใน URL Pattern" --> T2["Tier 2: TF-IDF + LinearSVC\n(~2ms)"]
+    T2 --> T2Check{"ความมั่นใจ\nConf >= 0.50?"}
+    T2Check -- "ใช่ (มั่นใจสูง)" --> C2["ตอบผลลัพธ์ Tier 2"]
+    T2Check -- "ไม่ (กำกวม)" --> T3["Tier 3: WangchanBERTa\nTransformer (Contextual)"]
+    T3 --> T3Check{"ความมั่นใจ\nConf >= 0.60?"}
+    T3Check -- "ใช่" --> C3["ตอบผลลัพธ์ Tier 3"]
+    T3Check -- "ไม่" --> Fallback["Fallback Tier:\nDomain Expert Rules / Society"]
+```
 
 1. **Tier 1: Fast-Path URL Priority (< 0.1ms)**
    - สกัดหมวดหมู่จาก URL path หรือ slug อัตโนมัติ (เช่น `/politics`, `/business`, `/sport`, `/tech`, `/foreign`, `/local` รวมถึง URL ภาษาไทยแบบ Percent-encoded)
@@ -173,22 +204,22 @@ data/                           — ไดเรกทอรีจัดเก�
    - ตัดคำภาษาไทยด้วย PyThaiNLP (`newmm`) และแปลงเวกเตอร์ด้วย `TfidfVectorizer` (20,000 features) พร้อมโมเดล LinearSVC ที่ผ่านการปรับแต่งความน่าจะเป็นด้วย `CalibratedClassifierCV`
    - หากความมั่นใจ $\text{conf} \ge 0.50$ จะตอบผลลัพธ์ทันทีด้วยความเร็วสูง
 3. **Tier 3: Deep Learning Escalation (Fine-tuned WangchanBERTa Transformer)**
-   - กรณีที่โมเดล Tier 2 มีความมั่นใจต่ำกว่าเกณฑ์ ($\text{conf} < 0.50$) หรือเนื้อหาข่าวมีความกำกวมสูง (เช่น ข่าวการเมืองที่คาบเกี่ยวกับเศรษฐกิจและสังคม) ระบบจะส่งต่อให้โมเดล **WangchanBERTa Sequence Classification** เข้ามาอ่านบริบทเชิงลึกทั้งบทความเพื่อจำแนก 9 หมวดหมู่อย่างแม่นยำสูงสุด (F1-score 0.941)
+   - กรณีที่โมเดล Tier 2 มีความมั่นใจต่ำกว่าเกณฑ์ ($\text{conf} < 0.50$) หรือเนื้อหาข่าวมีความกำกวมสูง ระบบจะส่งต่อให้โมเดล **WangchanBERTa Sequence Classification** เข้ามาอ่านบริบทเชิงลึกทั้งบทความเพื่อจำแนก 9 หมวดหมู่อย่างแม่นยำสูงสุด (F1-score 0.941)
 4. **Fallback Tier: Domain Expert Rules & Society Default**
    - ในกรณีฉุกเฉินที่โมเดลไม่มั่นใจหรือขัดข้อง จะมีระบบสำรองด้วยกฎคำสำคัญทางภาษาศาสตร์ (Keyword Cues) และกำหนดค่าปริยายเป็น `society`
 
 ---
 
-## 🧭 ระบบติดตามเรื่องราวและจัดอันดับเทรนด์ (Two-Layer Architecture)
+## 🧭 ระบบติดตามเรื่องราวและจัดอันดับเทรนด์ (Two-Stage Architecture)
 
-### Layer 1: Persistent Online Story Identification
+### Stage A: Persistent Online Story Identification
 - **Online Incremental Clustering:** ข่าวแต่ละบทความที่ดึงเข้ามาใหม่จะถูกนำมาประเมินทันที (`StoryService.assign_article`) โดยไม่จำเป็นต้อง re-cluster ข่าวทั้งหมดใหม่
-- **Semantic Vector Similarity:** สกัดเวกเตอร์ขนาด 768 มิติด้วย WangchanBERTa ทำ Cosine Similarity เทียบกับ Centroid ของประเด็นข่าว
+- **Semantic Vector Similarity:** สกัดเวกเตอร์ขนาด 768 มิติด้วย WangchanBERTa ทำ Cosine Similarity เทียบกับ Centroid ของประเด็นข่าว (Threshold $0.72$--$0.82$)
 - **Secondary Entity Confirmation Gate:** สกัด Named Entities (บุคคล, องค์กร, สถานที่) ด้วย PyThaiNLP `thainer-v2` เพื่อยืนยันความถูกต้องในกรณีค่าความคล้ายคลึงก้ำกึ่ง ($0.74 \le \text{sim} < 0.85$)
 - **Non-Capping 72-Hour Candidate Window:** ค้นหาประเด็นข่าวที่มีความเคลื่อนไหวภายใน 72 ชั่วโมง ทำให้ประเด็นข่าวที่เกิดขึ้นต่อเนื่องเป็นสัปดาห์ (เช่น อุทกภัย, คดีความ) ถูกร้อยเรียงอยู่ภายใต้ `story_id` เดียวกันได้อย่างแม่นยำ
 - **Centroid Exponential Moving Average (EMA, $\alpha=0.85$):** ปรับค่าเวกเตอร์แกนกลางของประเด็นข่าวอย่างราบรื่นตามความคืบหน้าของสถานการณ์
 
-### Layer 2: Deterministic Trending Engine
+### Stage B: Deterministic Trending Engine
 จัดอันดับความร้อนแรงของประเด็นข่าวด้วย 6 มิติทางสถิติที่โปร่งใส ตรวจสอบได้ และปราศจาก LLM ในการคำนวณคะแนน:
 - **Volume Score (25%):** จำนวนบทความข่าวที่รายงานในรอบ 24 ชั่วโมง ($\ln(1 + N_{\text{recent}})$)
 - **Burst Velocity Score (30%):** อัตราการเพิ่มขึ้นอย่างรวดเร็วของข่าวเปรียบเทียบกับช่วงก่อนหน้า
@@ -197,6 +228,20 @@ data/                           — ไดเรกทอรีจัดเก�
 - **Novelty Score (5%):** ความแปลกใหม่ของประเด็นเมื่อเทียบกับประเด็นข่าวอื่น
 - **Engagement Telemetry (5%):** สถิติการมีส่วนร่วมของผู้อ่านแบบไม่ระบุตัวตน (คลิก, สรุปเนื้อหา, บุ๊กมาร์ก)
 - **Routine News Penalty ($0.25\times$):** ลดทอนคะแนนข่าวที่เป็นกิจวัตรประจำวัน (ผลสลากกินแบ่ง, รายงานสภาพอากาศ, ราคาน้ำมัน/ทองคำประจำวัน) ไม่ให้แย่งพื้นที่เทรนด์ข่าวสำคัญ
+
+---
+
+## ⚡ ระบบสรุปเนื้อหาข่าวสารด้วย AI (Executive Briefing & LLM Summarization)
+
+ระบบใช้ประโยชน์จาก Large Language Model (Gemini ผ่าน KKU Gen.AI API) ในการวิเคราะห์และถอดรหัสเนื้อหาข่าวสารแบบอัตโนมัติ โดยส่งคืนโครงสร้างข้อมูล JSON ที่ประกอบด้วย:
+1. **Executive Briefing:** สรุปย่อสาระสำคัญของข่าว 2–3 ประโยค
+2. **Key Takeaways:** ประเด็นสำคัญเชิงลึกแบบจำแนกข้อ (Bullet Points) พร้อมจัดลำดับความสำคัญ
+3. **Sentiment Analysis:** วิเคราะห์โทนอารมณ์ของเนื้อหาข่าว (POSITIVE / NEUTRAL / NEGATIVE)
+4. **Hashtags Extraction:** สกัดคีย์เวิร์ดและแฮชแท็กที่เกี่ยวข้องสำหรับจัดหมวดหมู่และเชื่อมโยงหัวข้อข่าว
+
+<p align="center">
+  <img src="docs/report/images/ai_article_summary.png" alt="บทสังเคราะห์ประเด็นสำคัญและ Key Takeaways โดย AI" width="650" />
+</p>
 
 ---
 
@@ -240,20 +285,25 @@ data/                           — ไดเรกทอรีจัดเก�
 - **Python**: 3.10 ขึ้นไป
 - **Node.js**: 18+ (สำหรับคอมไพล์ Tailwind CSS และรัน Frontend Test Suites)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/) (แนะนำเป็นอย่างยิ่ง)
-- **Browser**: Chromium (ติดตั้งผ่าน Playwright)
+- **Browser Automation**: Chromium (ติดตั้งผ่าน Playwright)
+- **LaTeX Engine (สำหรับคอมไพล์เล่มรายงาน)**: XeLaTeX + Biber (`texlive-xetex`, `latexmk`) พร้อมฟอนต์ TH Sarabun New
 
 ---
 
 ## 📦 การติดตั้ง (Installation)
 
 ```bash
-# 1. ติดตั้ง Python dependencies ทั้งหมดผ่าน uv
+# 1. โคลนคลังโค้ด
+git clone https://github.com/wittgenstein-byte/End-to-End_News_Collector-Summarizer.git
+cd End-to-End_News_Collector-Summarizer
+
+# 2. ติดตั้ง Python dependencies ทั้งหมดผ่าน uv
 uv sync
 
-# 2. ติดตั้ง Chromium สำหรับระบบสแครปข่าวของ Playwright
+# 3. ติดตั้ง Chromium สำหรับระบบสแครปข่าวและไปป์ไลน์จับภาพหน้าจอ
 uv run playwright install chromium
 
-# 3. ติดตั้ง Node dependencies สำหรับ Tailwind CSS
+# 4. ติดตั้ง Node dependencies สำหรับ Tailwind CSS
 cd frontend && npm install && cd ..
 ```
 
@@ -307,7 +357,7 @@ HEADLESS=true uv run python backend/main.py
 ## 🧪 การทดสอบระบบ (Testing & Verification)
 
 ```bash
-# 1. รันชุดทดสอบ Backend ทั้งหมด (Pytest 423 กรณีทดสอบ ผ่าน 100%)
+# 1. รันชุดทดสอบ Backend ทั้งหมด (Pytest 420+ กรณีทดสอบ ผ่าน 100%)
 uv run pytest -v
 
 # 2. ทดสอบคุณสมบัติคงที่ระดับมหากาพย์ P0-P2 (Stage B Macro Invariants & Province Veto)
@@ -340,6 +390,40 @@ uv run python scripts/trending_sanity_report.py
 
 ---
 
+## 📸 ไปป์ไลน์จับภาพหน้าจอและคอมไพล์เล่มรายงาน (Report Generation)
+
+### 1. จับภาพหน้าจอระบบอัตโนมัติด้วย Playwright
+ระบบมีสคริปต์อัตโนมัติสำหรับดึงและจับภาพหน้าจอของอินเทอร์เฟซผู้ใช้ทั้ง 6 มุมมองหลัก เพื่อใช้ประกอบในภาคผนวก ก ของเล่มรายงาน:
+
+```bash
+# สั่งจับภาพหน้าจออัตโนมัติ (M-01 ถึง M-06) ไปยัง docs/report/images/
+uv run python backend/capture_report_screenshots.py
+```
+
+| รหัสภาพ | รายละเอียดหน้าต่างระบบ | ปลายทางไฟล์ภาพ |
+|---|---|---|
+| **M-01** | หน้าหลัก Bento Hub SPA (Hero Carousel, Trending, Filter) | `docs/report/images/screenshot_m01_bento_hub.png` |
+| **M-02** | หน้าต่างอ่านบทความ In-App Cleaned Reader | `docs/report/images/screenshot_m02_in_app_reader.png` |
+| **M-03** | หน้าต่างสังเคราะห์มหากาพย์ข่าวและไทม์ไลน์ (Macro Dossier) | `docs/report/images/screenshot_m03_macro_dossier.png` |
+| **M-04** | โต๊ะทำงานสืบสวนประเด็นข่าวเชิงลึก (Issue Explorer) | `docs/report/images/screenshot_m04_issue_explorer.png` |
+| **M-05** | แผงควบคุมและตรวจสอบสถานะการทำงานระบบ (Ops Console) | `docs/report/images/screenshot_m05_ops_console.png` |
+| **M-06** | หน้าต่างตั้งค่าความเป็นส่วนตัวและความยินยอม (Privacy Modal) | `docs/report/images/screenshot_m06_privacy_modal.png` |
+
+### 2. คอมไพล์เล่มรายงานวิชาการ LaTeX (Template v2 & Example A)
+เล่มรายงานวิชาการได้รับการพัฒนาด้วยภาษา LaTeX โดยใช้เอกสารคลาส `cskkuproject.cls` (ความยาว 99 หน้า พร้อม 6 แผนภาพ TikZ เวกเตอร์แท้):
+
+```bash
+# ไปยังไดเรกทอรีเล่มรายงาน
+cd docs/report
+
+# คอมไพล์ด้วย latexmk (XeLaTeX + Biber)
+latexmk -xelatex -interaction=nonstopmode main.tex
+```
+
+ผลลัพธ์ไฟล์ PDF ฉบับสมบูรณ์จะอยู่ที่ `docs/report/main.pdf`
+
+---
+
 ## 🔍 ตรวจสอบ Code Style & Type Safety
 
 ```bash
@@ -354,4 +438,4 @@ uv run mypy backend/ --ignore-missing-imports --explicit-package-bases
 
 ## 📄 ใบอนุญาตและการอ้างอิง
 
-โปรเจกต์นี้พัฒนาขึ้นเพื่อการวิจัยและศึกษาทางวิชาการ (Educational & Academic Research) รวบรวมข่าวสารจากสำนักข่าวเพื่อการวิเคราะห์และสรุปผลเชิงสังเคราะห์ ไม่มีการละเมิดหรือทำซ้ำภาพถ่ายที่มีลิขสิทธิ์ และเคารพมาตรฐานการคุ้มครองข้อมูลส่วนบุคคล (PDPA)
+โปรเจกต์นี้พัฒนาขึ้นเพื่อการวิจัยและศึกษาทางวิชาการ (Educational & Academic Research) สาขาวิชาวิทยาการคอมพิวเตอร์ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น รวบรวมข่าวสารจากสำนักข่าวเพื่อการวิเคราะห์และสรุปผลเชิงสังเคราะห์ ไม่มีการละเมิดหรือทำซ้ำภาพถ่ายที่มีลิขสิทธิ์ และเคารพมาตรฐานการคุ้มครองข้อมูลส่วนบุคคล (PDPA)
