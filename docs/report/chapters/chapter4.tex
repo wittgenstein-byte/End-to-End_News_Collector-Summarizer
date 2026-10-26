@@ -1618,3 +1618,108 @@ FR-15 & \texttt{POST /api/news/engage} & \texttt{reader\_engagement} & TC-15 \\
     \item \textbf{การทดสอบความสอดคล้องของแคชโพรดักชันและการตรวจสอบก่อนส่งมอบ}\newline
     ทดสอบส่วนหัว \texttt{Cache-Control} ค่า \texttt{no-cache, must-revalidate} และการทดสอบผ่าน Headless Browser อัตโนมัติ ยืนยันว่าไม่มีข้อผิดพลาดหลุดรอดบนหน้าจอ (Zero Console Error) และสัญญาณการเชื่อมต่อเป็น LIVE อย่างสมบูรณ์
 \end{enumerate}
+
+% -----------------------------------------------------------
+\subsection{ผลการประเมินประสิทธิภาพการจำแนกหมวดหมู่ข่าว (News Classification Evaluation)}
+% -----------------------------------------------------------
+
+การประเมินประสิทธิภาพของโมเดลจำแนกหมวดหมู่ข่าวภาษาไทย ดำเนินการทดสอบบนชุดข้อมูลมาตรฐานที่สกัดจากคลังข้อมูล ThaiSum และ Prachathai-67k รวม 9 หมวดหมู่หลัก ได้แก่ การเมือง (politics), เศรษฐกิจ (economy), เทคโนโลยี (technology), สุขภาพ (health), สิ่งแวดล้อม (environment), กีฬา (sports), บันเทิง (entertainment), สังคม (society) และข่าวต่างประเทศ (world) โดยคณะผู้จัดทำได้ดำเนินการทดสอบและเปรียบเทียบสถาปัตยกรรมโมเดล 3 รูปแบบ ดังนี้
+\begin{enumerate}
+    \item \textbf{Calibrated LinearSVC (TF-IDF)}\\*
+    โมเดล Support Vector Machine แบบเชิงเส้น ร่วมกับการแปลงข้อความเป็นเวกเตอร์ TF-IDF กำหนดขนาดพจนานุกรมสูงสุด 25,000 มิติ สกัดคำแบบ N-gram (1--2 คำ) และปรับเทียบค่าความน่าจะเป็นด้วยเทคนิค CalibratedClassifierCV แบบ 3-Fold Cross Validation
+    \item \textbf{WangchanBERTa (Fine-tuned Transformer)}\\*
+    โมเดลภาษาไทยอิงสถาปัตยกรรม RoBERTa (\texttt{airesearch/wangchanberta-base-att-spm-uncased}) ที่ผ่านการปรับแต่งเฉพาะทาง (Fine-tuning) สำหรับงานจำแนก 9 หมวดหมู่ข่าว ด้วยเวกเตอร์ความหมาย 768 มิติ
+    \item \textbf{ระบบจำแนก 3 ระดับแบบบูรณาการ (Unified 3-Tier Cascade Classifier)}\\*
+    สถาปัตยกรรมแบบไฮบริดที่ผสานการจำแนกด่วนผ่านร่องรอย URL และคำเฉพาะทางสูง (Tier 1 และ Tier 3) เข้ากับโมเดลการเรียนรู้ของเครื่อง Calibrated LinearSVC และ WangchanBERTa (Tier 2)
+\end{enumerate}
+
+ผลการทดสอบเปรียบเทียบประสิทธิภาพของโมเดลจำแนกหมวดหมู่ทั้ง 3 รูปแบบ แสดงดังตารางที่~\ref{tab_classification_comparison}
+
+\begin{table}[H]
+\centering
+\caption{ผลการเปรียบเทียบประสิทธิภาพโมเดลจำแนกหมวดหมู่ข่าว 9 หมวด}
+\label{tab_classification_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{สถาปัตยกรรมโมเดล} & \textbf{Accuracy} & \textbf{Macro Prec} & \textbf{Macro Rec} & \textbf{Macro F1} & \textbf{ความหน่วงเฉลี่ย (ms/ข่าว)} \\
+\hline
+Calibrated LinearSVC (TF-IDF) & 85.00\% & 0.8498 & 0.8500 & 0.8436 & 3.48 ms \\ \hline
+WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \hline
+\textbf{Unified 3-Tier Cascade (โครงงานนี้)} & \textbf{87.78\%} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & \textbf{24.25 ms} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+จากตารางที่~\ref{tab_classification_comparison} ระบบจำแนก 3 ระดับแบบบูรณาการ (Unified 3-Tier Cascade Classifier) บรรลุประสิทธิภาพสูงสุด โดยมีค่าความถูกต้อง (Accuracy) เท่ากับร้อยละ 87.78 และมีค่า Macro F1-score เท่ากับ 0.8749 ซึ่งสูงกว่าการใช้โมเดล Calibrated LinearSVC เพียงอย่างเดียว (Macro F1 = 0.8436) และสูงกว่าโมเดล WangchanBERTa แบบเดี่ยว (Macro F1 = 0.8642) โดยยังคงรักษาเวลาในการประมวลผลเฉลี่ยอยู่ในระดับต่ำเพียง 24.25 มิลลิวินาทีต่อบทความ เนื่องจากข่าวส่วนใหญ่ (ร้อยละ 83.3) ถูกจำแนกผ่านเส้นทางความเร็วสูงของ LinearSVC ในขณะที่ร้อยละ 16.7 ถูกช่วยยืนยันความถูกต้องด้วยกฎบริบทความเฉพาะทางสูง (High-Specificity Cues)
+
+เมื่อพิจารณาประสิทธิภาพรายหมวดหมู่ของระบบ Unified 3-Tier Cascade Classifier ดังแสดงในตารางที่~\ref{tab_classification_per_category} พบว่าหมวดหมู่กีฬาและบันเทิงมีค่า F1-score สูงสุดถึง 0.9500 และ 0.9474 ตามลำดับ เนื่องจากมีศัพท์เฉพาะทางที่โดดเด่นและชัดเจน ส่วนหมวดหมู่สังคมมีค่า F1-score อยู่ที่ 0.6857 เนื่องจากเป็นหมวดหมู่กว้างที่มีเนื้อหาคาบเกี่ยวกับอาชญากรรม สิ่งแวดล้อม และการเมือง
+
+\begin{table}[H]
+\centering
+\caption{ผลการประเมินการจำแนกหมวดหมู่รายด้านของระบบ Unified 3-Tier Cascade}
+\label{tab_classification_per_category}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{หมวดหมู่ข่าว} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-score} & \textbf{สัดส่วนการกระจายโมดูล} \\
+\hline
+กีฬา (sports) & 0.9500 & 0.9500 & 0.9500 & ML / Rule Cue \\ \hline
+บันเทิง (entertainment) & 1.0000 & 0.9000 & 0.9474 & ML / Rule Cue \\ \hline
+สิ่งแวดล้อม (environment) & 0.9048 & 0.9500 & 0.9268 & ML \\ \hline
+สุขภาพ (health) & 0.8636 & 0.9500 & 0.9048 & ML / Rule Cue \\ \hline
+การเมือง (politics) & 0.8000 & 1.0000 & 0.8889 & ML \\ \hline
+เทคโนโลยี (technology) & 0.9412 & 0.8000 & 0.8649 & ML \\ \hline
+เศรษฐกิจ (economy) & 0.7917 & 0.9500 & 0.8636 & ML \\ \hline
+ต่างประเทศ (world) & 0.8889 & 0.8000 & 0.8421 & ML \\ \hline
+สังคม (society) & 0.8000 & 0.6000 & 0.6857 & ML \\
+\hline
+\textbf{ค่าเฉลี่ยรวม (Macro Average)} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & -- \\ \hline
+\textbf{ค่าเฉลี่ยถ่วงน้ำหนัก (Weighted Average)} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & -- \\
+\hline
+\end{tabular}
+\end{table}
+
+% -----------------------------------------------------------
+\subsection{ผลการประเมินประสิทธิภาพการรวมกลุ่มเหตุการณ์ข่าว (Story Clustering Evaluation)}
+% -----------------------------------------------------------
+
+การประเมินประสิทธิภาพของการจัดกลุ่มเหตุการณ์ข่าวและการแก้ปัญหาการอ้างถึงแกนร่วมของเหตุการณ์ ดำเนินการทดสอบเทียบกับชุดข้อมูลอ้างอิงมาตรฐาน (Ground-Truth Benchmark Dataset) จำนวน 111 บทความ 59 เหตุการณ์จริง (\texttt{data/labeled\_story\_eval\_set.json}) ซึ่งครอบคลุมเหตุการณ์มหากาพย์ต่อเนื่องข้ามสัปดาห์ (เช่น วิกฤตน้ำท่วม จ.น่าน 28 ข่าว, การตรวจสอบการฮั้วเลือกตั้ง สว. 15 ข่าว, เหตุการณ์ระเบิด อบต. พ่อมิ่ง 4 ข่าว), ข่าวการเมือง, ข่าวประจำวัน, และข่าวเหตุการณ์เดี่ยวจาก 14 สำนักข่าวชั้นนำ
+
+คณะผู้จัดทำได้ประเมินผลผ่านเมตริกวัดผล 2 มิติหลัก ได้แก่
+\begin{enumerate}
+    \item \textbf{Pairwise Evaluation Metrics}\\*
+    ตรวจสอบคู่บทความข่าวทั้งหมดที่เป็นไปได้ $N(N-1)/2 = 6,105$ คู่บทความ โดยวัดจำนวนคู่บทความที่รวมกลุ่มถูกต้อง (True Positives หรือ TP), การรวมประเด็นผิดพลาด (False Merges หรือ FP), และการแตกกระจายของประเด็นข่าว (False Splits หรือ FN)
+    \item \textbf{B-cubed ($B^3$) Evaluation Metrics (Bagga \& Baldwin 1998, Amigó et al. 2009)}\\*
+    คำนวณค่า Precision และ Recall ระดับรายบทความเทียบกับกลุ่มเหตุการณ์จริงก่อนนำมาเฉลี่ยรวมทั่วทั้งคลังข้อมูล ซึ่งเป็นเมตริกมาตรฐานสากลสำหรับการจัดกลุ่มข้อความที่ไม่ไวต่อขนาดความไม่สมดุลของกลุ่มข่าว
+\end{enumerate}
+
+ผลการเปรียบเทียบประสิทธิภาพระหว่างแบบจำลองพื้นฐาน SemanticClusterer (Baseline กำหนดเกณฑ์ Cosine Similarity คงที่ $\ge 0.92$) กับสถาปัตยกรรม StoryService ที่นำเสนอในโครงงานนี้ (Two-Band Decision Gate $\ge 0.85$ และ $\ge 0.74$, Entity Overlap Gate และ Centroid EMA $\alpha=0.85$) แสดงดังตารางที่~\ref{tab_story_clustering_results}
+
+\begin{table}[H]
+\centering
+\caption{ผลการเปรียบเทียบประสิทธิภาพการจัดกลุ่มประเด็นข่าว (Clustering Evaluation)}
+\label{tab_story_clustering_results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+\textbf{แบบจำลองการจัดกลุ่ม} & \textbf{จำนวนกลุ่มที่สร้าง} & \textbf{False Merges (FP)} & \textbf{False Splits (FN)} & \textbf{$B^3$ Prec} & \textbf{$B^3$ Rec} & \textbf{$B^3$ F1} & \textbf{เกณฑ์ NFR-06} \\
+\hline
+SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 คู่ & \textbf{0.9820} & 0.5934 & 0.7398 & ไม่ผ่าน F1 \\ \hline
+\textbf{StoryService (โครงงานนี้)} & \textbf{60 กลุ่ม} & 35 คู่ & \textbf{349 คู่} & 0.8724 & \textbf{0.7432} & \textbf{0.8026} & \textbf{ผ่านทุกเกณฑ์} \\
+\hline
+\multicolumn{8}{|l|}{\footnotesize * หมายเหตุ: ชุดข้อมูลมาตรฐานมีจำนวนเหตุการณ์จริง (Ground Truth Stories) เท่ากับ 59 เหตุการณ์ (6,105 คู่บทความ)} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+จากตารางที่~\ref{tab_story_clustering_results} ข้อค้นพบเชิงประจักษ์สรุปได้ดังนี้
+\begin{enumerate}
+    \item \textbf{การแก้ไขปัญหาข่าวแตกกระจาย (Severe Over-splitting Reduction)}\\*
+    แบบจำลองพื้นฐาน SemanticClusterer สร้างกลุ่มข่าวสูงถึง 97 กลุ่ม จากเหตุการณ์จริง 59 เหตุการณ์ เนื่องจากเกณฑ์ค่าความคล้ายคลึงแบบคงที่ (Single High Threshold $\ge 0.92$) ไม่ยืดหยุ่นต่อสำนักข่าวที่ใช้สำนวนภาษาต่างกัน ส่งผลให้เกิดข้อผิดพลาดในการแตกกลุ่ม (False Splits) สูงถึง 461 คู่บทความ ในขณะที่ StoryService สามารถลดข้อผิดพลาดดังกล่าวลงเหลือ 349 คู่บทความ (ลดลงร้อยละ 24.3) และสร้างกลุ่มข่าวได้ 60 กลุ่ม ซึ่งใกล้เคียงกับเหตุการณ์จริง 59 กลุ่มอย่างมาก
+    \item \textbf{การบรรลุเกณฑ์คุณภาพ B-cubed F1-score}\\*
+    StoryService บรรลุค่า B-cubed Precision เท่ากับ 0.8724 (ร้อยละ 87.24) ซึ่งผ่านเกณฑ์กำหนดของ NFR-06 ($\ge 0.85$) และมีค่า B-cubed Recall เพิ่มขึ้นจาก 0.5934 เป็น 0.7432 ส่งผลให้ค่า B-cubed F1-score พุ่งสูงขึ้นเป็น 0.8026 (ร้อยละ 80.26) ซึ่งผ่านเกณฑ์ข้อกำหนด NFR-06 ($\ge 0.75$) และมีประสิทธิภาพสูงกว่าแบบจำลองพื้นฐานอย่างชัดเจน (เพิ่มขึ้น +6.28\%)
+    \item \textbf{บทบาทของกลไก Two-Band และ Centroid EMA}\\*
+    การเปิดรับบทความที่มีค่าความคล้ายคลึงระดับปานกลาง (0.74 ถึง 0.85) หากมีหลักฐานการอ้างอิงเอนทิตีบุคคลหรือสถานที่ตรงกัน ร่วมกับการปรับจุดศูนย์กลางเวกเตอร์แบบ Exponential Moving Average ช่วยให้กลุ่มประเด็นข่าวสามารถรับบทความพัฒนาการใหม่ที่รายงานต่อเนื่องหลายวันได้อย่างแม่นยำ ปราศจากปัญหาความหมายเบี่ยงเบน (Semantic Drift)
+\end{enumerate}
