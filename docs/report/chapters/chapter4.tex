@@ -1680,6 +1680,43 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \end{tabular}
 \end{table}
 
+นอกจากนี้ เพื่อวิเคราะห์ลักษณะการทำนายผิดพลาด (Misclassification Patterns) ระหว่างหมวดหมู่ข่าวอย่างละเอียด คณะผู้จัดทำได้สร้างตารางความสับสน (Confusion Matrix) ของระบบ Unified 3-Tier Cascade ดังแสดงในตารางที่~\ref{tab_confusion_matrix_classification}
+
+\begin{table}[H]
+\centering
+\small
+\caption{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด}
+\label{tab_confusion_matrix_classification}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|}
+\hline
+\multicolumn{1}{|c|}{\textbf{หมวดหมู่จริง}} & \multicolumn{9}{c|}{\textbf{หมวดหมู่ที่ระบบทำนาย (Predicted)}} & \textbf{รวม} \\ \cline{2-10}
+\multicolumn{1}{|c|}{\textbf{(Ground Truth)}} & \textbf{ECO} & \textbf{ENT} & \textbf{ENV} & \textbf{HEA} & \textbf{POL} & \textbf{SOC} & \textbf{SPO} & \textbf{TEC} & \textbf{WOR} & \textbf{(Actual)} \\
+\hline
+เศรษฐกิจ (ECO) & \textbf{19} & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 20 \\ \hline
+บันเทิง (ENT) & 1 & \textbf{18} & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 20 \\ \hline
+สิ่งแวดล้อม (ENV) & 0 & 0 & \textbf{19} & 0 & 0 & 0 & 0 & 0 & 1 & 20 \\ \hline
+สุขภาพ (HEA) & 0 & 0 & 0 & \textbf{19} & 0 & 1 & 0 & 0 & 0 & 20 \\ \hline
+การเมือง (POL) & 0 & 0 & 0 & 0 & \textbf{20} & 0 & 0 & 0 & 0 & 20 \\ \hline
+สังคม (SOC) & 3 & 0 & 1 & 0 & 3 & \textbf{12} & 0 & 0 & 1 & 20 \\ \hline
+กีฬา (SPO) & 0 & 0 & 0 & 0 & 0 & 0 & \textbf{19} & 1 & 0 & 20 \\ \hline
+เทคโนโลยี (TEC) & 1 & 0 & 0 & 0 & 2 & 0 & 1 & \textbf{16} & 0 & 20 \\ \hline
+ต่างประเทศ (WOR) & 0 & 0 & 1 & 1 & 0 & 2 & 0 & 0 & \textbf{16} & 20 \\
+\hline
+\textbf{รวมที่ทำนาย (Predicted)} & 24 & 18 & 21 & 22 & 25 & 15 & 20 & 17 & 18 & \textbf{180} \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+จากตารางที่~\ref{tab_confusion_matrix_classification} ข้อค้นพบสำคัญด้านการกระจายตัวของความแม่นยำ ได้แก่
+\begin{enumerate}
+    \item \textbf{หมวดหมู่ที่มีความแม่นยำสมบูรณ์}\newline
+    หมวดการเมือง (POL) สามารถทำนายได้ถูกต้องครบถ้วนทั้ง 20 ตัวอย่าง (Recall ร้อยละ 100) เนื่องจากมีคำศัพท์เฉพาะทางเกี่ยวกับการปกครอง พรรคการเมือง และกฎหมายที่ชัดเจน
+    \item \textbf{หมวดหมู่ที่มีความคาบเกี่ยวเชิงบริบท}\newline
+    หมวดสังคม (SOC) มีข้อผิดพลาดกระจายไปยังหมวดเศรษฐกิจ 3 ข่าว และหมวดการเมือง 3 ข่าว เนื่องจากข่าวสังคมมักมีมิติผลกระทบด้านนโยบายรัฐและการชดเชยเยียวยาทางเศรษฐกิจร่วมด้วย
+\end{enumerate}
+
 % -----------------------------------------------------------
 \subsection{ผลการประเมินประสิทธิภาพการรวมกลุ่มเหตุการณ์ข่าว (Story Clustering Evaluation)}
 % -----------------------------------------------------------
@@ -1723,3 +1760,24 @@ SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 �
     \item \textbf{บทบาทของกลไก Two-Band และ Centroid EMA}\\*
     การเปิดรับบทความที่มีค่าความคล้ายคลึงระดับปานกลาง (0.74 ถึง 0.85) หากมีหลักฐานการอ้างอิงเอนทิตีบุคคลหรือสถานที่ตรงกัน ร่วมกับการปรับจุดศูนย์กลางเวกเตอร์แบบ Exponential Moving Average ช่วยให้กลุ่มประเด็นข่าวสามารถรับบทความพัฒนาการใหม่ที่รายงานต่อเนื่องหลายวันได้อย่างแม่นยำ ปราศจากปัญหาความหมายเบี่ยงเบน (Semantic Drift)
 \end{enumerate}
+
+นอกจากนี้ เพื่อให้เห็นโครงสร้างการตัดสินใจจับคู่บทความทั้งหมด 6,105 คู่บทความอย่างชัดเจน คณะผู้จัดทำได้สรุปตารางความสับสนระดับคู่บทความ (Pairwise Confusion Matrix) เปรียบเทียบระหว่างแบบจำลองพื้นฐานและสถาปัตยกรรม StoryService ดังแสดงในตารางที่~\ref{tab_confusion_matrix_clustering}
+
+\begin{table}[H]
+\centering
+\caption{เมทริกซ์ความสับสนระดับคู่บทความ (Pairwise Confusion Matrix) ของการจัดกลุ่มเหตุการณ์}
+\label{tab_confusion_matrix_clustering}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\multicolumn{1}{|c|}{\textbf{ความสัมพันธ์จริง}} & \multicolumn{2}{c|}{\textbf{ผลการทำนายโดยแบบจำลอง}} & \textbf{รวมคู่จริง} \\ \cline{2-3}
+\multicolumn{1}{|c|}{\textbf{(Ground Truth Pairs)}} & \textbf{กลุ่มเดียวกัน (Predicted Same)} & \textbf{คนละกลุ่ม (Predicted Diff)} & \textbf{(Actual Pairs)} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{1) แบบจำลองพื้นฐาน SemanticClusterer (Baseline)}} \\ \hline
+เหตุการณ์เดียวกันจริง (Same) & 40 (TP) & 461 (FN / False Splits) & 501 \\ \hline
+คนละเหตุการณ์จริง (Different) & 2 (FP / False Merges) & 5,602 (TN) & 5,604 \\ \hline
+\multicolumn{4}{|l|}{\textbf{2) สถาปัตยกรรม StoryService (โครงงานนี้)}} \\ \hline
+เหตุการณ์เดียวกันจริง (Same) & \textbf{152 (TP)} & \textbf{349 (FN / False Splits)} & 501 \\ \hline
+คนละเหตุการณ์จริง (Different) & 35 (FP / False Merges) & 5,569 (TN) & 5,604 \\
+\hline
+\end{tabular}
+\end{table}
