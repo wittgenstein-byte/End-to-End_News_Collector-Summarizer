@@ -1,0 +1,948 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{chumpolsathien2020thaisum}{inproceedings}{}{}
+      \name{author}{1}{}{%
+        {{hash=f6b28bad15b9e2b504534acd2b997ad2}{%
+           family={Chumpolsathien},
+           familyi={C\bibinitperiod},
+           given={Nakhun},
+           giveni={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{fullhash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{fullhashraw}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{bibnamehash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{authorbibnamehash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{authornamehash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{authorfullhash}{f6b28bad15b9e2b504534acd2b997ad2}
+      \strng{authorfullhashraw}{f6b28bad15b9e2b504534acd2b997ad2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 1st Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 10th International Joint Conference on Natural Language Processing: Student Research Workshop}
+      \field{title}{{ThaiSum}: A Large-Scale Thai Text Summarization Dataset}
+      \field{year}{2020}
+      \field{pages}{55\bibrangedash 61}
+      \range{pages}{7}
+      \verb{urlraw}
+      \verb https://aclanthology.org/2020.aacl-srw.9/
+      \endverb
+      \verb{url}
+      \verb https://aclanthology.org/2020.aacl-srw.9/
+      \endverb
+    \endentry
+    \entry{prachathai67k}{online}{}{}
+      \name{author}{2}{}{%
+        {{hash=273dda9cfa60e35eb1a5d5082eadbf17}{%
+           family={Phatthiyaphaibun},
+           familyi={P\bibinitperiod},
+           given={Wannaphong},
+           giveni={W\bibinitperiod}}}%
+        {{hash=f8fdd3a71bce94d6992988414f015b97}{%
+           family={Polpanumas},
+           familyi={P\bibinitperiod},
+           given={Charin},
+           giveni={C\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Hugging Face}%
+      }
+      \strng{namehash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{fullhash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{fullhashraw}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{bibnamehash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{authorbibnamehash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{authornamehash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{authorfullhash}{a0f4a5143071ca6fb7853d2b49acc165}
+      \strng{authorfullhashraw}{a0f4a5143071ca6fb7853d2b49acc165}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{prachathai-67k: Thai News Corpus for Text Classification and Summarization}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2020}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://huggingface.co/datasets/prachathai67k
+      \endverb
+      \verb{url}
+      \verb https://huggingface.co/datasets/prachathai67k
+      \endverb
+    \endentry
+    \entry{barbaresi-2021-trafilatura}{inproceedings}{}{}
+      \name{author}{1}{}{%
+        {{hash=29fc00eae874b61c649a86abbf310f25}{%
+           family={Barbaresi},
+           familyi={B\bibinitperiod},
+           given={Adrien},
+           giveni={A\bibinitperiod}}}%
+      }
+      \name{editor}{3}{}{%
+        {{hash=a8c594661b4a56762abc0b9e37e92872}{%
+           family={Ji},
+           familyi={J\bibinitperiod},
+           given={Heng},
+           giveni={H\bibinitperiod}}}%
+        {{hash=e75e4d3be6b578e71634ad164e4b4533}{%
+           family={Park},
+           familyi={P\bibinitperiod},
+           given={Jong\bibnamedelima C.},
+           giveni={J\bibinitperiod\bibinitdelim C\bibinitperiod}}}%
+        {{hash=81d13b72793e9de4d52426ac2166a308}{%
+           family={Xia},
+           familyi={X\bibinitperiod},
+           given={Rui},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Online}%
+      }
+      \list{publisher}{1}{%
+        {Association for Computational Linguistics}%
+      }
+      \strng{namehash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{fullhash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{fullhashraw}{29fc00eae874b61c649a86abbf310f25}
+      \strng{bibnamehash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{authorbibnamehash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{authornamehash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{authorfullhash}{29fc00eae874b61c649a86abbf310f25}
+      \strng{authorfullhashraw}{29fc00eae874b61c649a86abbf310f25}
+      \strng{editorbibnamehash}{c3390ff2a8a76ac21021b6c1365a107b}
+      \strng{editornamehash}{1b86bf36e0a6c2c53bc3e7e4dcbb9357}
+      \strng{editorfullhash}{c3390ff2a8a76ac21021b6c1365a107b}
+      \strng{editorfullhashraw}{c3390ff2a8a76ac21021b6c1365a107b}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing: System Demonstrations}
+      \field{title}{{Trafilatura}: {A} Web Scraping Library and Command-Line Tool for Text Discovery and Extraction}
+      \field{year}{2021}
+      \field{pages}{122\bibrangedash 131}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.18653/v1/2021.acl-demo.15
+      \endverb
+      \verb{urlraw}
+      \verb https://aclanthology.org/2021.acl-demo.15/
+      \endverb
+      \verb{url}
+      \verb https://aclanthology.org/2021.acl-demo.15/
+      \endverb
+    \endentry
+    \entry{rss2009}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=2d56d04a64f59849b82e03865ef7679d}{%
+           family={Winer},
+           familyi={W\bibinitperiod},
+           given={Dave},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{fullhash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{fullhashraw}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{bibnamehash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{authorbibnamehash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{authornamehash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{authorfullhash}{2d56d04a64f59849b82e03865ef7679d}
+      \strng{authorfullhashraw}{2d56d04a64f59849b82e03865ef7679d}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{RSS 2.0 Specification}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2009}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.rssboard.org/rss-specification
+      \endverb
+      \verb{url}
+      \verb https://www.rssboard.org/rss-specification
+      \endverb
+    \endentry
+    \entry{allahyari2017}{article}{}{}
+      \name{author}{7}{}{%
+        {{hash=206bcb8368dd46702db91d9b4083a4f2}{%
+           family={Allahyari},
+           familyi={A\bibinitperiod},
+           given={Mehdi},
+           giveni={M\bibinitperiod}}}%
+        {{hash=1e9e32d03b237b8928965f0d445b6c4f}{%
+           family={Pouriyeh},
+           familyi={P\bibinitperiod},
+           given={Seyedamin},
+           giveni={S\bibinitperiod}}}%
+        {{hash=7bd1b088d5cdae2e42f6adc7cd71e252}{%
+           family={Assefi},
+           familyi={A\bibinitperiod},
+           given={Mehdi},
+           giveni={M\bibinitperiod}}}%
+        {{hash=657fd92281709ce23c0aaf3ab4e03baa}{%
+           family={Safaei},
+           familyi={S\bibinitperiod},
+           given={Saeid},
+           giveni={S\bibinitperiod}}}%
+        {{hash=e2ee335bdf35fcfdb6d83e7724a4366b}{%
+           family={Trippe},
+           familyi={T\bibinitperiod},
+           given={Elizabeth\bibnamedelima D.},
+           giveni={E\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=cfcdbf4ba085350dbbb6388bc8c5b2bd}{%
+           family={Gutierrez},
+           familyi={G\bibinitperiod},
+           given={Juan\bibnamedelima B.},
+           giveni={J\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+        {{hash=185e9810e10c5a50e9748a2f695a5042}{%
+           family={Kochut},
+           familyi={K\bibinitperiod},
+           given={Krys},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{f78dfbbade85f0406571965c81ca641c}
+      \strng{fullhash}{92235f78872a313f7bca030b9953654c}
+      \strng{fullhashraw}{92235f78872a313f7bca030b9953654c}
+      \strng{bibnamehash}{5b68cf6bc30f808b07bae9f48a74ab98}
+      \strng{authorbibnamehash}{5b68cf6bc30f808b07bae9f48a74ab98}
+      \strng{authornamehash}{f78dfbbade85f0406571965c81ca641c}
+      \strng{authorfullhash}{92235f78872a313f7bca030b9953654c}
+      \strng{authorfullhashraw}{92235f78872a313f7bca030b9953654c}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint arXiv:1707.02268}
+      \field{title}{Text Summarization Techniques: A Brief Survey}
+      \field{year}{2017}
+    \endentry
+    \entry{gemini2024}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=7034206ab1daed472efe969134f2e767}{%
+           family={Team},
+           familyi={T\bibinitperiod},
+           given={Google\bibnamedelimb DeepMind\bibnamedelima Gemini},
+           giveni={G\bibinitperiod\bibinitdelim D\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+      }
+      \strng{namehash}{7034206ab1daed472efe969134f2e767}
+      \strng{fullhash}{7034206ab1daed472efe969134f2e767}
+      \strng{fullhashraw}{7034206ab1daed472efe969134f2e767}
+      \strng{bibnamehash}{7034206ab1daed472efe969134f2e767}
+      \strng{authorbibnamehash}{7034206ab1daed472efe969134f2e767}
+      \strng{authornamehash}{7034206ab1daed472efe969134f2e767}
+      \strng{authorfullhash}{7034206ab1daed472efe969134f2e767}
+      \strng{authorfullhashraw}{7034206ab1daed472efe969134f2e767}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint arXiv:2312.11805}
+      \field{title}{Gemini: A Family of Highly Capable Multimodal Models}
+      \field{year}{2024}
+    \endentry
+    \entry{openai2024}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=0523b13262b12c215d8009938f5c14f1}{%
+           family={{OpenAI}},
+           familyi={O\bibinitperiod}}}%
+      }
+      \strng{namehash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{fullhash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{fullhashraw}{0523b13262b12c215d8009938f5c14f1}
+      \strng{bibnamehash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{authorbibnamehash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{authornamehash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{authorfullhash}{0523b13262b12c215d8009938f5c14f1}
+      \strng{authorfullhashraw}{0523b13262b12c215d8009938f5c14f1}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{OpenAI Platform Documentation}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://platform.openai.com/docs
+      \endverb
+      \verb{url}
+      \verb https://platform.openai.com/docs
+      \endverb
+    \endentry
+    \entry{scikit2024}{article}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{10}{}{%
+        {{hash=bab4e5caee2d67831e464ce575022b37}{%
+           family={Pedregosa},
+           familyi={P\bibinitperiod},
+           given={Fabian},
+           giveni={F\bibinitperiod}}}%
+        {{hash=cfa3239dded54488f9a82a5718d5b927}{%
+           family={Varoquaux},
+           familyi={V\bibinitperiod},
+           given={Gaël},
+           giveni={G\bibinitperiod}}}%
+        {{hash=12ebe424e1c87de156c57e8fa7683f46}{%
+           family={Gramfort},
+           familyi={G\bibinitperiod},
+           given={Alexandre},
+           giveni={A\bibinitperiod}}}%
+        {{hash=504ea1986689f1047a6f0beda2cb3822}{%
+           family={Michel},
+           familyi={M\bibinitperiod},
+           given={Vincent},
+           giveni={V\bibinitperiod}}}%
+        {{hash=0f3fc06fb9fcbb01b9cc0985eaf0a71c}{%
+           family={Thirion},
+           familyi={T\bibinitperiod},
+           given={Bertrand},
+           giveni={B\bibinitperiod}}}%
+        {{hash=721be0317527f44db425f7a97dcab15e}{%
+           family={Grisel},
+           familyi={G\bibinitperiod},
+           given={Olivier},
+           giveni={O\bibinitperiod}}}%
+        {{hash=d3b6c8582cea4e8b6576137b6a72cadc}{%
+           family={Blondel},
+           familyi={B\bibinitperiod},
+           given={Mathieu},
+           giveni={M\bibinitperiod}}}%
+        {{hash=86e647e5c801f3ce733927f75f029463}{%
+           family={Prettenhofer},
+           familyi={P\bibinitperiod},
+           given={Peter},
+           giveni={P\bibinitperiod}}}%
+        {{hash=89d698773eaf2fae761ff0008031c7be}{%
+           family={Weiss},
+           familyi={W\bibinitperiod},
+           given={Ron},
+           giveni={R\bibinitperiod}}}%
+        {{hash=b255e99d411f28c789a231829f765c64}{%
+           family={Dubourg},
+           familyi={D\bibinitperiod},
+           given={Vincent},
+           giveni={V\bibinitperiod}}}%
+      }
+      \strng{namehash}{9ec95d747bac3417f92265a9a44f8bb4}
+      \strng{fullhash}{9c0daf119a88f60278a791d01ffdd5ec}
+      \strng{fullhashraw}{9c0daf119a88f60278a791d01ffdd5ec}
+      \strng{bibnamehash}{e9b4a6803d22f66d37c1cc51cfceb266}
+      \strng{authorbibnamehash}{e9b4a6803d22f66d37c1cc51cfceb266}
+      \strng{authornamehash}{9ec95d747bac3417f92265a9a44f8bb4}
+      \strng{authorfullhash}{9c0daf119a88f60278a791d01ffdd5ec}
+      \strng{authorfullhashraw}{9c0daf119a88f60278a791d01ffdd5ec}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Machine Learning Research}
+      \field{title}{Scikit-learn: Machine Learning in {Python}}
+      \field{volume}{12}
+      \field{year}{2011}
+      \field{pages}{2825\bibrangedash 2830}
+      \range{pages}{6}
+    \endentry
+    \entry{wangchanberta2021}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=993f2966cf7163055dbe4893a13b77f0}{%
+           family={Lowphansirikul},
+           familyi={L\bibinitperiod},
+           given={Lalita},
+           giveni={L\bibinitperiod}}}%
+        {{hash=f8fdd3a71bce94d6992988414f015b97}{%
+           family={Polpanumas},
+           familyi={P\bibinitperiod},
+           given={Charin},
+           giveni={C\bibinitperiod}}}%
+        {{hash=e3dd504c85f192b4608d942dc2a87017}{%
+           family={Jantrakulchai},
+           familyi={J\bibinitperiod},
+           given={Nawat},
+           giveni={N\bibinitperiod}}}%
+        {{hash=e7a0ec075c1aea0332bb79d19855c1c0}{%
+           family={Nutanong},
+           familyi={N\bibinitperiod},
+           given={Sarana},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{3d31fb9989d469d464e4d1e981620f54}
+      \strng{fullhash}{62955438c871ceeb04fd041d90f7567d}
+      \strng{fullhashraw}{62955438c871ceeb04fd041d90f7567d}
+      \strng{bibnamehash}{62955438c871ceeb04fd041d90f7567d}
+      \strng{authorbibnamehash}{62955438c871ceeb04fd041d90f7567d}
+      \strng{authornamehash}{3d31fb9989d469d464e4d1e981620f54}
+      \strng{authorfullhash}{62955438c871ceeb04fd041d90f7567d}
+      \strng{authorfullhashraw}{62955438c871ceeb04fd041d90f7567d}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint arXiv:2101.09635}
+      \field{title}{WangchanBERTa: Pretrained Language Model for Thai Language}
+      \field{year}{2021}
+    \endentry
+    \entry{pythainlp2021}{online}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{2}{}{%
+        {{hash=273dda9cfa60e35eb1a5d5082eadbf17}{%
+           family={Phatthiyaphaibun},
+           familyi={P\bibinitperiod},
+           given={Wannaphong},
+           giveni={W\bibinitperiod}}}%
+        {{hash=808657a80b671bdc6285ab5bb6ef652b}{%
+           family={Chaovavanich},
+           familyi={C\bibinitperiod},
+           given={Korakot},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{fullhash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{fullhashraw}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{bibnamehash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{authorbibnamehash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{authornamehash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{authorfullhash}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \strng{authorfullhashraw}{76d7924c7ea91fa2f89164e4ffebd8f1}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{PyThaiNLP: Thai Natural Language Processing in Python Framework}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2021}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://doi.org/10.5281/zenodo.3519354
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.5281/zenodo.3519354
+      \endverb
+    \endentry
+    \entry{salihefendic2015}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=04bfb388fcc0842dbbbdf80b3b444488}{%
+           family={Salihefendic},
+           familyi={S\bibinitperiod},
+           given={Amir},
+           giveni={A\bibinitperiod}}}%
+      }
+      \strng{namehash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{fullhash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{fullhashraw}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{bibnamehash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{authorbibnamehash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{authornamehash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{authorfullhash}{04bfb388fcc0842dbbbdf80b3b444488}
+      \strng{authorfullhashraw}{04bfb388fcc0842dbbbdf80b3b444488}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{How Reddit Ranking Algorithms Work}
+      \field{urlday}{25}
+      \field{urlmonth}{10}
+      \field{urlyear}{2026}
+      \field{year}{2015}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://medium.com/hacking-and-gonzo/how-reddit-ranking-algorithms-work-ef111e33d0d9
+      \endverb
+      \verb{url}
+      \verb https://medium.com/hacking-and-gonzo/how-reddit-ranking-algorithms-work-ef111e33d0d9
+      \endverb
+    \endentry
+    \entry{swartz2005}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=044176fb833c1638f7abe20cde6a3077}{%
+           family={Swartz},
+           familyi={S\bibinitperiod},
+           given={Aaron},
+           giveni={A\bibinitperiod}}}%
+      }
+      \strng{namehash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{fullhash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{fullhashraw}{044176fb833c1638f7abe20cde6a3077}
+      \strng{bibnamehash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{authorbibnamehash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{authornamehash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{authorfullhash}{044176fb833c1638f7abe20cde6a3077}
+      \strng{authorfullhashraw}{044176fb833c1638f7abe20cde6a3077}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Rewriting Reddit: Web Development and Architecture}
+      \field{urlday}{15}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2005}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://aaronsw.com/weblog/001716
+      \endverb
+      \verb{url}
+      \verb https://aaronsw.com/weblog/001716
+      \endverb
+    \endentry
+    \entry{graham2009}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=ed1e26df7443c286a4ae4f99ce1993d0}{%
+           family={Graham},
+           familyi={G\bibinitperiod},
+           given={Paul},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{fullhash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{fullhashraw}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{bibnamehash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{authorbibnamehash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{authornamehash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{authorfullhash}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \strng{authorfullhashraw}{ed1e26df7443c286a4ae4f99ce1993d0}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{What I've Learned from Hacker News: Ranking and Community Dynamics}
+      \field{urlday}{15}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2009}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb http://www.paulgraham.com/hackernews.html
+      \endverb
+      \verb{url}
+      \verb http://www.paulgraham.com/hackernews.html
+      \endverb
+    \endentry
+    \entry{dong2010}{inproceedings}{}{}
+      \name{author}{8}{}{%
+        {{hash=08d14372d53bbaa6b440a9c36e66959b}{%
+           family={Dong},
+           familyi={D\bibinitperiod},
+           given={Anlei},
+           giveni={A\bibinitperiod}}}%
+        {{hash=2c2760ecfb6255adc8cf1f3a9e910e39}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Ruiqiang},
+           giveni={R\bibinitperiod}}}%
+        {{hash=29a18438d2085656d5aa26274c4132cb}{%
+           family={Kolari},
+           familyi={K\bibinitperiod},
+           given={Pranam},
+           giveni={P\bibinitperiod}}}%
+        {{hash=9ea000c8353981f9f649bb81930f2473}{%
+           family={Bai},
+           familyi={B\bibinitperiod},
+           given={Jing},
+           giveni={J\bibinitperiod}}}%
+        {{hash=2fe7f45d1e1c4122f580116dc9632b11}{%
+           family={Diaz},
+           familyi={D\bibinitperiod},
+           given={Fernando},
+           giveni={F\bibinitperiod}}}%
+        {{hash=ed4aa670424cc1ef5a46be359859ab9b}{%
+           family={Chang},
+           familyi={C\bibinitperiod},
+           given={Yi},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=465aa227c6b12a8f1bb127a663fec604}{%
+           family={Zheng},
+           familyi={Z\bibinitperiod},
+           given={Zhaohui},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=55bb21a31fded4aad976b7902dc8206a}{%
+           family={Zha},
+           familyi={Z\bibinitperiod},
+           given={Hongyuan},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{72b3102c347a77d414c41572cb6c2b46}
+      \strng{fullhash}{8c7047092761434b671295a0a35c8fb5}
+      \strng{fullhashraw}{8c7047092761434b671295a0a35c8fb5}
+      \strng{bibnamehash}{f6086ac23764cdb9e6f4ec2f57d71233}
+      \strng{authorbibnamehash}{f6086ac23764cdb9e6f4ec2f57d71233}
+      \strng{authornamehash}{72b3102c347a77d414c41572cb6c2b46}
+      \strng{authorfullhash}{8c7047092761434b671295a0a35c8fb5}
+      \strng{authorfullhashraw}{8c7047092761434b671295a0a35c8fb5}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 33rd International ACM SIGIR Conference on Research and Development in Information Retrieval}
+      \field{title}{Time-Sensitive Ranking in News Search: Incorporating Recency and Quality}
+      \field{year}{2010}
+      \field{pages}{315\bibrangedash 322}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1145/1835449.1835503
+      \endverb
+    \endentry
+    \entry{das2007}{inproceedings}{}{}
+      \name{author}{4}{}{%
+        {{hash=ac7405136809625de412eefd3d2a3787}{%
+           family={Das},
+           familyi={D\bibinitperiod},
+           given={Abhinandan\bibnamedelima S.},
+           giveni={A\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=f17e8054d27736c19f729c1a014c4132}{%
+           family={Datar},
+           familyi={D\bibinitperiod},
+           given={Mayur},
+           giveni={M\bibinitperiod}}}%
+        {{hash=01cc8309611b73c6038f97f1b0508bef}{%
+           family={Garg},
+           familyi={G\bibinitperiod},
+           given={Ashutosh},
+           giveni={A\bibinitperiod}}}%
+        {{hash=7ac6f7f8ffc70d2813dbf510baa2a6e1}{%
+           family={Rajaram},
+           familyi={R\bibinitperiod},
+           given={Shyamsundar},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{organization}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{c1e37b9423222696b166032d0efc201c}
+      \strng{fullhash}{67af0dd171d9d244947c90803b966f7a}
+      \strng{fullhashraw}{67af0dd171d9d244947c90803b966f7a}
+      \strng{bibnamehash}{67af0dd171d9d244947c90803b966f7a}
+      \strng{authorbibnamehash}{67af0dd171d9d244947c90803b966f7a}
+      \strng{authornamehash}{c1e37b9423222696b166032d0efc201c}
+      \strng{authorfullhash}{67af0dd171d9d244947c90803b966f7a}
+      \strng{authorfullhashraw}{67af0dd171d9d244947c90803b966f7a}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 16th International Conference on World Wide Web (WWW '07)}
+      \field{title}{Google News Personalization: Scalable Online Collaborative Filtering and Story Clustering}
+      \field{year}{2007}
+      \field{pages}{271\bibrangedash 280}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1145/1242572.1242610
+      \endverb
+    \endentry
+    \entry{skvorc2025realtime}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=6de4df23b65bc309e51f49ad45738062}{%
+           family={Škvorc},
+           familyi={Š\bibinitperiod},
+           given={Tadej},
+           giveni={T\bibinitperiod}}}%
+        {{hash=8ff256ba20de0962e2a3c01a94b3dc63}{%
+           family={Ivačič},
+           familyi={I\bibinitperiod},
+           given={Nikola},
+           giveni={N\bibinitperiod}}}%
+        {{hash=93cdd76bb1239a188c07d189bfddcadf}{%
+           family={Hribar},
+           familyi={H\bibinitperiod},
+           given={Sebastjan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=26dfee7dd9e2b5f46211c92abf736e07}{%
+           family={Robnik-Šikonja},
+           familyi={R\bibinithyphendelim Š\bibinitperiod},
+           given={Marko},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{edf3b7c4d8a5267c2822770939c45a62}
+      \strng{fullhash}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \strng{fullhashraw}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \strng{bibnamehash}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \strng{authorbibnamehash}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \strng{authornamehash}{edf3b7c4d8a5267c2822770939c45a62}
+      \strng{authorfullhash}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \strng{authorfullhashraw}{22ec06cb055cc3ad497fdcb99ffd2fda}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint arXiv:2508.08272}
+      \field{title}{Real-time News Story Identification}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/2508.08272
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/2508.08272
+      \endverb
+    \endentry
+    \entry{bagga1998algorithms}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{hash=133ff39288b1310cc78de5e7de8584d3}{%
+           family={Bagga},
+           familyi={B\bibinitperiod},
+           given={Amit},
+           giveni={A\bibinitperiod}}}%
+        {{hash=4e44355534bafedc3196ae27a87a720c}{%
+           family={Baldwin},
+           familyi={B\bibinitperiod},
+           given={Breck},
+           giveni={B\bibinitperiod}}}%
+      }
+      \strng{namehash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{fullhash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{fullhashraw}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{bibnamehash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{authorbibnamehash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{authornamehash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{authorfullhash}{3adb1e8309176922bfe07a5c18c3df35}
+      \strng{authorfullhashraw}{3adb1e8309176922bfe07a5c18c3df35}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the First International Conference on Language Resources and Evaluation Workshop on Linguistics Coreference}
+      \field{title}{Algorithms for Scoring Coreference Chains}
+      \field{year}{1998}
+      \field{pages}{563\bibrangedash 566}
+      \range{pages}{4}
+    \endentry
+    \entry{amigo2009comparison}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=ab19082d5483df77d467392483a9456b}{%
+           family={Amigó},
+           familyi={A\bibinitperiod},
+           given={Enrique},
+           giveni={E\bibinitperiod}}}%
+        {{hash=846dedfac12fe7ebcb73cf5942feedce}{%
+           family={Gonzalo},
+           familyi={G\bibinitperiod},
+           given={Julio},
+           giveni={J\bibinitperiod}}}%
+        {{hash=86cb5f9f32a87cfc351d5547aae0c311}{%
+           family={Artiles},
+           familyi={A\bibinitperiod},
+           given={Javier},
+           giveni={J\bibinitperiod}}}%
+        {{hash=414549fbc9a2dc3996c9169bd758015b}{%
+           family={Verdejo},
+           familyi={V\bibinitperiod},
+           given={Felisa},
+           giveni={F\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{f645406284262a73a176198c8f73ebde}
+      \strng{fullhash}{942af0f44994ada48dd1bc2eecfb6401}
+      \strng{fullhashraw}{942af0f44994ada48dd1bc2eecfb6401}
+      \strng{bibnamehash}{942af0f44994ada48dd1bc2eecfb6401}
+      \strng{authorbibnamehash}{942af0f44994ada48dd1bc2eecfb6401}
+      \strng{authornamehash}{f645406284262a73a176198c8f73ebde}
+      \strng{authorfullhash}{942af0f44994ada48dd1bc2eecfb6401}
+      \strng{authorfullhashraw}{942af0f44994ada48dd1bc2eecfb6401}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Information Retrieval}
+      \field{number}{4}
+      \field{title}{A Comparison of Extrinsic Clustering Evaluation Metrics Based on Formal Constraints}
+      \field{volume}{12}
+      \field{year}{2009}
+      \field{pages}{461\bibrangedash 486}
+      \range{pages}{26}
+    \endentry
+    \entry{fastapi2024}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=f5305ee02dd2a5c6215b53401b4a10b0}{%
+           family={Ramírez},
+           familyi={R\bibinitperiod},
+           given={Sebastián},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{fullhash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{fullhashraw}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{bibnamehash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{authorbibnamehash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{authornamehash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{authorfullhash}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \strng{authorfullhashraw}{f5305ee02dd2a5c6215b53401b4a10b0}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{FastAPI framework, high performance, easy to learn, fast to code, ready for production}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://fastapi.tiangolo.com
+      \endverb
+      \verb{url}
+      \verb https://fastapi.tiangolo.com
+      \endverb
+    \endentry
+    \entry{pydantic2024}{online}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{1}{}{%
+        {{hash=c5ac9df8c489865e6fa3c04ef4370efc}{%
+           family={Colvin},
+           familyi={C\bibinitperiod},
+           given={Samuel},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{fullhash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{fullhashraw}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{bibnamehash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{authorbibnamehash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{authornamehash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{authorfullhash}{799fa3f8cacd639c0be2246939b38e09}
+      \strng{authorfullhashraw}{799fa3f8cacd639c0be2246939b38e09}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Pydantic: Data validation using Python type hints}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://docs.pydantic.dev
+      \endverb
+      \verb{url}
+      \verb https://docs.pydantic.dev
+      \endverb
+    \endentry
+    \entry{playwright2024}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=140864078aeca1c7c35b4beb33c53c34}{%
+           family={{Microsoft}},
+           familyi={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{fullhash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{fullhashraw}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{bibnamehash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{authorbibnamehash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{authornamehash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{authorfullhash}{140864078aeca1c7c35b4beb33c53c34}
+      \strng{authorfullhashraw}{140864078aeca1c7c35b4beb33c53c34}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Playwright: Fast and reliable cross-browser testing}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://playwright.dev
+      \endverb
+      \verb{url}
+      \verb https://playwright.dev
+      \endverb
+    \endentry
+    \entry{socketio2024}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=52ff54d63e46d6619de683427f024a92}{%
+           family={{Socket.IO}},
+           familyi={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{52ff54d63e46d6619de683427f024a92}
+      \strng{fullhash}{52ff54d63e46d6619de683427f024a92}
+      \strng{fullhashraw}{52ff54d63e46d6619de683427f024a92}
+      \strng{bibnamehash}{52ff54d63e46d6619de683427f024a92}
+      \strng{authorbibnamehash}{52ff54d63e46d6619de683427f024a92}
+      \strng{authornamehash}{52ff54d63e46d6619de683427f024a92}
+      \strng{authorfullhash}{52ff54d63e46d6619de683427f024a92}
+      \strng{authorfullhashraw}{52ff54d63e46d6619de683427f024a92}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Socket.IO}
+      \field{urlday}{10}
+      \field{urlmonth}{1}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://socket.io
+      \endverb
+      \verb{url}
+      \verb https://socket.io
+      \endverb
+    \endentry
+    \entry{sqlite_wal}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=9a9ab6daa89d3a40e1d166986df843e3}{%
+           family={{SQLite Development Team}},
+           familyi={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{fullhash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{fullhashraw}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{bibnamehash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{authorbibnamehash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{authornamehash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{authorfullhash}{9a9ab6daa89d3a40e1d166986df843e3}
+      \strng{authorfullhashraw}{9a9ab6daa89d3a40e1d166986df843e3}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Write-Ahead Logging}
+      \field{urlday}{10}
+      \field{urlmonth}{10}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://www.sqlite.org/wal.html
+      \endverb
+      \verb{url}
+      \verb https://www.sqlite.org/wal.html
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
