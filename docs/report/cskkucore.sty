@@ -1079,4 +1079,16 @@
     {\PackageWarning{cskkucore}{ไม่พบ mermaid.sty}}
 \fi
 
+
+% ---------------------------------------------------------------------
+% Frame for screenshot images (thin border 0.5pt, zero sep)
+% ---------------------------------------------------------------------
+\newcommand{\imgframe}[1]{%
+  \begingroup
+  \setlength{\fboxsep}{0pt}%
+  \setlength{\fboxrule}{0.5pt}%
+  \fbox{#1}%
+  \endgroup
+}
+
 \endinput

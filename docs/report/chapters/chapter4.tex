@@ -1219,15 +1219,15 @@ M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉ�
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.98\textwidth]{images/bento_story_identification_ex1.png}
-\caption{ภาพแสดงหน้าต่างแฟ้มเจาะลึกมหากาพย์ประเด็นข่าวที่ผ่านการยับยั้งการรวมกลุ่มข้ามเรื่อง}
+\imgframe{\includegraphics[width=0.98\textwidth]{images/bento_story_identification_ex1.png}}
+\caption{หน้าต่างแฟ้มเจาะลึกมหากาพย์ประเด็นข่าวที่ยับยั้งการรวมกลุ่มข้ามเรื่อง}
 \label{fig_ui_bento_story_id}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.98\textwidth]{images/bento_timeline_ex1.png}
-\caption{ภาพแสดงแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาและข้อเท็จจริงยืนยัน}
+\imgframe{\includegraphics[width=0.98\textwidth]{images/bento_timeline_ex1.png}}
+\caption{แฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาและข้อเท็จจริง}
 \label{fig_ui_bento_timeline_enforced}
 \end{figure}
 
@@ -1278,7 +1278,7 @@ Web Scraping & Playwright & 1.42+ & โปรแกรมควบคุม Head
 Content Extraction & Trafilatura & 1.8+ & สกัดข้อความหลักบทความข่าว ขจัดโฆษณาและแท็กส่วนเกิน \\ \hline
 Thai NLP & PyThaiNLP & 5.0+ & ตัดคำภาษาไทย (\texttt{newmm}) และสกัดเอนทิตีชื่อเฉพาะ (\texttt{thainer-v2}) \\ \hline
 Deep Learning & Transformers & 4.38+ & โมเดลภาษา WangchanBERTa สำหรับสกัดเวกเตอร์ความหมาย 768 มิติ \\ \hline
-Machine Learning & Scikit-learn & 1.4+ & เวกเตอร์ TF-IDF และโมเดลจำแนกประเภท LinearSVC \\ \hline
+Machine Learning & Scikit-learn~\cite{scikit2024} & 1.4+ & เวกเตอร์ TF-IDF และโมเดลจำแนกประเภท LinearSVC \\ \hline
 Database & Aiosqlite & 0.20+ & ตัวเชื่อมต่อฐานข้อมูล SQLite แบบ Asynchronous รองรับโหมด WAL \\ \hline
 Frontend Core & Vanilla JS (ESM) & ES2022 & สคริปต์ส่วนติดต่อผู้ใช้แบบโมดูลแยกอิสระ ปราศจากเฟรมเวิร์คหน่วง \\ \hline
 Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเวิร์คสำหรับจัดรูปแบบส่วนต่อประสาน Responsive \\
@@ -1333,8 +1333,8 @@ Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเ�
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.75\textwidth]{images/ai_article_summary.png}
-\caption{ภาพแสดงตัวอย่างผลลัพธ์การสรุปเนื้อหาข่าวสารและวิเคราะห์อารมณ์ด้วยโมเดลภาษาขนาดใหญ่}
+\imgframe{\includegraphics[width=0.75\textwidth]{images/ai_article_summary.png}}
+\caption{ผลลัพธ์การสรุปเนื้อหาข่าวสารและวิเคราะห์อารมณ์ด้วยโมเดลภาษา}
 \label{fig_ai_article_summary}
 \end{figure}
 
@@ -1368,8 +1368,8 @@ Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเ�
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.88\textwidth]{images/feed_for_u.png}
-\caption{ภาพแสดงหน้าต่างปรับแต่งฟีดข่าวเฉพาะคุณสำหรับการสร้างฟีดตามความสนใจ}
+\imgframe{\includegraphics[width=0.88\textwidth]{images/feed_for_u.png}}
+\caption{หน้าต่างปรับแต่งฟีดข่าวเฉพาะคุณสำหรับการสร้างฟีดตามความสนใจ}
 \label{fig_feed_for_u}
 \end{figure}
 
@@ -1623,12 +1623,12 @@ FR-15 & \texttt{POST /api/news/engage} & \texttt{reader\_engagement} & TC-15 \\
 \subsection{ผลการประเมินประสิทธิภาพการจำแนกหมวดหมู่ข่าว (News Classification Evaluation)}
 % -----------------------------------------------------------
 
-การประเมินประสิทธิภาพของโมเดลจำแนกหมวดหมู่ข่าวภาษาไทย ดำเนินการทดสอบบนชุดข้อมูลมาตรฐานที่สกัดจากคลังข้อมูล ThaiSum และ Prachathai-67k รวม 9 หมวดหมู่หลัก ได้แก่ การเมือง (politics), เศรษฐกิจ (economy), เทคโนโลยี (technology), สุขภาพ (health), สิ่งแวดล้อม (environment), กีฬา (sports), บันเทิง (entertainment), สังคม (society) และข่าวต่างประเทศ (world) โดยคณะผู้จัดทำได้ดำเนินการทดสอบและเปรียบเทียบสถาปัตยกรรมโมเดล 3 รูปแบบ ดังนี้
+การประเมินประสิทธิภาพของโมเดลจำแนกหมวดหมู่ข่าวภาษาไทย ดำเนินการทดสอบบนชุดข้อมูลมาตรฐานที่สกัดจากคลังข้อมูล ThaiSum~\cite{chumpolsathien2020thaisum} และ Prachathai-67k~\cite{prachathai67k} รวม 9 หมวดหมู่หลัก ได้แก่ การเมือง (politics), เศรษฐกิจ (economy), เทคโนโลยี (technology), สุขภาพ (health), สิ่งแวดล้อม (environment), กีฬา (sports), บันเทิง (entertainment), สังคม (society) และข่าวต่างประเทศ (world) โดยคณะผู้จัดทำได้ดำเนินการทดสอบและเปรียบเทียบสถาปัตยกรรมโมเดล 3 รูปแบบ ดังนี้
 \begin{enumerate}
     \item \textbf{Calibrated LinearSVC (TF-IDF)}\\*
-    โมเดล Support Vector Machine แบบเชิงเส้น ร่วมกับการแปลงข้อความเป็นเวกเตอร์ TF-IDF กำหนดขนาดพจนานุกรมสูงสุด 25,000 มิติ สกัดคำแบบ N-gram (1--2 คำ) และปรับเทียบค่าความน่าจะเป็นด้วยเทคนิค CalibratedClassifierCV แบบ 3-Fold Cross Validation
+    โมเดล Support Vector Machine แบบเชิงเส้น ร่วมกับการแปลงข้อความเป็นเวกเตอร์ TF-IDF กำหนดขนาดพจนานุกรมสูงสุด 25,000 มิติ สกัดคำแบบ N-gram (1--2 คำ) และปรับเทียบค่าความน่าจะเป็นด้วยเทคนิค CalibratedClassifierCV จากไลบรารี Scikit-learn~\cite{scikit2024} แบบ 3-Fold Cross Validation
     \item \textbf{WangchanBERTa (Fine-tuned Transformer)}\\*
-    โมเดลภาษาไทยอิงสถาปัตยกรรม RoBERTa (\texttt{airesearch/wangchanberta-base-att-spm-uncased}) ที่ผ่านการปรับแต่งเฉพาะทาง (Fine-tuning) สำหรับงานจำแนก 9 หมวดหมู่ข่าว ด้วยเวกเตอร์ความหมาย 768 มิติ
+    โมเดลภาษาไทยอิงสถาปัตยกรรม RoBERTa (\texttt{airesearch/wangchanberta-base-att-spm-uncased})~\cite{wangchanberta2021} ที่ผ่านการปรับแต่งเฉพาะทาง (Fine-tuning) สำหรับงานจำแนก 9 หมวดหมู่ข่าว ด้วยเวกเตอร์ความหมาย 768 มิติ
     \item \textbf{ระบบจำแนก 3 ระดับแบบบูรณาการ (Unified 3-Tier Cascade Classifier)}\\*
     สถาปัตยกรรมแบบไฮบริดที่ผสานการจำแนกด่วนผ่านร่องรอย URL และคำเฉพาะทางสูง (Tier 1 และ Tier 3) เข้ากับโมเดลการเรียนรู้ของเครื่อง Calibrated LinearSVC และ WangchanBERTa (Tier 2)
 \end{enumerate}
@@ -1745,7 +1745,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 คู่ & \textbf{0.9820} & 0.5934 & 0.7398 & ไม่ผ่าน F1 \\ \hline
 \textbf{StoryService (โครงงานนี้)} & \textbf{60 กลุ่ม} & 35 คู่ & \textbf{349 คู่} & 0.8724 & \textbf{0.7432} & \textbf{0.8026} & \textbf{ผ่านทุกเกณฑ์} \\
 \hline
-\multicolumn{8}{|l|}{\footnotesize * หมายเหตุ: ชุดข้อมูลมาตรฐานมีจำนวนเหตุการณ์จริง (Ground Truth Stories) เท่ากับ 59 เหตุการณ์ (6,105 คู่บทความ)} \\
+\multicolumn{8}{|l|}{\footnotesize * หมายเหตุ ชุดข้อมูลมาตรฐานมีจำนวนเหตุการณ์จริง (Ground Truth Stories) เท่ากับ 59 เหตุการณ์ (6,105 คู่บทความ)} \\
 \hline
 \end{tabular}%
 }
