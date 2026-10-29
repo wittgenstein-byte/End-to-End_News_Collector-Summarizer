@@ -23,15 +23,17 @@
 การจำแนกข้อความ (Text Classification) มีขั้นตอนสำคัญในการแปลงข้อความตัวอักษรให้อยู่ในรูปเวกเตอร์ตัวเลข (Feature Extraction) และการใช้โมเดลการเรียนรู้ของเครื่องในการแบ่งแยกหมวดหมู่
 
 \subsubsection{ทฤษฎี TF-IDF (Term Frequency-Inverse Document Frequency)}
-TF-IDF เป็นค่าน้ำหนักเชิงสถิติที่ใช้วัดความสำคัญของคำ $t$ ในเอกสาร $d$ เทียบกับคลังเอกสารทั้งหมด $D$ ดังสมการ
+TF-IDF เป็นค่าน้ำหนักเชิงสถิติที่ใช้วัดความสำคัญของคำ $t$ ในเอกสาร $d$ เทียบกับคลังเอกสารทั้งหมด $D$ โดยมีที่มาจากทฤษฎีการดึงสารสนเทศอัตโนมัติของ Salton และ Buckley~\cite{salton1988,manning2008} ดังสมการที่~\eqref{eq_tfidf}
 \begin{equation}
+\label{eq_tfidf}
 \text{TF-IDF}(t, d, D) = \text{TF}(t, d) \times \text{IDF}(t, D)
 \end{equation}
 โดยที่ $\text{TF}(t, d)$ คือความถี่ของคำ $t$ ในเอกสาร $d$ และ $\text{IDF}(t, D) = \log\left(\frac{1 + |D|}{1 + |\{d \in D : t \in d\}|}\right) + 1$ ช่วยลดน้ำหนักของคำที่ปรากฏบ่อยทั่วไปในทุกข่าว และเพิ่มน้ำหนักให้คำเฉพาะกลุ่มหมวดหมู่
 
 \subsubsection{ทฤษฎี Support Vector Machine (LinearSVC)}
-Linear Support Vector Classifier (LinearSVC) เป็นโมเดลที่มุ่งหาเส้นแบ่งระนาบหลายมิติ (Hyperplane) ที่มีระยะห่าง (Margin) จากจุดข้อมูลของแต่ละคลาสมากที่สุด ดังสมการ
+Linear Support Vector Classifier (LinearSVC) เป็นโมเดลที่มุ่งหาเส้นแบ่งระนาบหลายมิติ (Hyperplane) ที่มีระยะห่าง (Margin) จากจุดข้อมูลของแต่ละคลาสมากที่สุด ซึ่งคิดค้นโดย Cortes และ Vapnik~\cite{cortes1995} และพัฒนาเป็นอัลกอริทึมประสิทธิภาพสูงสำหรับข้อมูลมิติสูงใน LIBLINEAR โดย Fan และคณะ~\cite{fan2008liblinear} ดังสมการที่~\eqref{eq_linearsvc}
 \begin{equation}
+\label{eq_linearsvc}
 \min_{w, b, \xi} \frac{1}{2} \|w\|^2 + C \sum_{i=1}^n \xi_i \quad \text{subject to } y_i (w^T x_i + b) \ge 1 - \xi_i, \quad \xi_i \ge 0
 \end{equation}
 
