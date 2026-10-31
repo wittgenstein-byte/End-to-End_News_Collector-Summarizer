@@ -37,6 +37,8 @@
       \strng{authorfullhashraw}{f6b28bad15b9e2b504534acd2b997ad2}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the 1st Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 10th International Joint Conference on Natural Language Processing: Student Research Workshop}
@@ -77,6 +79,8 @@
       \strng{authorfullhashraw}{a0f4a5143071ca6fb7853d2b49acc165}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{prachathai-67k: Thai News Corpus for Text Classification and Summarization}
@@ -137,6 +141,8 @@
       \strng{editorfullhashraw}{c3390ff2a8a76ac21021b6c1365a107b}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing: System Demonstrations}
@@ -172,6 +178,8 @@
       \strng{authorfullhashraw}{2d56d04a64f59849b82e03865ef7679d}
       \field{sortinit}{4}
       \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{RSS 2.0 Specification}
@@ -235,6 +243,8 @@
       \strng{authorfullhashraw}{92235f78872a313f7bca030b9953654c}
       \field{sortinit}{5}
       \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{arXiv preprint arXiv:1707.02268}
@@ -259,6 +269,8 @@
       \strng{authorfullhashraw}{7034206ab1daed472efe969134f2e767}
       \field{sortinit}{6}
       \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{arXiv preprint arXiv:2312.11805}
@@ -281,6 +293,8 @@
       \strng{authorfullhashraw}{0523b13262b12c215d8009938f5c14f1}
       \field{sortinit}{7}
       \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{OpenAI Platform Documentation}
@@ -322,6 +336,8 @@
       \strng{authorfullhashraw}{75a55b37777743097cff63dc3e13508c}
       \field{sortinit}{8}
       \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Information Processing \& Management}
@@ -369,6 +385,8 @@
       \strng{authorfullhashraw}{56b44e50eec2e98e36ad6aa3a5e7af9b}
       \field{sortinit}{8}
       \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Introduction to Information Retrieval}
@@ -400,6 +418,8 @@
       \strng{authorfullhashraw}{4c67d5268f413e83454c8adc14ab43c3}
       \field{sortinit}{9}
       \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Machine Learning}
@@ -451,6 +471,8 @@
       \strng{authorfullhashraw}{11e44e2f48e118c7607d022a2d667950}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Journal of Machine Learning Research}
@@ -525,6 +547,8 @@
       \strng{authorfullhashraw}{9c0daf119a88f60278a791d01ffdd5ec}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Journal of Machine Learning Research}
@@ -567,6 +591,8 @@
       \strng{authorfullhashraw}{62955438c871ceeb04fd041d90f7567d}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{arXiv preprint arXiv:2101.09635}
@@ -598,6 +624,8 @@
       \strng{authorfullhashraw}{76d7924c7ea91fa2f89164e4ffebd8f1}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{PyThaiNLP: Thai Natural Language Processing in Python Framework}
@@ -631,6 +659,8 @@
       \strng{authorfullhashraw}{04bfb388fcc0842dbbbdf80b3b444488}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{How Reddit Ranking Algorithms Work}
@@ -664,6 +694,8 @@
       \strng{authorfullhashraw}{044176fb833c1638f7abe20cde6a3077}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Rewriting Reddit: Web Development and Architecture}
@@ -697,6 +729,8 @@
       \strng{authorfullhashraw}{ed1e26df7443c286a4ae4f99ce1993d0}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{What I've Learned from Hacker News: Ranking and Community Dynamics}
@@ -765,6 +799,8 @@
       \strng{authorfullhashraw}{8c7047092761434b671295a0a35c8fb5}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the 33rd International ACM SIGIR Conference on Research and Development in Information Retrieval}
@@ -812,6 +848,8 @@
       \strng{authorfullhashraw}{67af0dd171d9d244947c90803b966f7a}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the 16th International Conference on World Wide Web (WWW '07)}
@@ -856,6 +894,8 @@
       \strng{authorfullhashraw}{22ec06cb055cc3ad497fdcb99ffd2fda}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{arXiv preprint arXiv:2508.08272}
@@ -891,6 +931,8 @@
       \strng{authorfullhashraw}{3adb1e8309176922bfe07a5c18c3df35}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the First International Conference on Language Resources and Evaluation Workshop on Linguistics Coreference}
@@ -935,6 +977,8 @@
       \strng{authorfullhashraw}{942af0f44994ada48dd1bc2eecfb6401}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Information Retrieval}
@@ -963,6 +1007,8 @@
       \strng{authorfullhashraw}{f5305ee02dd2a5c6215b53401b4a10b0}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{FastAPI framework, high performance, easy to learn, fast to code, ready for production}
@@ -998,6 +1044,8 @@
       \strng{authorfullhashraw}{799fa3f8cacd639c0be2246939b38e09}
       \field{sortinit}{2}
       \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Pydantic: Data validation using Python type hints}
@@ -1029,6 +1077,8 @@
       \strng{authorfullhashraw}{140864078aeca1c7c35b4beb33c53c34}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Playwright: Fast and reliable cross-browser testing}
@@ -1060,6 +1110,8 @@
       \strng{authorfullhashraw}{52ff54d63e46d6619de683427f024a92}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Socket.IO}
@@ -1091,6 +1143,8 @@
       \strng{authorfullhashraw}{9a9ab6daa89d3a40e1d166986df843e3}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{title}{Write-Ahead Logging}
@@ -1135,6 +1189,8 @@
       \strng{authorfullhashraw}{da6ec91488daec8c3c9eddf18c78dad8}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{edition}{8}
@@ -1165,6 +1221,8 @@
       \strng{authorfullhashraw}{70341b3bfcce7026902f4eb1e4111b58}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{edition}{10}
@@ -1200,6 +1258,8 @@
       \strng{authorfullhashraw}{bdb52a5bd9aa7ee9f68b1ac076122a71}
       \field{sortinit}{3}
       \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{edition}{10}
