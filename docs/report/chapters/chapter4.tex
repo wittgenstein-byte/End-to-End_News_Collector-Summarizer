@@ -16,8 +16,7 @@
 \centering
 \caption{บทบาทและสิทธิ์การเข้าถึงระบบ}
 \label{tab_roles_permissions}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|L{3.5cm}|L{11.0cm}|}
+\begin{tabular}{|L{3.5cm}|L{10.2cm}|}
 \hline
 \textbf{บทบาท} & \textbf{สิทธิ์การเข้าถึงและการใช้งานระบบ} \\
 \hline
@@ -25,8 +24,7 @@
 ผู้ดูแลระบบ\newline (Administrator) & เข้าสู่ศูนย์ควบคุมและติดตามสถานะระบบ (Ops Monitoring Console) ด้วยรหัสผ่านลับ ตรวจสอบสถานะการทำงาน สถิติ Throughput การใช้หน่วยความจำ และสถานะการทำงานของแคช สั่งเริ่มรอบการดึงข่าวด่วนทันที (Scrape Now) สั่งล้างแคชในหน่วยความจำและแคช HTTP (Clear Cache) และทดสอบการเชื่อมต่อและดึงข้อมูลของสำนักข่าวรายแห่ง (Test Source Probe) \\ \hline
 ระบบประมวลผลเบื้องหลัง\newline (Background Automation Engine) & บริการประมวลผลอัตโนมัติตามรอบเวลาภายในระบบ (Internal Background Pipeline) ทำหน้าที่ดึงข้อมูลข่าวสาร ตัดคำ จำแนก 9 หมวดหมู่ สกัดเวกเตอร์ความหมาย เชื่อมโยงมหากาพย์ และคำนวณคะแนนกระแส โดยทำงานเป็นกลไกภายในเซิร์ฟเวอร์ มิใช่ผู้กระทำภายนอกระบบ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{ความต้องการเชิงฟังก์ชัน}
@@ -75,7 +73,7 @@ FR-15 & การคุ้มครองข้อมูลส่วนบุค
 \hline
 \textbf{รหัส} & \textbf{ด้าน} & \textbf{เกณฑ์คุณลักษณะที่กำหนด} \\ \hline
 \endhead
-NFR-01 & ด้านเวลาตอบสนองของระบบ\newline (Performance Latency) & เวลาในการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (\texttt{GET /api/news}) ต้องมีค่าเฉลี่ยต่ำกว่า 150 มิลลิวินาทีเมื่อมีข้อมูลจัดเก็บในหน่วยความจำแคช \\ \hline
+NFR-01 & ด้านเวลาตอบสนองของระบบ\newline (Performance Latency) & เวลาในการตอบสนองคำขอเรียกดูรายการข่าวผ่าน REST API (GET /api/news) ต้องมีค่าเฉลี่ยต่ำกว่า 150 มิลลิวินาทีเมื่อมีข้อมูลจัดเก็บในหน่วยความจำแคช \\ \hline
 NFR-02 & ด้านความหน่วงเวลาผลักดันข้อมูลสด\newline (WebSocket Latency) & ความหน่วงเวลาในการกระจายข่าวสารใหม่และการแจ้งเตือนผ่าน Socket.IO ต้องต่ำกว่า 500 มิลลิวินาทีนับจากช่วงเวลาที่ข่าวได้รับการบันทึกลงระบบสำเร็จ \\ \hline
 NFR-03 & ด้านอัตราการดึงข้อมูลและ Throughput\newline (Scraping Throughput) & ระบบต้องสามารถรองรับการดึงและสกัดเนื้อหาข่าวสารจากหลายสำนักพร้อมกันได้ในอัตราไม่น้อยกว่า 100 บทความต่อนาทีในสภาวะโหลดสูงสุด \\ \hline
 NFR-04 & ด้านความคงทนและการแยกความเสียหาย\newline (Fault Isolation) & ความล้มเหลวในการเชื่อมต่อหรือโครงสร้างหน้าเว็บเปลี่ยนไปของสำนักข่าวใดสำนักข่าวหนึ่ง ต้องไม่ส่งผลกระทบต่อรอบการทำงานของสำนักข่าวอื่น \\ \hline
@@ -94,24 +92,22 @@ NFR-08 & ด้านการทำงานข้ามแพลตฟอร�
 \centering
 \caption{กฎการตรวจสอบความถูกต้องของข้อมูล}
 \label{tab_validation_rules}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4.2cm}|L{9.8cm}|}
+\begin{tabular}{|C{1.2cm}|L{3.8cm}|L{8.8cm}|}
 \hline
 \textbf{รหัส} & \textbf{ข้อมูลที่ตรวจสอบ} & \textbf{กฎการตรวจสอบความถูกต้องและข้อกำหนด} \\
 \hline
-VR-01 & URL บทความข่าว (\texttt{url}) & ต้องเป็นรูปแบบ URL ที่ถูกต้องตาม RFC 3986 ขึ้นต้นด้วย http หรือ https และมีความยาวไม่เกิน 2,048 อักขระ \\ \hline
-VR-02 & หัวข้อบทความข่าว (\texttt{title}) & ต้องเป็นข้อความสตริงที่ไม่ว่างเปล่า มีความยาวระหว่าง 5 ถึง 500 อักขระ และผ่านการตัดอักขระความกว้างศูนย์ \\ \hline
-VR-03 & สำนักข่าวต้นทาง (\texttt{source}) & ต้องตรงกับรายชื่อสำนักข่าวที่ลงทะเบียนไว้ใน Source Registry และเปิดใช้งานอยู่ในระบบเท่านั้น \\ \hline
-VR-04 & หมวดหมู่ข่าว (\texttt{category}) & ต้องตรงกับ 1 ใน 9 หมวดหมู่หลักที่ระบบกำหนด ได้แก่ politics, economy, tech, crime, entertainment, sport, world, environment, social \\ \hline
-VR-05 & วันเวลาเผยแพร่ (\texttt{published\_at}) & ต้องอยู่ในรูปแบบวันเวลามาตรฐาน ISO 8601 ที่ถูกต้อง และต้องไม่เป็นเวลาในอนาคตเกิน 1 ชั่วโมงเทียบกับเซิร์ฟเวอร์ \\ \hline
-VR-06 & เวกเตอร์ความหมาย (\texttt{centroid}) & ต้องเป็นอาเรย์ของตัวเลขทศนิยมขนาด 768 มิติพอดี และต้องผ่านการปรับขนาดเวกเตอร์ให้เป็น 1 หน่วย (L2 Normalized) \\ \hline
-VR-07 & ความคล้ายคลึงโคไซน์ (\texttt{cosine}) & ต้องเป็นตัวเลขทศนิยมที่มีค่าอยู่ในช่วงทางคณิตศาสตร์ตั้งแต่ -1.0 ถึง 1.0 เสมอ \\ \hline
-VR-08 & รหัสผ่านลับผู้ดูแล (\texttt{secret}) & ต้องเป็นสตริงที่ไม่ว่างเปล่า มีความยาวไม่น้อยกว่า 8 อักขระ และตรวจสอบเทียบเคียงด้วยเวลาคงที่เพื่อป้องกัน Timing Attack \\ \hline
-VR-09 & เหตุการณ์การมีส่วนร่วม (\texttt{action}) & ต้องระบุประเภทการกระทำที่ระบบยอมรับเท่านั้น ได้แก่ click, summary\_view, bookmark หรือ share \\ \hline
-VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authorization}) & ต้องระบุรูปแบบ Bearer Token ที่ถูกต้องตามมาตรฐาน RFC 6750 และเป็นโทเค็นเซสชันที่ยังไม่หมดอายุในหน่วยความจำ \\
+VR-01 & URL บทความข่าว (url) & ต้องเป็นรูปแบบ URL ที่ถูกต้องตาม RFC 3986 ขึ้นต้นด้วย http หรือ https และมีความยาวไม่เกิน 2,048 อักขระ \\ \hline
+VR-02 & หัวข้อบทความข่าว (title) & ต้องเป็นข้อความสตริงที่ไม่ว่างเปล่า มีความยาวระหว่าง 5 ถึง 500 อักขระ และผ่านการตัดอักขระความกว้างศูนย์ \\ \hline
+VR-03 & สำนักข่าวต้นทาง (source) & ต้องตรงกับรายชื่อสำนักข่าวที่ลงทะเบียนไว้ใน Source Registry และเปิดใช้งานอยู่ในระบบเท่านั้น \\ \hline
+VR-04 & หมวดหมู่ข่าว (category) & ต้องตรงกับ 1 ใน 9 หมวดหมู่หลักที่ระบบกำหนด ได้แก่ politics, economy, tech, crime, entertainment, sport, world, environment, social \\ \hline
+VR-05 & วันเวลาเผยแพร่ (published\_at) & ต้องอยู่ในรูปแบบวันเวลามาตรฐาน ISO 8601 ที่ถูกต้อง และต้องไม่เป็นเวลาในอนาคตเกิน 1 ชั่วโมงเทียบกับเซิร์ฟเวอร์ \\ \hline
+VR-06 & เวกเตอร์ความหมาย (centroid) & ต้องเป็นอาเรย์ของตัวเลขทศนิยมขนาด 768 มิติพอดี และต้องผ่านการปรับขนาดเวกเตอร์ให้เป็น 1 หน่วย (L2 Normalized) \\ \hline
+VR-07 & ความคล้ายคลึงโคไซน์ (cosine) & ต้องเป็นตัวเลขทศนิยมที่มีค่าอยู่ในช่วงทางคณิตศาสตร์ตั้งแต่ -1.0 ถึง 1.0 เสมอ \\ \hline
+VR-08 & รหัสผ่านลับผู้ดูแล (secret) & ต้องเป็นสตริงที่ไม่ว่างเปล่า มีความยาวไม่น้อยกว่า 8 อักขระ และตรวจสอบเทียบเคียงด้วยเวลาคงที่เพื่อป้องกัน Timing Attack \\ \hline
+VR-09 & เหตุการณ์การมีส่วนร่วม (action) & ต้องระบุประเภทการกระทำที่ระบบยอมรับเท่านั้น ได้แก่ click, summary\_view, bookmark หรือ share \\ \hline
+VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) & ต้องระบุรูปแบบ Bearer Token ที่ถูกต้องตามมาตรฐาน RFC 6750 และเป็นโทเค็นเซสชันที่ยังไม่หมดอายุในหน่วยความจำ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{แผนภาพกรณีใช้งาน}
@@ -217,8 +213,7 @@ VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authoriz
 \centering
 \caption{คำอธิบายกรณีใช้งาน UC-01 ติดตามและอ่านข่าวสาร}
 \label{tab_uc01_spec}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -241,16 +236,14 @@ VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authoriz
 ลำดับเหตุการณ์ผิดปกติ & 
 4b. เว็บไซต์ต้นทางปิดกั้นการเข้าถึง ระบบแสดงข้อความแจ้งเตือนพร้อมเสนอทางเลือกให้เปิดเว็บต้นฉบับโดยตรง \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{คำอธิบายกรณีใช้งาน UC-02 ค้นหาข้อมูลข่าวสาร}
 \label{tab_uc02_spec}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -270,16 +263,14 @@ VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authoriz
 ลำดับเหตุการณ์ผิดปกติ & 
 2a. ไม่พบบทความข่าวที่ตรงตามเงื่อนไข ระบบแสดงข้อความแจ้งไม่พบผลลัพธ์พร้อมเสนอคำค้นหาที่ใกล้เคียง \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{คำอธิบายกรณีใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก}
 \label{tab_uc03_spec}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -302,16 +293,14 @@ VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authoriz
 ลำดับเหตุการณ์ผิดปกติ & 
 3a. หากชุดข่าวผู้สมัครไม่ตรงประเด็น ระบบเข้าสู่โหมดระงับการสังเคราะห์ (halted\_mismatch) และแสดงข้อความแจ้งเตือนผู้ใช้อย่างโปร่งใสเพื่อป้องกันข้อมูลเท็จ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{คำอธิบายกรณีใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ}
 \label{tab_uc04_spec}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -337,8 +326,7 @@ VR-10 & ส่วนหัวยืนยันตัวตน (\texttt{Authoriz
 ลำดับเหตุการณ์ผิดปกติ & 
 1a. รหัสผ่านไม่ถูกต้อง ระบบส่งคืนรหัส 401 Unauthorized และปฏิเสธการเข้าถึง \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{สถานการณ์และกรณีทดสอบตามกรณีใช้งาน}
@@ -430,7 +418,7 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 & 5 & S: แสดงข้อเท็จจริงที่ยืนยันตรงกันจากหลายสำนักข่าว \\ \cline{2-3}
 & 6 & A: เลือกสืบค้นประเด็นเชิงลึกผ่าน Issue Explorer \\ \hline
 \multirow[c]{2}{3.5cm}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
-& 3a & S: หากชุดข่าวไม่ตรงประเด็น ให้ระงับการสังเคราะห์ แสดงสถานะ \texttt{halted\_mismatch} และแจ้งผู้ใช้ \\ \hline
+& 3a & S: หากชุดข่าวไม่ตรงประเด็น ให้ระงับการสังเคราะห์ แสดงสถานะ halted\_mismatch และแจ้งผู้ใช้ \\ \hline
 \end{tabularx}
 \end{table}
 
@@ -444,7 +432,7 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 \textbf{รหัส} & \textbf{ข้อกำหนด} & \textbf{ข้อมูลตั้งต้น} & \textbf{ขั้นตอนทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
 UCT-03-01 & FR-10, FR-11 & มีมหากาพย์ข่าวที่มีข้อมูลสรุปและไทม์ไลน์ & เลือกมหากาพย์ข่าวจาก Bento Hub & เปิดแฟ้มเจาะลึกพร้อมพาดหัวและบทสรุป \\ \hline
 UCT-03-02 & FR-11, FR-12 & มีข้อมูลจากหลายสำนักข่าวและลำดับเหตุการณ์ & ตรวจสอบไทม์ไลน์และตารางข้อเท็จจริงในแฟ้ม & เหตุการณ์เรียงตามเวลาและแสดงข้อเท็จจริงพร้อมหลักฐานจากหลายสำนักข่าว \\ \hline
-UCT-03-03 & FR-13 & เตรียมชุดข่าวที่ไม่ตรงประเด็นสำหรับทดสอบ & เปิดแฟ้มประเด็นที่ใช้ชุดข่าวดังกล่าว & ระบบระงับการสังเคราะห์ แสดง \texttt{halted\_mismatch} และแจ้งผู้ใช้อย่างชัดเจน \\ \hline
+UCT-03-03 & FR-13 & เตรียมชุดข่าวที่ไม่ตรงประเด็นสำหรับทดสอบ & เปิดแฟ้มประเด็นที่ใช้ชุดข่าวดังกล่าว & ระบบระงับการสังเคราะห์ แสดง halted\_mismatch และแจ้งผู้ใช้อย่างชัดเจน \\ \hline
 UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแสและประเด็นที่ค้นต่อได้ & เปิดรายละเอียดคะแนนกระแส แล้วเลือกสืบค้นประเด็น & แสดงคะแนนทั้ง 6 มิติและเปิด Issue Explorer ได้ \\ \hline
 \end{tabular}
 }
@@ -459,7 +447,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 \begin{tabularx}{\textwidth}{|L{3.5cm}|c|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{9}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า \texttt{/monitoring.html} และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
+\multirow[c]{9}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า /monitoring.html และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
 & 2 & S: ตรวจสอบข้อมูลและออก Bearer Token สำหรับเซสชัน \\ \cline{2-3}
 & 3 & S: แสดงแดชบอร์ด Throughput, RAM และสถานะแคช \\ \cline{2-3}
 & 4 & A: ตรวจสอบสุขภาพของแต่ละสำนักข่าว \\ \cline{2-3}
@@ -1071,8 +1059,7 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง articles}
 \label{tab_schema_articles}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1087,16 +1074,14 @@ story\_id & TEXT & FK & NULL & story\_0b86804a & รหัสกลุ่มป�
 sentiment & TEXT & - & NULL & positive & ค่าอารมณ์ของข่าว (positive, neutral, negative) \\ \hline
 image\_url & TEXT & - & NULL & \detokenize{https://img.thaipbs.or.th/335123.jpg} & ลิงก์รูปภาพหน้าปกบทความข่าว \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง stories}
 \label{tab_schema_stories}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1111,16 +1096,14 @@ outlet\_count & INTEGER & - & 1 & 3 & จำนวนสำนักข่าว
 centroid & BLOB/TEXT & - & ไม่มี & [0.024, -0.118, ..., 0.052] & เวกเตอร์ศูนย์กลาง 768 มิติ ปรับปรุงด้วย EMA \\ \hline
 macro\_event\_id & TEXT & FK & NULL & macro\_1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่สังกัด \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง macro\_events}
 \label{tab_schema_macro_events}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1134,16 +1117,14 @@ updated\_at & TEXT & - & ไม่มี & 2026-03-15T12:00:00+07:00 & วัน
 headline & TEXT & - & NULL & สรุปพัฒนาการมาตรการเศรษฐกิจดิจิทัล & พาดหัวข่าวสังเคราะห์ภาพรวมจากโมเดลภาษา \\ \hline
 summary & TEXT & - & NULL & ภาพรวมการดำเนินนโยบายเศรษฐกิจดิจิทัล... & บทสรุปสังเคราะห์ภาพรวมข้ามสำนักข่าว \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง event\_relations}
 \label{tab_schema_event_relations}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1154,16 +1135,14 @@ target\_story\_id & TEXT & FK & ไม่มี & story\_7c9d0e1f & รหัส
 relation\_type & TEXT & - & 'precedes' & updates & ประเภทความสัมพันธ์ (precedes/updates/caused\_by) \\ \hline
 created\_at & TEXT & - & ไม่มี & 2026-03-15T11:30:00+07:00 & วันเวลาที่สร้างความสัมพันธ์ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง trending\_scores}
 \label{tab_schema_trending_scores}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1177,16 +1156,14 @@ engagement\_score & REAL & - & 0.0 & 1.80 & คะแนนพฤติกรร
 routine\_penalty & REAL & - & 1.0 & 1.00 & ตัวคูณลดทอนข่าวประจำวัน (0.25 สำหรับข่าววงรอบ) \\ \hline
 final\_score & REAL & - & 0.0 & 18.45 & คะแนนกระแสรวมหลังปรับค่าน้ำหนักและตัวลดทอน \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง reader\_engagement}
 \label{tab_schema_reader_engagement}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1197,16 +1174,14 @@ summaries & INTEGER & - & 0 & 87 & จำนวนครั้งที่ผู
 bookmarks & INTEGER & - & 0 & 24 & จำนวนครั้งที่ผู้อ่านบันทึกคั่นหน้าบทความ \\ \hline
 last\_engaged\_at & TEXT & - & ไม่มี & 2026-03-15T14:22:10+07:00 & วันเวลาที่มีปฏิสัมพันธ์ล่าสุด \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง seen\_urls}
 \label{tab_schema_seen_urls}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1214,16 +1189,14 @@ url\_hash & TEXT & PK & ไม่มี & a1b2c3d4e5f60718293a4b5c6d7e8f90 & ค
 url & TEXT & - & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าวฉบับเต็ม \\ \hline
 first\_seen\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบตรวจพบข่าวนี้เป็นครั้งแรก \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง canonical\_articles}
 \label{tab_schema_canonical}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|l|l|L{4.2cm}|L{4.8cm}|}
+\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1231,8 +1204,7 @@ canonical\_url & TEXT & PK & ไม่มี & \detokenize{https://thaipbs.or.th
 target\_url & TEXT & - & ไม่มี & \detokenize{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
 created\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 ข้อกำหนดความคงสภาพของข้อมูลและดัชนี (Constraints and Indices) ที่ติดตั้งบนฐานข้อมูลเพื่อรักษาความสมบูรณ์และเพิ่มประสิทธิภาพการสืบค้น แสดงดังตารางที่~\ref{tab_db_constraints}
@@ -1241,8 +1213,7 @@ created\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วัน
 \centering
 \caption{ข้อจำกัดและดัชนีของฐานข้อมูล}
 \label{tab_db_constraints}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|L{3.5cm}|L{3.2cm}|L{3.8cm}|L{4.5cm}|}
+\begin{tabular}{|L{2.2cm}|L{2.5cm}|L{3.5cm}|L{5.4cm}|}
 \hline
 \textbf{ตาราง} & \textbf{ฟิลด์} & \textbf{ประเภทข้อจำกัด / ดัชนี} & \textbf{รายละเอียดและวัตถุประสงค์} \\
 \hline
@@ -1260,8 +1231,7 @@ trending\_scores & story\_id & PK, FK, UNIQUE & บังคับความ�
 reader\_engagement & article\_url & FOREIGN KEY & บังคับความสอดคล้องกับตาราง articles \\ \hline
 seen\_urls & url\_hash & PRIMARY KEY & ดัชนีหลักสำหรับตรวจสอบการสเกรปซ้ำ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{การออกแบบส่วนเชื่อมต่อโปรแกรมประยุกต์}
@@ -1277,28 +1247,28 @@ seen\_urls & url\_hash & PRIMARY KEY & ดัชนีหลักสำหร�
 \hline
 \textbf{เมธอด} & \textbf{เส้นทาง (Route)} & \textbf{การทำงานและวัตถุประสงค์} & \textbf{สิทธิ์การเข้าถึง} \\ \hline
 \endhead
-GET & \texttt{/api/stories} & เรียกดูรายการกลุ่มประเด็นข่าวสาร พร้อมการแบ่งหน้าและกรอง & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/stories/trending} & ดึงประเด็นข่าวยอดนิยมที่ผ่านการจัดอันดับเชิงสถิติ 6 มิติ & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/stories/\{id\}} & ดึงรายละเอียดประเด็นข่าว ไทม์ไลน์ และบทความข่าวสมาชิก & ผู้อ่านทั่วไป \\ \hline
-POST & \texttt{/api/stories/\{id\}/summarize} & ร้องขอการสรุปและสังเคราะห์ประเด็นข่าวข้ามสำนักด้วย LLM & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/macro-events} & เรียกดูรายการมหากาพย์ประเด็นข่าว พร้อมตัวกรองวิกฤต & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/macro-events/trending} & ดึงมหากาพย์ข่าวเด่นที่กำลังเป็นกระแสสำหรับหน้าแรก Bento Hub & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/macro-events/\{id\}} & ดึงโครงสร้างมหากาพย์ ความสัมพันธ์ประเด็นย่อย และไทม์ไลน์ & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/news} & ดึงรายการบทความข่าวเดี่ยว กรองหมวด สำนักข่าว และค้นหา & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/news/content} & สกัดเนื้อหาบทความฉบับเต็ม Cleaned Markdown สำหรับสังเคราะห์สรุปและพรีวิว & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/categories} & ดึงรายชื่อ 9 หมวดหมู่ข่าวภาษาไทยพร้อมชุดสีประจำหมวด & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/sources} & ดึงรายชื่อสำนักข่าวทั้งหมดที่ลงทะเบียนและเปิดใช้งาน & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/status} & ตรวจสอบสถานะรอบเวลาสเกรปและจำนวนข่าวสะสมในระบบ & ผู้อ่านทั่วไป \\ \hline
-GET & \texttt{/api/image} & บริการ Reverse Proxy และแคชรูปภาพหน้าปกบทความ & ผู้อ่านทั่วไป \\ \hline
-POST & \texttt{/api/collect-md} & นำเข้า URL ข่าวเดี่ยวเพื่อสกัดเนื้อหาและจำแนกหมวดทันที & ผู้อ่านทั่วไป \\ \hline
-POST & \texttt{/api/news/engage} & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม (คลิก, สรุป, บุ๊กมาร์ก) & ผู้อ่านทั่วไป \\ \hline
-POST & \texttt{/api/monitoring/auth} & ตรวจสอบรหัสผ่านลับผู้ดูแลระบบและออก Bearer Token & ผู้ดูแลระบบ \\ \hline
-GET & \texttt{/api/monitoring/verify} & ตรวจสอบความถูกต้องของโทเค็นเซสชันผู้ดูแลระบบ & ผู้ดูแลระบบ \\ \hline
-GET & \texttt{/api/monitoring/stats} & ตรวจสอบสถิติ Throughput การใช้ RAM และสถานะแคช & ผู้ดูแลระบบ \\ \hline
-POST & \texttt{/api/monitoring/scrape-now} & สั่งเริ่มรอบการดึงข่าวจากทุกสำนักในเบื้องหลังทันที & ผู้ดูแลระบบ \\ \hline
-POST & \texttt{/api/monitoring/clear-cache} & สั่งล้างข้อมูลในแคชหน่วยความจำ L1 และแคช HTTP & ผู้ดูแลระบบ \\ \hline
-POST & \texttt{/api/monitoring/test-source} & ทดสอบการเชื่อมต่อและดึงข่าวเฉพาะสำนักข่าวที่ระบุ & ผู้ดูแลระบบ \\ \hline
-GET & \texttt{/livez} และ \texttt{/readyz} & โพรบตรวจสอบความพร้อมและสถานะการทำงานของเซิร์ฟเวอร์ & สาธารณะ \\
+GET & /api/stories & เรียกดูรายการกลุ่มประเด็นข่าวสาร พร้อมการแบ่งหน้าและกรอง & ผู้อ่านทั่วไป \\ \hline
+GET & /api/stories/trending & ดึงประเด็นข่าวยอดนิยมที่ผ่านการจัดอันดับเชิงสถิติ 6 มิติ & ผู้อ่านทั่วไป \\ \hline
+GET & /api/stories/\{id\} & ดึงรายละเอียดประเด็นข่าว ไทม์ไลน์ และบทความข่าวสมาชิก & ผู้อ่านทั่วไป \\ \hline
+POST & /api/stories/\{id\}/summarize & ร้องขอการสรุปและสังเคราะห์ประเด็นข่าวข้ามสำนักด้วย LLM & ผู้อ่านทั่วไป \\ \hline
+GET & /api/macro-events & เรียกดูรายการมหากาพย์ประเด็นข่าว พร้อมตัวกรองวิกฤต & ผู้อ่านทั่วไป \\ \hline
+GET & /api/macro-events/trending & ดึงมหากาพย์ข่าวเด่นที่กำลังเป็นกระแสสำหรับหน้าแรก Bento Hub & ผู้อ่านทั่วไป \\ \hline
+GET & /api/macro-events/\{id\} & ดึงโครงสร้างมหากาพย์ ความสัมพันธ์ประเด็นย่อย และไทม์ไลน์ & ผู้อ่านทั่วไป \\ \hline
+GET & /api/news & ดึงรายการบทความข่าวเดี่ยว กรองหมวด สำนักข่าว และค้นหา & ผู้อ่านทั่วไป \\ \hline
+GET & /api/news/content & สกัดเนื้อหาบทความฉบับเต็ม Cleaned Markdown สำหรับสังเคราะห์สรุปและพรีวิว & ผู้อ่านทั่วไป \\ \hline
+GET & /api/categories & ดึงรายชื่อ 9 หมวดหมู่ข่าวภาษาไทยพร้อมชุดสีประจำหมวด & ผู้อ่านทั่วไป \\ \hline
+GET & /api/sources & ดึงรายชื่อสำนักข่าวทั้งหมดที่ลงทะเบียนและเปิดใช้งาน & ผู้อ่านทั่วไป \\ \hline
+GET & /api/status & ตรวจสอบสถานะรอบเวลาสเกรปและจำนวนข่าวสะสมในระบบ & ผู้อ่านทั่วไป \\ \hline
+GET & /api/image & บริการ Reverse Proxy และแคชรูปภาพหน้าปกบทความ & ผู้อ่านทั่วไป \\ \hline
+POST & /api/collect-md & นำเข้า URL ข่าวเดี่ยวเพื่อสกัดเนื้อหาและจำแนกหมวดทันที & ผู้อ่านทั่วไป \\ \hline
+POST & /api/news/engage & บันทึกสถิติการมีส่วนร่วมแบบนิรนาม (คลิก, สรุป, บุ๊กมาร์ก) & ผู้อ่านทั่วไป \\ \hline
+POST & /api/monitoring/auth & ตรวจสอบรหัสผ่านลับผู้ดูแลระบบและออก Bearer Token & ผู้ดูแลระบบ \\ \hline
+GET & /api/monitoring/verify & ตรวจสอบความถูกต้องของโทเค็นเซสชันผู้ดูแลระบบ & ผู้ดูแลระบบ \\ \hline
+GET & /api/monitoring/stats & ตรวจสอบสถิติ Throughput การใช้ RAM และสถานะแคช & ผู้ดูแลระบบ \\ \hline
+POST & /api/monitoring/scrape-now & สั่งเริ่มรอบการดึงข่าวจากทุกสำนักในเบื้องหลังทันที & ผู้ดูแลระบบ \\ \hline
+POST & /api/monitoring/clear-cache & สั่งล้างข้อมูลในแคชหน่วยความจำ L1 และแคช HTTP & ผู้ดูแลระบบ \\ \hline
+POST & /api/monitoring/test-source & ทดสอบการเชื่อมต่อและดึงข่าวเฉพาะสำนักข่าวที่ระบุ & ผู้ดูแลระบบ \\ \hline
+GET & /livez และ /readyz & โพรบตรวจสอบความพร้อมและสถานะการทำงานของเซิร์ฟเวอร์ & สาธารณะ \\
 \hline
 \end{longtable}
 
@@ -1306,8 +1276,7 @@ GET & \texttt{/livez} และ \texttt{/readyz} & โพรบตรวจส�
 \centering
 \caption{รหัสสถานะ HTTP ที่ระบบใช้}
 \label{tab_http_status_codes}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4.5cm}|L{9.0cm}|}
+\begin{tabular}{|C{1.0cm}|L{3.8cm}|L{9.0cm}|}
 \hline
 \textbf{รหัส} & \textbf{ชื่อสถานะ (HTTP Status)} & \textbf{เงื่อนไขการส่งคืนในระบบ} \\
 \hline
@@ -1325,8 +1294,7 @@ GET & \texttt{/livez} และ \texttt{/readyz} & โพรบตรวจส�
 502 & Bad Gateway & เซิร์ฟเวอร์ต้นทางหรือบริการภาพข่าวภายนอกไม่ตอบสนอง \\ \hline
 503 & Service Unavailable & เซิร์ฟเวอร์ยังไม่พร้อมให้บริการหรืออยู่ในระหว่างการเริ่มต้นระบบ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{ต้นแบบส่วนติดต่อกับผู้ใช้}
@@ -1337,8 +1305,7 @@ GET & \texttt{/livez} และ \texttt{/readyz} & โพรบตรวจส�
 \centering
 \caption{รายการต้นแบบหน้าจอ}
 \label{tab_ui_mockups}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4.5cm}|L{2.5cm}|L{7.5cm}|}
+\begin{tabular}{|C{1.0cm}|L{3.5cm}|L{2.2cm}|L{7.1cm}|}
 \hline
 \textbf{รหัส} & \textbf{ชื่อหน้าจอ} & \textbf{ผู้ใช้งาน} & \textbf{ส่วนประกอบหลักและหน้าที่การทำงาน} \\
 \hline
@@ -1350,8 +1317,7 @@ M-05 & Ops Monitoring Console\newline (ศูนย์ควบคุมสถ�
 M-06 & Privacy \& Cookie Modal\newline (ตั้งค่าความเป็นส่วนตัว) & ผู้อ่านทั่วไป & แถบขอความยินยอมคุกกี้ หน้าต่างตั้งค่าสิทธิ์ความเป็นส่วนตัวตามมาตรฐาน PDPA และปุ่มลบสถิติความสนใจออกจากเบราว์เซอร์ \\ \hline
 M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉพาะคุณ) & ผู้อ่านทั่วไป & หน้าต่างเลือกอย่างน้อย 3 หมวดหมู่สนใจเพื่อสร้างฟีดเฉพาะบุคคล และจัดอันดับข่าวบนเบราว์เซอร์แบบ Edge ไม่ส่งข้อมูลส่วนตัวกลับเซิร์ฟเวอร์ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 ตัวอย่างหน้าจอจริงของระบบในส่วนแฟ้มเจาะลึกมหากาพย์ประเด็นข่าว (Stage B Hardened Storyline Bento Hub) แสดงดังภาพที่~\ref{fig_ui_bento_story_id} และแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาแสดงดังภาพที่~\ref{fig_ui_bento_timeline_enforced}
@@ -1376,19 +1342,19 @@ M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉ�
 
 \subsubsection{ความปลอดภัยระดับเครือข่ายและเว็บเซิร์ฟเวอร์}
 
-ในระดับเครือข่าย Nginx Reverse Proxy ทำหน้าที่เป็นเกตเวย์ด่านหน้า จัดการเข้ารหัสการสื่อสารผ่าน TLS/SSL ทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) พร้อมทั้งกำหนดนโยบายจำกัดอัตราคำขอ (Rate Limiting) เพื่อป้องกันการโจมตีแบบ DoS นอกจากนี้ยังติดตั้ง CORS Whitelist เฉพาะโดเมนที่ได้รับอนุญาต และติดตั้งส่วนหัวความปลอดภัย HTTP Security Headers ได้แก่ \texttt{X-Content-Type-Options} (ค่า nosniff), \texttt{X-Frame-Options} (ค่า SAMEORIGIN), และ \texttt{Content-Security-Policy} ป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
+ในระดับเครือข่าย Nginx Reverse Proxy ทำหน้าที่เป็นเกตเวย์ด่านหน้า จัดการเข้ารหัสการสื่อสารผ่าน TLS/SSL ทั้งในรูปแบบ HTTPS และ Secure WebSocket (WSS) พร้อมทั้งกำหนดนโยบายจำกัดอัตราคำขอ (Rate Limiting) เพื่อป้องกันการโจมตีแบบ DoS นอกจากนี้ยังติดตั้ง CORS Whitelist เฉพาะโดเมนที่ได้รับอนุญาต และติดตั้งส่วนหัวความปลอดภัย HTTP Security Headers ได้แก่ X-Content-Type-Options (ค่า nosniff), X-Frame-Options (ค่า SAMEORIGIN), และ Content-Security-Policy ป้องกันการโจมตีแบบ Clickjacking และ MIME Confusion
 
 \subsubsection{การป้องกันโค้ดอันตรายและการตรวจสอบข้อมูล}
 
-เพื่อป้องกันการโจมตีแบบ Cross-Site Scripting (XSS) ข้อมูลข่าวที่สกัดจากภายนอกจะผ่านกระบวนการ Sanitization กำจัดแท็ก \texttt{<script>}, \texttt{<iframe>} และแอตทริบิวต์อันตรายออกทั้งหมด แปลงเนื้อหาให้อยู่ในรูป Clean Markdown บริสุทธิ์ก่อนส่งไปแสดงผล พร้อมทั้งบังคับใช้การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic ในทุกจุดรับเข้าและส่งออกของ REST API สำหรับการป้องกัน Server-Side Request Forgery (SSRF) บริการสเกรปเปอร์จะดึงข้อมูลเฉพาะจากสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) เท่านั้น และในส่วนของโมเดลภาษา มีการกำหนด Prompt Delimiter รัดกุมเพื่อป้องกัน Indirect Prompt Injection
+เพื่อป้องกันการโจมตีแบบ Cross-Site Scripting (XSS) ข้อมูลข่าวที่สกัดจากภายนอกจะผ่านกระบวนการ Sanitization กำจัดแท็ก <script>, <iframe> และแอตทริบิวต์อันตรายออกทั้งหมด แปลงเนื้อหาให้อยู่ในรูป Clean Markdown บริสุทธิ์ก่อนส่งไปแสดงผล พร้อมทั้งบังคับใช้การตรวจสอบโครงสร้างข้อมูลเข้มงวดด้วย Pydantic ในทุกจุดรับเข้าและส่งออกของ REST API สำหรับการป้องกัน Server-Side Request Forgery (SSRF) บริการสเกรปเปอร์จะดึงข้อมูลเฉพาะจากสำนักข่าวที่ลงทะเบียนไว้ล่วงหน้า (Source Whitelist) เท่านั้น และในส่วนของโมเดลภาษา มีการกำหนด Prompt Delimiter รัดกุมเพื่อป้องกัน Indirect Prompt Injection
 
 \subsubsection{การคุ้มครองข้อมูลส่วนบุคคลและความปลอดภัยของคุกกี้}
 
-การคุ้มครองความเป็นส่วนตัวถูกออกแบบตามหลัก Zero-PII กล่าวคือ ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลที่สามารถระบุตัวตนได้ (ไม่มีการเก็บชื่อ ที่อยู่อีเมล หรือเลขไอพี) ข้อมูลการมีส่วนร่วมจะถูกบันทึกเป็นเพียงคะแนนรวมแบบนิรนาม ในระดับเบราว์เซอร์ คุกกี้ถูกกำหนดคุณสมบัติความปลอดภัย \texttt{SameSite=Lax} ป้องกัน CSRF พร้อมทั้งมีแถบแจ้งเตือนขอความยินยอมตามมาตรฐาน PDPA และมีปุ่มให้ผู้ใช้กดล้างข้อมูลความสนใจออกจากเบราว์เซอร์ได้ตลอดเวลา
+การคุ้มครองความเป็นส่วนตัวถูกออกแบบตามหลัก Zero-PII กล่าวคือ ระบบไม่มีการจัดเก็บข้อมูลส่วนบุคคลที่สามารถระบุตัวตนได้ (ไม่มีการเก็บชื่อ ที่อยู่อีเมล หรือเลขไอพี) ข้อมูลการมีส่วนร่วมจะถูกบันทึกเป็นเพียงคะแนนรวมแบบนิรนาม ในระดับเบราว์เซอร์ คุกกี้ถูกกำหนดคุณสมบัติความปลอดภัย SameSite=Lax ป้องกัน CSRF พร้อมทั้งมีแถบแจ้งเตือนขอความยินยอมตามมาตรฐาน PDPA และมีปุ่มให้ผู้ใช้กดล้างข้อมูลความสนใจออกจากเบราว์เซอร์ได้ตลอดเวลา
 
 \subsubsection{การจัดการความลับและการตั้งค่าระบบ}
 
-รหัสลับและคีย์เชื่อมต่อบริการภายนอก เช่น \texttt{LLM\_API} ถูกจัดเก็บไว้ในไฟล์ \texttt{.env} และ Environment Variables ที่แยกต่างหาก โดยมีไฟล์ \texttt{.gitignore} ป้องกันการนำความลับของระบบขึ้นสู่ระบบควบคุมเวอร์ชัน Git อย่างเข้มงวด
+รหัสลับและคีย์เชื่อมต่อบริการภายนอก เช่น LLM\_API ถูกจัดเก็บไว้ในไฟล์ .env และ Environment Variables ที่แยกต่างหาก โดยมีไฟล์ .gitignore ป้องกันการนำความลับของระบบขึ้นสู่ระบบควบคุมเวอร์ชัน Git อย่างเข้มงวด
 
 % -----------------------------------------------------------
 \section{การพัฒนาโปรแกรม}
@@ -1404,8 +1370,7 @@ M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉ�
 \centering
 \caption{ไลบรารีหลักที่ใช้ในการพัฒนา}
 \label{tab_main_libraries}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|L{2.8cm}|L{3.2cm}|L{2.0cm}|L{7.5cm}|}
+\begin{tabular}{|L{2.4cm}|L{2.8cm}|L{1.6cm}|L{6.9cm}|}
 \hline
 \textbf{ส่วนงาน} & \textbf{ไลบรารี / เครื่องมือ} & \textbf{เวอร์ชัน} & \textbf{วัตถุประสงค์และการใช้งาน} \\
 \hline
@@ -1415,15 +1380,14 @@ Real-time & Python-SocketIO & 5.11+ & ไลบรารีจัดการก
 Data Validation & Pydantic & 2.6+ & โมเดลตรวจสอบความถูกต้องและจัดโครงสร้างข้อมูลแบบเข้มงวด \\ \hline
 Web Scraping & Playwright & 1.42+ & โปรแกรมควบคุม Headless Chromium สำหรับดึงหน้าเว็บ JavaScript \\ \hline
 Content Extraction & Trafilatura & 1.8+ & สกัดข้อความหลักบทความข่าว ขจัดโฆษณาและแท็กส่วนเกิน \\ \hline
-Thai NLP & PyThaiNLP & 5.0+ & ตัดคำภาษาไทย (\texttt{newmm}) และสกัดเอนทิตีชื่อเฉพาะ (\texttt{thainer-v2}) \\ \hline
+Thai NLP & PyThaiNLP & 5.0+ & ตัดคำภาษาไทย (newmm) และสกัดเอนทิตีชื่อเฉพาะ (thainer-v2) \\ \hline
 Deep Learning & Transformers & 4.38+ & โมเดลภาษา WangchanBERTa สำหรับสกัดเวกเตอร์ความหมาย 768 มิติ \\ \hline
 Machine Learning & Scikit-learn~\cite{scikit2024} & 1.4+ & เวกเตอร์ TF-IDF และโมเดลจำแนกประเภท LinearSVC \\ \hline
 Database & Aiosqlite & 0.20+ & ตัวเชื่อมต่อฐานข้อมูล SQLite แบบ Asynchronous รองรับโหมด WAL \\ \hline
 Frontend Core & Vanilla JS (ESM) & ES2022 & สคริปต์ส่วนติดต่อผู้ใช้แบบโมดูลแยกอิสระ ปราศจากเฟรมเวิร์คหน่วง \\ \hline
 Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเวิร์คสำหรับจัดรูปแบบส่วนต่อประสาน Responsive \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{โครงสร้างของโปรแกรม}
@@ -1434,24 +1398,22 @@ Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเ�
 \centering
 \caption{โครงสร้างโฟลเดอร์หลักของโปรแกรม}
 \label{tab_folder_structure}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|L{4.2cm}|L{11.0cm}|}
+\begin{tabular}{|L{4.5cm}|L{9.4cm}|}
 \hline
 \textbf{โฟลเดอร์ / เส้นทาง} & \textbf{หน้าที่และความรับผิดชอบของโมดูล} \\
 \hline
-\texttt{backend/routers/} & รวบรวมตัวจัดการเส้นทาง REST API แยกตามโดเมน (\texttt{news}, \texttt{story}, \texttt{macro\_event}, \texttt{trending}, \texttt{monitoring}) \\ \hline
-\texttt{backend/services/} & บรรจุตรรกะทางธุรกิจหลัก (\texttt{ScraperService}, \texttt{StoryService}, \texttt{TrendingService}, \texttt{MacroEventService}, \texttt{StoryPresentationService}) \\ \hline
-\texttt{backend/scrapers/} & สเกรปเปอร์เฉพาะแต่ละสำนักข่าว ลงทะเบียนผ่าน Decorator \texttt{@register\_source} พร้อมฟังก์ชันสกัดเนื้อหา \\ \hline
-\texttt{backend/repo/} & เลเยอร์การจัดเก็บข้อมูล รองรับทั้ง SQLite WAL (\texttt{SqliteNewsRepo}) และไฟล์ JSON (\texttt{StoryRepo}, \texttt{MacroEventRepo}) \\ \hline
-\texttt{backend/core/} & โครงสร้างพื้นฐานส่วนกลาง (\texttt{BrowserService}, \texttt{SocketManager}, \texttt{L1Cache}, \texttt{AsyncInMemoryCache}) \\ \hline
-\texttt{backend/schemas/} & โมเดลข้อมูล Pydantic สำหรับคำขอ คำตอบ และโครงสร้างข้อมูลภายในระบบ \\ \hline
-\texttt{backend/tests/} & ชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค pytest ครอบคลุม 423 กรณีทดสอบ \\ \hline
-\texttt{frontend/static/} & ไฟล์สคริปต์ส่วนติดต่อผู้ใช้หลัก (\texttt{main.js}, \texttt{api.js}, \texttt{socket.js}, \texttt{config.js}, \texttt{app.css}) \\ \hline
-\texttt{frontend/static/components/} & โมดูลส่วนติดต่อผู้ใช้ย่อยแยกอิสระ (\texttt{hero.js}, \texttt{cards.js}, \texttt{reader.js}, \texttt{storyline.js}, \texttt{sports.js}) \\ \hline
-\texttt{docs/report/} & เอกสารรายงานโครงงานฉบับสมบูรณ์ตามมาตรฐานวิทยาลัยการคอมพิวเตอร์ \\
+backend/routers/ & รวบรวมตัวจัดการเส้นทาง REST API แยกตามโดเมน (news, story, macro\_event, trending, monitoring) \\ \hline
+backend/services/ & บรรจุตรรกะทางธุรกิจหลัก (ScraperService, StoryService, TrendingService, MacroEventService, StoryPresentationService) \\ \hline
+backend/scrapers/ & สเกรปเปอร์เฉพาะแต่ละสำนักข่าว ลงทะเบียนผ่าน Decorator @register\_source พร้อมฟังก์ชันสกัดเนื้อหา \\ \hline
+backend/repo/ & เลเยอร์การจัดเก็บข้อมูล รองรับทั้ง SQLite WAL (SqliteNewsRepo) และไฟล์ JSON (StoryRepo, MacroEventRepo) \\ \hline
+backend/core/ & โครงสร้างพื้นฐานส่วนกลาง (BrowserService, SocketManager, L1Cache, AsyncInMemoryCache) \\ \hline
+backend/schemas/ & โมเดลข้อมูล Pydantic สำหรับคำขอ คำตอบ และโครงสร้างข้อมูลภายในระบบ \\ \hline
+backend/tests/ & ชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค pytest ครอบคลุม 423 กรณีทดสอบ \\ \hline
+frontend/static/ & ไฟล์สคริปต์ส่วนติดต่อผู้ใช้หลัก (main.js, api.js, socket.js, config.js, app.css) \\ \hline
+frontend/static/components/ & โมดูลส่วนติดต่อผู้ใช้ย่อยแยกอิสระ (hero.js, cards.js, reader.js, storyline.js, sports.js) \\ \hline
+docs/report/ & เอกสารรายงานโครงงานฉบับสมบูรณ์ตามมาตรฐานวิทยาลัยการคอมพิวเตอร์ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{ข้อกำหนดเฉพาะของแต่ละโมดูลและการทำงานของส่วนประกอบหลัก}
@@ -1566,8 +1528,7 @@ S_i = \left( 1.2 \cdot C_i + 0.8 \cdot P_i + 0.35 \cdot K_i \right) \cdot 2^{-\f
 \centering
 \caption{ผลการทดสอบการยอมรับของผู้ใช้}
 \label{tab_uat_summary}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|c|L{7.5cm}|L{4.2cm}|c|}
+\begin{tabular}{|C{1.3cm}|C{1.2cm}|L{6.2cm}|L{4.2cm}|C{1.0cm}|}
 \hline
 \textbf{รหัสทดสอบ} & \textbf{FR} & \textbf{รายการทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผลการทดสอบ} \\
 \hline
@@ -1587,8 +1548,7 @@ TC-13 & FR-13 & กลไกควบคุมความถูกต้อง 
 TC-14 & FR-14 & ศูนย์ควบคุมสถานะและการล้างแคช & คอนโซลแสดงสถิติ สั่งสเกรปด่วน และล้างแคชสำเร็จ & ผ่าน \\ \hline
 TC-15 & FR-15 & การคุ้มครองข้อมูลส่วนบุคคล PDPA & ประมวลผลแบบนิรนาม มีแถบยินยอม และล้างข้อมูลได้ & ผ่าน \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{รายละเอียดกรณีทดสอบที่สำคัญ}
@@ -1599,8 +1559,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 \centering
 \caption{กรณีทดสอบ TC-09 การระบุประเด็นข่าวออนไลน์ 2 ชั้น}
 \label{tab_tc09_detail}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -1619,16 +1578,14 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 ผลการทดสอบจริง & ระบบจัดกลุ่มบทความข่าวได้อย่างถูกต้องครบถ้วนตามเกณฑ์ Two-Band Gate ร้อยละ 100 \\ \hline
 สถานะการทดสอบ & ผ่าน (Pass) \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{กรณีทดสอบ TC-12 การสังเคราะห์ความคืบหน้าจากหลักฐานแท้จริง}
 \label{tab_tc12_detail}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|L{11.5cm}|}
+\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -1647,8 +1604,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 ผลการทดสอบจริง & ระบบทำงานถูกต้องตามเกณฑ์กลไกป้องกัน 3 ระดับ ปราศจากข้อมูลเท็จและผ่านการตรวจสอบรหัสอ้างอิงสมบูรณ์ \\ \hline
 สถานะการทดสอบ & ผ่าน (Pass) \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
@@ -1659,8 +1615,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 \centering
 \caption{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
 \label{tab_nfr_results}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4.5cm}|L{5.0cm}|L{4.2cm}|c|}
+\begin{tabular}{|C{1.3cm}|L{3.5cm}|L{4.2cm}|L{3.8cm}|C{1.0cm}|}
 \hline
 \textbf{รหัส} & \textbf{ด้าน} & \textbf{เกณฑ์ที่กำหนด} & \textbf{ผลการวัดจริง} & \textbf{ผล} \\
 \hline
@@ -1673,8 +1628,7 @@ NFR-06 & ความแม่นยำในการระบุเหตุ�
 NFR-07 & ความมั่นคงปลอดภัย Zero-PII & ไม่เก็บ PII และบล็อกคำขอเกินพิกัด & ตรวจพบ 0 PII รั่วไหล & ผ่าน \\ \hline
 NFR-08 & การทำงานข้ามแพลตฟอร์ม & รันได้สมบูรณ์ทั้ง Windows และ Linux & ผ่าน 423 การทดสอบ 100\% & ผ่าน \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{ตารางตรวจสอบย้อนกลับความต้องการ}
@@ -1685,55 +1639,51 @@ NFR-08 & การทำงานข้ามแพลตฟอร์ม & ร�
 \centering
 \caption{ตารางตรวจสอบย้อนกลับความต้องการ}
 \label{tab_rtm_matrix}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{6.2cm}|L{4.5cm}|c|}
+\begin{tabular}{|C{1.6cm}|L{6.2cm}|L{4.5cm}|C{1.6cm}|}
 \hline
 \textbf{ความต้องการ (FR)} & \textbf{เส้นทางส่วนเชื่อมต่อโปรแกรมประยุกต์} & \textbf{ตารางในฐานข้อมูลที่เกี่ยวข้อง} & \textbf{กรณีทดสอบ} \\
 \hline
-FR-01 & \texttt{GET /api/status} & \texttt{articles}, \texttt{seen\_urls} & TC-01 \\ \hline
-FR-02 & \texttt{GET /api/sources}, \texttt{POST /api/monitoring/test-source} & \texttt{articles} & TC-02 \\ \hline
-FR-03 & \texttt{GET /api/categories}, \texttt{POST /api/collect-md} & \texttt{articles} & TC-03 \\ \hline
-FR-04 & \texttt{POST /api/stories/\{id\}/summarize} & \texttt{articles}, \texttt{stories} & TC-04 \\ \hline
-FR-05 & \texttt{GET /api/news}, \texttt{WebSocket new\_articles} & \texttt{articles} & TC-05 \\ \hline
-FR-06 & \texttt{GET /api/news}, \texttt{GET /api/categories} & \texttt{articles} & TC-06 \\ \hline
-FR-07 & \texttt{GET /api/news/content} & \texttt{articles} & TC-07 \\ \hline
-FR-08 & \texttt{GET /api/news} (Client LocalStorage) & \texttt{reader\_engagement} & TC-08 \\ \hline
-FR-09 & \texttt{GET /api/stories}, \texttt{GET /api/stories/\{id\}} & \texttt{stories}, \texttt{articles} & TC-09 \\ \hline
-FR-10 & \texttt{GET /api/stories/trending} & \texttt{trending\_scores}, \texttt{stories} & TC-10 \\ \hline
-FR-11 & \texttt{GET /api/macro-events}, \texttt{GET /api/macro-events/trending} & \texttt{macro\_events}, \texttt{event\_relations} & TC-11 \\ \hline
-FR-12 & \texttt{GET /api/macro-events/\{id\}} & \texttt{macro\_events}, \texttt{stories} & TC-12 \\ \hline
-FR-13 & \texttt{GET /api/macro-events/\{id\}} & \texttt{macro\_events}, \texttt{stories} & TC-13 \\ \hline
-FR-14 & \texttt{GET /api/monitoring/stats}, \texttt{POST /api/monitoring/scrape-now}, \texttt{POST /api/monitoring/clear-cache} & \texttt{seen\_urls}, \texttt{articles} & TC-14 \\ \hline
-FR-15 & \texttt{POST /api/news/engage} & \texttt{reader\_engagement} & TC-15 \\
+FR-01 & GET /api/status & articles, seen\_urls & TC-01 \\ \hline
+FR-02 & GET /api/sources, POST /api/monitoring/test-source & articles & TC-02 \\ \hline
+FR-03 & GET /api/categories, POST /api/collect-md & articles & TC-03 \\ \hline
+FR-04 & POST /api/stories/\{id\}/summarize & articles, stories & TC-04 \\ \hline
+FR-05 & GET /api/news, WebSocket new\_articles & articles & TC-05 \\ \hline
+FR-06 & GET /api/news, GET /api/categories & articles & TC-06 \\ \hline
+FR-07 & GET /api/news/content & articles & TC-07 \\ \hline
+FR-08 & GET /api/news (Client LocalStorage) & reader\_engagement & TC-08 \\ \hline
+FR-09 & GET /api/stories, GET /api/stories/\{id\} & stories, articles & TC-09 \\ \hline
+FR-10 & GET /api/stories/trending & trending\_scores, stories & TC-10 \\ \hline
+FR-11 & GET /api/macro-events, GET /api/macro-events/trending & macro\_events, event\_relations & TC-11 \\ \hline
+FR-12 & GET /api/macro-events/\{id\} & macro\_events, stories & TC-12 \\ \hline
+FR-13 & GET /api/macro-events/\{id\} & macro\_events, stories & TC-13 \\ \hline
+FR-14 & GET /api/monitoring/stats, POST /api/monitoring/scrape-now, POST /api/monitoring/clear-cache & seen\_urls, articles & TC-14 \\ \hline
+FR-15 & POST /api/news/engage & reader\_engagement & TC-15 \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \subsection{การทดสอบอัตโนมัติและคุณสมบัติคงที่ทางวิศวกรรม}
 
-เพื่อรักษาเสถียรภาพระดับโพรดักชันอย่างยั่งยืน ระบบได้พัฒนาชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค \texttt{pytest} รวมทั้งสิ้น 423 กรณีทดสอบ ครอบคลุม 39 โมดูลทดสอบ โดยจำแนกออกเป็น 6 มิติหลัก ดังแสดงในตารางที่~\ref{tab_automated_tests}
+เพื่อรักษาเสถียรภาพระดับโพรดักชันอย่างยั่งยืน ระบบได้พัฒนาชุดทดสอบอัตโนมัติบนเฟรมเวิร์ค pytest รวมทั้งสิ้น 423 กรณีทดสอบ ครอบคลุม 39 โมดูลทดสอบ โดยจำแนกออกเป็น 6 มิติหลัก ดังแสดงในตารางที่~\ref{tab_automated_tests}
 
 \begin{table}[H]
 \centering
 \caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก}
 \label{tab_automated_tests}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|C{1.2cm}|L{4.2cm}|L{6.2cm}|C{1.8cm}|C{1.8cm}|}
+\begin{tabular}{|C{1.0cm}|L{3.8cm}|L{5.6cm}|C{1.6cm}|C{1.6cm}|}
 \hline
 \textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ขอบเขตและโมดูลทดสอบสำคัญ} & \textbf{จำนวนข้อ} & \textbf{ผลการทดสอบ} \\
 \hline
-1 & การประมวลผลภาษาและการจำแนก & การตัดคำภาษาไทย, การแปลงชื่อจังหวัด (\texttt{thai\_normalizer}), การจำแนก 9 หมวด (\texttt{classifier\_service}) และเวกเตอร์ & 51 & ผ่าน (100\%) \\ \hline
-2 & การระบุประเด็นและวงจรชีวิต & เกณฑ์ตัดสินใจ Two-Band, การยืนยันเอนทิตี (\texttt{story\_service}), คัดกรองมหากาพย์, Centroid EMA และการทดสอบโหลดหนัก & 76 & ผ่าน (100\%) \\ \hline
-3 & เอนจินจัดอันดับกระแสเชิงสถิติ & สัญญาณคะแนน 6 มิติ, คุณสมบัติ Zero-LLM, การลดทอนข่าวประจำวัน (\texttt{trending\_deterministic}) และกรณีสุดขั้ว & 59 & ผ่าน (100\%) \\ \hline
-4 & การสังเคราะห์ มหากาพย์ และเจาะประเด็น & การสรุปประเด็นรวม, มหากาพย์ข่าว (\texttt{macro\_events}), แฟ้มหลักฐานเหตุการณ์, การคัดกรองความเกี่ยวข้อง และศูนย์ควบคุมสถานะ & 68 & ผ่าน (100\%) \\ \hline
+1 & การประมวลผลภาษาและการจำแนก & การตัดคำภาษาไทย, การแปลงชื่อจังหวัด (thai\_normalizer), การจำแนก 9 หมวด (classifier\_service) และเวกเตอร์ & 51 & ผ่าน (100\%) \\ \hline
+2 & การระบุประเด็นและวงจรชีวิต & เกณฑ์ตัดสินใจ Two-Band, การยืนยันเอนทิตี (story\_service), คัดกรองมหากาพย์, Centroid EMA และการทดสอบโหลดหนัก & 76 & ผ่าน (100\%) \\ \hline
+3 & เอนจินจัดอันดับกระแสเชิงสถิติ & สัญญาณคะแนน 6 มิติ, คุณสมบัติ Zero-LLM, การลดทอนข่าวประจำวัน (trending\_deterministic) และกรณีสุดขั้ว & 59 & ผ่าน (100\%) \\ \hline
+4 & การสังเคราะห์ มหากาพย์ และเจาะประเด็น & การสรุปประเด็นรวม, มหากาพย์ข่าว (macro\_events), แฟ้มหลักฐานเหตุการณ์, การคัดกรองความเกี่ยวข้อง และศูนย์ควบคุมสถานะ & 68 & ผ่าน (100\%) \\ \hline
 5 & สถาปัตยกรรมแคช ฐานข้อมูล และ PDPA & แคชหน่วยความจำและ HTTP 304, การป้องกัน Cache Stampede, SQLite WAL, คลังข้อมูล JSON, และการคุ้มครองข้อมูลส่วนบุคคล & 136 & ผ่าน (100\%) \\ \hline
-6 & การประเมินผลเชิงประจักษ์และ API & การประเมินเมตริก B-cubed (\texttt{evaluation\_harness}), จุดเชื่อมต่อ REST API ทุกส่วน, การทดสอบ CORS และ Socket.IO & 33 & ผ่าน (100\%) \\
+6 & การประเมินผลเชิงประจักษ์และ API & การประเมินเมตริก B-cubed (evaluation\_harness), จุดเชื่อมต่อ REST API ทุกส่วน, การทดสอบ CORS และ Socket.IO & 33 & ผ่าน (100\%) \\
 \hline
 \multicolumn{3}{|c|}{\textbf{รวมชุดทดสอบอัตโนมัติทั้งหมด (39 โมดูลทดสอบ)}} & \textbf{423} & \textbf{ผ่าน (100\%)} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 นอกจากนี้ ระบบยังได้รับการตรวจสอบคุณสมบัติคงที่ทางวิศวกรรม (Engineering Invariants) และสภาวะสุดขั้วใน 9 ด้านสำคัญ ได้แก่ดังนี้
@@ -1778,8 +1728,7 @@ FR-15 & \texttt{POST /api/news/engage} & \texttt{reader\_engagement} & TC-15 \\
 \centering
 \caption{ผลการเปรียบเทียบประสิทธิภาพโมเดลจำแนกหมวดหมู่ข่าว 9 หมวด}
 \label{tab_classification_comparison}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|c|c|c|c|c|}
+\begin{tabular}{|L{4.5cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|}
 \hline
 \textbf{สถาปัตยกรรมโมเดล} & \textbf{Accuracy} & \textbf{Macro Prec} & \textbf{Macro Rec} & \textbf{Macro F1} & \textbf{ความหน่วงเฉลี่ย (ms/ข่าว)} \\
 \hline
@@ -1787,8 +1736,7 @@ Calibrated LinearSVC (TF-IDF) & 85.00\% & 0.8498 & 0.8500 & 0.8436 & 3.48 ms \\ 
 WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \hline
 \textbf{Unified 3-Tier Cascade (โครงงานนี้)} & \textbf{87.78\%} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & \textbf{24.25 ms} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_classification_comparison} ระบบจำแนก 3 ระดับแบบบูรณาการ (Unified 3-Tier Cascade Classifier) บรรลุประสิทธิภาพสูงสุด โดยมีค่าความถูกต้อง (Accuracy) เท่ากับร้อยละ 87.78 และมีค่า Macro F1-score เท่ากับ 0.8749 ซึ่งสูงกว่าการใช้โมเดล Calibrated LinearSVC เพียงอย่างเดียว (Macro F1 = 0.8436) และสูงกว่าโมเดล WangchanBERTa แบบเดี่ยว (Macro F1 = 0.8642) โดยยังคงรักษาเวลาในการประมวลผลเฉลี่ยอยู่ในระดับต่ำเพียง 24.25 มิลลิวินาทีต่อบทความ เนื่องจากข่าวส่วนใหญ่ (ร้อยละ 83.3) ถูกจำแนกผ่านเส้นทางความเร็วสูงของ LinearSVC ในขณะที่ร้อยละ 16.7 ถูกช่วยยืนยันความถูกต้องด้วยกฎบริบทความเฉพาะทางสูง (High-Specificity Cues)
@@ -1826,8 +1774,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \small
 \caption{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด}
 \label{tab_confusion_matrix_classification}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|}
+\begin{tabular}{|L{2.5cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{1.1cm}|}
 \hline
 \multicolumn{1}{|c|}{\textbf{หมวดหมู่จริง}} & \multicolumn{9}{c|}{\textbf{หมวดหมู่ที่ระบบทำนาย (Predicted)}} & \textbf{รวม} \\ \cline{2-10}
 \multicolumn{1}{|c|}{\textbf{(Ground Truth)}} & \textbf{ECO} & \textbf{ENT} & \textbf{ENV} & \textbf{HEA} & \textbf{POL} & \textbf{SOC} & \textbf{SPO} & \textbf{TEC} & \textbf{WOR} & \textbf{(Actual)} \\
@@ -1844,8 +1791,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \hline
 \textbf{รวมที่ทำนาย (Predicted)} & 24 & 18 & 21 & 22 & 25 & 15 & 20 & 17 & 18 & \textbf{180} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_confusion_matrix_classification} ข้อค้นพบสำคัญด้านการกระจายตัวของความแม่นยำ ได้แก่
@@ -1876,8 +1822,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \centering
 \caption{ผลการเปรียบเทียบประสิทธิภาพการจัดกลุ่มประเด็นข่าว (Clustering Evaluation)}
 \label{tab_story_clustering_results}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\begin{tabular}{|L{3.5cm}|C{1.4cm}|C{1.4cm}|C{1.4cm}|C{1.2cm}|C{1.2cm}|C{1.2cm}|C{1.5cm}|}
 \hline
 \textbf{แบบจำลองการจัดกลุ่ม} & \textbf{จำนวนกลุ่มที่สร้าง} & \textbf{False Merges (FP)} & \textbf{False Splits (FN)} & \textbf{$B^3$ Prec} & \textbf{$B^3$ Rec} & \textbf{$B^3$ F1} & \textbf{เกณฑ์ NFR-06} \\
 \hline
@@ -1886,8 +1831,7 @@ SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 �
 \hline
 \multicolumn{8}{|l|}{\footnotesize * หมายเหตุ ชุดข้อมูลมาตรฐานมีจำนวนเหตุการณ์จริง (Ground Truth Stories) เท่ากับ 59 เหตุการณ์ (6,105 คู่บทความ)} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_story_clustering_results} ข้อค้นพบเชิงประจักษ์สรุปได้ดังนี้

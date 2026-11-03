@@ -12,8 +12,7 @@
 \centering
 \caption{สรุปผลการดำเนินงานเทียบกับวัตถุประสงค์}
 \label{tab_obj_result}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{4.8cm}|L{6.2cm}|c|}
+\begin{tabular}{|C{1.2cm}|L{4.8cm}|L{6.6cm}|C{1.2cm}|}
 \hline
 \textbf{ข้อ} & \textbf{วัตถุประสงค์} & \textbf{ผลการดำเนินงานที่ได้} & \textbf{สถานะ} \\
 \hline
@@ -21,8 +20,7 @@
 2 & เพื่อออกแบบและพัฒนาระบบรวบรวม สรุป และวิเคราะห์ข่าวสารแบบ End-to-End Pipeline & พัฒนาสถาปัตยกรรมสองชั้น (Online Persistent Story Identification และ Deterministic Trending Engine), สถาปัตยกรรม Clean Architecture รองรับ Multi-Engine Persistence ทั้ง SQLite WAL และ MongoDB, ระบบสื่อสารเรียลไทม์ผ่าน Socket.IO และหน้าจอ Bento Hub SPA ได้อย่างสมบูรณ์ & บรรลุ \\ \hline
 3 & เพื่อทดสอบและประเมินประสิทธิภาพของระบบในด้านความถูกต้องและความรวดเร็ว & ผ่านการทดสอบการยอมรับของผู้ใช้ครบทั้ง 15 กรณีทดสอบ (ร้อยละ 100), ผ่านชุดทดสอบอัตโนมัติ 423 กรณีทดสอบ, บรรลุผลประเมินการจำแนกหมวดหมู่ข่าวด้วย Macro F1 เท่ากับ 0.8749 (ความถูกต้องร้อยละ 87.78), บรรลุผลประเมินการจัดกลุ่มประเด็นข่าวด้วย B-cubed F1-score เท่ากับ 0.8026 ซึ่งลดปัญหาข่าวแตกกลุ่มลงร้อยละ 24.3 และตอบสนองคำขอเรียกดูข่าวผ่านแคชในเวลาเฉลี่ยต่ำกว่า 150 มิลลิวินาที & บรรลุ \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_obj_result} การดำเนินโครงงานบรรลุวัตถุประสงค์ที่ตั้งไว้ครบทั้ง 3 ข้อ 
@@ -35,8 +33,7 @@
 \centering
 \caption{ผลการประเมินความพึงพอใจของผู้ใช้จริงต่อระบบแยกตามรายการประเมิน ($n = 9$)}
 \label{tab_satisfaction_survey}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{8.4cm}|c|c|c|}
+\begin{tabular}{|C{0.8cm}|L{8.4cm}|C{1.3cm}|C{1.3cm}|C{1.8cm}|}
 \hline
 \textbf{ลำดับ} & \textbf{รายการประเมิน} & $\bar{x}$ & \textbf{S.D.} & \textbf{ระดับความพึงพอใจ} \\
 \hline
@@ -55,8 +52,7 @@
 \multicolumn{2}{|c|}{\textbf{ค่าเฉลี่ยรวมทุกรายการประเมิน (มาตรวัด 1--5)}} & \textbf{4.86} & \textbf{0.42} & \textbf{ดีมาก} \\ \hline
 \multicolumn{2}{|c|}{\textbf{แนวโน้มการแนะนำบอกต่อเพื่อนหรือบุคคลรอบข้าง (สเกล 0--7 คะแนน)}} & \textbf{6.33} & \textbf{0.87} & \textbf{คิดเป็นร้อยละ 90.43} \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_satisfaction_survey} ผลการประเมินความพึงพอใจของผู้ใช้งานจริงในภาพรวมอยู่ในระดับดีมาก โดยมีค่าเฉลี่ยรวมทุกรายการประเมินเท่ากับ 4.86 ($\text{S.D.} = 0.42$) เมื่อพิจารณารายด้านพบข้อค้นพบสำคัญดังนี้
@@ -111,12 +107,10 @@
 
 \begin{table}[H]
 \centering
-\small
 \renewcommand{\arraystretch}{1.15}
 \caption{ปัญหา อุปสรรค และแนวทางการแก้ไข}
 \label{tab_problems}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|L{5.5cm}|L{6.5cm}|}
+\begin{tabular}{|C{1.1cm}|L{5.8cm}|L{6.8cm}|}
 \hline
 \textbf{ลำดับ} & \textbf{ปัญหาที่พบ} & \textbf{แนวทางการแก้ไข} \\
 \hline
@@ -127,8 +121,7 @@
 5 & ข่าวประจำวัน (Routine News) เช่น พยากรณ์อากาศ ได้คะแนนความนิยมสูงเกินจริง & พัฒนากลไก Routine News Dampening ลดทอนคะแนนลงเหลือ 0.25 เท่า เพื่อเปิดทางให้ข่าวด่วนและเหตุการณ์สำคัญ \\ \hline
 6 & การเขียนข้อมูลพร้อมกันบนไฟล์ JSON เกิดปัญหาความไม่สอดคล้องและการล็อกไฟล์ & ปรับสถาปัตยกรรมสู่ Multi-Engine Persistence โดยใช้ SQLite WAL สำหรับเซิร์ฟเวอร์เดี่ยว และรองรับ MongoDB \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 จากตารางที่~\ref{tab_problems} ปัญหาอุปสรรคทั้ง 6 ประการได้รับการแก้ไขจนสำเร็จลุล่วง ทำให้ระบบสามารถทำงานได้อย่างมีเสถียรภาพและรองรับการใช้งานต่อเนื่องได้อย่างมีประสิทธิภาพ
