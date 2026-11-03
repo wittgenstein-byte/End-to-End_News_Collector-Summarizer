@@ -131,6 +131,8 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 \centering
 \begin{tikzpicture}[
     font=\small,
+    scale=0.75,
+    transform shape,
     actor/.style={draw, thick, circle, minimum size=0.45cm, inner sep=0pt},
     usecase/.style={draw, thick, ellipse, minimum width=5.6cm, minimum height=0.76cm, align=center, fill=white},
     sysbox/.style={draw, thick, dashed, rectangle, rounded corners=6pt, inner sep=14pt, fill=gray!3}
@@ -209,14 +211,17 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 
 รายละเอียดกรณีใช้งานหลัก 4 กรณีสำคัญ (UC-01 ถึง UC-04) ซึ่งครอบคลุมการกระทำหลักของผู้ใช้งานทั่วไปและการควบคุมดูแลระบบ แสดงรายละเอียดดังตารางที่~\ref{tab_uc01_spec} ถึงตารางที่~\ref{tab_uc04_spec}
 
-\begin{table}[H]
-\centering
-\caption{คำอธิบายกรณีใช้งาน UC-01 ติดตามและอ่านข่าวสาร}
-\label{tab_uc01_spec}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{longtable}{|L{2.8cm}|L{11.0cm}|}
+\caption{คำอธิบายกรณีใช้งาน UC-01 ติดตามและอ่านข่าวสาร}\label{tab_uc01_spec}\\
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
+\endfirsthead
+\caption[]{คำอธิบายกรณีใช้งาน UC-01 ติดตามและอ่านข่าวสาร~\cskkuContinued}\\
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+\endhead
 รหัสกรณีใช้งาน & UC-01 \\ \hline
 ชื่อกรณีใช้งาน & ติดตามและอ่านข่าวสาร \\ \hline
 ความต้องการที่เกี่ยวข้อง & FR-04, FR-05, FR-07 \\ \hline
@@ -236,17 +241,19 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 ลำดับเหตุการณ์ผิดปกติ & 
 4b. เว็บไซต์ต้นทางปิดกั้นการเข้าถึง ระบบแสดงข้อความแจ้งเตือนพร้อมเสนอทางเลือกให้เปิดเว็บต้นฉบับโดยตรง \\
 \hline
-\end{tabular}
-\end{table}
+\end{longtable}
 
-\begin{table}[H]
-\centering
-\caption{คำอธิบายกรณีใช้งาน UC-02 ค้นหาข้อมูลข่าวสาร}
-\label{tab_uc02_spec}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{longtable}{|L{2.8cm}|L{11.0cm}|}
+\caption{คำอธิบายกรณีใช้งาน UC-02 ค้นหาข้อมูลข่าวสาร}\label{tab_uc02_spec}\\
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
+\endfirsthead
+\caption[]{คำอธิบายกรณีใช้งาน UC-02 ค้นหาข้อมูลข่าวสาร~\cskkuContinued}\\
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+\endhead
 รหัสกรณีใช้งาน & UC-02 \\ \hline
 ชื่อกรณีใช้งาน & ค้นหาข้อมูลข่าวสาร \\ \hline
 ความต้องการที่เกี่ยวข้อง & FR-06 \\ \hline
@@ -263,17 +270,19 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 ลำดับเหตุการณ์ผิดปกติ & 
 2a. ไม่พบบทความข่าวที่ตรงตามเงื่อนไข ระบบแสดงข้อความแจ้งไม่พบผลลัพธ์พร้อมเสนอคำค้นหาที่ใกล้เคียง \\
 \hline
-\end{tabular}
-\end{table}
+\end{longtable}
 
-\begin{table}[H]
-\centering
-\caption{คำอธิบายกรณีใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก}
-\label{tab_uc03_spec}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{longtable}{|L{2.8cm}|L{11.0cm}|}
+\caption{คำอธิบายกรณีใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก}\label{tab_uc03_spec}\\
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
+\endfirsthead
+\caption[]{คำอธิบายกรณีใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก~\cskkuContinued}\\
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+\endhead
 รหัสกรณีใช้งาน & UC-03 \\ \hline
 ชื่อกรณีใช้งาน & สำรวจมหากาพย์ประเด็นข่าวเชิงลึก \\ \hline
 ความต้องการที่เกี่ยวข้อง & FR-10, FR-11, FR-12, FR-13 \\ \hline
@@ -293,17 +302,19 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 ลำดับเหตุการณ์ผิดปกติ & 
 3a. หากชุดข่าวผู้สมัครไม่ตรงประเด็น ระบบเข้าสู่โหมดระงับการสังเคราะห์ (halted\_mismatch) และแสดงข้อความแจ้งเตือนผู้ใช้อย่างโปร่งใสเพื่อป้องกันข้อมูลเท็จ \\
 \hline
-\end{tabular}
-\end{table}
+\end{longtable}
 
-\begin{table}[H]
-\centering
-\caption{คำอธิบายกรณีใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ}
-\label{tab_uc04_spec}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{longtable}{|L{2.8cm}|L{11.0cm}|}
+\caption{คำอธิบายกรณีใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ}\label{tab_uc04_spec}\\
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
+\endfirsthead
+\caption[]{คำอธิบายกรณีใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ~\cskkuContinued}\\
+\hline
+\textbf{หัวข้อ} & \textbf{รายละเอียด} \\
+\hline
+\endhead
 รหัสกรณีใช้งาน & UC-04 \\ \hline
 ชื่อกรณีใช้งาน & ตรวจสอบและควบคุมการทำงานของระบบ \\ \hline
 ความต้องการที่เกี่ยวข้อง & FR-02, FR-14 \\ \hline
@@ -326,8 +337,7 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 ลำดับเหตุการณ์ผิดปกติ & 
 1a. รหัสผ่านไม่ถูกต้อง ระบบส่งคืนรหัส 401 Unauthorized และปฏิเสธการเข้าถึง \\
 \hline
-\end{tabular}
-\end{table}
+\end{longtable}
 
 \subsection{สถานการณ์และกรณีทดสอบตามกรณีใช้งาน}
 
@@ -374,6 +384,7 @@ UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่
 \centering
 \caption{สถานการณ์ใช้งาน UC-02}
 \label{tab_scenario_uc02}
+\renewcommand{\arraystretch}{0.85}
 \begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
@@ -389,6 +400,7 @@ UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-02}
 \label{tab_uct_uc02}
+\renewcommand{\arraystretch}{0.85}
 
 \begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
@@ -400,30 +412,34 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 \end{tabularx}
 \end{table}
 
+\clearpage
 \subsubsection{สถานการณ์ใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก}
 
-\begin{table}[H]
-\centering
-\caption{สถานการณ์ใช้งาน UC-03}
-\label{tab_scenario_uc03}
-\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
+\begin{longtable}{|L{3.2cm}|C{0.8cm}|p{\dimexpr\textwidth-4cm-6\tabcolsep-4\arrayrulewidth\relax}|}
+\caption{สถานการณ์ใช้งาน UC-03}\label{tab_scenario_uc03}\\
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{6}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เลือกมหากาพย์ประเด็นข่าวจาก Bento Hub \\ \cline{2-3}
-& 2 & S: เปิดแฟ้มเจาะลึกเหตุการณ์ (Macro Storyline Dossier) \\ \cline{2-3}
-& 3 & S: แสดงพาดหัวและบทสรุปสังเคราะห์ข้ามสำนักข่าว \\ \cline{2-3}
-& 4 & S: แสดงไทม์ไลน์เหตุการณ์ตามลำดับเวลา \\ \cline{2-3}
-& 5 & S: แสดงข้อเท็จจริงที่ยืนยันตรงกันจากหลายสำนักข่าว \\ \cline{2-3}
+\endfirsthead
+\caption[]{สถานการณ์ใช้งาน UC-03~\cskkuContinued}\\
+\hline
+ & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
+\endhead
+\multirow[c]{6}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เลือกมหากาพย์ประเด็นข่าวจาก Bento Hub \\* \cline{2-3}
+& 2 & S: เปิดแฟ้มเจาะลึกเหตุการณ์ (Macro Storyline Dossier) \\* \cline{2-3}
+& 3 & S: แสดงพาดหัวและบทสรุปสังเคราะห์ข้ามสำนักข่าว \\* \cline{2-3}
+& 4 & S: แสดงไทม์ไลน์เหตุการณ์ตามลำดับเวลา \\* \cline{2-3}
+& 5 & S: แสดงข้อเท็จจริงที่ยืนยันตรงกันจากหลายสำนักข่าว \\* \cline{2-3}
 & 6 & A: เลือกสืบค้นประเด็นเชิงลึกผ่าน Issue Explorer \\ \hline
-\multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
+\multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\* \cline{2-3}
 & 3a & S: หากชุดข่าวไม่ตรงประเด็น ให้ระงับการสังเคราะห์ แสดงสถานะ halted\_mismatch และแจ้งผู้ใช้ \\ \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 \begin{table}[H]
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-03}
 \label{tab_uct_uc03}
+\small
+\renewcommand{\arraystretch}{1.0}
 
 \begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
@@ -435,15 +451,18 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 \end{tabularx}
 \end{table}
 
+\Needspace{0.70\textheight}
 \subsubsection{สถานการณ์ใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ}
 
-\begin{table}[H]
-\centering
-\caption{สถานการณ์ใช้งาน UC-04}
-\label{tab_scenario_uc04}
-\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
+\begin{longtable}{|L{3.2cm}|C{0.8cm}|p{\dimexpr\textwidth-4cm-6\tabcolsep-4\arrayrulewidth\relax}|}
+\caption{สถานการณ์ใช้งาน UC-04}\label{tab_scenario_uc04}\\
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
+\endfirsthead
+\caption[]{สถานการณ์ใช้งาน UC-04~\cskkuContinued}\\
+\hline
+ & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
+\endhead
 \multirow[c]{9}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า /monitoring.html และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
 & 2 & S: ตรวจสอบข้อมูลและออก Bearer Token สำหรับเซสชัน \\ \cline{2-3}
 & 3 & S: แสดงแดชบอร์ด Throughput, RAM และสถานะแคช \\ \cline{2-3}
@@ -455,8 +474,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 & 9 & A: ออกจากระบบ\newline S: ยกเลิกโทเค็นเซสชัน \\ \hline
 \multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: กรอกรหัสผ่านไม่ถูกต้อง\newline S: ปฏิเสธการเข้าสู่ระบบและแจ้งข้อผิดพลาด \\\cline{2-3}
 & 4a & A: เลือกทดสอบสำนักข่าวรายแห่ง (Test Source Probe)\newline S: แสดงผลการทดสอบและตัวอย่างข่าว \\ \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 \begin{table}[H]
 \centering
@@ -488,6 +506,7 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
     font=\small,
+    yscale=1.3,
     box/.style={draw, thick, rectangle, fill=white, text width=2.4cm, minimum height=1.0cm, align=center},
     msg/.style={thick, ->, >=stealth},
     retmsg/.style={thick, dashed, ->, >=stealth},
@@ -544,6 +563,7 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
     font=\small,
+    yscale=1.3,
     box/.style={draw, thick, rectangle, fill=white, text width=2.6cm, minimum height=1.0cm, align=center},
     msg/.style={thick, ->, >=stealth},
     retmsg/.style={thick, dashed, ->, >=stealth},
@@ -598,6 +618,7 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
     font=\small,
+    yscale=1.3,
     box/.style={draw, thick, rectangle, fill=white, text width=2.6cm, minimum height=1.0cm, align=center},
     msg/.style={thick, ->, >=stealth},
     retmsg/.style={thick, dashed, ->, >=stealth},
@@ -1116,14 +1137,17 @@ summary & TEXT & - & NULL & ภาพรวมการดำเนินนโ�
 \end{tabularx}
 \end{table}
 
-\begin{table}[H]
-\centering
-\caption{พจนานุกรมข้อมูล : ตาราง event\_\allowbreak relations}
-\label{tab_schema_event_relations}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\caption{พจนานุกรมข้อมูล : ตาราง event\_\allowbreak relations}\label{tab_schema_event_relations}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
+\endfirsthead
+\caption[]{พจนานุกรมข้อมูล : ตาราง event\_\allowbreak relations~\cskkuContinued}\\
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
+\hline
+\endhead
 id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับความสัมพันธ์ในฐานข้อมูล \\ \hline
 macro\_\allowbreak id & TEXT & FK & ไม่มี & macro\_\allowbreak 1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่เชื่อมโยง \\ \hline
 source\_\allowbreak story\_\allowbreak id & TEXT & FK & ไม่มี & story\_\allowbreak 0b86804a & รหัสประเด็นข่าวต้นทาง \\ \hline
@@ -1131,17 +1155,19 @@ target\_\allowbreak story\_\allowbreak id & TEXT & FK & ไม่มี & story\
 relation\_\allowbreak type & TEXT & - & 'precedes' & updates & ประเภทความสัมพันธ์ (precedes/updates/caused\_\allowbreak by) \\ \hline
 created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T11:30:00+07:00 & วันเวลาที่สร้างความสัมพันธ์ \\
 \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
-\begin{table}[H]
-\centering
-\caption{พจนานุกรมข้อมูล : ตาราง trending\_\allowbreak scores}
-\label{tab_schema_trending_scores}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\caption{พจนานุกรมข้อมูล : ตาราง trending\_\allowbreak scores}\label{tab_schema_trending_scores}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
+\endfirsthead
+\caption[]{พจนานุกรมข้อมูล : ตาราง trending\_\allowbreak scores~\cskkuContinued}\\
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
+\hline
+\endhead
 story\_\allowbreak id & TEXT & PK, FK & ไม่มี & story\_\allowbreak 0b86804a & รหัสประเด็นข่าว (เชื่อมไปยัง stories) \\ \hline
 volume\_\allowbreak score & REAL & - & 0.0 & 4.50 & คะแนนปริมาณข่าวในรอบ 24 ชั่วโมง ($s_1$) \\ \hline
 velocity\_\allowbreak score & REAL & - & 0.0 & 3.20 & คะแนนอัตราเร่งการมาถึงของข่าว ($s_2$) \\ \hline
@@ -1152,8 +1178,7 @@ engagement\_\allowbreak score & REAL & - & 0.0 & 1.80 & คะแนนพฤต
 routine\_\allowbreak penalty & REAL & - & 1.0 & 1.00 & ตัวคูณลดทอนข่าวประจำวัน (0.25 สำหรับข่าววงรอบ) \\ \hline
 final\_\allowbreak score & REAL & - & 0.0 & 18.45 & คะแนนกระแสรวมหลังปรับค่าน้ำหนักและตัวลดทอน \\
 \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 \begin{table}[H]
 \centering
@@ -1188,31 +1213,36 @@ first\_\allowbreak seen\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-1
 \end{tabularx}
 \end{table}
 
-\begin{table}[H]
-\centering
-\caption{พจนานุกรมข้อมูล : ตาราง canonical\_\allowbreak articles}
-\label{tab_schema_canonical}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\caption{พจนานุกรมข้อมูล : ตาราง canonical\_\allowbreak articles}\label{tab_schema_canonical}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
+\endfirsthead
+\caption[]{พจนานุกรมข้อมูล : ตาราง canonical\_\allowbreak articles~\cskkuContinued}\\
+\hline
+\textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
+\hline
+\endhead
 canonical\_\allowbreak url & TEXT & PK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
 target\_\allowbreak url & TEXT & - & ไม่มี & \detokenize{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
 created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
 \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 ข้อกำหนดความคงสภาพของข้อมูลและดัชนี (Constraints and Indices) ที่ติดตั้งบนฐานข้อมูลเพื่อรักษาความสมบูรณ์และเพิ่มประสิทธิภาพการสืบค้น แสดงดังตารางที่~\ref{tab_db_constraints}
 
-\begin{table}[H]
-\centering
-\caption{ข้อจำกัดและดัชนีของฐานข้อมูล}
-\label{tab_db_constraints}
-\begin{tabularx}{\textwidth}{|L{2.0cm}|L{2.2cm}|L{3.2cm}|Y|}
+\begin{longtable}{|L{2.0cm}|L{2.2cm}|L{3.2cm}|p{\dimexpr\textwidth-7.4cm-8\tabcolsep-5\arrayrulewidth\relax}|}
+\caption{ข้อจำกัดและดัชนีของฐานข้อมูล}\label{tab_db_constraints}\\
 \hline
 \textbf{ตาราง} & \textbf{ฟิลด์} & \textbf{ประเภทข้อจำกัด / ดัชนี} & \textbf{รายละเอียดและวัตถุประสงค์} \\
 \hline
+\endfirsthead
+\caption[]{ข้อจำกัดและดัชนีของฐานข้อมูล~\cskkuContinued}\\
+\hline
+\textbf{ตาราง} & \textbf{ฟิลด์} & \textbf{ประเภทข้อจำกัด / ดัชนี} & \textbf{รายละเอียดและวัตถุประสงค์} \\
+\hline
+\endhead
 articles & url & UNIQUE INDEX & ป้องกันการบันทึกข่าวซ้ำในระดับฐานข้อมูล \\ \hline
 articles & story\_\allowbreak id & B-TREE INDEX & เพิ่มความเร็วในการดึงข่าวสมาชิกในประเด็น \\ \hline
 articles & category & B-TREE INDEX & เพิ่มความเร็วในการกรองข่าวตาม 9 หมวดหมู่ \\ \hline
@@ -1227,8 +1257,7 @@ trending\_\allowbreak scores & story\_\allowbreak id & PK, FK, UNIQUE & บั�
 reader\_\allowbreak engagement & article\_\allowbreak url & FOREIGN KEY & บังคับความสอดคล้องกับตาราง articles \\ \hline
 seen\_\allowbreak urls & url\_\allowbreak hash & PRIMARY KEY & ดัชนีหลักสำหรับตรวจสอบการสเกรปซ้ำ \\
 \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 \subsection{การออกแบบส่วนเชื่อมต่อโปรแกรมประยุกต์}
 
@@ -1744,6 +1773,8 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \centering
 \caption{ผลการประเมินการจำแนกหมวดหมู่รายด้านของระบบ Unified 3-Tier Cascade}
 \label{tab_classification_per_category}
+\small
+\renewcommand{\arraystretch}{1.0}
 \begin{tabularx}{\textwidth}{|Y|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{3.8cm}|}
 \hline
 \textbf{หมวดหมู่ข่าว} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-score} & \textbf{สัดส่วนการกระจายโมดูล} \\
@@ -1766,16 +1797,24 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 
 นอกจากนี้ เพื่อวิเคราะห์ลักษณะการทำนายผิดพลาด (Misclassification Patterns) ระหว่างหมวดหมู่ข่าวอย่างละเอียด คณะผู้จัดทำได้สร้างตารางความสับสน (Confusion Matrix) ของระบบ Unified 3-Tier Cascade ดังแสดงในตารางที่~\ref{tab_confusion_matrix_classification}
 
-\begin{table}[H]
-\centering
 \small
-\caption{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด}
-\label{tab_confusion_matrix_classification}
-{\setlength{\tabcolsep}{3.2pt}\begin{tabular}{|L{2.0cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{1.25cm}|}
+\setlength{\tabcolsep}{3.2pt}
+\renewcommand{\arraystretch}{1.0}
+% Keep the complete header in the first chunk while allowing the body to split across pages.
+\LTchunksize=5
+\begin{longtable}{|L{2.0cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{1.25cm}|}
+\caption{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด}\label{tab_confusion_matrix_classification}\\
 \hline
 \multicolumn{1}{|c|}{\textbf{หมวดหมู่จริง}} & \multicolumn{9}{c|}{\textbf{หมวดหมู่ที่ระบบทำนาย (Predicted)}} & \textbf{รวม} \\ \cline{2-10}
 \multicolumn{1}{|c|}{\textbf{(Ground Truth)}} & \textbf{ECO} & \textbf{ENT} & \textbf{ENV} & \textbf{HEA} & \textbf{POL} & \textbf{SOC} & \textbf{SPO} & \textbf{TEC} & \textbf{WOR} & \textbf{(Actual)} \\
 \hline
+\endfirsthead
+\caption[]{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด~\cskkuContinued}\\
+\hline
+\multicolumn{1}{|c|}{\textbf{หมวดหมู่จริง}} & \multicolumn{9}{c|}{\textbf{หมวดหมู่ที่ระบบทำนาย (Predicted)}} & \textbf{รวม} \\ \cline{2-10}
+\multicolumn{1}{|c|}{\textbf{(Ground Truth)}} & \textbf{ECO} & \textbf{ENT} & \textbf{ENV} & \textbf{HEA} & \textbf{POL} & \textbf{SOC} & \textbf{SPO} & \textbf{TEC} & \textbf{WOR} & \textbf{(Actual)} \\
+\hline
+\endhead
 เศรษฐกิจ (ECO) & \textbf{19} & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 20 \\ \hline
 บันเทิง (ENT) & 1 & \textbf{18} & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 20 \\ \hline
 สิ่งแวดล้อม (ENV) & 0 & 0 & \textbf{19} & 0 & 0 & 0 & 0 & 0 & 1 & 20 \\ \hline
@@ -1788,8 +1827,11 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \hline
 \textbf{รวมที่ทำนาย (Predicted)} & 24 & 18 & 21 & 22 & 25 & 15 & 20 & 17 & 18 & \textbf{180} \\
 \hline
-\end{tabular}}
-\end{table}
+\end{longtable}
+\LTchunksize=20
+\setlength{\tabcolsep}{5bp}
+\renewcommand{\arraystretch}{1.25}
+\normalsize
 
 จากตารางที่~\ref{tab_confusion_matrix_classification} ข้อค้นพบสำคัญด้านการกระจายตัวของความแม่นยำ ได้แก่
 \begin{enumerate}

@@ -142,7 +142,6 @@ P = \frac{n_p}{N} \times 100
 \end{tabularx}
 \end{table}
 
-\enlargethispage{2\baselineskip}
 \subsection{ซอฟต์แวร์}
 
 เครื่องมือด้านซอฟต์แวร์และไลบรารีที่ใช้ในการพัฒนาระบบแสดงดังตารางที่~\ref{tab_software}
@@ -175,20 +174,23 @@ P = \frac{n_p}{N} \times 100
 \end{longtable}
 
 % -----------------------------------------------------------
-\enlargethispage{2\baselineskip}
 \section{แผนการดำเนินงาน}
 % -----------------------------------------------------------
 
 แผนการดำเนินงานตลอดระยะเวลาการทำโครงงานตั้งแต่เดือนมิถุนายนถึงเดือนตุลาคม แสดงดังตารางที่~\ref{tab_gantt}
 
-\begin{table}[H]
-\centering
-\caption{แผนการดำเนินงาน ภาคการศึกษาที่ 2/2568}
-\label{tab_gantt}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
 \renewcommand{\arraystretch}{0.88}
-\begin{tabularx}{\textwidth}{|C{0.8cm}|Y|C{0.65cm}|C{0.65cm}|C{0.65cm}|C{0.65cm}|C{0.65cm}|}
+\begin{longtable}{|C{0.8cm}|p{\dimexpr\textwidth-4.05cm-14\tabcolsep-8\arrayrulewidth\relax}|C{0.65cm}|C{0.65cm}|C{0.65cm}|C{0.65cm}|C{0.65cm}|}
+\caption{แผนการดำเนินงาน ภาคการศึกษาที่ 2/2568}\label{tab_gantt}\\
 \hline
 \textbf{ลำดับ} & \textbf{กิจกรรม / ขั้นตอนการดำเนินงาน} & \textbf{มิ.ย.} & \textbf{ก.ค.} & \textbf{ส.ค.} & \textbf{ก.ย.} & \textbf{ต.ค.} \\ \hline
+\endfirsthead
+\caption[]{แผนการดำเนินงาน ภาคการศึกษาที่ 2/2568~\cskkuContinued}\\
+\hline
+\textbf{ลำดับ} & \textbf{กิจกรรม / ขั้นตอนการดำเนินงาน} & \textbf{มิ.ย.} & \textbf{ก.ค.} & \textbf{ส.ค.} & \textbf{ก.ย.} & \textbf{ต.ค.} \\ \hline
+\endhead
 \multicolumn{7}{|l|}{\textbf{ส่วนที่ 1 การศึกษา ออกแบบ และพัฒนาวิศวกรรมระบบ}} \\ \hline
 1 & ศึกษาปัญหา รวบรวมความต้องการ และสืบค้นงานวิจัยที่เกี่ยวข้อง & $\bullet$ & & & & \\ \hline
 2 & วิเคราะห์ข้อกำหนดระบบ จัดทำแบบจำลอง และออกแบบสถาปัตยกรรม & $\bullet$ & $\bullet$ & & & \\ \hline
@@ -203,8 +205,7 @@ P = \frac{n_p}{N} \times 100
 10 & วิเคราะห์ข้อมูลสถิติ สรุปผลการประเมิน และปรับแต่งระบบขั้นสุดท้าย & & & & & $\bullet$ \\ \hline
 11 & จัดทำเอกสารรายงานโครงงานฉบับสมบูรณ์และเตรียมนำเสนอผลงาน & & & & & $\bullet$ \\ \hline
 \multicolumn{7}{|l|}{\footnotesize \textit{หมายเหตุ สัญลักษณ์ $\bullet$ หมายถึง ช่วงเวลาดำเนินกิจกรรมในแต่ละขั้นตอนของโครงงาน}} \\ \hline
-\end{tabularx}
-\end{table}
+\end{longtable}
 
 จากตารางที่~\ref{tab_gantt} การดำเนินโครงงานเริ่มต้นจากการศึกษาปัญหาและออกแบบระบบในเดือนมิถุนายนถึงกรกฎาคม ดำเนินการพัฒนาระบบทั้งส่วนหน้าและส่วนหลังในเดือนกรกฎาคมถึงกันยายน และดำเนินการทดสอบระบบ ประเมินผลความพึงพอใจของผู้ใช้ สรุปผล และจัดทำเอกสารรายงานฉบับสมบูรณ์ในเดือนกันยายนถึงตุลาคม
 
