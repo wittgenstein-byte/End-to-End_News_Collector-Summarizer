@@ -92,7 +92,7 @@ NFR-08 & ด้านการทำงานข้ามแพลตฟอร�
 \centering
 \caption{กฎการตรวจสอบความถูกต้องของข้อมูล}
 \label{tab_validation_rules}
-\begin{tabular}{|C{1.2cm}|L{3.8cm}|L{8.8cm}|}
+\begin{tabularx}{\textwidth}{|C{1.2cm}|L{3.6cm}|Y|}
 \hline
 \textbf{รหัส} & \textbf{ข้อมูลที่ตรวจสอบ} & \textbf{กฎการตรวจสอบความถูกต้องและข้อกำหนด} \\
 \hline
@@ -107,7 +107,7 @@ VR-08 & รหัสผ่านลับผู้ดูแล (secret) & ต้
 VR-09 & เหตุการณ์การมีส่วนร่วม (action) & ต้องระบุประเภทการกระทำที่ระบบยอมรับเท่านั้น ได้แก่ click, summary\_view, bookmark หรือ share \\ \hline
 VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) & ต้องระบุรูปแบบ Bearer Token ที่ถูกต้องตามมาตรฐาน RFC 6750 และเป็นโทเค็นเซสชันที่ยังไม่หมดอายุในหน่วยความจำ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{แผนภาพกรณีใช้งาน}
@@ -339,7 +339,7 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 \centering
 \caption{สถานการณ์ใช้งาน UC-01}
 \label{tab_scenario_uc01}
-\begin{tabularx}{\textwidth}{|L{3.5cm}|c|Y|}
+\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
 \multirow[c]{6}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ผู้อ่านเปิดหน้า Bento Hub \\ \cline{2-3}
@@ -348,7 +348,7 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 & 4 & S: เปิด In-App Reader แสดงพรีวิวเนื้อหาและลิงก์สำนักข่าวต้นทาง \\ \cline{2-3}
 & 5 & A: กดปุ่มสั่งเปิดบทสรุป AI\newline S: แสดงบทสรุป ประเด็นสำคัญ และอารมณ์ข่าว \\ \cline{2-3}
 & 6 & S: เมื่อได้รับข่าวใหม่ผ่าน WebSocket แสดงแบนเนอร์แจ้งเตือน \\ \hline
-\multirow[c]{2}{3.5cm}{\textbf{Extensions}} & 4a & A: เลือกเปิดข่าวต้นฉบับ\newline S: เปิดเว็บสำนักข่าวในแท็บใหม่ \\\cline{2-3}
+\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 4a & A: เลือกเปิดข่าวต้นฉบับ\newline S: เปิดเว็บสำนักข่าวในแท็บใหม่ \\\cline{2-3}
 & 4b & S: หากเว็บไซต์ต้นทางปิดกั้นการดึงเนื้อหา แจ้งปัญหาและเสนอให้เปิดข่าวต้นฉบับโดยตรง \\ \hline
 \end{tabularx}
 \end{table}
@@ -357,16 +357,15 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-01}
 \label{tab_uct_uc01}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|L{3.2cm}|L{4.3cm}|L{4.3cm}|}
+
+\begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
 \textbf{รหัส} & \textbf{ข้อกำหนด} & \textbf{ข้อมูลตั้งต้น} & \textbf{ขั้นตอนทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
 UCT-01-01 & FR-05, FR-07 & มีการ์ดข่าวบน Bento Hub & คลิกการ์ดข่าวจากหน้าหลัก & เปิด In-App Reader แสดงเนื้อหาพรีวิวและลิงก์ต้นฉบับ \\ \hline
 UCT-01-02 & FR-04 & เปิดหน้าต่างอ่านข่าวพรีวิว & กดปุ่มขอรับบทสรุป AI & แสดงบทสรุป ประเด็นสำคัญ และค่าอารมณ์ข่าวจาก LLM \\ \hline
 UCT-01-03 & FR-05 & เชื่อมต่อ WebSocket และมีข่าวใหม่ & ส่งข่าวใหม่เข้าสู่ระบบ แล้วคลิกแบนเนอร์แจ้งเตือน & แบนเนอร์ปรากฏและโหลดข่าวใหม่เข้าสู่หน้าจอโดยไม่ต้องรีเฟรช \\ \hline
 UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่ปิดกั้นการดึงเนื้อหา & เปิดพรีวิวข่าวดังกล่าว & แสดงข้อความแจ้งเตือนและมีปุ่มนำทางไปยังเว็บต้นฉบับโดยตรง \\ \hline
-\end{tabular}
-}
+\end{tabularx}
 \end{table}
 
 \subsubsection{สถานการณ์ใช้งาน UC-02 ค้นหาข้อมูลข่าวสาร}
@@ -375,13 +374,13 @@ UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่
 \centering
 \caption{สถานการณ์ใช้งาน UC-02}
 \label{tab_scenario_uc02}
-\begin{tabularx}{\textwidth}{|L{3.5cm}|c|Y|}
+\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
 \multirow[c]{3}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ระบุเงื่อนไขการค้นหา เช่น เลือกหมวดหมู่ สำนักข่าว หรือพิมพ์คำสำคัญ \\ \cline{2-3}
 & 2 & S: คัดกรองและแสดงรายการข่าวที่ตรงกับเงื่อนไขทันที \\ \cline{2-3}
 & 3 & A: ตรวจดูรายการข่าวสารที่ผ่านการคัดกรอง \\ \hline
-\multirow[c]{2}{3.5cm}{\textbf{Extensions}} & 1a & A: คลิกล้างตัวกรองหรือลบคำค้นหา\newline S: แสดงรายการข่าวทั้งหมดตามค่าเริ่มต้น \\\cline{2-3}
+\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: คลิกล้างตัวกรองหรือลบคำค้นหา\newline S: แสดงรายการข่าวทั้งหมดตามค่าเริ่มต้น \\\cline{2-3}
 & 2a & S: หากไม่พบบทความที่ตรงตามเงื่อนไข แจ้งไม่พบข้อมูลพร้อมเสนอคำค้นใกล้เคียง \\ \hline
 \end{tabularx}
 \end{table}
@@ -390,16 +389,15 @@ UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-02}
 \label{tab_uct_uc02}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|L{3.2cm}|L{4.3cm}|L{4.3cm}|}
+
+\begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
 \textbf{รหัส} & \textbf{ข้อกำหนด} & \textbf{ข้อมูลตั้งต้น} & \textbf{ขั้นตอนทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
 UCT-02-01 & FR-06 & มีข่าวครอบคลุม 9 หมวดหมู่ & คลิกเลือกหมวดหมู่ข่าว & แสดงเฉพาะข่าวในหมวดหมู่ที่เลือกอย่างถูกต้อง \\ \hline
 UCT-02-02 & FR-06 & มีข่าวจาก 14 สำนัก & คลิกเลือกปุ่มสำนักข่าว (Publisher Pills) & แสดงเฉพาะข่าวจากสำนักข่าวที่เลือก \\ \hline
 UCT-02-03 & FR-06 & มีรายการข่าวและคำสำคัญที่ตรงกัน & พิมพ์คำสำคัญลงในช่อง Search & คัดกรองข่าวแบบทันทีและแสดงเฉพาะข่าวที่มีคำค้น \\ \hline
 UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังกรองข่าว & ล้างคำค้นหรือคลิกหมวดหมู่เดิมซ้ำ & ระบบคืนค่ากลับมาแสดงรายการข่าวสารทั้งหมด \\ \hline
-\end{tabular}
-}
+\end{tabularx}
 \end{table}
 
 \subsubsection{สถานการณ์ใช้งาน UC-03 สำรวจมหากาพย์ประเด็นข่าวเชิงลึก}
@@ -408,7 +406,7 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 \centering
 \caption{สถานการณ์ใช้งาน UC-03}
 \label{tab_scenario_uc03}
-\begin{tabularx}{\textwidth}{|L{3.5cm}|c|Y|}
+\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
 \multirow[c]{6}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เลือกมหากาพย์ประเด็นข่าวจาก Bento Hub \\ \cline{2-3}
@@ -417,7 +415,7 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 & 4 & S: แสดงไทม์ไลน์เหตุการณ์ตามลำดับเวลา \\ \cline{2-3}
 & 5 & S: แสดงข้อเท็จจริงที่ยืนยันตรงกันจากหลายสำนักข่าว \\ \cline{2-3}
 & 6 & A: เลือกสืบค้นประเด็นเชิงลึกผ่าน Issue Explorer \\ \hline
-\multirow[c]{2}{3.5cm}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
+\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
 & 3a & S: หากชุดข่าวไม่ตรงประเด็น ให้ระงับการสังเคราะห์ แสดงสถานะ halted\_mismatch และแจ้งผู้ใช้ \\ \hline
 \end{tabularx}
 \end{table}
@@ -426,16 +424,15 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-03}
 \label{tab_uct_uc03}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|L{3.2cm}|L{4.3cm}|L{4.3cm}|}
+
+\begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
 \textbf{รหัส} & \textbf{ข้อกำหนด} & \textbf{ข้อมูลตั้งต้น} & \textbf{ขั้นตอนทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
 UCT-03-01 & FR-10, FR-11 & มีมหากาพย์ข่าวที่มีข้อมูลสรุปและไทม์ไลน์ & เลือกมหากาพย์ข่าวจาก Bento Hub & เปิดแฟ้มเจาะลึกพร้อมพาดหัวและบทสรุป \\ \hline
 UCT-03-02 & FR-11, FR-12 & มีข้อมูลจากหลายสำนักข่าวและลำดับเหตุการณ์ & ตรวจสอบไทม์ไลน์และตารางข้อเท็จจริงในแฟ้ม & เหตุการณ์เรียงตามเวลาและแสดงข้อเท็จจริงพร้อมหลักฐานจากหลายสำนักข่าว \\ \hline
 UCT-03-03 & FR-13 & เตรียมชุดข่าวที่ไม่ตรงประเด็นสำหรับทดสอบ & เปิดแฟ้มประเด็นที่ใช้ชุดข่าวดังกล่าว & ระบบระงับการสังเคราะห์ แสดง halted\_mismatch และแจ้งผู้ใช้อย่างชัดเจน \\ \hline
 UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแสและประเด็นที่ค้นต่อได้ & เปิดรายละเอียดคะแนนกระแส แล้วเลือกสืบค้นประเด็น & แสดงคะแนนทั้ง 6 มิติและเปิด Issue Explorer ได้ \\ \hline
-\end{tabular}
-}
+\end{tabularx}
 \end{table}
 
 \subsubsection{สถานการณ์ใช้งาน UC-04 ตรวจสอบและควบคุมการทำงานของระบบ}
@@ -444,7 +441,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 \centering
 \caption{สถานการณ์ใช้งาน UC-04}
 \label{tab_scenario_uc04}
-\begin{tabularx}{\textwidth}{|L{3.5cm}|c|Y|}
+\begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
 \multirow[c]{9}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า /monitoring.html และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
@@ -456,7 +453,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 & 7 & A: กดปุ่ม Clear Cache \\ \cline{2-3}
 & 8 & S: ล้างแคชหน่วยความจำและ HTTP cache \\ \cline{2-3}
 & 9 & A: ออกจากระบบ\newline S: ยกเลิกโทเค็นเซสชัน \\ \hline
-\multirow[c]{2}{3.5cm}{\textbf{Extensions}} & 1a & A: กรอกรหัสผ่านไม่ถูกต้อง\newline S: ปฏิเสธการเข้าสู่ระบบและแจ้งข้อผิดพลาด \\\cline{2-3}
+\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: กรอกรหัสผ่านไม่ถูกต้อง\newline S: ปฏิเสธการเข้าสู่ระบบและแจ้งข้อผิดพลาด \\\cline{2-3}
 & 4a & A: เลือกทดสอบสำนักข่าวรายแห่ง (Test Source Probe)\newline S: แสดงผลการทดสอบและตัวอย่างข่าว \\ \hline
 \end{tabularx}
 \end{table}
@@ -465,16 +462,15 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 \centering
 \caption{กรณีทดสอบการใช้งาน UC-04}
 \label{tab_uct_uc04}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|l|L{3.2cm}|L{4.3cm}|L{4.3cm}|}
+
+\begin{tabularx}{\textwidth}{|C{1.8cm}|C{1.2cm}|L{3.0cm}|Y|Y|}
 \hline
 \textbf{รหัส} & \textbf{ข้อกำหนด} & \textbf{ข้อมูลตั้งต้น} & \textbf{ขั้นตอนทดสอบ} & \textbf{ผลที่คาดหวัง} \\ \hline
 UCT-04-01 & FR-02, FR-14 & ข้อมูลยืนยันตัวตนผู้ดูแลระบบที่ถูกต้อง & เปิดหน้า Monitoring และเข้าสู่ระบบ & ได้รับสิทธิ์เข้าหน้าควบคุมและเห็นแดชบอร์ดสถานะ \\ \hline
 UCT-04-02 & FR-02, FR-14 & ข้อมูลยืนยันตัวตนที่ไม่ถูกต้อง & พยายามเข้าสู่ระบบด้วยข้อมูลดังกล่าว & ปฏิเสธการเข้าถึงและไม่แสดง/ไม่อนุญาตคำสั่งควบคุม \\ \hline
 UCT-04-03 & FR-02, FR-14 & เข้าสู่ระบบสำเร็จและมีแหล่งข่าวทดสอบ & ตรวจสุขภาพแหล่งข่าวแล้วสั่ง Scrape Now & แสดงสถานะแหล่งข่าวและตอบรับการเริ่มงาน scrape เบื้องหลัง \\ \hline
 UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและมีแคชทดสอบ & สั่ง Clear Cache แล้วออกจากระบบ จากนั้นลองใช้โทเค็นเดิม & ยืนยันการล้างแคชและปฏิเสธการใช้โทเค็นเดิมหลังออกจากระบบ \\ \hline
-\end{tabular}
-}
+\end{tabularx}
 \end{table}
 
 ผลจริงของกรณีทดสอบข้างต้นให้บันทึกหลังดำเนินการทดสอบ โดยระบุผลเป็น ผ่าน ไม่ผ่าน หรือถูกบล็อก พร้อมหลักฐานหรือหมายเลขข้อบกพร่อง ทั้งนี้ตารางนี้เป็นแผนกรณีทดสอบ มิใช่การรายงานผลทดสอบจริง
@@ -1059,7 +1055,7 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง articles}
 \label{tab_schema_articles}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1067,144 +1063,144 @@ id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับบทค�
 url & TEXT & UQ & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์ที่อยู่บทความข่าวต้นฉบับ \\ \hline
 title & TEXT & - & ไม่มี & รัฐบาลแถลงนโยบายกระตุ้นเศรษฐกิจดิจิทัล & หัวข้อบทความข่าวที่สกัดได้ \\ \hline
 source & TEXT & - & ไม่มี & ThaiPBS & ชื่อสำนักข่าวต้นทาง (เช่น ThaiPBS, Thairath) \\ \hline
-fetched\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบดึงข้อมูลตามมาตรฐาน ISO 8601 \\ \hline
+fetched\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบดึงข้อมูลตามมาตรฐาน ISO 8601 \\ \hline
 summary & TEXT & - & NULL & นายกฯ แถลงเดินหน้าแผนเศรษฐกิจดิจิทัล... & ข้อความสรุปย่อเนื้อหาข่าวจากโมเดลภาษา \\ \hline
 category & TEXT & - & NULL & economy & หมวดหมู่ข่าว 1 ใน 9 หมวดหมู่หลัก \\ \hline
-story\_id & TEXT & FK & NULL & story\_0b86804a & รหัสกลุ่มประเด็นข่าวที่สังกัด \\ \hline
+story\_\allowbreak id & TEXT & FK & NULL & story\_\allowbreak 0b86804a & รหัสกลุ่มประเด็นข่าวที่สังกัด \\ \hline
 sentiment & TEXT & - & NULL & positive & ค่าอารมณ์ของข่าว (positive, neutral, negative) \\ \hline
-image\_url & TEXT & - & NULL & \detokenize{https://img.thaipbs.or.th/335123.jpg} & ลิงก์รูปภาพหน้าปกบทความข่าว \\
+image\_\allowbreak url & TEXT & - & NULL & \detokenize{https://img.thaipbs.or.th/335123.jpg} & ลิงก์รูปภาพหน้าปกบทความข่าว \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง stories}
 \label{tab_schema_stories}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
-story\_id & TEXT & PK & ไม่มี & story\_0b86804a & รหัสระบุกลุ่มประเด็นข่าวแบบคงทน \\ \hline
+story\_\allowbreak id & TEXT & PK & ไม่มี & story\_\allowbreak 0b86804a & รหัสระบุกลุ่มประเด็นข่าวแบบคงทน \\ \hline
 title & TEXT & - & ไม่มี & แถลงนโยบายกระตุ้นเศรษฐกิจดิจิทัลภาครัฐ & หัวข้อข่าวตัวแทนตั้งต้นของกลุ่มประเด็น \\ \hline
 category & TEXT & - & ไม่มี & economy & หมวดหมู่หลักของกลุ่มประเด็นข่าว \\ \hline
 status & TEXT & - & 'active' & active & สถานะวงจรชีวิตประเด็นข่าว (active/dormant) \\ \hline
-created\_at & TEXT & - & ไม่มี & 2026-03-15T08:35:00+07:00 & วันเวลาที่สร้างกลุ่มประเด็นข่าว \\ \hline
-updated\_at & TEXT & - & ไม่มี & 2026-03-15T11:20:00+07:00 & วันเวลาที่มีข่าวใหม่เข้ามาอัปเดตล่าสุด \\ \hline
-article\_count & INTEGER & - & 1 & 5 & จำนวนบทความข่าวทั้งหมดในกลุ่มประเด็นนี้ \\ \hline
-outlet\_count & INTEGER & - & 1 & 3 & จำนวนสำนักข่าวที่ไม่ซ้ำกันที่รายงานประเด็นนี้ \\ \hline
+created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:35:00+07:00 & วันเวลาที่สร้างกลุ่มประเด็นข่าว \\ \hline
+updated\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T11:20:00+07:00 & วันเวลาที่มีข่าวใหม่เข้ามาอัปเดตล่าสุด \\ \hline
+article\_\allowbreak count & INTEGER & - & 1 & 5 & จำนวนบทความข่าวทั้งหมดในกลุ่มประเด็นนี้ \\ \hline
+outlet\_\allowbreak count & INTEGER & - & 1 & 3 & จำนวนสำนักข่าวที่ไม่ซ้ำกันที่รายงานประเด็นนี้ \\ \hline
 centroid & BLOB/TEXT & - & ไม่มี & [0.024, -0.118, ..., 0.052] & เวกเตอร์ศูนย์กลาง 768 มิติ ปรับปรุงด้วย EMA \\ \hline
-macro\_event\_id & TEXT & FK & NULL & macro\_1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่สังกัด \\
+macro\_\allowbreak event\_\allowbreak id & TEXT & FK & NULL & macro\_\allowbreak 1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่สังกัด \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง macro\_events}
+\caption{พจนานุกรมข้อมูล : ตาราง macro\_\allowbreak events}
 \label{tab_schema_macro_events}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
-macro\_event\_id & TEXT & PK & ไม่มี & macro\_1a2b3c4d & รหัสระบุมหากาพย์ประเด็นข่าวถาวร \\ \hline
+macro\_\allowbreak event\_\allowbreak id & TEXT & PK & ไม่มี & macro\_\allowbreak 1a2b3c4d & รหัสระบุมหากาพย์ประเด็นข่าวถาวร \\ \hline
 title & TEXT & - & ไม่มี & มาตรการขับเคลื่อนเศรษฐกิจดิจิทัลปี 2569 & ชื่อหัวข้อเหตุการณ์มหาภาค \\ \hline
 category & TEXT & - & ไม่มี & economy & หมวดหมู่หลักของมหากาพย์ประเด็นข่าว \\ \hline
 status & TEXT & - & 'active' & active & สถานะการติดตามเหตุการณ์ (active/dormant) \\ \hline
-storyline\_anchor & TEXT & - & NULL & นโยบายกระตุ้นเศรษฐกิจ ดิจิทัลวอลเล็ต & คำสำคัญหรือแกนเรื่องราวหลักของมหากาพย์ \\ \hline
-created\_at & TEXT & - & ไม่มี & 2026-03-10T09:00:00+07:00 & วันเวลาที่เริ่มต้นสร้างมหากาพย์ประเด็นข่าว \\ \hline
-updated\_at & TEXT & - & ไม่มี & 2026-03-15T12:00:00+07:00 & วันเวลาที่มีความเคลื่อนไหวล่าสุด \\ \hline
+storyline\_\allowbreak anchor & TEXT & - & NULL & นโยบายกระตุ้นเศรษฐกิจ ดิจิทัลวอลเล็ต & คำสำคัญหรือแกนเรื่องราวหลักของมหากาพย์ \\ \hline
+created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-10T09:00:00+07:00 & วันเวลาที่เริ่มต้นสร้างมหากาพย์ประเด็นข่าว \\ \hline
+updated\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T12:00:00+07:00 & วันเวลาที่มีความเคลื่อนไหวล่าสุด \\ \hline
 headline & TEXT & - & NULL & สรุปพัฒนาการมาตรการเศรษฐกิจดิจิทัล & พาดหัวข่าวสังเคราะห์ภาพรวมจากโมเดลภาษา \\ \hline
 summary & TEXT & - & NULL & ภาพรวมการดำเนินนโยบายเศรษฐกิจดิจิทัล... & บทสรุปสังเคราะห์ภาพรวมข้ามสำนักข่าว \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง event\_relations}
+\caption{พจนานุกรมข้อมูล : ตาราง event\_\allowbreak relations}
 \label{tab_schema_event_relations}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับความสัมพันธ์ในฐานข้อมูล \\ \hline
-macro\_id & TEXT & FK & ไม่มี & macro\_1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่เชื่อมโยง \\ \hline
-source\_story\_id & TEXT & FK & ไม่มี & story\_0b86804a & รหัสประเด็นข่าวต้นทาง \\ \hline
-target\_story\_id & TEXT & FK & ไม่มี & story\_7c9d0e1f & รหัสประเด็นข่าวปลายทาง \\ \hline
-relation\_type & TEXT & - & 'precedes' & updates & ประเภทความสัมพันธ์ (precedes/updates/caused\_by) \\ \hline
-created\_at & TEXT & - & ไม่มี & 2026-03-15T11:30:00+07:00 & วันเวลาที่สร้างความสัมพันธ์ \\
+macro\_\allowbreak id & TEXT & FK & ไม่มี & macro\_\allowbreak 1a2b3c4d & รหัสมหากาพย์ประเด็นข่าวที่เชื่อมโยง \\ \hline
+source\_\allowbreak story\_\allowbreak id & TEXT & FK & ไม่มี & story\_\allowbreak 0b86804a & รหัสประเด็นข่าวต้นทาง \\ \hline
+target\_\allowbreak story\_\allowbreak id & TEXT & FK & ไม่มี & story\_\allowbreak 7c9d0e1f & รหัสประเด็นข่าวปลายทาง \\ \hline
+relation\_\allowbreak type & TEXT & - & 'precedes' & updates & ประเภทความสัมพันธ์ (precedes/updates/caused\_\allowbreak by) \\ \hline
+created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T11:30:00+07:00 & วันเวลาที่สร้างความสัมพันธ์ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง trending\_scores}
+\caption{พจนานุกรมข้อมูล : ตาราง trending\_\allowbreak scores}
 \label{tab_schema_trending_scores}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
-story\_id & TEXT & PK, FK & ไม่มี & story\_0b86804a & รหัสประเด็นข่าว (เชื่อมไปยัง stories) \\ \hline
-volume\_score & REAL & - & 0.0 & 4.50 & คะแนนปริมาณข่าวในรอบ 24 ชั่วโมง ($s_1$) \\ \hline
-velocity\_score & REAL & - & 0.0 & 3.20 & คะแนนอัตราเร่งการมาถึงของข่าว ($s_2$) \\ \hline
-diversity\_score & REAL & - & 0.0 & 3.00 & คะแนนความหลากหลายของสำนักข่าว ($s_3$) \\ \hline
-recency\_score & REAL & - & 0.0 & 4.85 & คะแนนความสดใหม่ลดทอนตามเวลา ($s_4$) \\ \hline
-novelty\_score & REAL & - & 0.0 & 2.70 & คะแนนความแปลกใหม่ของประเด็นข่าว ($s_5$) \\ \hline
-engagement\_score & REAL & - & 0.0 & 1.80 & คะแนนพฤติกรรมปฏิสัมพันธ์ของผู้อ่าน ($s_6$) \\ \hline
-routine\_penalty & REAL & - & 1.0 & 1.00 & ตัวคูณลดทอนข่าวประจำวัน (0.25 สำหรับข่าววงรอบ) \\ \hline
-final\_score & REAL & - & 0.0 & 18.45 & คะแนนกระแสรวมหลังปรับค่าน้ำหนักและตัวลดทอน \\
+story\_\allowbreak id & TEXT & PK, FK & ไม่มี & story\_\allowbreak 0b86804a & รหัสประเด็นข่าว (เชื่อมไปยัง stories) \\ \hline
+volume\_\allowbreak score & REAL & - & 0.0 & 4.50 & คะแนนปริมาณข่าวในรอบ 24 ชั่วโมง ($s_1$) \\ \hline
+velocity\_\allowbreak score & REAL & - & 0.0 & 3.20 & คะแนนอัตราเร่งการมาถึงของข่าว ($s_2$) \\ \hline
+diversity\_\allowbreak score & REAL & - & 0.0 & 3.00 & คะแนนความหลากหลายของสำนักข่าว ($s_3$) \\ \hline
+recency\_\allowbreak score & REAL & - & 0.0 & 4.85 & คะแนนความสดใหม่ลดทอนตามเวลา ($s_4$) \\ \hline
+novelty\_\allowbreak score & REAL & - & 0.0 & 2.70 & คะแนนความแปลกใหม่ของประเด็นข่าว ($s_5$) \\ \hline
+engagement\_\allowbreak score & REAL & - & 0.0 & 1.80 & คะแนนพฤติกรรมปฏิสัมพันธ์ของผู้อ่าน ($s_6$) \\ \hline
+routine\_\allowbreak penalty & REAL & - & 1.0 & 1.00 & ตัวคูณลดทอนข่าวประจำวัน (0.25 สำหรับข่าววงรอบ) \\ \hline
+final\_\allowbreak score & REAL & - & 0.0 & 18.45 & คะแนนกระแสรวมหลังปรับค่าน้ำหนักและตัวลดทอน \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง reader\_engagement}
+\caption{พจนานุกรมข้อมูล : ตาราง reader\_\allowbreak engagement}
 \label{tab_schema_reader_engagement}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับสถิติการมีส่วนร่วม \\ \hline
-article\_url & TEXT & FK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าว (เชื่อมไปยัง articles) \\ \hline
+article\_\allowbreak url & TEXT & FK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าว (เชื่อมไปยัง articles) \\ \hline
 clicks & INTEGER & - & 0 & 142 & จำนวนครั้งที่ผู้อ่านคลิกเปิดอ่านบทความ \\ \hline
 summaries & INTEGER & - & 0 & 87 & จำนวนครั้งที่ผู้อ่านเปิดดูบทสรุป AI \\ \hline
 bookmarks & INTEGER & - & 0 & 24 & จำนวนครั้งที่ผู้อ่านบันทึกคั่นหน้าบทความ \\ \hline
-last\_engaged\_at & TEXT & - & ไม่มี & 2026-03-15T14:22:10+07:00 & วันเวลาที่มีปฏิสัมพันธ์ล่าสุด \\
+last\_\allowbreak engaged\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T14:22:10+07:00 & วันเวลาที่มีปฏิสัมพันธ์ล่าสุด \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง seen\_urls}
+\caption{พจนานุกรมข้อมูล : ตาราง seen\_\allowbreak urls}
 \label{tab_schema_seen_urls}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
-url\_hash & TEXT & PK & ไม่มี & a1b2c3d4e5f60718293a4b5c6d7e8f90 & ค่าแฮชของ URL สำหรับตรวจสอบข่าวซ้ำด่วน \\ \hline
+url\_\allowbreak hash & TEXT & PK & ไม่มี & a1b2c3d4\allowbreak e5f60718\allowbreak 293a4b5c\allowbreak 6d7e8f90 & ค่าแฮชของ URL สำหรับตรวจสอบข่าวซ้ำด่วน \\ \hline
 url & TEXT & - & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าวฉบับเต็ม \\ \hline
-first\_seen\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบตรวจพบข่าวนี้เป็นครั้งแรก \\
+first\_\allowbreak seen\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบตรวจพบข่าวนี้เป็นครั้งแรก \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{พจนานุกรมข้อมูล : ตาราง canonical\_articles}
+\caption{พจนานุกรมข้อมูล : ตาราง canonical\_\allowbreak articles}
 \label{tab_schema_canonical}
-\begin{tabular}{|L{1.8cm}|L{1.5cm}|C{0.8cm}|C{1.1cm}|L{3.8cm}|L{4.2cm}|}
+\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
-canonical\_url & TEXT & PK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
-target\_url & TEXT & - & ไม่มี & \detokenize{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
-created\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
+canonical\_\allowbreak url & TEXT & PK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
+target\_\allowbreak url & TEXT & - & ไม่มี & \detokenize{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
+created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 ข้อกำหนดความคงสภาพของข้อมูลและดัชนี (Constraints and Indices) ที่ติดตั้งบนฐานข้อมูลเพื่อรักษาความสมบูรณ์และเพิ่มประสิทธิภาพการสืบค้น แสดงดังตารางที่~\ref{tab_db_constraints}
@@ -1213,25 +1209,25 @@ created\_at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วัน
 \centering
 \caption{ข้อจำกัดและดัชนีของฐานข้อมูล}
 \label{tab_db_constraints}
-\begin{tabular}{|L{2.2cm}|L{2.5cm}|L{3.5cm}|L{5.4cm}|}
+\begin{tabularx}{\textwidth}{|L{2.0cm}|L{2.2cm}|L{3.2cm}|Y|}
 \hline
 \textbf{ตาราง} & \textbf{ฟิลด์} & \textbf{ประเภทข้อจำกัด / ดัชนี} & \textbf{รายละเอียดและวัตถุประสงค์} \\
 \hline
 articles & url & UNIQUE INDEX & ป้องกันการบันทึกข่าวซ้ำในระดับฐานข้อมูล \\ \hline
-articles & story\_id & B-TREE INDEX & เพิ่มความเร็วในการดึงข่าวสมาชิกในประเด็น \\ \hline
+articles & story\_\allowbreak id & B-TREE INDEX & เพิ่มความเร็วในการดึงข่าวสมาชิกในประเด็น \\ \hline
 articles & category & B-TREE INDEX & เพิ่มความเร็วในการกรองข่าวตาม 9 หมวดหมู่ \\ \hline
-articles & fetched\_at & B-TREE INDEX & เพิ่มความเร็วในการเรียงลำดับข่าวสดตามเวลา \\ \hline
-stories & story\_id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสประเด็นข่าว \\ \hline
+articles & fetched\_\allowbreak at & B-TREE INDEX & เพิ่มความเร็วในการเรียงลำดับข่าวสดตามเวลา \\ \hline
+stories & story\_\allowbreak id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสประเด็นข่าว \\ \hline
 stories & status & CHECK CONSTRAINT & บังคับค่าสถานะต้องเป็น 'active' หรือ 'dormant' \\ \hline
-stories & macro\_event\_id & B-TREE INDEX & เพิ่มความเร็วในการดึงประเด็นย่อยในมหากาพย์ \\ \hline
-macro\_events & macro\_event\_id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสมหากาพย์ \\ \hline
-macro\_events & status & CHECK CONSTRAINT & บังคับค่าสถานะต้องเป็น 'active' หรือ 'dormant' \\ \hline
-event\_relations & macro\_id & FOREIGN KEY & บังคับความสอดคล้องกับตาราง macro\_events \\ \hline
-trending\_scores & story\_id & PK, FK, UNIQUE & บังคับความสัมพันธ์ 1 ต่อ 1 กับตาราง stories \\ \hline
-reader\_engagement & article\_url & FOREIGN KEY & บังคับความสอดคล้องกับตาราง articles \\ \hline
-seen\_urls & url\_hash & PRIMARY KEY & ดัชนีหลักสำหรับตรวจสอบการสเกรปซ้ำ \\
+stories & macro\_\allowbreak event\_\allowbreak id & B-TREE INDEX & เพิ่มความเร็วในการดึงประเด็นย่อยในมหากาพย์ \\ \hline
+macro\_\allowbreak events & macro\_\allowbreak event\_\allowbreak id & PRIMARY KEY & รับประกันความไม่ซ้ำของรหัสมหากาพย์ \\ \hline
+macro\_\allowbreak events & status & CHECK CONSTRAINT & บังคับค่าสถานะต้องเป็น 'active' หรือ 'dormant' \\ \hline
+event\_\allowbreak relations & macro\_\allowbreak id & FOREIGN KEY & บังคับความสอดคล้องกับตาราง macro\_\allowbreak events \\ \hline
+trending\_\allowbreak scores & story\_\allowbreak id & PK, FK, UNIQUE & บังคับความสัมพันธ์ 1 ต่อ 1 กับตาราง stories \\ \hline
+reader\_\allowbreak engagement & article\_\allowbreak url & FOREIGN KEY & บังคับความสอดคล้องกับตาราง articles \\ \hline
+seen\_\allowbreak urls & url\_\allowbreak hash & PRIMARY KEY & ดัชนีหลักสำหรับตรวจสอบการสเกรปซ้ำ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{การออกแบบส่วนเชื่อมต่อโปรแกรมประยุกต์}
@@ -1277,7 +1273,7 @@ GET & /livez และ /readyz & โพรบตรวจสอบความ�
 \centering
 \caption{รหัสสถานะ HTTP ที่ระบบใช้}
 \label{tab_http_status_codes}
-\begin{tabular}{|C{1.0cm}|L{3.8cm}|L{9.0cm}|}
+\begin{tabularx}{\textwidth}{|C{1.0cm}|L{3.6cm}|Y|}
 \hline
 \textbf{รหัส} & \textbf{ชื่อสถานะ (HTTP Status)} & \textbf{เงื่อนไขการส่งคืนในระบบ} \\
 \hline
@@ -1295,7 +1291,7 @@ GET & /livez และ /readyz & โพรบตรวจสอบความ�
 502 & Bad Gateway & เซิร์ฟเวอร์ต้นทางหรือบริการภาพข่าวภายนอกไม่ตอบสนอง \\ \hline
 503 & Service Unavailable & เซิร์ฟเวอร์ยังไม่พร้อมให้บริการหรืออยู่ในระหว่างการเริ่มต้นระบบ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{ต้นแบบส่วนติดต่อกับผู้ใช้}
@@ -1306,7 +1302,7 @@ GET & /livez และ /readyz & โพรบตรวจสอบความ�
 \centering
 \caption{รายการต้นแบบหน้าจอ}
 \label{tab_ui_mockups}
-\begin{tabular}{|C{1.0cm}|L{3.5cm}|L{2.2cm}|L{7.1cm}|}
+\begin{tabularx}{\textwidth}{|C{1.0cm}|L{3.3cm}|L{2.0cm}|Y|}
 \hline
 \textbf{รหัส} & \textbf{ชื่อหน้าจอ} & \textbf{ผู้ใช้งาน} & \textbf{ส่วนประกอบหลักและหน้าที่การทำงาน} \\
 \hline
@@ -1318,7 +1314,7 @@ M-05 & Ops Monitoring Console\newline (ศูนย์ควบคุมสถ�
 M-06 & Privacy \& Cookie Modal\newline (ตั้งค่าความเป็นส่วนตัว) & ผู้อ่านทั่วไป & แถบขอความยินยอมคุกกี้ หน้าต่างตั้งค่าสิทธิ์ความเป็นส่วนตัวตามมาตรฐาน PDPA และปุ่มลบสถิติความสนใจออกจากเบราว์เซอร์ \\ \hline
 M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉพาะคุณ) & ผู้อ่านทั่วไป & หน้าต่างเลือกอย่างน้อย 3 หมวดหมู่สนใจเพื่อสร้างฟีดเฉพาะบุคคล และจัดอันดับข่าวบนเบราว์เซอร์แบบ Edge ไม่ส่งข้อมูลส่วนตัวกลับเซิร์ฟเวอร์ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 ตัวอย่างหน้าจอจริงของระบบในส่วนแฟ้มเจาะลึกมหากาพย์ประเด็นข่าว (Stage B Hardened Storyline Bento Hub) แสดงดังภาพที่~\ref{fig_ui_bento_story_id} และแฟ้มสังเคราะห์ไทม์ไลน์พัฒนาการเหตุการณ์ตามลำดับเวลาแสดงดังภาพที่~\ref{fig_ui_bento_timeline_enforced}
@@ -1371,7 +1367,7 @@ M-07 & Personal Briefing Modal\newline (ปรับแต่งฟีดเฉ�
 \centering
 \caption{ไลบรารีหลักที่ใช้ในการพัฒนา}
 \label{tab_main_libraries}
-\begin{tabular}{|L{2.4cm}|L{2.8cm}|L{1.6cm}|L{6.9cm}|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|L{2.6cm}|C{1.4cm}|Y|}
 \hline
 \textbf{ส่วนงาน} & \textbf{ไลบรารี / เครื่องมือ} & \textbf{เวอร์ชัน} & \textbf{วัตถุประสงค์และการใช้งาน} \\
 \hline
@@ -1388,7 +1384,7 @@ Database & Aiosqlite & 0.20+ & ตัวเชื่อมต่อฐานข�
 Frontend Core & Vanilla JS (ESM) & ES2022 & สคริปต์ส่วนติดต่อผู้ใช้แบบโมดูลแยกอิสระ ปราศจากเฟรมเวิร์คหน่วง \\ \hline
 Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเวิร์คสำหรับจัดรูปแบบส่วนต่อประสาน Responsive \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{โครงสร้างของโปรแกรม}
@@ -1399,7 +1395,7 @@ Frontend Style & Tailwind CSS & 3.4+ & ยูทิลิตีเฟรมเ�
 \centering
 \caption{โครงสร้างโฟลเดอร์หลักของโปรแกรม}
 \label{tab_folder_structure}
-\begin{tabular}{|L{4.5cm}|L{9.4cm}|}
+\begin{tabularx}{\textwidth}{|L{4.2cm}|Y|}
 \hline
 \textbf{โฟลเดอร์ / เส้นทาง} & \textbf{หน้าที่และความรับผิดชอบของโมดูล} \\
 \hline
@@ -1414,7 +1410,7 @@ frontend/static/ & ไฟล์สคริปต์ส่วนติดต่�
 frontend/static/components/ & โมดูลส่วนติดต่อผู้ใช้ย่อยแยกอิสระ (hero.js, cards.js, reader.js, storyline.js, sports.js) \\ \hline
 docs/report/ & เอกสารรายงานโครงงานฉบับสมบูรณ์ตามมาตรฐานวิทยาลัยการคอมพิวเตอร์ \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{ข้อกำหนดเฉพาะของแต่ละโมดูลและการทำงานของส่วนประกอบหลัก}
@@ -1529,7 +1525,7 @@ S_i = \left( 1.2 \cdot C_i + 0.8 \cdot P_i + 0.35 \cdot K_i \right) \cdot 2^{-\f
 \centering
 \caption{ผลการทดสอบการยอมรับของผู้ใช้}
 \label{tab_uat_summary}
-\begin{tabular}{|C{1.3cm}|C{1.2cm}|L{6.2cm}|L{4.2cm}|C{1.0cm}|}
+\begin{tabularx}{\textwidth}{|C{1.2cm}|C{1.1cm}|Y|L{3.6cm}|C{1.0cm}|}
 \hline
 \textbf{รหัสทดสอบ} & \textbf{FR} & \textbf{รายการทดสอบ} & \textbf{ผลที่คาดหวัง} & \textbf{ผลการทดสอบ} \\
 \hline
@@ -1549,7 +1545,7 @@ TC-13 & FR-13 & กลไกควบคุมความถูกต้อง 
 TC-14 & FR-14 & ศูนย์ควบคุมสถานะและการล้างแคช & คอนโซลแสดงสถิติ สั่งสเกรปด่วน และล้างแคชสำเร็จ & ผ่าน \\ \hline
 TC-15 & FR-15 & การคุ้มครองข้อมูลส่วนบุคคล PDPA & ประมวลผลแบบนิรนาม มีแถบยินยอม และล้างข้อมูลได้ & ผ่าน \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{รายละเอียดกรณีทดสอบที่สำคัญ}
@@ -1560,7 +1556,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 \centering
 \caption{กรณีทดสอบ TC-09 การระบุประเด็นข่าวออนไลน์ 2 ชั้น}
 \label{tab_tc09_detail}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{tabularx}{\textwidth}{|L{2.8cm}|Y|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -1579,14 +1575,14 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 ผลการทดสอบจริง & ระบบจัดกลุ่มบทความข่าวได้อย่างถูกต้องครบถ้วนตามเกณฑ์ Two-Band Gate ร้อยละ 100 \\ \hline
 สถานะการทดสอบ & ผ่าน (Pass) \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
 \caption{กรณีทดสอบ TC-12 การสังเคราะห์ความคืบหน้าจากหลักฐานแท้จริง}
 \label{tab_tc12_detail}
-\begin{tabular}{|L{2.8cm}|L{11.0cm}|}
+\begin{tabularx}{\textwidth}{|L{2.8cm}|Y|}
 \hline
 \textbf{หัวข้อ} & \textbf{รายละเอียด} \\
 \hline
@@ -1605,7 +1601,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 ผลการทดสอบจริง & ระบบทำงานถูกต้องตามเกณฑ์กลไกป้องกัน 3 ระดับ ปราศจากข้อมูลเท็จและผ่านการตรวจสอบรหัสอ้างอิงสมบูรณ์ \\ \hline
 สถานะการทดสอบ & ผ่าน (Pass) \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
@@ -1616,7 +1612,7 @@ TC-15 & FR-15 & การคุ้มครองข้อมูลส่วน�
 \centering
 \caption{ผลการทดสอบความต้องการที่ไม่ใช่เชิงฟังก์ชัน}
 \label{tab_nfr_results}
-\begin{tabular}{|C{1.3cm}|L{3.5cm}|L{4.2cm}|L{3.8cm}|C{1.0cm}|}
+\begin{tabularx}{\textwidth}{|C{1.2cm}|L{3.0cm}|Y|L{3.2cm}|C{1.0cm}|}
 \hline
 \textbf{รหัส} & \textbf{ด้าน} & \textbf{เกณฑ์ที่กำหนด} & \textbf{ผลการวัดจริง} & \textbf{ผล} \\
 \hline
@@ -1629,7 +1625,7 @@ NFR-06 & ความแม่นยำในการระบุเหตุ�
 NFR-07 & ความมั่นคงปลอดภัย Zero-PII & ไม่เก็บ PII และบล็อกคำขอเกินพิกัด & ตรวจพบ 0 PII รั่วไหล & ผ่าน \\ \hline
 NFR-08 & การทำงานข้ามแพลตฟอร์ม & รันได้สมบูรณ์ทั้ง Windows และ Linux & ผ่าน 423 การทดสอบ 100\% & ผ่าน \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{ตารางตรวจสอบย้อนกลับความต้องการ}
@@ -1640,7 +1636,7 @@ NFR-08 & การทำงานข้ามแพลตฟอร์ม & ร�
 \centering
 \caption{ตารางตรวจสอบย้อนกลับความต้องการ}
 \label{tab_rtm_matrix}
-\begin{tabular}{|C{1.6cm}|L{6.2cm}|L{4.5cm}|C{1.6cm}|}
+\begin{tabularx}{\textwidth}{|C{1.4cm}|Y|L{3.8cm}|C{1.2cm}|}
 \hline
 \textbf{ความต้องการ (FR)} & \textbf{เส้นทางส่วนเชื่อมต่อโปรแกรมประยุกต์} & \textbf{ตารางในฐานข้อมูลที่เกี่ยวข้อง} & \textbf{กรณีทดสอบ} \\
 \hline
@@ -1660,7 +1656,7 @@ FR-13 & GET /api/macro-events/\{id\} & macro\_events, stories & TC-13 \\ \hline
 FR-14 & GET /api/monitoring/stats, POST /api/monitoring/scrape-now, POST /api/monitoring/clear-cache & seen\_urls, articles & TC-14 \\ \hline
 FR-15 & POST /api/news/engage & reader\_engagement & TC-15 \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{การทดสอบอัตโนมัติและคุณสมบัติคงที่ทางวิศวกรรม}
@@ -1671,7 +1667,7 @@ FR-15 & POST /api/news/engage & reader\_engagement & TC-15 \\
 \centering
 \caption{การกระจายตัวของชุดทดสอบอัตโนมัติทั้ง 6 กลุ่มหลัก}
 \label{tab_automated_tests}
-\begin{tabular}{|C{1.0cm}|L{3.8cm}|L{5.6cm}|C{1.6cm}|C{1.6cm}|}
+\begin{tabularx}{\textwidth}{|C{0.9cm}|L{3.2cm}|Y|C{1.3cm}|C{1.5cm}|}
 \hline
 \textbf{กลุ่มที่} & \textbf{มิติการทดสอบ} & \textbf{ขอบเขตและโมดูลทดสอบสำคัญ} & \textbf{จำนวนข้อ} & \textbf{ผลการทดสอบ} \\
 \hline
@@ -1684,7 +1680,7 @@ FR-15 & POST /api/news/engage & reader\_engagement & TC-15 \\
 \hline
 \multicolumn{3}{|c|}{\textbf{รวมชุดทดสอบอัตโนมัติทั้งหมด (39 โมดูลทดสอบ)}} & \textbf{423} & \textbf{ผ่าน (100\%)} \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 นอกจากนี้ ระบบยังได้รับการตรวจสอบคุณสมบัติคงที่ทางวิศวกรรม (Engineering Invariants) และสภาวะสุดขั้วใน 9 ด้านสำคัญ ได้แก่ดังนี้
@@ -1729,7 +1725,7 @@ FR-15 & POST /api/news/engage & reader\_engagement & TC-15 \\
 \centering
 \caption{ผลการเปรียบเทียบประสิทธิภาพโมเดลจำแนกหมวดหมู่ข่าว 9 หมวด}
 \label{tab_classification_comparison}
-\begin{tabular}{|L{4.5cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|}
+\begin{tabularx}{\textwidth}{|Y|C{1.4cm}|C{1.4cm}|C{1.4cm}|C{1.4cm}|C{1.4cm}|}
 \hline
 \textbf{สถาปัตยกรรมโมเดล} & \textbf{Accuracy} & \textbf{Macro Prec} & \textbf{Macro Rec} & \textbf{Macro F1} & \textbf{ความหน่วงเฉลี่ย (ms/ข่าว)} \\
 \hline
@@ -1737,7 +1733,7 @@ Calibrated LinearSVC (TF-IDF) & 85.00\% & 0.8498 & 0.8500 & 0.8436 & 3.48 ms \\ 
 WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \hline
 \textbf{Unified 3-Tier Cascade (โครงงานนี้)} & \textbf{87.78\%} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & \textbf{24.25 ms} \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 จากตารางที่~\ref{tab_classification_comparison} ระบบจำแนก 3 ระดับแบบบูรณาการ (Unified 3-Tier Cascade Classifier) บรรลุประสิทธิภาพสูงสุด โดยมีค่าความถูกต้อง (Accuracy) เท่ากับร้อยละ 87.78 และมีค่า Macro F1-score เท่ากับ 0.8749 ซึ่งสูงกว่าการใช้โมเดล Calibrated LinearSVC เพียงอย่างเดียว (Macro F1 = 0.8436) และสูงกว่าโมเดล WangchanBERTa แบบเดี่ยว (Macro F1 = 0.8642) โดยยังคงรักษาเวลาในการประมวลผลเฉลี่ยอยู่ในระดับต่ำเพียง 24.25 มิลลิวินาทีต่อบทความ เนื่องจากข่าวส่วนใหญ่ (ร้อยละ 83.3) ถูกจำแนกผ่านเส้นทางความเร็วสูงของ LinearSVC ในขณะที่ร้อยละ 16.7 ถูกช่วยยืนยันความถูกต้องด้วยกฎบริบทความเฉพาะทางสูง (High-Specificity Cues)
@@ -1748,7 +1744,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \centering
 \caption{ผลการประเมินการจำแนกหมวดหมู่รายด้านของระบบ Unified 3-Tier Cascade}
 \label{tab_classification_per_category}
-\begin{tabular}{|l|c|c|c|c|}
+\begin{tabularx}{\textwidth}{|Y|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{3.8cm}|}
 \hline
 \textbf{หมวดหมู่ข่าว} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-score} & \textbf{สัดส่วนการกระจายโมดูล} \\
 \hline
@@ -1765,7 +1761,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \textbf{ค่าเฉลี่ยรวม (Macro Average)} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & -- \\ \hline
 \textbf{ค่าเฉลี่ยถ่วงน้ำหนัก (Weighted Average)} & \textbf{0.8822} & \textbf{0.8778} & \textbf{0.8749} & -- \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 นอกจากนี้ เพื่อวิเคราะห์ลักษณะการทำนายผิดพลาด (Misclassification Patterns) ระหว่างหมวดหมู่ข่าวอย่างละเอียด คณะผู้จัดทำได้สร้างตารางความสับสน (Confusion Matrix) ของระบบ Unified 3-Tier Cascade ดังแสดงในตารางที่~\ref{tab_confusion_matrix_classification}
@@ -1775,7 +1771,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \small
 \caption{ตารางความสับสน (Confusion Matrix) ของระบบจำแนกหมวดหมู่ข่าว 9 หมวด}
 \label{tab_confusion_matrix_classification}
-\begin{tabular}{|L{2.5cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{0.9cm}|C{1.1cm}|}
+{\setlength{\tabcolsep}{3.2pt}\begin{tabular}{|L{2.0cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{0.80cm}|C{1.25cm}|}
 \hline
 \multicolumn{1}{|c|}{\textbf{หมวดหมู่จริง}} & \multicolumn{9}{c|}{\textbf{หมวดหมู่ที่ระบบทำนาย (Predicted)}} & \textbf{รวม} \\ \cline{2-10}
 \multicolumn{1}{|c|}{\textbf{(Ground Truth)}} & \textbf{ECO} & \textbf{ENT} & \textbf{ENV} & \textbf{HEA} & \textbf{POL} & \textbf{SOC} & \textbf{SPO} & \textbf{TEC} & \textbf{WOR} & \textbf{(Actual)} \\
@@ -1792,7 +1788,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \hline
 \textbf{รวมที่ทำนาย (Predicted)} & 24 & 18 & 21 & 22 & 25 & 15 & 20 & 17 & 18 & \textbf{180} \\
 \hline
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 จากตารางที่~\ref{tab_confusion_matrix_classification} ข้อค้นพบสำคัญด้านการกระจายตัวของความแม่นยำ ได้แก่
@@ -1823,7 +1819,7 @@ WangchanBERTa (Transformer) & 86.67\% & 0.8680 & 0.8667 & 0.8642 & 48.50 ms \\ \
 \centering
 \caption{ผลการเปรียบเทียบประสิทธิภาพการจัดกลุ่มประเด็นข่าว (Clustering Evaluation)}
 \label{tab_story_clustering_results}
-\begin{tabular}{|L{3.5cm}|C{1.4cm}|C{1.4cm}|C{1.4cm}|C{1.2cm}|C{1.2cm}|C{1.2cm}|C{1.5cm}|}
+\begin{tabularx}{\textwidth}{|Y|C{1.3cm}|C{1.3cm}|C{1.3cm}|C{1.1cm}|C{1.1cm}|C{1.1cm}|C{1.2cm}|}
 \hline
 \textbf{แบบจำลองการจัดกลุ่ม} & \textbf{จำนวนกลุ่มที่สร้าง} & \textbf{False Merges (FP)} & \textbf{False Splits (FN)} & \textbf{$B^3$ Prec} & \textbf{$B^3$ Rec} & \textbf{$B^3$ F1} & \textbf{เกณฑ์ NFR-06} \\
 \hline
@@ -1832,7 +1828,7 @@ SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 �
 \hline
 \multicolumn{8}{|l|}{\footnotesize * หมายเหตุ ชุดข้อมูลมาตรฐานมีจำนวนเหตุการณ์จริง (Ground Truth Stories) เท่ากับ 59 เหตุการณ์ (6,105 คู่บทความ)} \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 จากตารางที่~\ref{tab_story_clustering_results} ข้อค้นพบเชิงประจักษ์สรุปได้ดังนี้
@@ -1875,7 +1871,7 @@ SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 �
 
 \setlength\LTpre{\textfloatsep}
 \small
-\begin{longtable}{|c|L{8.4cm}|c|c|c|}
+\begin{longtable}{|C{0.9cm}|L{7.5cm}|C{1.0cm}|C{1.0cm}|C{1.8cm}|}
 \caption{ผลการประเมินความพึงพอใจของผู้ใช้จริงต่อระบบแยกตามรายการประเมิน ($n = 9$)}
 \label{tab_satisfaction_survey}\\
 \hline
@@ -1888,20 +1884,20 @@ SemanticClusterer (Baseline) & 97 กลุ่ม & \textbf{2 คู่} & 461 �
 \hline
 \endhead
 
-\multicolumn{5}{|L{13.8cm}|}{\textbf{ส่วนที่ 1 การประเมินฟังก์ชันการทำงานหลัก (Core Features Evaluation)}} \\ \hline
+\multicolumn{5}{|L{12.2cm}|}{\textbf{ส่วนที่ 1 การประเมินฟังก์ชันการทำงานหลัก (Core Features Evaluation)}} \\ \hline
 1 & ความหลากหลายของข่าว มีสำนักข่าวครอบคลุมและหลากหลายเพียงพอ (14 สำนักข่าว) & 5.00 & 0.00 & ดีมาก \\ \hline
 2 & ความแม่นยำในการจัดหมวดหมู่ ข่าวถูกจัดลง 9 หมวดหมู่อย่างถูกต้องตรงตามเนื้อหา & 4.67 & 0.71 & ดีมาก \\ \hline
 3 & คุณภาพการสรุปข่าวด้วย AI สรุปเนื้อหากระชับ ตรงประเด็น และไม่บิดเบือนสาระสำคัญ & 5.00 & 0.00 & ดีมาก \\ \hline
 4 & ความเร็วในการประมวลผลสรุปเนื้อหา ฟังก์ชันสรุปข่าวทำงานรวดเร็วในระดับพึงพอใจ & 4.78 & 0.44 & ดีมาก \\ \hline
 5 & ความสดใหม่ของข้อมูล ข่าวแสดงผลและอัปเดตต่อเนื่องแบบ Real-time & 5.00 & 0.00 & ดีมาก \\ \hline
 6 & การพรีวิวอ่านบทคัดย่อในแอป และการเปิดอ่านข่าวเต็มบนเว็บต้นฉบับสะดวกและปลอดภัย & 5.00 & 0.00 & ดีมาก \\ \hline
-\multicolumn{5}{|L{13.8cm}|}{\textbf{ส่วนที่ 2 การออกแบบและประสบการณ์การอ่าน (Design \& Reading Experience)}} \\ \hline
+\multicolumn{5}{|L{12.2cm}|}{\textbf{ส่วนที่ 2 การออกแบบและประสบการณ์การอ่าน (Design \& Reading Experience)}} \\ \hline
 7 & ความพึงพอใจต่อการออกแบบและการใช้งาน (ความสะดวก เข้าใจง่าย ปุ่มและเมนูชัดเจน) & 4.56 & 0.73 & ดีมาก \\ \hline
-\multicolumn{5}{|L{13.8cm}|}{\textbf{ส่วนที่ 3 ความพึงพอใจในภาพรวมและการบอกต่อ (Overall Platform Satisfaction \& Advocacy)}} \\ \hline
+\multicolumn{5}{|L{12.2cm}|}{\textbf{ส่วนที่ 3 ความพึงพอใจในภาพรวมและการบอกต่อ (Overall Platform Satisfaction \& Advocacy)}} \\ \hline
 8 & ระดับความพึงพอใจโดยรวมต่อระบบ & 4.50 & 0.58 & ดีมาก \\ \hline
 \hline
-\multicolumn{2}{|L{9.4cm}|}{\textbf{ค่าเฉลี่ยรวมทุกรายการประเมิน (มาตรวัด 1--5)}} & \textbf{4.86} & \textbf{0.42} & \textbf{ดีมาก} \\ \hline
-\multicolumn{2}{|L{9.4cm}|}{\textbf{แนวโน้มการแนะนำบอกต่อเพื่อนหรือบุคคลรอบข้าง (สเกล 0--7 คะแนน)}} & \textbf{6.33} & \textbf{0.87} & \textbf{คิดเป็นร้อยละ 90.43} \\
+\multicolumn{2}{|L{8.4cm}|}{\textbf{ค่าเฉลี่ยรวมทุกรายการประเมิน (มาตรวัด 1--5)}} & \textbf{4.86} & \textbf{0.42} & \textbf{ดีมาก} \\ \hline
+\multicolumn{2}{|L{8.4cm}|}{\textbf{แนวโน้มการแนะนำบอกต่อเพื่อนหรือบุคคลรอบข้าง (สเกล 0--7 คะแนน)}} & \textbf{6.33} & \textbf{0.87} & \textbf{คิดเป็นร้อยละ 90.43} \\
 \hline
 \end{longtable}
 \setlength\LTpre{0.5\baselineskip}
