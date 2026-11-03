@@ -342,13 +342,13 @@ VR-10 & ส่วนหัวยืนยันตัวตน (Authorization) &
 \begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{6}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ผู้อ่านเปิดหน้า Bento Hub \\ \cline{2-3}
+\multirow[c]{6}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ผู้อ่านเปิดหน้า Bento Hub \\ \cline{2-3}
 & 2 & S: แสดงการ์ดข่าวล่าสุดพร้อมชื่อสำนักข่าวและหมวดหมู่ \\ \cline{2-3}
 & 3 & A: คลิกการ์ดข่าวที่สนใจเพื่อเปิดอ่าน \\ \cline{2-3}
 & 4 & S: เปิด In-App Reader แสดงพรีวิวเนื้อหาและลิงก์สำนักข่าวต้นทาง \\ \cline{2-3}
 & 5 & A: กดปุ่มสั่งเปิดบทสรุป AI\newline S: แสดงบทสรุป ประเด็นสำคัญ และอารมณ์ข่าว \\ \cline{2-3}
 & 6 & S: เมื่อได้รับข่าวใหม่ผ่าน WebSocket แสดงแบนเนอร์แจ้งเตือน \\ \hline
-\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 4a & A: เลือกเปิดข่าวต้นฉบับ\newline S: เปิดเว็บสำนักข่าวในแท็บใหม่ \\\cline{2-3}
+\multirow[c]{2}{*}{\textbf{Extensions}} & 4a & A: เลือกเปิดข่าวต้นฉบับ\newline S: เปิดเว็บสำนักข่าวในแท็บใหม่ \\\cline{2-3}
 & 4b & S: หากเว็บไซต์ต้นทางปิดกั้นการดึงเนื้อหา แจ้งปัญหาและเสนอให้เปิดข่าวต้นฉบับโดยตรง \\ \hline
 \end{tabularx}
 \end{table}
@@ -377,10 +377,10 @@ UCT-01-04 & FR-07 & เตรียมข่าวจากเว็บที่
 \begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{3}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ระบุเงื่อนไขการค้นหา เช่น เลือกหมวดหมู่ สำนักข่าว หรือพิมพ์คำสำคัญ \\ \cline{2-3}
+\multirow[c]{3}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: ระบุเงื่อนไขการค้นหา เช่น เลือกหมวดหมู่ สำนักข่าว หรือพิมพ์คำสำคัญ \\ \cline{2-3}
 & 2 & S: คัดกรองและแสดงรายการข่าวที่ตรงกับเงื่อนไขทันที \\ \cline{2-3}
 & 3 & A: ตรวจดูรายการข่าวสารที่ผ่านการคัดกรอง \\ \hline
-\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: คลิกล้างตัวกรองหรือลบคำค้นหา\newline S: แสดงรายการข่าวทั้งหมดตามค่าเริ่มต้น \\\cline{2-3}
+\multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: คลิกล้างตัวกรองหรือลบคำค้นหา\newline S: แสดงรายการข่าวทั้งหมดตามค่าเริ่มต้น \\\cline{2-3}
 & 2a & S: หากไม่พบบทความที่ตรงตามเงื่อนไข แจ้งไม่พบข้อมูลพร้อมเสนอคำค้นใกล้เคียง \\ \hline
 \end{tabularx}
 \end{table}
@@ -409,13 +409,13 @@ UCT-02-04 & FR-06 & อยู่ในสถานะที่กำลังก
 \begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{6}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เลือกมหากาพย์ประเด็นข่าวจาก Bento Hub \\ \cline{2-3}
+\multirow[c]{6}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เลือกมหากาพย์ประเด็นข่าวจาก Bento Hub \\ \cline{2-3}
 & 2 & S: เปิดแฟ้มเจาะลึกเหตุการณ์ (Macro Storyline Dossier) \\ \cline{2-3}
 & 3 & S: แสดงพาดหัวและบทสรุปสังเคราะห์ข้ามสำนักข่าว \\ \cline{2-3}
 & 4 & S: แสดงไทม์ไลน์เหตุการณ์ตามลำดับเวลา \\ \cline{2-3}
 & 5 & S: แสดงข้อเท็จจริงที่ยืนยันตรงกันจากหลายสำนักข่าว \\ \cline{2-3}
 & 6 & A: เลือกสืบค้นประเด็นเชิงลึกผ่าน Issue Explorer \\ \hline
-\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
+\multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: เลือกดูรายละเอียดคะแนนกระแส\newline S: แสดงคะแนนทั้ง 6 มิติ \\\cline{2-3}
 & 3a & S: หากชุดข่าวไม่ตรงประเด็น ให้ระงับการสังเคราะห์ แสดงสถานะ halted\_mismatch และแจ้งผู้ใช้ \\ \hline
 \end{tabularx}
 \end{table}
@@ -444,7 +444,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 \begin{tabularx}{\textwidth}{|L{3.2cm}|C{0.8cm}|Y|}
 \hline
  & \textbf{ขั้น} & \textbf{รายละเอียด} \\ \hline
-\multirow[c]{9}{3.5cm}{\shortstack[l]{\textbf{Main Success Scenario}\\A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า /monitoring.html และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
+\multirow[c]{9}{*}{\shortstack[l]{\textbf{Main Success}\\\textbf{Scenario}\\[3pt]A: ผู้กระทำ\\S: ระบบ}} & 1 & A: เปิดหน้า /monitoring.html และกรอกข้อมูลยืนยันตัวตน \\ \cline{2-3}
 & 2 & S: ตรวจสอบข้อมูลและออก Bearer Token สำหรับเซสชัน \\ \cline{2-3}
 & 3 & S: แสดงแดชบอร์ด Throughput, RAM และสถานะแคช \\ \cline{2-3}
 & 4 & A: ตรวจสอบสุขภาพของแต่ละสำนักข่าว \\ \cline{2-3}
@@ -453,7 +453,7 @@ UCT-03-04 & FR-10, FR-12 & มีข้อมูลคะแนนกระแ�
 & 7 & A: กดปุ่ม Clear Cache \\ \cline{2-3}
 & 8 & S: ล้างแคชหน่วยความจำและ HTTP cache \\ \cline{2-3}
 & 9 & A: ออกจากระบบ\newline S: ยกเลิกโทเค็นเซสชัน \\ \hline
-\multirow[c]{2}{3.2cm}{\textbf{Extensions}} & 1a & A: กรอกรหัสผ่านไม่ถูกต้อง\newline S: ปฏิเสธการเข้าสู่ระบบและแจ้งข้อผิดพลาด \\\cline{2-3}
+\multirow[c]{2}{*}{\textbf{Extensions}} & 1a & A: กรอกรหัสผ่านไม่ถูกต้อง\newline S: ปฏิเสธการเข้าสู่ระบบและแจ้งข้อผิดพลาด \\\cline{2-3}
 & 4a & A: เลือกทดสอบสำนักข่าวรายแห่ง (Test Source Probe)\newline S: แสดงผลการทดสอบและตัวอย่างข่าว \\ \hline
 \end{tabularx}
 \end{table}
