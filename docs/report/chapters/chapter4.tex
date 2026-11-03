@@ -1076,12 +1076,12 @@ UCT-04-04 & FR-14 & เข้าสู่ระบบสำเร็จและ
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง articles}
 \label{tab_schema_articles}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับบทความในฐานข้อมูล SQLite \\ \hline
-url & TEXT & UQ & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์ที่อยู่บทความข่าวต้นฉบับ \\ \hline
+url & TEXT & UQ & ไม่มี & \nolinkurl{https://thaipbs.or.th/news/335123} & ลิงก์ที่อยู่บทความข่าวต้นฉบับ \\ \hline
 title & TEXT & - & ไม่มี & รัฐบาลแถลงนโยบายกระตุ้นเศรษฐกิจดิจิทัล & หัวข้อบทความข่าวที่สกัดได้ \\ \hline
 source & TEXT & - & ไม่มี & ThaiPBS & ชื่อสำนักข่าวต้นทาง (เช่น ThaiPBS, Thairath) \\ \hline
 fetched\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบดึงข้อมูลตามมาตรฐาน ISO 8601 \\ \hline
@@ -1089,7 +1089,7 @@ summary & TEXT & - & NULL & นายกฯ แถลงเดินหน้า
 category & TEXT & - & NULL & economy & หมวดหมู่ข่าว 1 ใน 9 หมวดหมู่หลัก \\ \hline
 story\_\allowbreak id & TEXT & FK & NULL & story\_\allowbreak 0b86804a & รหัสกลุ่มประเด็นข่าวที่สังกัด \\ \hline
 sentiment & TEXT & - & NULL & positive & ค่าอารมณ์ของข่าว (positive, neutral, negative) \\ \hline
-image\_\allowbreak url & TEXT & - & NULL & \detokenize{https://img.thaipbs.or.th/335123.jpg} & ลิงก์รูปภาพหน้าปกบทความข่าว \\
+image\_\allowbreak url & TEXT & - & NULL & \nolinkurl{https://img.thaipbs.or.th/335123.jpg} & ลิงก์รูปภาพหน้าปกบทความข่าว \\
 \hline
 \end{tabularx}
 \end{table}
@@ -1098,7 +1098,7 @@ image\_\allowbreak url & TEXT & - & NULL & \detokenize{https://img.thaipbs.or.th
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง stories}
 \label{tab_schema_stories}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1120,7 +1120,7 @@ macro\_\allowbreak event\_\allowbreak id & TEXT & FK & NULL & macro\_\allowbreak
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง macro\_\allowbreak events}
 \label{tab_schema_macro_events}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
@@ -1137,7 +1137,7 @@ summary & TEXT & - & NULL & ภาพรวมการดำเนินนโ�
 \end{tabularx}
 \end{table}
 
-\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\begin{longtable}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|p{\dimexpr\textwidth-8.5cm-12\tabcolsep-7\arrayrulewidth\relax}|}
 \caption{พจนานุกรมข้อมูล : ตาราง event\_\allowbreak relations}\label{tab_schema_event_relations}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
@@ -1157,7 +1157,7 @@ created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T11:30:00+07:00
 \hline
 \end{longtable}
 
-\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\begin{longtable}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|p{\dimexpr\textwidth-8.5cm-12\tabcolsep-7\arrayrulewidth\relax}|}
 \caption{พจนานุกรมข้อมูล : ตาราง trending\_\allowbreak scores}\label{tab_schema_trending_scores}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
@@ -1184,12 +1184,12 @@ final\_\allowbreak score & REAL & - & 0.0 & 18.45 & คะแนนกระแ�
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง reader\_\allowbreak engagement}
 \label{tab_schema_reader_engagement}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 id & INTEGER & PK & AUTO & 1 & รหัสระบุลำดับสถิติการมีส่วนร่วม \\ \hline
-article\_\allowbreak url & TEXT & FK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าว (เชื่อมไปยัง articles) \\ \hline
+article\_\allowbreak url & TEXT & FK & ไม่มี & \nolinkurl{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าว (เชื่อมไปยัง articles) \\ \hline
 clicks & INTEGER & - & 0 & 142 & จำนวนครั้งที่ผู้อ่านคลิกเปิดอ่านบทความ \\ \hline
 summaries & INTEGER & - & 0 & 87 & จำนวนครั้งที่ผู้อ่านเปิดดูบทสรุป AI \\ \hline
 bookmarks & INTEGER & - & 0 & 24 & จำนวนครั้งที่ผู้อ่านบันทึกคั่นหน้าบทความ \\ \hline
@@ -1202,18 +1202,18 @@ last\_\allowbreak engaged\_\allowbreak at & TEXT & - & ไม่มี & 2026-03
 \centering
 \caption{พจนานุกรมข้อมูล : ตาราง seen\_\allowbreak urls}
 \label{tab_schema_seen_urls}
-\begin{tabularx}{\textwidth}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|Y|}
+\begin{tabularx}{\textwidth}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|Y|}
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 url\_\allowbreak hash & TEXT & PK & ไม่มี & a1b2c3d4\allowbreak e5f60718\allowbreak 293a4b5c\allowbreak 6d7e8f90 & ค่าแฮชของ URL สำหรับตรวจสอบข่าวซ้ำด่วน \\ \hline
-url & TEXT & - & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าวฉบับเต็ม \\ \hline
+url & TEXT & - & ไม่มี & \nolinkurl{https://thaipbs.or.th/news/335123} & ลิงก์บทความข่าวฉบับเต็ม \\ \hline
 first\_\allowbreak seen\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:00+07:00 & วันเวลาที่ระบบตรวจพบข่าวนี้เป็นครั้งแรก \\
 \hline
 \end{tabularx}
 \end{table}
 
-\begin{longtable}{|L{2.4cm}|C{1.1cm}|C{0.6cm}|C{0.9cm}|L{3.2cm}|p{\dimexpr\textwidth-8.2cm-12\tabcolsep-7\arrayrulewidth\relax}|}
+\begin{longtable}{|L{2.2cm}|C{1.1cm}|C{0.6cm}|C{1.8cm}|L{2.8cm}|p{\dimexpr\textwidth-8.5cm-12\tabcolsep-7\arrayrulewidth\relax}|}
 \caption{พจนานุกรมข้อมูล : ตาราง canonical\_\allowbreak articles}\label{tab_schema_canonical}\\
 \hline
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
@@ -1224,8 +1224,8 @@ first\_\allowbreak seen\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-1
 \textbf{ฟิลด์} & \textbf{ชนิดข้อมูล} & \textbf{คีย์} & \textbf{ค่าเริ่มต้น} & \textbf{ตัวอย่างข้อมูล (Example)} & \textbf{คำอธิบาย} \\
 \hline
 \endhead
-canonical\_\allowbreak url & TEXT & PK & ไม่มี & \detokenize{https://thaipbs.or.th/news/335123} & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
-target\_\allowbreak url & TEXT & - & ไม่มี & \detokenize{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
+canonical\_\allowbreak url & TEXT & PK & ไม่มี & \nolinkurl{https://thaipbs.or.th/news/335123} & ลิงก์มาตรฐานของบทความต้นฉบับ \\ \hline
+target\_\allowbreak url & TEXT & - & ไม่มี & \nolinkurl{https://news.thaipbs.or.th/335123} & ลิงก์ปลายทางกรณีสำนักพิมพ์ในเครือคัดลอกบทความ \\ \hline
 created\_\allowbreak at & TEXT & - & ไม่มี & 2026-03-15T08:30:05+07:00 & วันเวลาที่สร้างดัชนีบทความมาตรฐาน \\
 \hline
 \end{longtable}
