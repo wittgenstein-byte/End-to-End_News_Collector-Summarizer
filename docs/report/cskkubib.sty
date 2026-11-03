@@ -57,7 +57,7 @@
   \fi}
 \newcommand*\cskku@str[1]{\csuse{cskku@str@#1}}
 \newcommand*\cskku@defstr[3]{\csdef{cskku@str@#1}{\cskku@ifthai{#2}{#3}}}
-\cskku@defstr{andothers}{และคณะ}{et al.}
+\cskku@defstr{andothers}{และคณะ}{et al\adddot}
 \cskku@defstr{in}{ใน}{In}
 \cskku@defstr{pages}{หน้า}{pp.}
 \cskku@defstr{page}{หน้า}{p.}
@@ -104,12 +104,14 @@
 
 \DeclareDelimFormat{multinamedelim}{\addcomma\space}
 \DeclareDelimFormat{finalnamedelim}{\addcomma\space\&\space}
+\DeclareDelimFormat{nameyeardelim}{\addspace}
+\DeclareDelimFormat[cite,parencite]{nameyeardelim}{\addcomma\space}
 \renewcommand*\revsdnamepunct{\addcomma}
 \renewbibmacro*{name:andothers}{%
   \ifboolexpr{
     test {\ifnumequal{\value{listcount}}{\value{liststop}}}
     and test \ifmorenames}
-    {\addcomma\space\cskku@str{andothers}}
+    {\addspace\cskku@str{andothers}}
     {}}
 
 % ---------------------------------------------------------------------
